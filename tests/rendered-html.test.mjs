@@ -36,6 +36,9 @@ test("removes disposable starter assets", async () => {
   assert.match(page, /cashflowItems/);
   assert.match(page, /Paid with/);
   assert.match(page, /Select the card used for this expense/);
+  assert.match(page, /monthlySurplus/);
+  assert.match(page, /Use my \$\{moneyPrecise\.format\(surplus\)\} surplus/);
+  assert.match(page, /Use it as a starting point, then edit anytime/);
   assert.match(layout, /focused personal dashboard for debt accounts and payoff planning/);
   assert.doesNotMatch(page + layout + packageJson, /SkeletonPreview|codex-preview|react-loading-skeleton/);
   await assert.rejects(access(new URL("../app/_sites-preview", import.meta.url)));
