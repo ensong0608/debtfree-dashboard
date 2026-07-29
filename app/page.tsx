@@ -6,6 +6,8 @@ type PageId = "dashboard" | "accounts" | "history" | "plan" | "snapshots" | "uti
 type DebtType = "Credit card" | "Personal loan" | "Auto loan" | "Student loan" | "Medical debt" | "Other";
 type MinimumMode = "auto" | "manual";
 type PayoffStrategy = "avalanche" | "snowball";
+type CashflowKind = "income" | "expense" | "budget";
+type PaymentMethod = "debit" | "credit";
 type SortKey = "name" | "balance" | "apr" | "minimum" | "monthlyInterest" | "status" | "dueDate" | "payoff";
 type SortDirection = "asc" | "desc";
 
@@ -23,10 +25,27 @@ type DebtAccount = {
 };
 
 type AccountDraft = Omit<DebtAccount, "id" | "createdAt">;
+type CashflowItem = {
+  id: string;
+  name: string;
+  kind: CashflowKind;
+  category: string;
+  amount: number;
+  paymentMethod: PaymentMethod;
+  creditAccountId: string;
+  createdAt: string;
+};
+type CashflowDraft = Omit<CashflowItem, "id" | "createdAt">;
 type PlanMonth = { month: number; interest: number; paid: number; remaining: number; focus: string; payments: Record<string, number>; paidOff: string[] };
 
 const STORAGE_KEY = "debtfree-dashboard-prototype-v1";
 const EMPTY_DRAFT: AccountDraft = { name: "", type: "Credit card", balance: 0, apr: 0, minimum: 0, minimumMode: "auto", creditLimit: 0, dueDate: "" };
+const EMPTY_CASHFLOW_DRAFT: CashflowDraft = { name: "", kind: "expense", category: "Housing", amount: 0, paymentMethod: "debit", creditAccountId: "" };
+const CASHFLOW_CATEGORIES: Record<CashflowKind, string[]> = {
+  income: ["Salary", "Freelance", "Benefits", "Investment", "Other income"],
+  expense: ["Housing", "Transportation", "Utilities", "Subscriptions", "Insurance", "Food", "Other expense"],
+  budget: ["Savings", "Emergency fund", "Groceries", "Travel", "Personal", "Other budget"],
+};
 const SAMPLE_ACCOUNTS: DebtAccount[] = [
   { id: "sample-1", name: "Everyday Rewards", type: "Credit card", balance: 3577.28, apr: 21.49, minimum: 0, minimumMode: "auto", creditLimit: 8500, dueDate: "2026-08-18", createdAt: "2026-07-01" },
   { id: "sample-2", name: "Freedom Card", type: "Credit card", balance: 5254.68, apr: 24.74, minimum: 0, minimumMode: "auto", creditLimit: 10000, dueDate: "2026-08-22", createdAt: "2026-07-01" },
@@ -188,7 +207,7 @@ function calculatePlan(accounts: DebtAccount[], extra: number, strategy: PayoffS
 }
 
 const NAV_ITEMS: { id: PageId; label: string; icon: string; future?: boolean }[] = [
-  { id: "dashboard", label: "Dashboard", icon: "⌂" },
+  { id: "dashboard", label: "Monthly Income & Expenses", icon: "⌂" },
   { id: "accounts", label: "Debt Accounts", icon: "▤" },
   { id: "history", label: "Payment History", icon: "↻", future: true },
   { id: "plan", label: "Payoff Plan", icon: "✓" },
@@ -199,8 +218,9 @@ const NAV_ITEMS: { id: PageId; label: string; icon: string; future?: boolean }[]
 ];
 
 export default function Home() {
-  const [page, setPage] = useState<PageId>("accounts");
+  const [page, setPage] = useState<PageId>("dashboard");
   const [accounts, setAccounts] = useState<DebtAccount[]>([]);
+  const [cashflowItems, setCashflowItems] = useState<CashflowItem[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [sortKey, setSortKey] = useState<SortKey>("name");
   const [sortDirection, setSortDirection] = useState<SortDirection>("asc");
@@ -210,14 +230,18 @@ export default function Home() {
   const [extra, setExtra] = useState(0);
   const [strategy, setStrategy] = useState<PayoffStrategy>("avalanche");
   const [importMessage, setImportMessage] = useState("");
+  const [cashflowModalOpen, setCashflowModalOpen] = useState(false);
+  const [editingCashflowId, setEditingCashflowId] = useState<string | null>(null);
+  const [cashflowDraft, setCashflowDraft] = useState<CashflowDraft>(EMPTY_CASHFLOW_DRAFT);
 
   useEffect(() => {
     const loadTimer = window.setTimeout(() => {
       try {
         const saved = localStorage.getItem(STORAGE_KEY);
         if (saved) {
-          const parsed = JSON.parse(saved) as { accounts?: DebtAccount[]; extra?: number; strategy?: PayoffStrategy };
+          const parsed = JSON.parse(saved) as { accounts?: DebtAccount[]; cashflowItems?: CashflowItem[]; extra?: number; strategy?: PayoffStrategy };
           if (Array.isArray(parsed.accounts)) setAccounts(parsed.accounts);
+          if (Array.isArray(parsed.cashflowItems)) setCashflowItems(parsed.cashflowItems);
           if (Number.isFinite(parsed.extra)) setExtra(parsed.extra ?? 0);
           if (parsed.strategy === "avalanche" || parsed.strategy === "snowball") setStrategy(parsed.strategy);
         }
@@ -228,14 +252,14 @@ export default function Home() {
   }, []);
   useEffect(() => {
     if (!loaded) return;
-    localStorage.setItem(STORAGE_KEY, JSON.stringify({ accounts, extra, strategy }));
-  }, [accounts, extra, loaded, strategy]);
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({ accounts, cashflowItems, extra, strategy }));
+  }, [accounts, cashflowItems, extra, loaded, strategy]);
   useEffect(() => {
-    if (!modalOpen) return;
-    const close = (event: KeyboardEvent) => { if (event.key === "Escape") setModalOpen(false); };
+    if (!modalOpen && !cashflowModalOpen) return;
+    const close = (event: KeyboardEvent) => { if (event.key === "Escape") { setModalOpen(false); setCashflowModalOpen(false); } };
     window.addEventListener("keydown", close);
     return () => window.removeEventListener("keydown", close);
-  }, [modalOpen]);
+  }, [cashflowModalOpen, modalOpen]);
 
   const totalBalance = useMemo(() => accounts.reduce((sum, account) => sum + account.balance, 0), [accounts]);
   const activeCount = useMemo(() => accounts.filter((account) => account.balance > 0).length, [accounts]);
@@ -267,6 +291,31 @@ export default function Home() {
     else { setSortKey(key); setSortDirection("asc"); }
   };
   const openNew = () => { setEditingId(null); setDraft(EMPTY_DRAFT); setModalOpen(true); };
+  const openNewCashflow = (kind: CashflowKind) => {
+    setEditingCashflowId(null);
+    setCashflowDraft({ ...EMPTY_CASHFLOW_DRAFT, kind, category: CASHFLOW_CATEGORIES[kind][0] });
+    setCashflowModalOpen(true);
+  };
+  const openEditCashflow = (item: CashflowItem) => {
+    setEditingCashflowId(item.id);
+    setCashflowDraft({ name: item.name, kind: item.kind, category: item.category, amount: item.amount, paymentMethod: item.paymentMethod, creditAccountId: item.creditAccountId });
+    setCashflowModalOpen(true);
+  };
+  const saveCashflow = () => {
+    if (!cashflowDraft.name.trim() || cashflowDraft.amount <= 0) return;
+    const normalized = { ...cashflowDraft, name: cashflowDraft.name.trim(), creditAccountId: cashflowDraft.kind === "expense" && cashflowDraft.paymentMethod === "credit" ? cashflowDraft.creditAccountId : "" };
+    if (editingCashflowId) setCashflowItems((current) => current.map((item) => item.id === editingCashflowId ? { ...item, ...normalized } : item));
+    else setCashflowItems((current) => [...current, { ...normalized, id: `${Date.now()}-${Math.random()}`, createdAt: new Date().toISOString() }]);
+    setCashflowModalOpen(false);
+  };
+  const removeCashflow = () => {
+    if (!editingCashflowId) return;
+    const item = cashflowItems.find((entry) => entry.id === editingCashflowId);
+    if (confirm(`Remove ${item?.name ?? "this monthly item"}?`)) {
+      setCashflowItems((current) => current.filter((entry) => entry.id !== editingCashflowId));
+      setCashflowModalOpen(false);
+    }
+  };
   const openEdit = (account: DebtAccount) => {
     setEditingId(account.id);
     setDraft({ name: account.name, type: account.type, balance: account.balance, apr: account.apr, minimum: account.minimum, minimumMode: account.minimumMode, creditLimit: account.creditLimit, dueDate: account.dueDate });
@@ -318,7 +367,7 @@ export default function Home() {
     <main className="main-area">
       <header className="topbar"><div><span className="mobile-product">DebtFree Dashboard</span><strong>{NAV_ITEMS.find((item) => item.id === page)?.label}</strong></div><div className="top-actions"><span className="save-state"><i/> Saved</span><button className="avatar" type="button" onClick={() => setPage("profile")} aria-label="Open My Account">LL</button></div></header>
       <div className="page-body">
-        {page === "dashboard" && <DashboardPage accounts={accounts} activeCount={activeCount} totalBalance={totalBalance} minimums={minimums} interest={interest} plan={plan} strategy={strategy} onAdd={openNew} onAccounts={() => setPage("accounts")} onPlan={() => setPage("plan")}/>}
+        {page === "dashboard" && <DashboardPage items={cashflowItems} accounts={accounts} onAdd={openNewCashflow} onEdit={openEditCashflow} onAccounts={() => setPage("accounts")}/>}
         {page === "accounts" && <AccountsPage accounts={sortedAccounts} activeCount={activeCount} totalBalance={totalBalance} minimums={minimums} interest={interest} sortKey={sortKey} sortDirection={sortDirection} paidOffById={paidOffById} onSort={changeSort} onAdd={openNew} onEdit={openEdit} onSample={() => setAccounts(SAMPLE_ACCOUNTS)} onImport={importDebtFreeCsv} importMessage={importMessage}/>}
         {page === "plan" && <PayoffPlanPage accounts={accounts} plan={plan} extra={extra} strategy={strategy} onExtra={setExtra} onStrategy={setStrategy} onAccounts={() => setPage("accounts")}/>}
         {page === "profile" && <ProfilePage/>}
@@ -327,17 +376,62 @@ export default function Home() {
     </main>
 
     {modalOpen && <AccountModal draft={draft} editing={Boolean(editingId)} onChange={setDraft} onClose={() => setModalOpen(false)} onSave={saveAccount} onRemove={removeAccount}/>}
+    {cashflowModalOpen && <CashflowModal draft={cashflowDraft} editing={Boolean(editingCashflowId)} accounts={accounts} onChange={setCashflowDraft} onClose={() => setCashflowModalOpen(false)} onSave={saveCashflow} onRemove={removeCashflow}/>}
   </div>;
 }
 
-function Metric({ label, value, detail, tone = "blue" }: { label: string; value: string; detail: string; tone?: string }) {
-  return <article className={`metric ${tone}`}><span>{label}</span><strong>{value}</strong><small>{detail}</small></article>;
-}
-function DashboardPage({ accounts, activeCount, totalBalance, minimums, interest, plan, strategy, onAdd, onAccounts, onPlan }: { accounts: DebtAccount[]; activeCount: number; totalBalance: number; minimums: number; interest: number; plan: ReturnType<typeof calculatePlan>; strategy: PayoffStrategy; onAdd: () => void; onAccounts: () => void; onPlan: () => void }) {
-  return <div className="screen dashboard-screen">
-    <div className="screen-title"><div><span className="eyebrow">Personal debt workspace</span><h1>Your financial command center</h1><p>See what you owe, what is due next, and where your payoff plan is headed.</p></div><button className="primary" type="button" onClick={onAdd}>+ Add new account</button></div>
-    <section className="metrics"><Metric label="Active accounts" value={String(activeCount)} detail={`${accounts.length - activeCount} paid off`} tone="blue"/><Metric label="Total balance" value={money.format(totalBalance)} detail="Across all debt accounts" tone="navy"/><Metric label="Monthly minimums" value={money.format(minimums)} detail={`${money.format(interest)} est. monthly interest`} tone="mint"/><Metric label="Debt-free estimate" value={plan.months.length && !plan.stalled ? monthAfter(plan.months.length - 1) : "Not ready"} detail={plan.stalled ? "Increase payments" : `${plan.months.length || 0} months projected`} tone="violet"/></section>
-    <section className="dashboard-grid"><article className="workspace-card"><div className="card-head"><div><span>Debt accounts</span><strong>Highest balances</strong></div><button type="button" onClick={onAccounts}>View all</button></div>{accounts.length ? <div className="account-preview">{[...accounts].sort((a,b) => b.balance-a.balance).slice(0,4).map((account) => <div key={account.id}><span className="account-mark">{account.name.slice(0,2).toUpperCase()}</span><div><strong>{account.name}</strong><small>{account.apr}% APR</small></div><b>{money.format(account.balance)}</b></div>)}</div> : <EmptyInline title="No accounts yet" text="Add or import your first debt account to start building a plan." action="Add account" onAction={onAdd}/>}</article><article className="workspace-card payoff-preview"><div className="card-head"><div><span>Payoff plan</span><strong>{strategy === "avalanche" ? "Avalanche" : "Snowball"} estimate</strong></div><button type="button" onClick={onPlan}>Open plan</button></div>{plan.months.length && !plan.stalled ? <><div className="finish-ring"><div><span>Debt-free by</span><strong>{monthAfter(plan.months.length - 1)}</strong><small>{plan.months.length} months</small></div></div><div className="payoff-mini"><span>Monthly plan <b>{money.format(plan.monthly)}</b></span><span>Est. interest <b>{money.format(plan.totalInterest)}</b></span></div></> : <EmptyInline title="Your finish line is waiting" text="Add a workable minimum payment to calculate the payoff date." action="Review accounts" onAction={onAccounts}/>}</article></section>
+function DashboardPage({ items, accounts, onAdd, onEdit, onAccounts }: { items: CashflowItem[]; accounts: DebtAccount[]; onAdd: (kind: CashflowKind) => void; onEdit: (item: CashflowItem) => void; onAccounts: () => void }) {
+  const [activeTab, setActiveTab] = useState<CashflowKind>("income");
+  const totalIncome = items.filter((item) => item.kind === "income").reduce((sum, item) => sum + item.amount, 0);
+  const totalExpenses = items.filter((item) => item.kind === "expense").reduce((sum, item) => sum + item.amount, 0);
+  const totalBudget = items.filter((item) => item.kind === "budget").reduce((sum, item) => sum + item.amount, 0);
+  const available = totalIncome - totalExpenses - totalBudget;
+  const committed = totalExpenses + totalBudget;
+  const committedPercent = totalIncome > 0 ? Math.min(100, Math.round(committed / totalIncome * 100)) : 0;
+  const creditExpenses = items.filter((item) => item.kind === "expense" && item.paymentMethod === "credit").reduce((sum, item) => sum + item.amount, 0);
+  const debitExpenses = Math.max(0, totalExpenses - creditExpenses);
+  const creditPercent = totalExpenses > 0 ? Math.round(creditExpenses / totalExpenses * 100) : 0;
+  const creditNames = new Map(accounts.map((account) => [account.id, account.name]));
+  const visibleItems = items.filter((item) => item.kind === activeTab).sort((a, b) => b.amount - a.amount);
+  const maxVisible = Math.max(1, ...visibleItems.map((item) => item.amount));
+  const budgetCategories = [...items.filter((item) => item.kind === "budget").reduce((groups, item) => groups.set(item.category, (groups.get(item.category) ?? 0) + item.amount), new Map<string, number>())].sort((a, b) => b[1] - a[1]);
+  const monthLabel = new Intl.DateTimeFormat("en-US", { month: "long", year: "numeric" }).format(new Date());
+  const insight = totalIncome <= 0
+    ? "Start with monthly income, then give recurring expenses and future goals a clear place."
+    : available >= 0
+      ? `${money.format(available)} remains after recurring expenses and set-aside budgets.`
+      : `Your plan is ${money.format(Math.abs(available))} over income. Trim an expense or adjust a budget target.`;
+  const detail = (item: CashflowItem) => {
+    if (item.kind !== "expense") return item.category;
+    if (item.paymentMethod === "debit") return `${item.category} · Debit`;
+    return `${item.category} · Credit · ${creditNames.get(item.creditAccountId) ?? "Card not selected"}`;
+  };
+
+  return <div className="screen dashboard-screen monthly-screen">
+    <div className="screen-title monthly-title"><div><span className="eyebrow">Monthly money plan</span><h1>Monthly income & expenses</h1><p>Plan income, recurring expenses, and the money you want to set aside—without leaving this device.</p></div><div className="cashflow-quick-actions"><button className="secondary" type="button" onClick={() => onAdd("income")}>+ Income</button><button className="secondary" type="button" onClick={() => onAdd("expense")}>+ Expense</button><button className="primary" type="button" onClick={() => onAdd("budget")}>+ Budget</button></div></div>
+
+    <section className="cashflow-hero-grid">
+      <article className="cashflow-progress-card">
+        <div className="card-head"><div><span>Monthly plan</span><strong>Income allocation</strong></div><b className={available >= 0 ? "positive" : "negative"}>{available >= 0 ? "On track" : "Needs attention"}</b></div>
+        <div className="cashflow-progress-body"><div className="cashflow-ring" style={{ background: `radial-gradient(circle at center, white 59%, transparent 60%), conic-gradient(#67d5e5 0 ${committedPercent}%, #e5f2f4 ${committedPercent}% 100%)` }}><span><strong>{committedPercent}%</strong><small>planned</small></span></div><dl><div><dt>Income</dt><dd className="positive">{moneyPrecise.format(totalIncome)}</dd></div><div><dt>Expenses</dt><dd>{moneyPrecise.format(totalExpenses)}</dd></div><div><dt>Budget</dt><dd>{moneyPrecise.format(totalBudget)}</dd></div></dl></div>
+      </article>
+      <article className="month-summary-card"><div><span>Monthly outlook</span><strong>{monthLabel}</strong></div><div className="month-summary-total"><span>Available after plan</span><strong>{moneyPrecise.format(available)}</strong><small>Income − recurring expenses − set-aside budget</small></div><div className="month-horizon" aria-hidden="true"><i className="sun"/><i className="cloud one"/><i className="cloud two"/><i className="hill back"/><i className="hill front"/></div></article>
+    </section>
+
+    <section className="cashflow-layout">
+      <article className="cashflow-chart-card">
+        <div className="cashflow-chart-head"><div><span>Monthly breakdown</span><strong>Income, expenses & budget</strong></div><button type="button" onClick={() => onAdd(activeTab)}>+ Add {activeTab}</button></div>
+        <div className="cashflow-tabs" role="tablist" aria-label="Monthly breakdown"><button role="tab" aria-selected={activeTab === "income"} className={activeTab === "income" ? "active" : ""} type="button" onClick={() => setActiveTab("income")}>Income <b>{money.format(totalIncome)}</b></button><button role="tab" aria-selected={activeTab === "expense"} className={activeTab === "expense" ? "active" : ""} type="button" onClick={() => setActiveTab("expense")}>Expenses <b>{money.format(totalExpenses)}</b></button><button role="tab" aria-selected={activeTab === "budget"} className={activeTab === "budget" ? "active" : ""} type="button" onClick={() => setActiveTab("budget")}>Budget <b>{money.format(totalBudget)}</b></button></div>
+        {visibleItems.length ? <div className="cashflow-bars">{visibleItems.map((item) => <button className="cashflow-bar-row" type="button" key={item.id} onClick={() => onEdit(item)} aria-label={`Edit ${item.name}`}><div className="cashflow-bar-label"><span>{item.name}</span><small>{detail(item)}</small></div><div className="cashflow-bar-track"><i className={item.kind} style={{ width: `${Math.max(8, item.amount / maxVisible * 100)}%` }}/></div><strong>{moneyPrecise.format(item.amount)}</strong></button>)}</div> : <div className="cashflow-empty"><span>{activeTab === "income" ? "$" : activeTab === "expense" ? "↗" : "◎"}</span><strong>No {activeTab} items yet</strong><p>{activeTab === "income" ? "Add salary, freelance work, benefits, or another monthly source." : activeTab === "expense" ? "Add recurring bills and choose debit or the credit card that pays each one." : "Set aside money for savings, groceries, travel, or another goal."}</p><button type="button" onClick={() => onAdd(activeTab)}>Add {activeTab}</button></div>}
+      </article>
+
+      <aside className="cashflow-side">
+        <article className="payment-mix-card"><div className="card-head"><div><span>Recurring expenses</span><strong>Payment mix</strong></div><button type="button" onClick={onAccounts}>Manage cards</button></div><div className="payment-mix-body"><div className="payment-ring" style={{ background: `radial-gradient(circle at center, white 61%, transparent 62%), conic-gradient(#ffb45d 0 ${creditPercent}%, #59cbd9 ${creditPercent}% 100%)` }}><span><strong>{creditPercent}%</strong><small>on credit</small></span></div><div className="payment-legend"><span><i className="debit"/>Debit <b>{money.format(debitExpenses)}</b></span><span><i className="credit"/>Credit <b>{money.format(creditExpenses)}</b></span></div></div></article>
+        <article className={available >= 0 ? "monthly-insight positive" : "monthly-insight negative"}><span>Monthly cue</span><strong>{available >= 0 ? "Give every dollar a purpose." : "Bring the plan back into balance."}</strong><p>{insight}</p></article>
+      </aside>
+    </section>
+
+    <section className="budget-category-card"><div className="card-head"><div><span>Set-aside plan</span><strong>Budget by category</strong></div><button type="button" onClick={() => onAdd("budget")}>+ Add budget</button></div>{budgetCategories.length ? <div className="budget-category-list">{budgetCategories.map(([category, amount]) => <div key={category}><div><span>{category}</span><strong>{moneyPrecise.format(amount)}</strong></div><div><i style={{ width: `${totalBudget > 0 ? Math.max(5, amount / totalBudget * 100) : 0}%` }}/></div></div>)}</div> : <div className="budget-category-empty"><strong>No money set aside yet</strong><span>Add a budget for savings, groceries, travel, or a goal you care about.</span></div>}</section>
   </div>;
 }
 function AccountsPage({ accounts, activeCount, totalBalance, minimums, interest, sortKey, sortDirection, paidOffById, onSort, onAdd, onEdit, onSample, onImport, importMessage }: { accounts: DebtAccount[]; activeCount: number; totalBalance: number; minimums: number; interest: number; sortKey: SortKey; sortDirection: SortDirection; paidOffById: Map<string, number | null | undefined>; onSort: (key: SortKey) => void; onAdd: () => void; onEdit: (account: DebtAccount) => void; onSample: () => void; onImport: (file: File) => Promise<void>; importMessage: string }) {
@@ -367,6 +461,14 @@ function FuturePage({ page }: { page: PageId }) {
   return <div className="screen"><section className="large-empty future"><span>Coming later</span><h1>{item.title}</h1><p>{item.text}</p><div>{item.idea}</div></section></div>;
 }
 function EmptyInline({ title, text, action, onAction }: { title: string; text: string; action: string; onAction: () => void }) { return <div className="empty-inline"><strong>{title}</strong><p>{text}</p><button type="button" onClick={onAction}>{action}</button></div>; }
+function CashflowModal({ draft, editing, accounts, onChange, onClose, onSave, onRemove }: { draft: CashflowDraft; editing: boolean; accounts: DebtAccount[]; onChange: (draft: CashflowDraft) => void; onClose: () => void; onSave: () => void; onRemove: () => void }) {
+  const creditAccounts = accounts.filter((account) => account.type === "Credit card");
+  const needsCreditAccount = draft.kind === "expense" && draft.paymentMethod === "credit";
+  const canSave = Boolean(draft.name.trim()) && draft.amount > 0 && (!needsCreditAccount || Boolean(draft.creditAccountId));
+  const changeKind = (kind: CashflowKind) => onChange({ ...draft, kind, category: CASHFLOW_CATEGORIES[kind][0], paymentMethod: kind === "expense" ? draft.paymentMethod : "debit", creditAccountId: kind === "expense" ? draft.creditAccountId : "" });
+  const title = draft.kind === "income" ? "income" : draft.kind === "expense" ? "recurring expense" : "set-aside budget";
+  return <div className="modal-backdrop" onMouseDown={(event) => { if (event.currentTarget === event.target) onClose(); }}><section className="modal cashflow-modal" role="dialog" aria-modal="true" aria-labelledby="cashflow-modal-title"><header><div><span>{editing ? `Edit ${title}` : `New ${title}`}</span><h2 id="cashflow-modal-title">{editing ? draft.name || "Monthly item" : `Add ${title}`}</h2><p>Monthly planning data stays on this device and can be changed anytime.</p></div><button type="button" onClick={onClose} aria-label="Close monthly item form">×</button></header><div className="form-grid"><div className="wide kind-editor"><span>Item type</span><div>{(["income", "expense", "budget"] as CashflowKind[]).map((kind) => <button type="button" key={kind} className={draft.kind === kind ? `active ${kind}` : kind} onClick={() => changeKind(kind)}>{kind === "income" ? "Income" : kind === "expense" ? "Expense" : "Budget"}</button>)}</div></div><label className="wide"><span>Name</span><input autoFocus value={draft.name} placeholder={draft.kind === "income" ? "Example: Salary" : draft.kind === "expense" ? "Example: Electric bill" : "Example: Emergency fund"} onChange={(event) => onChange({ ...draft, name: event.target.value })}/></label><Field label={draft.kind === "budget" ? "Amount to set aside" : "Monthly amount"} prefix="$" value={draft.amount} placeholder="0" onChange={(amount) => onChange({ ...draft, amount })}/><label><span>Category</span><select value={draft.category} onChange={(event) => onChange({ ...draft, category: event.target.value })}>{CASHFLOW_CATEGORIES[draft.kind].map((category) => <option key={category}>{category}</option>)}</select></label>{draft.kind === "expense" && <div className="wide payment-editor"><span>Paid with</span><div><button type="button" className={draft.paymentMethod === "debit" ? "active" : ""} onClick={() => onChange({ ...draft, paymentMethod: "debit", creditAccountId: "" })}><i>DB</i><span>Debit</span><small>Paid from checking</small></button><button type="button" className={draft.paymentMethod === "credit" ? "active" : ""} onClick={() => onChange({ ...draft, paymentMethod: "credit" })}><i>CC</i><span>Credit</span><small>Charged to a card</small></button></div></div>}{needsCreditAccount && <label className="wide credit-account-field"><span>Credit card</span><select value={draft.creditAccountId} onChange={(event) => onChange({ ...draft, creditAccountId: event.target.value })}><option value="">Select the card used for this expense</option>{creditAccounts.map((account) => <option value={account.id} key={account.id}>{account.name}</option>)}</select><small>{creditAccounts.length ? "This links the recurring expense to the card you use." : "Add a credit card under Debt Accounts before assigning this expense to credit."}</small></label>}</div><footer>{editing ? <button className="danger" type="button" onClick={onRemove}>Remove item</button> : <span/>}<div><button className="secondary" type="button" onClick={onClose}>Cancel</button><button className="primary" type="button" disabled={!canSave} onClick={onSave}>{editing ? "Save changes" : "Add monthly item"}</button></div></footer></section></div>;
+}
 function AccountModal({ draft, editing, onChange, onClose, onSave, onRemove }: { draft: AccountDraft; editing: boolean; onChange: (draft: AccountDraft) => void; onClose: () => void; onSave: () => void; onRemove: () => void }) {
   const autoMinimum = estimatedMinimum(draft.balance, draft.apr);
   return <div className="modal-backdrop" onMouseDown={(event) => { if (event.currentTarget === event.target) onClose(); }}><section className="modal" role="dialog" aria-modal="true" aria-labelledby="account-modal-title"><header><div><span>{editing ? "Edit debt account" : "New debt account"}</span><h2 id="account-modal-title">{editing ? draft.name || "Account details" : "Add a debt account"}</h2><p>Enter the current lender details. You can update them anytime.</p></div><button type="button" onClick={onClose} aria-label="Close account form">×</button></header><div className="form-grid"><label className="wide"><span>Name</span><input autoFocus value={draft.name} placeholder="Example: Everyday Rewards" onChange={(event) => onChange({ ...draft, name: event.target.value })}/></label><label><span>Debt type</span><select value={draft.type} onChange={(event) => onChange({ ...draft, type: event.target.value as DebtType })}>{DEBT_TYPES.map((type) => <option key={type}>{type}</option>)}</select></label><Field label="Current balance" prefix="$" value={draft.balance} placeholder="0" onChange={(balance) => onChange({ ...draft, balance })}/><Field label="APR" suffix="%" value={draft.apr} placeholder="0.00" step=".01" onChange={(apr) => onChange({ ...draft, apr })}/><div className="minimum-editor"><div><span>Minimum payment</span><button type="button" className={draft.minimumMode === "auto" ? "mode active" : "mode"} onClick={() => onChange({ ...draft, minimumMode: draft.minimumMode === "auto" ? "manual" : "auto" })}>{draft.minimumMode === "auto" ? "Auto estimate" : "Use auto"}</button></div><Field prefix="$" value={draft.minimumMode === "auto" ? autoMinimum : draft.minimum} placeholder="0" disabled={draft.minimumMode === "auto"} onChange={(minimum) => onChange({ ...draft, minimum })}/><small>{draft.minimumMode === "auto" ? "1% of balance + monthly interest, with a $25 floor." : "Using your lender amount."}</small></div><Field label="Credit limit" prefix="$" value={draft.creditLimit} placeholder="Optional" onChange={(creditLimit) => onChange({ ...draft, creditLimit })}/><label><span>Next due date</span><input type="date" value={draft.dueDate} onChange={(event) => onChange({ ...draft, dueDate: event.target.value })}/></label></div><footer>{editing ? <button className="danger" type="button" onClick={onRemove}>Remove account</button> : <span/>}<div><button className="secondary" type="button" onClick={onClose}>Cancel</button><button className="primary" type="button" disabled={!draft.name.trim()} onClick={onSave}>{editing ? "Save changes" : "Add account"}</button></div></footer></section></div>;

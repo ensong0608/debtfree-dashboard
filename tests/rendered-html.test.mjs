@@ -14,8 +14,9 @@ test("renders the DebtFree Dashboard shell", async () => {
   assert.equal(response.status, 200);
   const html = await response.text();
   assert.match(html, /<title>DebtFree Dashboard<\/title>/i);
-  assert.match(html, /Debt accounts/i);
-  assert.match(html, /Add new account/i);
+  assert.match(html, /Monthly income &amp; expenses|Monthly income & expenses/i);
+  assert.match(html, /Income allocation/i);
+  assert.match(html, /Income, expenses &amp; budget|Income, expenses & budget/i);
   assert.match(html, /Payoff Plan/i);
   assert.doesNotMatch(html, /codex-preview|Building your site|react-loading-skeleton/i);
 });
@@ -31,6 +32,10 @@ test("removes disposable starter assets", async () => {
   assert.match(page, /extractDebtFreeAccounts/);
   assert.match(page, /Avalanche/);
   assert.match(page, /Snowball/);
+  assert.match(page, /CashflowItem/);
+  assert.match(page, /cashflowItems/);
+  assert.match(page, /Paid with/);
+  assert.match(page, /Select the card used for this expense/);
   assert.match(layout, /focused personal dashboard for debt accounts and payoff planning/);
   assert.doesNotMatch(page + layout + packageJson, /SkeletonPreview|codex-preview|react-loading-skeleton/);
   await assert.rejects(access(new URL("../app/_sites-preview", import.meta.url)));
