@@ -27,6 +27,10 @@ test("removes disposable starter assets", async () => {
     readFile(new URL("../package.json", import.meta.url), "utf8"),
   ]);
   assert.match(page, /DebtFree Dashboard/);
+  assert.match(page, /Import DebtFree CSV/);
+  assert.match(page, /extractDebtFreeAccounts/);
+  assert.match(page, /Avalanche/);
+  assert.match(page, /Snowball/);
   assert.match(layout, /focused personal dashboard for debt accounts and payoff planning/);
   assert.doesNotMatch(page + layout + packageJson, /SkeletonPreview|codex-preview|react-loading-skeleton/);
   await assert.rejects(access(new URL("../app/_sites-preview", import.meta.url)));
