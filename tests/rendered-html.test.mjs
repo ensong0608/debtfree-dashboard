@@ -36,9 +36,15 @@ test("removes disposable starter assets", async () => {
   assert.match(page, /cashflowItems/);
   assert.match(page, /Paid with/);
   assert.match(page, /Select the card used for this expense/);
+  assert.match(page, /linkedCardExpenses/);
+  assert.match(page, /Minimums \+ linked card expenses \+ extra/);
+  assert.match(page, /Includes \{moneyPrecise\.format\(cardExpense\)\} card expense/);
+  assert.match(page, /month-sticky/);
+  assert.match(page, /interest-sticky/);
+  assert.match(page, /remaining-sticky/);
   assert.match(page, /monthlySurplus/);
-  assert.match(page, /Use my \$\{moneyPrecise\.format\(surplus\)\} surplus/);
-  assert.match(page, /Use it as a starting point, then edit anytime/);
+  assert.match(page, /Use my \$\{moneyPrecise\.format\(availableExtra\)\} available extra/);
+  assert.match(page, /Calculated after monthly expenses, budgets, and debt minimums\. Edit anytime/);
   assert.match(page, /Estimated paid off date/);
   assert.match(page, /Credit limit/);
   assert.match(page, /minimum-only/);

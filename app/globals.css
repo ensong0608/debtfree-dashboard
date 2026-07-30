@@ -233,23 +233,36 @@ tfoot td { position:sticky; bottom:0; z-index:2; border-top:2px solid #c4ceda; b
 .payment-editor i { grid-row:1/3; width:32px; height:32px; display:grid; place-items:center; border-radius:9px; background:white; color:#497085; font-size:8px; font-style:normal; font-weight:850; box-shadow:0 2px 8px rgba(24,42,70,.08); }
 .payment-editor button>span { font-size:10px; font-weight:800; }.payment-editor button>small { color:var(--muted); font-size:8px; }
 .credit-account-field small { display:block; margin-top:6px; color:var(--muted); font-size:8px; line-height:1.45; }
-/* Larger, clearer debt tables and the three-column monthly workspace. */
-table { font-size:12px; }
-.swipe-note { font-size:10px!important; }
-th button { font-size:10px; }
-th button i { font-size:12px; }
-.account-name strong,.number-cell strong,.minimum-toggle strong { font-size:12px; }
-.account-name small,.number-cell small,.minimum-toggle small { font-size:9px; }
-.status-toggle { font-size:10px; }
-.needs { font-size:10px; }
-.payoff-table .month-plan-head { min-width:104px; text-align:center; vertical-align:middle; }
-.account-plan-head { position:sticky; width:200px; min-width:170px; max-width:360px; padding:0; overflow:hidden; resize:horizontal; }
-.account-plan-head::after { content:"⋮"; position:absolute; right:2px; bottom:0; color:#8a98aa; font-size:14px; line-height:16px; pointer-events:none; }
-.account-plan-edit { min-height:62px; display:block; padding:10px 16px 10px 12px; text-align:center; text-transform:none; }
+/* Larger, clearer debt tables and a frozen payoff workspace. */
+table { font-size:14px; }
+.swipe-note { font-size:12px!important; }
+th,td { padding:15px 16px; }
+th button { min-height:52px; font-size:12px; }
+th button i { font-size:14px; }
+.account-name strong,.number-cell strong,.minimum-toggle strong { font-size:14px; }
+.account-name small,.number-cell small,.minimum-toggle small { font-size:11px; }
+.account-name>span { width:36px; height:36px; font-size:10px; }
+.minimum-toggle { min-width:152px; padding:9px 11px; }
+.status-toggle { min-width:116px; font-size:12px; }
+.needs { font-size:12px; }
+.payoff-table .month-plan-head { min-width:116px; text-align:center; vertical-align:middle; }
+.account-plan-head { position:relative; width:210px; min-width:190px; max-width:380px; padding:0; overflow:hidden; resize:horizontal; }
+.account-plan-head::after { content:"\22EE"; position:absolute; right:2px; bottom:0; color:#8a98aa; font-size:16px; line-height:18px; pointer-events:none; }
+.account-plan-edit { min-height:72px; display:block; padding:12px 16px; text-align:center; text-transform:none; }
 .account-plan-edit span,.account-plan-edit small { display:block; }
-.account-plan-edit span { color:#263b52; font-size:12px; font-weight:850; }
-.account-plan-edit small { margin-top:5px; color:var(--blue); font-size:9px; font-weight:750; letter-spacing:0; }
-.account-plan-cell strong { font-size:11px; }.account-plan-cell small { font-size:10px; }
+.account-plan-edit span { color:#263b52; font-size:14px; font-weight:850; }
+.account-plan-edit small { margin-top:5px; color:var(--blue); font-size:11px; font-weight:750; letter-spacing:0; }
+.account-plan-cell { min-width:190px; }
+.account-plan-cell strong { font-size:14px; }
+.account-plan-cell small { font-size:12px; }
+.account-plan-cell em { display:block; margin-top:5px; color:#9a5b0e; font-size:10px; font-style:normal; font-weight:750; }
+.payoff-table .month-sticky { position:sticky; left:0; z-index:4; width:116px; min-width:116px; max-width:116px; box-shadow:5px 0 10px -9px rgba(18,39,68,.9); }
+.payoff-table .interest-sticky { position:sticky; right:142px; z-index:4; width:128px; min-width:128px; max-width:128px; box-shadow:-5px 0 10px -9px rgba(18,39,68,.9); }
+.payoff-table .remaining-sticky { position:sticky; right:0; z-index:4; width:142px; min-width:142px; max-width:142px; box-shadow:-5px 0 10px -9px rgba(18,39,68,.9); }
+.payoff-table thead .month-sticky,.payoff-table thead .interest-sticky,.payoff-table thead .remaining-sticky { z-index:8; background:#eaf0f7; }
+.payoff-table tbody .month-sticky,.payoff-table tbody .interest-sticky,.payoff-table tbody .remaining-sticky { background:white; }
+.payoff-table tbody tr:nth-child(even) .month-sticky,.payoff-table tbody tr:nth-child(even) .interest-sticky,.payoff-table tbody tr:nth-child(even) .remaining-sticky { background:#fbfcfe; }
+.payoff-table tbody tr:hover .month-sticky,.payoff-table tbody tr:hover .interest-sticky,.payoff-table tbody tr:hover .remaining-sticky { background:#f2f7ff; }
 .field-help { display:block; margin-top:5px; color:var(--muted); font-size:9px; line-height:1.4; }
 .monthly-screen { min-height:100%; padding-bottom:20px; }
 .monthly-title { margin-bottom:13px; }
