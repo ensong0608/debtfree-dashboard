@@ -233,6 +233,53 @@ tfoot td { position:sticky; bottom:0; z-index:2; border-top:2px solid #c4ceda; b
 .payment-editor i { grid-row:1/3; width:32px; height:32px; display:grid; place-items:center; border-radius:9px; background:white; color:#497085; font-size:8px; font-style:normal; font-weight:850; box-shadow:0 2px 8px rgba(24,42,70,.08); }
 .payment-editor button>span { font-size:10px; font-weight:800; }.payment-editor button>small { color:var(--muted); font-size:8px; }
 .credit-account-field small { display:block; margin-top:6px; color:var(--muted); font-size:8px; line-height:1.45; }
+/* Larger, clearer debt tables and the three-column monthly workspace. */
+table { font-size:12px; }
+.swipe-note { font-size:10px!important; }
+th button { font-size:10px; }
+th button i { font-size:12px; }
+.account-name strong,.number-cell strong,.minimum-toggle strong { font-size:12px; }
+.account-name small,.number-cell small,.minimum-toggle small { font-size:9px; }
+.status-toggle { font-size:10px; }
+.needs { font-size:10px; }
+.payoff-table .month-plan-head { min-width:104px; text-align:center; vertical-align:middle; }
+.account-plan-head { position:sticky; width:200px; min-width:170px; max-width:360px; padding:0; overflow:hidden; resize:horizontal; }
+.account-plan-head::after { content:"⋮"; position:absolute; right:2px; bottom:0; color:#8a98aa; font-size:14px; line-height:16px; pointer-events:none; }
+.account-plan-edit { min-height:62px; display:block; padding:10px 16px 10px 12px; text-align:center; text-transform:none; }
+.account-plan-edit span,.account-plan-edit small { display:block; }
+.account-plan-edit span { color:#263b52; font-size:12px; font-weight:850; }
+.account-plan-edit small { margin-top:5px; color:var(--blue); font-size:9px; font-weight:750; letter-spacing:0; }
+.account-plan-cell strong { font-size:11px; }.account-plan-cell small { font-size:10px; }
+.field-help { display:block; margin-top:5px; color:var(--muted); font-size:9px; line-height:1.4; }
+.monthly-screen { min-height:100%; padding-bottom:20px; }
+.monthly-title { margin-bottom:13px; }
+.monthly-title p { font-size:13px; }
+.cashflow-quick-actions button { min-height:38px; padding:0 13px; border:1px solid transparent; border-radius:9px; font-size:11px; font-weight:850; }
+.cashflow-quick-actions .income-action { border-color:#b7e2d1; background:#eefaf5; color:#087b55; }
+.cashflow-quick-actions .expense-action { border-color:#f1d4ad; background:#fff7eb; color:#9a5b0e; }
+.cashflow-quick-actions .budget-action { border-color:#cec8f4; background:#f4f2ff; color:#5f53c6; }
+.monthly-summary-strip { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:1px; margin-bottom:13px; overflow:hidden; border:1px solid var(--line); border-radius:13px; background:var(--line); box-shadow:var(--shadow); }
+.monthly-summary-strip>div { min-width:0; padding:12px 16px; background:white; }
+.monthly-summary-strip span,.monthly-summary-strip strong { display:block; }
+.monthly-summary-strip span { color:var(--muted); font-size:10px; font-weight:800; text-transform:uppercase; letter-spacing:.07em; }
+.monthly-summary-strip strong { margin-top:5px; overflow:hidden; font-size:18px; text-overflow:ellipsis; }
+.monthly-summary-strip .positive strong { color:var(--green); }.monthly-summary-strip .negative strong { color:var(--red); }
+.cashflow-columns { height:calc(100dvh - 270px); min-height:350px; display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:13px; }
+.cashflow-column { min-width:0; display:grid; grid-template-rows:auto minmax(0,1fr); overflow:hidden; border:1px solid var(--line); border-radius:14px; background:white; box-shadow:var(--shadow); }
+.cashflow-column>header { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:14px 15px; border-bottom:2px solid var(--line); }
+.cashflow-column.income>header { border-top:4px solid #46bd91; }.cashflow-column.expense>header { border-top:4px solid #f0a64b; }.cashflow-column.budget>header { border-top:4px solid #8277df; }
+.cashflow-column>header span,.cashflow-column>header small { display:block; }
+.cashflow-column>header span { font-size:15px; font-weight:850; }.cashflow-column>header small { margin-top:3px; color:var(--muted); font-size:10px; }.cashflow-column>header>strong { font-size:16px; }
+.cashflow-column-list { min-height:0; overflow:auto; }
+.cashflow-column-list>button { width:100%; min-height:62px; display:grid; grid-template-columns:minmax(0,1fr) auto; align-items:center; gap:12px; padding:10px 14px; border:0; border-bottom:1px solid var(--line); background:white; text-align:left; }
+.cashflow-column-list>button:hover { background:#f7fafc; }.cashflow-column-list>button:last-child { border-bottom:0; }
+.cashflow-column-list>button div { min-width:0; }.cashflow-column-list strong,.cashflow-column-list small { display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.cashflow-column-list strong { font-size:13px; }.cashflow-column-list small { margin-top:4px; color:var(--muted); font-size:10px; }.cashflow-column-list b { font-size:12px; font-variant-numeric:tabular-nums; }
+.cashflow-column-empty { display:grid; justify-items:center; align-content:center; padding:24px; text-align:center; }
+.cashflow-column-empty>span { width:44px; height:44px; display:grid; place-items:center; border-radius:13px; background:#f0f5f8; color:#537084; font-size:19px; font-weight:850; }
+.cashflow-column-empty>strong { margin-top:11px; font-size:14px; }.cashflow-column-empty p { max-width:260px; margin:6px 0 0; color:var(--muted); font-size:11px; line-height:1.5; }
+@media(max-width:1050px){.cashflow-columns{height:auto;min-height:0;grid-template-columns:1fr}.cashflow-column{min-height:250px}.monthly-summary-strip{grid-template-columns:1fr 1fr}}
+@media(max-width:600px){.monthly-summary-strip{grid-template-columns:1fr 1fr}.cashflow-quick-actions{grid-template-columns:1fr}.cashflow-quick-actions button{min-height:44px}.cashflow-columns{grid-template-columns:1fr}.account-plan-head{min-width:180px}}
 @media(max-width:1050px){.cashflow-layout{grid-template-columns:1fr}.cashflow-side{grid-template-columns:1fr 1fr;grid-template-rows:auto}.payment-mix-body{grid-template-columns:auto 1fr;align-items:center;gap:20px}.payment-legend{grid-template-columns:1fr;margin-top:0}.budget-category-list{grid-template-columns:1fr 1fr}}
 @media(max-width:820px){.cashflow-hero-grid{grid-template-columns:1fr}.month-summary-card{min-height:210px}.cashflow-layout{grid-template-columns:1fr}.cashflow-side{grid-template-columns:1fr 1fr}.monthly-title{align-items:flex-start}}
 @media(max-width:600px){.cashflow-quick-actions{display:grid;grid-template-columns:1fr 1fr 1fr;width:100%}.cashflow-quick-actions button{min-width:0;padding:0 8px}.cashflow-progress-body{gap:17px}.cashflow-ring{width:108px;height:108px}.month-summary-card{padding:22px}.month-summary-total{left:22px}.month-horizon{inset:auto 0 0 42%}.cashflow-chart-card{padding:16px}.cashflow-tabs{gap:14px}.cashflow-tabs button{font-size:9px}.cashflow-tabs b{display:none}.cashflow-bar-row{grid-template-columns:minmax(110px,1fr) 72px;gap:10px}.cashflow-bar-track{grid-column:1/-1;grid-row:2}.cashflow-side{grid-template-columns:1fr}.payment-mix-body{grid-template-columns:auto 1fr}.budget-category-list{grid-template-columns:1fr}.budget-category-empty{display:grid}.payment-editor>div{grid-template-columns:1fr}.kind-editor button{min-height:46px}}
