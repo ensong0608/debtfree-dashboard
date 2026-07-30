@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { ChatGPTUser } from "./chatgpt-auth";
 
 type PageId = "dashboard" | "accounts" | "history" | "plan" | "snapshots" | "utilization" | "stats" | "profile";
@@ -68,7 +68,12 @@ function normalizedPayload(value: unknown): DashboardPayload {
   };
 }
 
+function hasMeaningfulData(payload: DashboardPayload) {
+  return payload.accounts.length > 0 || payload.cashflowItems.length > 0 || payload.extra > 0;
+}
+
 const STORAGE_KEY = "debtfree-dashboard-prototype-v1";
+const STORAGE_BACKUP_KEY = "debtfree-dashboard-prototype-v1-backup";
 const EMPTY_DRAFT: AccountDraft = { name: "", type: "Credit card", balance: 0, apr: 0, interestFee: 0, minimum: 0, minimumMode: "auto", payoffMode: "priority", creditLimit: 0, dueDate: "" };
 const EMPTY_CASHFLOW_DRAFT: CashflowDraft = { name: "", kind: "expense", category: "Housing", amount: 0, paymentMethod: "debit", creditAccountId: "" };
 const CASHFLOW_CATEGORIES: Record<CashflowKind, string[]> = {
@@ -259,6 +264,7 @@ const NAV_ITEMS: { id: PageId; label: string; icon: string; future?: boolean }[]
 ];
 
 export default function DashboardClient({ user }: { user: ChatGPTUser }) {
+  const cloudWritesEnabled = useRef(false);
   const [page, setPage] = useState<PageId>("dashboard");
   const [accounts, setAccounts] = useState<DebtAccount[]>([]);
   const [cashflowItems, setCashflowItems] = useState<CashflowItem[]>([]);
@@ -291,10 +297,15 @@ export default function DashboardClient({ user }: { user: ChatGPTUser }) {
       let localPayload: DashboardPayload | null = null;
       try {
         const saved = localStorage.getItem(STORAGE_KEY);
-        if (saved) {
-          localPayload = normalizedPayload(JSON.parse(saved));
-          applyPayload(localPayload);
-        }
+        const backup = localStorage.getItem(STORAGE_BACKUP_KEY);
+        const primaryPayload = saved ? normalizedPayload(JSON.parse(saved)) : null;
+        const backupPayload = backup ? normalizedPayload(JSON.parse(backup)) : null;
+        if (primaryPayload && hasMeaningfulData(primaryPayload)) localPayload = primaryPayload;
+        else if (backupPayload && hasMeaningfulData(backupPayload)) {
+          localPayload = backupPayload;
+          setImportMessage("Recovered your most recent device backup.");
+        } else localPayload = primaryPayload;
+        if (localPayload) applyPayload(localPayload);
       } catch { /* Keep going so a damaged local draft cannot block cloud data. */ }
       try {
         const response = await fetch("/api/household", { cache: "no-store" });
@@ -304,11 +315,19 @@ export default function DashboardClient({ user }: { user: ChatGPTUser }) {
         setHouseholdName(data.householdName);
         setHouseholdRole(data.role);
         setHouseholdMembers(data.members);
-        if (data.payload) {
-          applyPayload(normalizedPayload(data.payload));
-        } else if (localPayload) {
+        const cloudPayload = data.payload ? normalizedPayload(data.payload) : null;
+        const localHasData = localPayload ? hasMeaningfulData(localPayload) : false;
+        const cloudHasData = cloudPayload ? hasMeaningfulData(cloudPayload) : false;
+        if (cloudHasData && cloudPayload) {
+          cloudWritesEnabled.current = true;
+          applyPayload(cloudPayload);
+        } else if (localHasData && localPayload) {
+          cloudWritesEnabled.current = true;
+          applyPayload(localPayload);
           const upload = await fetch("/api/household", { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify({ payload: localPayload }) });
           if (!upload.ok) throw new Error("Your existing device data could not be copied to the household yet");
+        } else if (cloudPayload) {
+          applyPayload(cloudPayload);
         }
         setCloudStatus("synced");
       } catch {
@@ -323,7 +342,17 @@ export default function DashboardClient({ user }: { user: ChatGPTUser }) {
   useEffect(() => {
     if (!loaded) return;
     const payload: DashboardPayload = { accounts, cashflowItems, extra, strategy };
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
+    if (hasMeaningfulData(payload)) cloudWritesEnabled.current = true;
+    if (!cloudWritesEnabled.current) return;
+    const serialized = JSON.stringify(payload);
+    try {
+      const previous = localStorage.getItem(STORAGE_KEY);
+      if (previous && previous !== serialized) {
+        const previousPayload = normalizedPayload(JSON.parse(previous));
+        if (hasMeaningfulData(previousPayload)) localStorage.setItem(STORAGE_BACKUP_KEY, previous);
+      }
+    } catch { /* A damaged old draft should not block the current safe save. */ }
+    localStorage.setItem(STORAGE_KEY, serialized);
     const syncTimer = window.setTimeout(() => {
       setCloudStatus("saving");
       void fetch("/api/household", { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify({ payload }) })
