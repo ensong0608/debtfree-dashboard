@@ -3,6 +3,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { ChatGPTUser } from "./chatgpt-auth";
+import { exportPayoffCsv, exportPayoffExcel, exportPayoffPdf, type PayoffReportData } from "./payoff-export";
 import { scanReceipt, type ReceiptScanResult } from "./receipt-ocr";
 
 type PageId = "dashboard" | "accounts" | "history" | "plan" | "snapshots" | "utilization" | "stats" | "profile";
@@ -698,7 +699,7 @@ export default function DashboardClient({ user }: { user: ChatGPTUser }) {
         {page === "dashboard" && <DashboardPage month={selectedMonth} hasMonth={Object.prototype.hasOwnProperty.call(monthlyBudgets, selectedMonth)} previousHasItems={(monthlyBudgets[shiftMonth(selectedMonth, -1)] ?? []).length > 0} items={cashflowItems} accounts={calculatedAccounts} onMonth={setSelectedMonth} onCopyPrevious={copyPreviousBudget} onStartBlank={startBlankBudget} onAdd={openNewCashflow} onEdit={openEditCashflow}/>}
         {page === "accounts" && <AccountsPage accounts={sortedAccounts} activeCount={activeCount} totalBalance={totalBalance} minimums={minimums} interest={interest} linkedCardExpenses={linkedCardExpenses} sortKey={sortKey} sortDirection={sortDirection} paidOffById={paidOffById} onSort={changeSort} onAdd={openNew} onEdit={openEdit} onToggleMinimum={toggleMinimumMode} onTogglePayoff={togglePayoffMode} onSample={() => setAccounts(SAMPLE_ACCOUNTS)} onImport={importDebtFreeCsv} importMessage={importMessage}/>}
         {page === "history" && <TransactionsPage accounts={calculatedAccounts} payees={payees} transactions={transactions} onQuickAdd={openNewTransaction} onEdit={openEditTransaction} onDelete={softDeleteTransaction} onRestore={restoreTransaction} onBatchAdd={addBatchTransactions} onManagePayees={() => setPayeeModalOpen(true)}/>}
-        {page === "plan" && <PayoffPlanPage accounts={calculatedAccounts} plan={plan} extra={extra} availableExtra={availableExtra} strategy={strategy} linkedCardExpenseItems={linkedCardExpenseItems} onExtra={setExtra} onStrategy={setStrategy} onAccounts={() => setPage("accounts")} onEditAccount={openEdit}/>}
+        {page === "plan" && <PayoffPlanPage accounts={calculatedAccounts} plan={plan} extra={extra} availableExtra={availableExtra} strategy={strategy} linkedCardExpenseItems={linkedCardExpenseItems} monthlyItems={planningCashflowItems} transactions={transactions} snapshots={snapshots} onExtra={setExtra} onStrategy={setStrategy} onAccounts={() => setPage("accounts")} onEditAccount={openEdit}/>}
         {page === "snapshots" && <SnapshotsPage accounts={calculatedAccounts} snapshots={snapshots} currentInterest={interest} onCapture={captureSnapshot} onUpdateNote={updateSnapshotNote} onDelete={removeSnapshot}/>}
         {page === "profile" && <ProfilePage user={user} householdName={householdName} role={householdRole} members={householdMembers} cloudStatus={cloudStatus} onInvite={inviteAdmin} onRemove={removeAdmin}/>}
         {page === "utilization" && <UtilizationPage accounts={calculatedAccounts} onEditAccount={openEdit}/>}
@@ -873,11 +874,126 @@ function AccountsPage({ accounts, activeCount, totalBalance, minimums, interest,
   return <div className="screen"><div className="screen-title"><div><span className="eyebrow">Debt workspace</span><h1>Debt accounts</h1><p>Review balances, minimums, payoff priority, limits, and due dates in one clear table.</p></div><div className="screen-actions"><label className="secondary import-file"><input type="file" accept=".csv,text/csv" onChange={(event) => { const input = event.currentTarget; const file = input.files?.[0]; if (file) void onImport(file).finally(() => { input.value = ""; }); }}/><span>Import CSV</span></label><button className="primary" type="button" onClick={onAdd}>+ Add account</button></div></div>{importMessage && <p className={importMessage.startsWith("Import failed") ? "import-message error" : "import-message"}>{importMessage}</p>}<section className="metrics"><article className="metric"><span>Total balance</span><strong>{moneyPrecise.format(totalBalance)}</strong><small>Opening balances plus active ledger entries</small></article><article className="metric"><span>Active accounts</span><strong>{activeCount}</strong><small>{accounts.length - activeCount} paid off</small></article><article className="metric"><span>Monthly card payments</span><strong>{moneyPrecise.format(minimums + totalLinkedExpenses)}</strong><small>{totalLinkedExpenses > 0 ? `${moneyPrecise.format(minimums)} minimums + ${moneyPrecise.format(totalLinkedExpenses)} card expenses` : "Auto estimates included"}</small></article><article className="metric"><span>Monthly interest</span><strong>{moneyPrecise.format(interest)}</strong><small>At current balances</small></article></section><section className="table-card"><div className="table-card-head"><div><span>Your debt accounts</span><strong>{accounts.length} {accounts.length === 1 ? "record" : "records"}</strong></div><span className="swipe-note">Click minimum or status to change it</span></div>{accounts.length ? <div className="table-scroll"><table className="accounts-table"><caption>Sortable debt account list</caption><thead><tr>{headers.map((header) => <th key={header.key}><button type="button" onClick={() => onSort(header.key)}>{header.label}<i>{sortKey === header.key ? (sortDirection === "asc" ? "↑" : "↓") : "↕"}</i></button></th>)}</tr></thead><tbody>{accounts.map((account) => { const payoff = paidOffById.get(account.id); const cardExpense = linkedCardExpenses[account.id] ?? 0; return <tr key={account.id}><td><button className="account-name" type="button" onClick={() => onEdit(account)}><span>{account.name.slice(0,2).toUpperCase()}</span><div><strong>{account.name}</strong><small>{account.type}</small></div></button></td><td className="number-cell"><strong>{moneyPrecise.format(account.balance)}</strong>{account.creditLimit > 0 && <small>{Math.round(account.balance/account.creditLimit*100)}% utilized</small>}</td><td className="number-cell"><strong>{account.creditLimit > 0 ? moneyPrecise.format(account.creditLimit) : "—"}</strong></td><td className="number-cell">{account.apr.toFixed(2)}%</td><td><button className={`minimum-toggle ${account.minimumMode}`} type="button" onClick={() => onToggleMinimum(account.id)} aria-label={`${account.name}: ${account.minimumMode === "auto" ? "use manual minimum payment" : "use automatic minimum estimate"}`}><strong>{moneyPrecise.format(effectiveMinimum(account) + cardExpense)}</strong><small>{cardExpense > 0 ? `${moneyPrecise.format(effectiveMinimum(account))} min + ${moneyPrecise.format(cardExpense)} expenses` : account.minimumMode === "auto" ? "Auto estimate" : "Manual amount"}</small></button></td><td className="number-cell"><strong>{moneyPrecise.format(monthlyInterest(account))}</strong><small>{account.interestFee > 0 ? "Actual statement fee" : "APR estimate"}</small></td><td><button className={`status-toggle ${account.balance <= 0 ? "paid" : account.payoffMode}`} type="button" disabled={account.balance <= 0} onClick={() => onTogglePayoff(account.id)} title={account.balance > 0 ? "Switch between payoff priority and minimum-only payments" : "This account is paid off"}>{account.balance <= 0 ? "Paid off" : account.payoffMode === "minimum-only" ? "Minimum only" : "Payoff priority"}</button></td><td><span className="date-cell"><i>□</i>{formatDate(account.dueDate)}</span></td><td>{account.balance <= 0 ? <strong className="paid-date">Complete</strong> : payoff ? <span>{monthAfter(payoff - 1)}</span> : <span className="needs">Needs adjustment</span>}</td></tr>; })}</tbody><tfoot><tr><td>Total</td><td className="number-cell">{moneyPrecise.format(totalBalance)}</td><td className="number-cell">{moneyPrecise.format(totalCreditLimit)}</td><td></td><td className="number-cell">{moneyPrecise.format(minimums + totalLinkedExpenses)}</td><td className="number-cell">{moneyPrecise.format(interest)}</td><td colSpan={3}></td></tr></tfoot></table></div> : <div className="empty-table"><span>▤</span><h2>No debt accounts yet</h2><p>Import the CSV from your original DebtFree app, add your first account, or load temporary sample records.</p><div><label className="secondary import-file"><input type="file" accept=".csv,text/csv" onChange={(event) => { const input = event.currentTarget; const file = input.files?.[0]; if (file) void onImport(file).finally(() => { input.value = ""; }); }}/><span>Import DebtFree CSV</span></label><button className="primary" type="button" onClick={onAdd}>+ Add account</button><button className="secondary" type="button" onClick={onSample}>Load samples</button></div></div>}</section></div>;
 }
 
-function PayoffPlanPage({ accounts, plan, extra, availableExtra, strategy, linkedCardExpenseItems, onExtra, onStrategy, onAccounts, onEditAccount }: { accounts: DebtAccount[]; plan: ReturnType<typeof calculatePlan>; extra: number; availableExtra: number; strategy: PayoffStrategy; linkedCardExpenseItems: LinkedCardExpenseItems; onExtra: (value: number) => void; onStrategy: (strategy: PayoffStrategy) => void; onAccounts: () => void; onEditAccount: (account: DebtAccount) => void }) {
-  const description = strategy === "avalanche" ? "Highest APR first — usually the lowest total interest." : "Lowest balance first — faster early wins.";
+function PayoffPlanPage({ accounts, plan, extra, availableExtra, strategy, linkedCardExpenseItems, monthlyItems, transactions, snapshots, onExtra, onStrategy, onAccounts, onEditAccount }: { accounts: DebtAccount[]; plan: ReturnType<typeof calculatePlan>; extra: number; availableExtra: number; strategy: PayoffStrategy; linkedCardExpenseItems: LinkedCardExpenseItems; monthlyItems: CashflowItem[]; transactions: LedgerTransaction[]; snapshots: PayoffSnapshot[]; onExtra: (value: number) => void; onStrategy: (strategy: PayoffStrategy) => void; onAccounts: () => void; onEditAccount: (account: DebtAccount) => void }) {
+  const [exporting, setExporting] = useState<"csv" | "excel" | "pdf" | null>(null);
+  const [exportError, setExportError] = useState("");
+  const description = strategy === "avalanche" ? "Highest APR first - usually the lowest total interest." : "Lowest balance first - faster early wins.";
   const planAccounts = accounts.filter((account) => account.balance > 0);
-  return <div className="screen plan-screen"><div className="screen-title"><div><span className="eyebrow">{strategy} strategy</span><h1>Payoff plan</h1><p>Minimums and linked credit-card expenses are paid first, then extra money follows your selected strategy. Zero-balance accounts are hidden.</p></div><div className="plan-controls"><div className="strategy-control"><span>Strategy</span><div><button type="button" className={strategy === "avalanche" ? "active" : ""} onClick={() => onStrategy("avalanche")}>Avalanche</button><button type="button" className={strategy === "snowball" ? "active" : ""} onClick={() => onStrategy("snowball")}>Snowball</button></div><small>{description}</small></div><div className="extra-control"><label htmlFor="extra-monthly">Extra each month</label><div><b>$</b><input id="extra-monthly" type="number" min="0" inputMode="decimal" value={extra || ""} placeholder="0" onChange={(event) => onExtra(number(event.target.value))}/></div><button className={availableExtra > 0 && Math.abs(extra - availableExtra) < 0.01 ? "surplus-shortcut active" : "surplus-shortcut"} type="button" disabled={availableExtra <= 0} onClick={() => onExtra(availableExtra)}>{availableExtra > 0 ? `Use my ${moneyPrecise.format(availableExtra)} available extra` : "No extra available yet"}</button><small>{availableExtra > 0 ? "Calculated after monthly expenses, budgets, and debt minimums. Edit anytime." : "Add income or adjust expenses, budgets, and minimums to create extra."}</small></div></div></div>{planAccounts.length && plan.months.length && !plan.stalled ? <><section className="plan-hero"><div><span>Projected debt-free date</span><strong>{monthAfter(plan.months.length - 1)}</strong><small>{plan.months.length} months from now</small></div><div><span>Monthly plan</span><strong>{money.format(plan.monthly)}</strong><small>Minimums + linked card expenses + extra</small></div><div><span>Estimated interest</span><strong>{money.format(plan.totalInterest)}</strong><small>Actual fee calibration used when provided</small></div></section><section className="table-card plan-table-card"><div className="table-card-head"><div><span>Month-by-month schedule</span><strong>{plan.months.length} rows · {strategy}</strong></div><span className="swipe-note">Month, interest, and remaining stay visible while you scroll</span></div><div className="table-scroll plan-scroll"><table className="payoff-table"><caption>Complete payoff plan with account balances after each scheduled payment</caption><thead><tr><th className="month-plan-head month-sticky">Month</th>{planAccounts.map((account) => <th className="account-plan-head" key={account.id} title="Click the account name to edit it. Drag the lower-right edge to resize this column."><button className="account-plan-edit" type="button" onClick={() => onEditAccount(account)}><span>{account.name}</span><small>Starting debt {moneyPrecise.format(account.balance)}</small></button></th>)}<th>Amount 2 Pay/month</th><th>Milestone</th><th className="interest-sticky">Interest</th><th className="remaining-sticky">Remaining</th></tr></thead><tbody>{plan.months.map((month) => <tr key={month.month}><td className="month-sticky">{monthAfter(month.month - 1)}</td>{planAccounts.map((account) => { const expenseItems = linkedCardExpenseItems[account.id] ?? []; return <td className="account-plan-cell" key={account.id}><strong>{moneyPrecise.format(month.payments[account.id] ?? 0)}</strong><small>{moneyPrecise.format(month.balances[account.id] ?? 0)} left</small>{expenseItems.map((item) => <em key={item.id}>+ {moneyPrecise.format(item.amount)} {item.name}</em>)}</td>; })}<td className="number-cell"><strong>{moneyPrecise.format(month.paid)}</strong></td><td>{month.paidOff.length ? <span className="milestone">Paid off: {month.paidOff.join(", ")}</span> : "\u2014"}</td><td className="number-cell interest-sticky">{moneyPrecise.format(month.interest)}</td><td className="number-cell remaining remaining-sticky">{moneyPrecise.format(month.remaining)}</td></tr>)}</tbody></table></div></section></> : <section className="large-empty"><span>✓</span><h2>{plan.stalled ? "The current payments do not outpace interest" : "Add debt accounts to build your plan"}</h2><p>{plan.stalled ? "Increase a minimum payment or add an extra monthly amount to create a finish line." : "Once your accounts have balances, APRs, and minimums, the complete payoff schedule will appear here."}</p><button className="primary" type="button" onClick={onAccounts}>Review debt accounts</button></section>}</div>;
-}function ProfilePage({ user, householdName, role, members, cloudStatus, onInvite, onRemove }: { user: ChatGPTUser; householdName: string; role: "owner" | "admin"; members: HouseholdMember[]; cloudStatus: CloudStatus; onInvite: (email: string) => Promise<void>; onRemove: (email: string) => Promise<void> }) {
+
+  const createReport = (): PayoffReportData => {
+    const accountNames = new Map(accounts.map((account) => [account.id, account.name]));
+    const totalIncome = monthlyItems.filter((item) => item.kind === "income").reduce((sum, item) => sum + item.amount, 0);
+    const totalExpenses = monthlyItems.filter((item) => item.kind === "expense").reduce((sum, item) => sum + item.amount, 0);
+    const totalBudget = monthlyItems.filter((item) => item.kind === "budget").reduce((sum, item) => sum + item.amount, 0);
+    const totalMinimums = accounts.reduce((sum, account) => sum + effectiveMinimum(account), 0);
+    const payoffMonthByName = new Map<string, number>();
+    plan.months.forEach((entry) => entry.paidOff.forEach((name) => payoffMonthByName.set(name, entry.month)));
+    return {
+      generatedAt: new Date().toLocaleString("en-US"),
+      budgetMonth: monthLabel(currentMonthKey()),
+      strategy: strategy === "avalanche" ? "Avalanche" : "Snowball",
+      projectedDebtFree: plan.months.length && !plan.stalled ? monthAfter(plan.months.length - 1) : "Needs adjustment",
+      monthsToPayoff: plan.months.length,
+      stalled: plan.stalled,
+      startingDebt: round(accounts.reduce((sum, account) => sum + account.balance, 0)),
+      monthlyPlan: round(plan.monthly),
+      estimatedInterest: round(plan.totalInterest),
+      extraPayment: round(extra),
+      totalIncome: round(totalIncome),
+      totalExpenses: round(totalExpenses),
+      totalBudget: round(totalBudget),
+      monthlySurplus: round(totalIncome - totalExpenses - totalBudget),
+      totalMinimums: round(totalMinimums),
+      availableExtra: round(availableExtra),
+      cashflow: monthlyItems.map((item) => ({
+        type: item.kind === "income" ? "Income" : item.kind === "expense" ? "Expense" : "Budget",
+        name: item.name,
+        category: item.category,
+        amount: item.amount,
+        paymentMethod: item.kind !== "expense" ? "Not applicable" : item.paymentMethod === "credit" ? "Credit card" : "Debit / checking",
+        linkedAccount: item.kind === "expense" && item.paymentMethod === "credit" ? accountNames.get(item.creditAccountId) ?? "Card not selected" : "",
+      })),
+      accounts: accounts.map((account) => {
+        const linkedExpenses = (linkedCardExpenseItems[account.id] ?? []).reduce((sum, item) => sum + item.amount, 0);
+        const payoffMonth = payoffMonthByName.get(account.name);
+        return {
+          name: account.name,
+          type: account.type,
+          balance: account.balance,
+          apr: account.apr,
+          monthlyInterest: monthlyInterest(account),
+          minimumPayment: effectiveMinimum(account),
+          linkedCardExpenses: round(linkedExpenses),
+          plannedMonthlyPayment: round(plan.months[0]?.payments[account.id] ?? effectiveMinimum(account) + linkedExpenses),
+          payoffMode: account.balance <= 0 ? "Paid off" : account.payoffMode === "minimum-only" ? "Minimum only" : "Payoff priority",
+          creditLimit: account.creditLimit,
+          utilization: account.creditLimit > 0 ? round(account.balance / account.creditLimit * 100) : null,
+          dueDate: formatDate(account.dueDate),
+          projectedPayoff: account.balance <= 0 ? "Complete" : payoffMonth ? monthAfter(payoffMonth - 1) : "Needs adjustment",
+        };
+      }),
+      schedule: plan.months.map((entry) => ({
+        month: monthAfter(entry.month - 1),
+        totalPaid: round(entry.paid),
+        interest: round(entry.interest),
+        remaining: round(entry.remaining),
+        milestone: entry.paidOff.length ? `Paid off: ${entry.paidOff.join(", ")}` : "",
+        accounts: planAccounts.map((account) => ({ name: account.name, payment: round(entry.payments[account.id] ?? 0), endingBalance: round(entry.balances[account.id] ?? 0) })),
+      })),
+      transactions: [...transactions].sort((a, b) => b.date.localeCompare(a.date)).map((transaction) => ({
+        date: transaction.date,
+        merchant: transaction.payeeName,
+        account: accountNames.get(transaction.accountId) ?? "Removed account",
+        type: transaction.type === "fee" ? "Interest / fee" : transaction.type[0].toUpperCase() + transaction.type.slice(1),
+        category: transaction.category,
+        memo: transaction.memo,
+        amount: transaction.amount,
+        status: transaction.deletedAt ? "Deleted" : "Active",
+      })),
+      snapshots: [...snapshots].sort((a, b) => b.month.localeCompare(a.month)).map((snapshot) => ({
+        month: monthLabel(snapshot.month),
+        capturedAt: new Date(snapshot.capturedAt).toLocaleString("en-US"),
+        totalBalance: snapshot.totalBalance,
+        monthlyInterest: snapshot.monthlyInterest,
+        activeAccountCount: snapshot.activeAccountCount,
+        projectedDebtFree: snapshot.projectedDebtFreeMonth ?? "Needs adjustment",
+        note: snapshot.note,
+        accounts: snapshot.accounts.map((account) => ({ name: account.name, type: account.type, balance: account.balance, apr: account.apr })),
+      })),
+    };
+  };
+
+  const exportReport = async (format: "csv" | "excel" | "pdf") => {
+    setExporting(format);
+    setExportError("");
+    try {
+      const report = createReport();
+      if (format === "csv") exportPayoffCsv(report);
+      else if (format === "excel") await exportPayoffExcel(report);
+      else await exportPayoffPdf(report);
+    } catch {
+      setExportError("The report could not be created. Please try again.");
+    } finally {
+      setExporting(null);
+    }
+  };
+
+  return <div className="screen plan-screen">
+    <div className="screen-title">
+      <div><span className="eyebrow">{strategy} strategy</span><h1>Payoff plan</h1><p>Minimums and linked credit-card expenses are paid first, then extra money follows your selected strategy. Zero-balance accounts are hidden.</p></div>
+      <div className="plan-controls">
+        <div className="strategy-control"><span>Strategy</span><div><button type="button" className={strategy === "avalanche" ? "active" : ""} onClick={() => onStrategy("avalanche")}>Avalanche</button><button type="button" className={strategy === "snowball" ? "active" : ""} onClick={() => onStrategy("snowball")}>Snowball</button></div><small>{description}</small></div>
+        <div className="extra-control"><label htmlFor="extra-monthly">Extra each month</label><div><b>$</b><input id="extra-monthly" type="number" min="0" inputMode="decimal" value={extra || ""} placeholder="0" onChange={(event) => onExtra(number(event.target.value))}/></div><button className={availableExtra > 0 && Math.abs(extra - availableExtra) < 0.01 ? "surplus-shortcut active" : "surplus-shortcut"} type="button" disabled={availableExtra <= 0} onClick={() => onExtra(availableExtra)}>{availableExtra > 0 ? `Use my ${moneyPrecise.format(availableExtra)} available extra` : "No extra available yet"}</button><small>{availableExtra > 0 ? "Calculated after monthly expenses, budgets, and debt minimums. Edit anytime." : "Add income or adjust expenses, budgets, and minimums to create extra."}</small></div>
+        <div className="export-control"><span>Export full report</span><div><button type="button" disabled={Boolean(exporting)} onClick={() => void exportReport("csv")}>{exporting === "csv" ? "Preparing..." : "CSV"}</button><button type="button" disabled={Boolean(exporting)} onClick={() => void exportReport("excel")}>{exporting === "excel" ? "Preparing..." : "Excel"}</button><button type="button" disabled={Boolean(exporting)} onClick={() => void exportReport("pdf")}>{exporting === "pdf" ? "Preparing..." : "PDF"}</button></div><small>Budget, debts, schedule, transactions, and snapshots.</small>{exportError && <em role="alert">{exportError}</em>}</div>
+      </div>
+    </div>
+    {planAccounts.length && plan.months.length && !plan.stalled ? <>
+      <section className="plan-hero"><div><span>Projected debt-free date</span><strong>{monthAfter(plan.months.length - 1)}</strong><small>{plan.months.length} months from now</small></div><div><span>Monthly plan</span><strong>{money.format(plan.monthly)}</strong><small>Minimums + linked card expenses + extra</small></div><div><span>Estimated interest</span><strong>{money.format(plan.totalInterest)}</strong><small>Actual fee calibration used when provided</small></div></section>
+      <section className="table-card plan-table-card"><div className="table-card-head"><div><span>Month-by-month schedule</span><strong>{plan.months.length} rows | {strategy}</strong></div><span className="swipe-note">Month, interest, and remaining stay visible while you scroll</span></div><div className="table-scroll plan-scroll"><table className="payoff-table"><caption>Complete payoff plan with account balances after each scheduled payment</caption><thead><tr><th className="month-plan-head month-sticky">Month</th>{planAccounts.map((account) => <th className="account-plan-head" key={account.id} title="Click the account name to edit it. Drag the lower-right edge to resize this column."><button className="account-plan-edit" type="button" onClick={() => onEditAccount(account)}><span>{account.name}</span><small>Starting debt {moneyPrecise.format(account.balance)}</small></button></th>)}<th>Amount 2 Pay/month</th><th>Milestone</th><th className="interest-sticky">Interest</th><th className="remaining-sticky">Remaining</th></tr></thead><tbody>{plan.months.map((month) => <tr key={month.month}><td className="month-sticky">{monthAfter(month.month - 1)}</td>{planAccounts.map((account) => { const expenseItems = linkedCardExpenseItems[account.id] ?? []; return <td className="account-plan-cell" key={account.id}><strong>{moneyPrecise.format(month.payments[account.id] ?? 0)}</strong><small>{moneyPrecise.format(month.balances[account.id] ?? 0)} left</small>{expenseItems.map((item) => <em key={item.id}>+ {moneyPrecise.format(item.amount)} {item.name}</em>)}</td>; })}<td className="number-cell"><strong>{moneyPrecise.format(month.paid)}</strong></td><td>{month.paidOff.length ? <span className="milestone">Paid off: {month.paidOff.join(", ")}</span> : "\u2014"}</td><td className="number-cell interest-sticky">{moneyPrecise.format(month.interest)}</td><td className="number-cell remaining remaining-sticky">{moneyPrecise.format(month.remaining)}</td></tr>)}</tbody></table></div></section>
+    </> : <section className="large-empty"><span>{"\u2713"}</span><h2>{plan.stalled ? "The current payments do not outpace interest" : "Add debt accounts to build your plan"}</h2><p>{plan.stalled ? "Increase a minimum payment or add an extra monthly amount to create a finish line." : "Once your accounts have balances, APRs, and minimums, the complete payoff schedule will appear here."}</p><button className="primary" type="button" onClick={onAccounts}>Review debt accounts</button></section>}
+  </div>;
+}
+function ProfilePage({ user, householdName, role, members, cloudStatus, onInvite, onRemove }: { user: ChatGPTUser; householdName: string; role: "owner" | "admin"; members: HouseholdMember[]; cloudStatus: CloudStatus; onInvite: (email: string) => Promise<void>; onRemove: (email: string) => Promise<void> }) {
   const [email, setEmail] = useState("");
   const [message, setMessage] = useState("");
   const [working, setWorking] = useState(false);

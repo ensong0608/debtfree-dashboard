@@ -115,3 +115,28 @@ test("supports a mobile dashboard shell and collapsible navigation", async () =>
   assert.match(styles, /safe-area-inset-bottom/);
   assert.match(styles, /font-size:16px/);
 });
+
+
+test("exports a complete payoff report in CSV, Excel, and PDF formats", async () => {
+  const [client, exporter, packageJson] = await Promise.all([
+    readFile(new URL("../app/dashboard-client.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/payoff-export.ts", import.meta.url), "utf8"),
+    readFile(new URL("../package.json", import.meta.url), "utf8"),
+  ]);
+  assert.match(client, /Export full report/);
+  assert.match(client, /Budget, debts, schedule, transactions, and snapshots/);
+  assert.match(client, /exportReport\("csv"\)/);
+  assert.match(client, /exportReport\("excel"\)/);
+  assert.match(client, /exportReport\("pdf"\)/);
+  assert.match(exporter, /MONTHLY BUDGET BREAKDOWN/);
+  assert.match(exporter, /DEBT ACCOUNTS/);
+  assert.match(exporter, /PAYOFF SCHEDULE/);
+  assert.match(exporter, /TRANSACTION LEDGER/);
+  assert.match(exporter, /PAYOFF SNAPSHOTS/);
+  assert.match(exporter, /function reportSheets/);
+  assert.match(exporter, /Your complete payoff plan/);
+  assert.match(exporter, /Page \$\{page\} of \$\{pageCount\}/);
+  assert.match(packageJson, /"fflate"/);
+  assert.match(packageJson, /"jspdf"/);
+  assert.match(packageJson, /"jspdf-autotable"/);
+});
