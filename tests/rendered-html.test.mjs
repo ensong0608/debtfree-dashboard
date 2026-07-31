@@ -84,14 +84,22 @@ test("removes disposable starter assets", async () => {
   await assert.rejects(access(new URL("../app/_sites-preview", import.meta.url)));
 });
 test("supports a mobile dashboard shell and collapsible navigation", async () => {
-  const [client, styles] = await Promise.all([
+  const [client, styles, store, page] = await Promise.all([
     readFile(new URL("../app/dashboard-client.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/globals.css", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/household/store.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/page.tsx", import.meta.url), "utf8"),
   ]);
   assert.match(client, /toggleDashboardNavigation/);
   assert.match(client, /Collapse dashboard navigation/);
   assert.match(client, /Expand dashboard navigation/);
   assert.match(client, /NAVIGATION_COLLAPSED_KEY/);
+  assert.match(client, /sidebar-head/);
+  assert.match(client, /mobile-dashboard-toggle/);
+  assert.doesNotMatch(client, /<span>\{navigationCollapsed \? "Expand" : "Collapse"\}<\/span>/);
+  assert.match(client, /A paid subscription is not required/);
+  assert.match(store, /SELECT id FROM households LIMIT 1/);
+  assert.match(page, /This account is not part of the shared household/);
   assert.doesNotMatch(client, /window\.close\(\)|Close dashboard/);
   assert.match(styles, /Mobile-first dashboard shell and collapsible navigation/);
   assert.match(styles, /dashboard-collapsed/);

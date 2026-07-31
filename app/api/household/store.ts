@@ -39,6 +39,9 @@ export async function getOrCreateMember(email: string, displayName: string) {
     return member;
   }
 
+  const existingHousehold = await db.prepare("SELECT id FROM households LIMIT 1").first<{ id: string }>();
+  if (existingHousehold) return null;
+
   const householdId = crypto.randomUUID();
   const householdName = displayName && displayName !== email ? displayName + "'s household" : "My household";
   await db.batch([
@@ -56,6 +59,7 @@ export async function householdContext() {
   const user = await authenticatedUser();
   if (!user) return null;
   const member = await getOrCreateMember(user.email, user.displayName);
+  if (!member) return null;
   return { user, member, db: database() };
 }
 
