@@ -83,15 +83,18 @@ test("removes disposable starter assets", async () => {
   assert.doesNotMatch(dashboardSource + layout + packageJson, /SkeletonPreview|codex-preview|react-loading-skeleton/);
   await assert.rejects(access(new URL("../app/_sites-preview", import.meta.url)));
 });
-test("supports a mobile dashboard shell and a safe exit control", async () => {
+test("supports a mobile dashboard shell and collapsible navigation", async () => {
   const [client, styles] = await Promise.all([
     readFile(new URL("../app/dashboard-client.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/globals.css", import.meta.url), "utf8"),
   ]);
-  assert.match(client, /closeDashboard/);
-  assert.match(client, /Close dashboard/);
-  assert.match(client, /window\.close\(\)/);
-  assert.match(styles, /Mobile-first dashboard shell and exit control/);
+  assert.match(client, /toggleDashboardNavigation/);
+  assert.match(client, /Collapse dashboard navigation/);
+  assert.match(client, /Expand dashboard navigation/);
+  assert.match(client, /NAVIGATION_COLLAPSED_KEY/);
+  assert.doesNotMatch(client, /window\.close\(\)|Close dashboard/);
+  assert.match(styles, /Mobile-first dashboard shell and collapsible navigation/);
+  assert.match(styles, /dashboard-collapsed/);
   assert.match(styles, /grid-row:2/);
   assert.match(styles, /safe-area-inset-bottom/);
   assert.match(styles, /font-size:16px/);
