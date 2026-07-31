@@ -28,6 +28,9 @@ type DebtAccount = {
   payoffMode: PayoffMode;
   creditLimit: number;
   dueDate: string;
+  promoEndDate: string;
+  postPromoApr: number;
+  postPromoMinimum: number;
   createdAt: string;
 };
 
@@ -71,7 +74,20 @@ type PayoffSnapshot = {
   note: string;
   accounts: { accountId: string; name: string; type: DebtType; balance: number; apr: number }[];
 };
-type PlanMonth = { month: number; interest: number; paid: number; remaining: number; payments: Record<string, number>; balances: Record<string, number>; paidOff: string[] };
+type PlanMonth = {
+  month: number;
+  interest: number;
+  paid: number;
+  remaining: number;
+  requiredMonthly: number;
+  minimumIncrease: number;
+  payments: Record<string, number>;
+  minimums: Record<string, number>;
+  aprs: Record<string, number>;
+  balances: Record<string, number>;
+  paidOff: string[];
+  nonAmortizingAccountIds: string[];
+};
 type LinkedCardExpenses = Record<string, number>;
 type LinkedCardExpenseItems = Record<string, CashflowItem[]>;
 type DashboardPayload = { accounts: DebtAccount[]; monthlyBudgets: Record<string, CashflowItem[]>; payees: Payee[]; transactions: LedgerTransaction[]; snapshots: PayoffSnapshot[]; extra: number; strategy: PayoffStrategy };
@@ -84,6 +100,9 @@ function normalizedPayload(value: unknown): DashboardPayload {
   const accounts = Array.isArray(parsed.accounts) ? parsed.accounts.map((account) => ({
     ...account,
     interestFee: Number.isFinite(account.interestFee) ? account.interestFee : 0,
+    promoEndDate: typeof account.promoEndDate === "string" ? account.promoEndDate : "",
+    postPromoApr: Number.isFinite(account.postPromoApr) ? account.postPromoApr : 0,
+    postPromoMinimum: Number.isFinite(account.postPromoMinimum) ? account.postPromoMinimum : 0,
     payoffMode: account.payoffMode === "minimum-only" ? "minimum-only" as const : "priority" as const,
   })) : [];
   const normalizeCashflow = (items: CashflowItem[]) => items.map((item) => ({
@@ -115,7 +134,7 @@ function hasMeaningfulData(payload: DashboardPayload) {
 const STORAGE_KEY = "debtfree-dashboard-prototype-v1";
 const STORAGE_BACKUP_KEY = "debtfree-dashboard-prototype-v1-backup";
 const NAVIGATION_COLLAPSED_KEY = "debtfree-dashboard-navigation-collapsed";
-const EMPTY_DRAFT: AccountDraft = { name: "", type: "Credit card", balance: 0, apr: 0, interestFee: 0, minimum: 0, minimumMode: "auto", payoffMode: "priority", creditLimit: 0, dueDate: "" };
+const EMPTY_DRAFT: AccountDraft = { name: "", type: "Credit card", balance: 0, apr: 0, interestFee: 0, minimum: 0, minimumMode: "auto", payoffMode: "priority", creditLimit: 0, dueDate: "", promoEndDate: "", postPromoApr: 0, postPromoMinimum: 0 };
 const EMPTY_CASHFLOW_DRAFT: CashflowDraft = { name: "", kind: "expense", category: "Housing", amount: 0, paymentMethod: "debit", creditAccountId: "" };
 const TRANSACTION_CATEGORIES = ["Shopping", "Food", "Housing", "Transportation", "Utilities", "Health", "Debt payment", "Interest & fees", "Other"];
 const CASHFLOW_CATEGORIES: Record<CashflowKind, string[]> = {
@@ -124,9 +143,9 @@ const CASHFLOW_CATEGORIES: Record<CashflowKind, string[]> = {
   budget: ["Savings", "Emergency fund", "Groceries", "Travel", "Personal", "Other budget"],
 };
 const SAMPLE_ACCOUNTS: DebtAccount[] = [
-  { id: "sample-1", name: "Everyday Rewards", type: "Credit card", balance: 3577.28, apr: 21.49, interestFee: 0, minimum: 0, minimumMode: "auto", payoffMode: "priority", creditLimit: 8500, dueDate: "2026-08-18", createdAt: "2026-07-01" },
-  { id: "sample-2", name: "Freedom Card", type: "Credit card", balance: 5254.68, apr: 24.74, interestFee: 0, minimum: 0, minimumMode: "auto", payoffMode: "priority", creditLimit: 10000, dueDate: "2026-08-22", createdAt: "2026-07-01" },
-  { id: "sample-3", name: "Warehouse Card", type: "Credit card", balance: 10684, apr: 23.74, interestFee: 0, minimum: 0, minimumMode: "auto", payoffMode: "priority", creditLimit: 14000, dueDate: "2026-08-27", createdAt: "2026-07-01" },
+  { id: "sample-1", name: "Everyday Rewards", type: "Credit card", balance: 3577.28, apr: 21.49, interestFee: 0, minimum: 0, minimumMode: "auto", payoffMode: "priority", creditLimit: 8500, dueDate: "2026-08-18", promoEndDate: "", postPromoApr: 0, postPromoMinimum: 0, createdAt: "2026-07-01" },
+  { id: "sample-2", name: "Freedom Card", type: "Credit card", balance: 5254.68, apr: 24.74, interestFee: 0, minimum: 0, minimumMode: "auto", payoffMode: "priority", creditLimit: 10000, dueDate: "2026-08-22", promoEndDate: "", postPromoApr: 0, postPromoMinimum: 0, createdAt: "2026-07-01" },
+  { id: "sample-3", name: "Warehouse Card", type: "Credit card", balance: 10684, apr: 23.74, interestFee: 0, minimum: 0, minimumMode: "auto", payoffMode: "priority", creditLimit: 14000, dueDate: "2026-08-27", promoEndDate: "", postPromoApr: 0, postPromoMinimum: 0, createdAt: "2026-07-01" },
 ];
 const DEBT_TYPES: DebtType[] = ["Credit card", "Personal loan", "Auto loan", "Student loan", "Medical debt", "Other"];
 const money = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 });
@@ -214,6 +233,9 @@ function extractDebtFreeAccounts(text: string): DebtAccount[] {
       payoffMode: "priority",
       creditLimit: 0,
       dueDate: "",
+      promoEndDate: "",
+      postPromoApr: 0,
+      postPromoMinimum: 0,
       createdAt: new Date().toISOString(),
     });
   }
@@ -248,16 +270,37 @@ function monthAfter(offset: number) {
   date.setMonth(date.getMonth() + offset);
   return date.toLocaleDateString("en-US", { month: "short", year: "numeric" });
 }
+function forecastMonthKey(month: number) {
+  const date = new Date();
+  date.setDate(1);
+  date.setMonth(date.getMonth() + month - 1);
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
+}
+function hasPromoTerms(account: DebtAccount) {
+  return account.type === "Credit card" && Boolean(account.promoEndDate) && account.postPromoApr > 0;
+}
+function promoIsActive(account: DebtAccount, month: number) {
+  return hasPromoTerms(account) && forecastMonthKey(month) <= account.promoEndDate.slice(0, 7);
+}
+function forecastApr(account: DebtAccount, month: number) {
+  return hasPromoTerms(account) && !promoIsActive(account, month) ? account.postPromoApr : account.apr;
+}
+function forecastMinimum(account: DebtAccount, balance: number, month: number) {
+  if (balance <= 0) return 0;
+  const currentMinimum = effectiveMinimum(account);
+  const amount = hasPromoTerms(account) && !promoIsActive(account, month) && account.postPromoMinimum > 0
+    ? account.postPromoMinimum
+    : currentMinimum;
+  return Math.min(balance, amount);
+}
+function forecastMonthlyRate(account: DebtAccount, month: number) {
+  if (hasPromoTerms(account) && !promoIsActive(account, month)) return account.postPromoApr / 1200;
+  return projectedMonthlyRate(account);
+}
 function individualPayoffMonths(account: DebtAccount) {
   if (account.balance <= 0) return 0;
-  const payment = effectiveMinimum(account);
-  let balance = account.balance;
-  for (let month = 1; month <= 1200; month++) {
-    balance += balance * account.apr / 1200;
-    balance -= Math.min(payment, balance);
-    if (balance <= 0.005) return month;
-  }
-  return null;
+  const result = calculatePlan([account], 0, "avalanche");
+  return result.stalled ? null : result.months.length;
 }
 function calculatePlan(accounts: DebtAccount[], extra: number, strategy: PayoffStrategy, linkedCardExpenses: LinkedCardExpenses = {}) {
   const active = accounts.filter((account) => account.balance > 0);
@@ -265,28 +308,54 @@ function calculatePlan(accounts: DebtAccount[], extra: number, strategy: PayoffS
   const monthly = active.reduce((sum, account) => sum + effectiveMinimum(account) + (linkedCardExpenses[account.id] ?? 0), 0) + extra;
   const months: PlanMonth[] = [];
   let totalInterest = 0;
-  if (!active.length || monthly <= 0) return { months, totalInterest, monthly, stalled: false };
+  let peakMonthly = monthly;
+  const promoMinimumFallbackIds = active.filter((account) => hasPromoTerms(account) && account.postPromoMinimum <= 0).map((account) => account.id);
+  const emptyResult = { months, totalInterest, monthly, peakMonthly, stalled: false, nonAmortizingAccountIds: [] as string[], promoMinimumFallbackIds };
+  if (!active.length) return emptyResult;
+  if (monthly <= 0) return { ...emptyResult, stalled: true, nonAmortizingAccountIds: active.map((account) => account.id) };
+
   for (let month = 1; month <= 1200; month++) {
     const before = new Map(balances);
     const payments: Record<string, number> = {};
+    const minimums: Record<string, number> = {};
+    const aprs: Record<string, number> = {};
+    const interestByAccount: Record<string, number> = {};
     let interest = 0;
+
     active.forEach((account) => {
       const balance = balances.get(account.id) ?? 0;
       if (balance <= 0) return;
-      const charge = balance * projectedMonthlyRate(account);
+      const apr = forecastApr(account, month);
+      const charge = balance * forecastMonthlyRate(account, month);
+      aprs[account.id] = apr;
+      interestByAccount[account.id] = charge;
       balances.set(account.id, balance + charge);
       interest += charge;
     });
     totalInterest += interest;
+
     active.forEach((account) => {
       const recurringCharge = linkedCardExpenses[account.id] ?? 0;
-      if (recurringCharge <= 0) return;
+      if (recurringCharge <= 0 || (balances.get(account.id) ?? 0) <= 0) return;
       balances.set(account.id, (balances.get(account.id) ?? 0) + recurringCharge);
     });
-    let available = monthly;
+
+    let requiredMinimumTotal = 0;
     active.forEach((account) => {
       const balance = balances.get(account.id) ?? 0;
-      const scheduledPayment = effectiveMinimum(account) + (linkedCardExpenses[account.id] ?? 0);
+      if (balance <= 0) return;
+      const minimum = forecastMinimum(account, balance, month);
+      minimums[account.id] = minimum;
+      requiredMinimumTotal += minimum + (linkedCardExpenses[account.id] ?? 0);
+    });
+    const requiredMonthly = Math.max(monthly, round(requiredMinimumTotal));
+    const minimumIncrease = round(Math.max(0, requiredMonthly - monthly));
+    peakMonthly = Math.max(peakMonthly, requiredMonthly);
+    let available = requiredMonthly;
+
+    active.forEach((account) => {
+      const balance = balances.get(account.id) ?? 0;
+      const scheduledPayment = (minimums[account.id] ?? 0) + (linkedCardExpenses[account.id] ?? 0);
       const payment = Math.min(scheduledPayment, balance, available);
       if (payment > 0) {
         balances.set(account.id, balance - payment);
@@ -294,7 +363,12 @@ function calculatePlan(accounts: DebtAccount[], extra: number, strategy: PayoffS
         available -= payment;
       }
     });
-    const priority = [...active].filter((account) => account.payoffMode !== "minimum-only" && (balances.get(account.id) ?? 0) > 0.005).sort((a, b) => strategy === "avalanche" ? b.apr - a.apr || a.balance - b.balance : a.balance - b.balance || b.apr - a.apr);
+
+    const priority = [...active]
+      .filter((account) => account.payoffMode !== "minimum-only" && (balances.get(account.id) ?? 0) > 0.005)
+      .sort((a, b) => strategy === "avalanche"
+        ? forecastApr(b, month) - forecastApr(a, month) || (balances.get(a.id) ?? 0) - (balances.get(b.id) ?? 0)
+        : (balances.get(a.id) ?? 0) - (balances.get(b.id) ?? 0) || forecastApr(b, month) - forecastApr(a, month));
     priority.forEach((account) => {
       const balance = balances.get(account.id) ?? 0;
       const payment = Math.min(balance, available);
@@ -304,14 +378,39 @@ function calculatePlan(accounts: DebtAccount[], extra: number, strategy: PayoffS
         available -= payment;
       }
     });
+
+    const nonAmortizingAccountIds = active.filter((account) => {
+      const starting = before.get(account.id) ?? 0;
+      const ending = balances.get(account.id) ?? 0;
+      if (starting <= 0 || ending <= 0.005) return false;
+      const cost = (interestByAccount[account.id] ?? 0) + (linkedCardExpenses[account.id] ?? 0);
+      return (payments[account.id] ?? 0) <= cost + 0.005 && ending >= starting - 0.005;
+    }).map((account) => account.id);
     const remaining = [...balances.values()].reduce((sum, balance) => sum + balance, 0);
     const paidOff = active.filter((account) => (before.get(account.id) ?? 0) > 0 && (balances.get(account.id) ?? 0) <= 0.005).map((account) => account.name);
-    months.push({ month, interest, paid: Object.values(payments).reduce((sum, payment) => sum + payment, 0), remaining, payments, balances: Object.fromEntries([...balances].map(([id, balance]) => [id, Math.max(0, round(balance))])), paidOff });
-    if (remaining <= 0.005) return { months, totalInterest, monthly, stalled: false };
+    months.push({
+      month,
+      interest,
+      paid: Object.values(payments).reduce((sum, payment) => sum + payment, 0),
+      remaining,
+      requiredMonthly,
+      minimumIncrease,
+      payments,
+      minimums,
+      aprs,
+      balances: Object.fromEntries([...balances].map(([id, balance]) => [id, Math.max(0, round(balance))])),
+      paidOff,
+      nonAmortizingAccountIds,
+    });
+    if (remaining <= 0.005) return { months, totalInterest, monthly, peakMonthly, stalled: false, nonAmortizingAccountIds: [], promoMinimumFallbackIds };
     const previousRemaining = [...before.values()].reduce((sum, balance) => sum + balance, 0);
-    if (!paidOff.length && remaining >= previousRemaining - 0.005) return { months, totalInterest, monthly, stalled: true };
+    const hasPendingPromoChange = active.some((account) => promoIsActive(account, month));
+    if (!paidOff.length && remaining >= previousRemaining - 0.005 && !hasPendingPromoChange) {
+      return { months, totalInterest, monthly, peakMonthly, stalled: true, nonAmortizingAccountIds, promoMinimumFallbackIds };
+    }
   }
-  return { months, totalInterest, monthly, stalled: true };
+  const nonAmortizingAccountIds = active.filter((account) => (balances.get(account.id) ?? 0) > 0.005).map((account) => account.id);
+  return { months, totalInterest, monthly, peakMonthly, stalled: true, nonAmortizingAccountIds, promoMinimumFallbackIds };
 }
 
 const NAV_ITEMS: { id: PageId; label: string; icon: string }[] = [
@@ -540,7 +639,7 @@ export default function DashboardClient({ user }: { user: ChatGPTUser }) {
   const openEdit = (account: DebtAccount) => {
     const stored = accounts.find((item) => item.id === account.id) ?? account;
     setEditingId(stored.id);
-    setDraft({ name: stored.name, type: stored.type, balance: stored.balance, apr: stored.apr, interestFee: stored.interestFee, minimum: stored.minimum, minimumMode: stored.minimumMode, payoffMode: stored.payoffMode, creditLimit: stored.creditLimit, dueDate: stored.dueDate });
+    setDraft({ name: stored.name, type: stored.type, balance: stored.balance, apr: stored.apr, interestFee: stored.interestFee, minimum: stored.minimum, minimumMode: stored.minimumMode, payoffMode: stored.payoffMode, creditLimit: stored.creditLimit, dueDate: stored.dueDate, promoEndDate: stored.promoEndDate, postPromoApr: stored.postPromoApr, postPromoMinimum: stored.postPromoMinimum });
     setModalOpen(true);
   };
   const toggleMinimumMode = (id: string) => {
@@ -879,6 +978,7 @@ function PayoffPlanPage({ accounts, plan, extra, availableExtra, strategy, linke
   const [exportError, setExportError] = useState("");
   const description = strategy === "avalanche" ? "Highest APR first - usually the lowest total interest." : "Lowest balance first - faster early wins.";
   const planAccounts = accounts.filter((account) => account.balance > 0);
+  const nonAmortizingNames = accounts.filter((account) => plan.nonAmortizingAccountIds.includes(account.id)).map((account) => account.name);
 
   const createReport = (): PayoffReportData => {
     const accountNames = new Map(accounts.map((account) => [account.id, account.name]));
@@ -988,9 +1088,9 @@ function PayoffPlanPage({ accounts, plan, extra, availableExtra, strategy, linke
       </div>
     </div>
     {planAccounts.length && plan.months.length && !plan.stalled ? <>
-      <section className="plan-hero"><div><span>Projected debt-free date</span><strong>{monthAfter(plan.months.length - 1)}</strong><small>{plan.months.length} months from now</small></div><div><span>Monthly plan</span><strong>{money.format(plan.monthly)}</strong><small>Minimums + linked card expenses + extra</small></div><div><span>Estimated interest</span><strong>{money.format(plan.totalInterest)}</strong><small>Actual fee calibration used when provided</small></div></section>
+      <section className="plan-hero"><div><span>Projected debt-free date</span><strong>{monthAfter(plan.months.length - 1)}</strong><small>{plan.months.length} months from now</small></div><div><span>Monthly plan</span><strong>{money.format(plan.monthly)}</strong><small>{plan.peakMonthly > plan.monthly + .005 ? `Rises to ${moneyPrecise.format(plan.peakMonthly)} when a saved post-promo minimum begins` : "Minimums + linked card expenses + extra"}</small></div><div><span>Estimated interest</span><strong>{money.format(plan.totalInterest)}</strong><small>Actual fee calibration used when provided</small></div></section>
       <section className="table-card plan-table-card"><div className="table-card-head"><div><span>Month-by-month schedule</span><strong>{plan.months.length} rows | {strategy}</strong></div><span className="swipe-note">Month, interest, and remaining stay visible while you scroll</span></div><div className="table-scroll plan-scroll"><table className="payoff-table"><caption>Complete payoff plan with account balances after each scheduled payment</caption><thead><tr><th className="month-plan-head month-sticky">Month</th>{planAccounts.map((account) => <th className="account-plan-head" key={account.id} title="Click the account name to edit it. Drag the lower-right edge to resize this column."><button className="account-plan-edit" type="button" onClick={() => onEditAccount(account)}><span>{account.name}</span><small>Starting debt {moneyPrecise.format(account.balance)}</small></button></th>)}<th>Amount 2 Pay/month</th><th>Milestone</th><th className="interest-sticky">Interest</th><th className="remaining-sticky">Remaining</th></tr></thead><tbody>{plan.months.map((month) => <tr key={month.month}><td className="month-sticky">{monthAfter(month.month - 1)}</td>{planAccounts.map((account) => { const expenseItems = linkedCardExpenseItems[account.id] ?? []; return <td className="account-plan-cell" key={account.id}><strong>{moneyPrecise.format(month.payments[account.id] ?? 0)}</strong><small>{moneyPrecise.format(month.balances[account.id] ?? 0)} left</small>{expenseItems.map((item) => <em key={item.id}>+ {moneyPrecise.format(item.amount)} {item.name}</em>)}</td>; })}<td className="number-cell"><strong>{moneyPrecise.format(month.paid)}</strong></td><td>{month.paidOff.length ? <span className="milestone">Paid off: {month.paidOff.join(", ")}</span> : "\u2014"}</td><td className="number-cell interest-sticky">{moneyPrecise.format(month.interest)}</td><td className="number-cell remaining remaining-sticky">{moneyPrecise.format(month.remaining)}</td></tr>)}</tbody></table></div></section>
-    </> : <section className="large-empty"><span>{"\u2713"}</span><h2>{plan.stalled ? "The current payments do not outpace interest" : "Add debt accounts to build your plan"}</h2><p>{plan.stalled ? "Increase a minimum payment or add an extra monthly amount to create a finish line." : "Once your accounts have balances, APRs, and minimums, the complete payoff schedule will appear here."}</p><button className="primary" type="button" onClick={onAccounts}>Review debt accounts</button></section>}
+    </> : <section className="large-empty"><span>{"\u2713"}</span><h2>{plan.stalled ? (nonAmortizingNames.length ? "A balance is not amortizing" : "The current payments do not outpace interest") : "Add debt accounts to build your plan"}</h2><p>{plan.stalled ? (nonAmortizingNames.length ? `${nonAmortizingNames.join(", ")} does not shrink after interest and new charges at the modeled payment. Enter the issuer's actual minimum or add extra payment.` : "Increase a minimum payment or add an extra monthly amount to create a finish line.") : "Once your accounts have balances, APRs, and minimums, the complete payoff schedule will appear here."}</p><button className="primary" type="button" onClick={onAccounts}>Review debt accounts</button></section>}
   </div>;
 }
 function ProfilePage({ user, householdName, role, members, cloudStatus, onInvite, onRemove }: { user: ChatGPTUser; householdName: string; role: "owner" | "admin"; members: HouseholdMember[]; cloudStatus: CloudStatus; onInvite: (email: string) => Promise<void>; onRemove: (email: string) => Promise<void> }) {
@@ -1096,19 +1196,36 @@ function StatsPage({ accounts, snapshots, transactions, extra, strategy, linkedC
   const latestSnapshot = orderedSnapshots.at(-1) ?? null;
   const actualSnapshotReduction = firstSnapshot && latestSnapshot ? round(firstSnapshot.totalBalance - latestSnapshot.totalBalance) : 0;
   const averageSnapshotReduction = orderedSnapshots.length > 1 ? round(actualSnapshotReduction / (orderedSnapshots.length - 1)) : 0;
-  const payoffDate = (result: ReturnType<typeof calculatePlan>) => result.stalled ? "Needs adjustment" : result.months.length ? monthAfter(result.months.length - 1) : totalDebt <= 0 ? "Debt free" : "No projection";
+  const payoffDate = (result: ReturnType<typeof calculatePlan>) => result.stalled ? (result.nonAmortizingAccountIds.length ? "No payoff at this payment" : "Needs adjustment") : result.months.length ? monthAfter(result.months.length - 1) : totalDebt <= 0 ? "Debt free" : "No projection";
   const scenarioValues = [...new Set([0, extra, extra + 100, extra + 250, extra + 500].map((value) => Math.max(0, round(value))))].sort((a, b) => a - b);
   const scenarios = scenarioValues.map((value) => ({ value, result: calculatePlan(accounts, value, strategy, linkedCardExpenses) }));
   const milestone = (remainingShare: number) => { const entry = forecast.months.find((month) => month.remaining <= totalDebt * remainingShare + .005); return entry ? monthAfter(entry.month - 1) : null; };
-  const forecastInterestSaved = baseline.totalInterest > 0 ? Math.max(0, round(baseline.totalInterest - forecast.totalInterest)) : 0;
+  const promoAccounts = accounts.filter(hasPromoTerms);
+  const nonAmortizingAccounts = accounts.filter((account) => forecast.nonAmortizingAccountIds.includes(account.id));
+  const fallbackPromoAccounts = accounts.filter((account) => forecast.promoMinimumFallbackIds.includes(account.id));
+  const forecastInterestSaved = baseline.totalInterest > 0 && !baseline.stalled && !forecast.stalled ? Math.max(0, round(baseline.totalInterest - forecast.totalInterest)) : 0;
 
   return <div className="screen stats-screen">
     <div className="screen-title"><div><span className="eyebrow">Complete debt outlook</span><h1>Stats & projections</h1><p>Combine your live ledger, saved snapshots, and payoff plan to understand progress and test faster payoff scenarios.</p></div></div>
     {!accounts.length ? <section className="large-empty"><span>Stats</span><h2>Add debt accounts to build projections</h2><p>Once balances and minimum payments exist, this page will compare strategies and payoff scenarios.</p></section> : <>
       <section className="stats-hero"><div><span>Projected debt-free date</span><strong>{payoffDate(forecast)}</strong><small>{forecast.stalled ? "Increase monthly payments to create a finish line" : `${forecast.months.length} months using ${strategy}`}</small></div><div><span>Current debt</span><strong>{moneyPrecise.format(totalDebt)}</strong><small>{accounts.filter((account) => account.balance > 0).length} active accounts</small></div><div><span>Monthly payoff plan</span><strong>{moneyPrecise.format(forecast.monthly)}</strong><small>Minimums, linked card expenses, and extra</small></div><div><span>Projected interest</span><strong>{moneyPrecise.format(forecast.totalInterest)}</strong><small>{forecastInterestSaved > 0 ? `${moneyPrecise.format(forecastInterestSaved)} less than minimum-only pace` : "Based on current balances and rates"}</small></div></section>
       <section className="scenario-card"><div className="scenario-copy"><span>What-if planner</span><h2>Extra payment each month</h2><p>Adjust this amount to update every projection below. This does not change your saved payoff plan.</p></div><div className="scenario-control"><div><span>$</span><input type="number" min="0" step="25" value={scenarioExtra || ""} placeholder="0" onChange={(event) => setScenarioExtra(number(event.target.value))}/><button type="button" disabled={scenarioExtra === extra} onClick={() => setScenarioExtra(extra)}>Use saved extra</button></div><input aria-label="Extra monthly payment scenario" type="range" min="0" max="2000" step="25" value={Math.min(2000, scenarioExtra)} onChange={(event) => setScenarioExtra(number(event.target.value))}/></div><div className="scenario-result"><span>Scenario finish</span><strong>{payoffDate(forecast)}</strong><small>{forecast.stalled ? "Payments do not outpace interest" : `${forecast.months.length} months | ${moneyPrecise.format(forecast.totalInterest)} interest`}</small></div></section>
-      <section className="stats-grid">
-        <article className="strategy-card"><div className="stats-card-head"><div><span>Strategy comparison</span><strong>Same payment, different order</strong></div></div><div className="strategy-comparison"><div className={strategy === "avalanche" ? "active" : ""}><span>Avalanche</span><strong>{payoffDate(avalanche)}</strong><small>{avalanche.months.length} months</small><b>{moneyPrecise.format(avalanche.totalInterest)} interest</b></div><div className={strategy === "snowball" ? "active" : ""}><span>Snowball</span><strong>{payoffDate(snowball)}</strong><small>{snowball.months.length} months</small><b>{moneyPrecise.format(snowball.totalInterest)} interest</b></div></div><p>{avalanche.totalInterest <= snowball.totalInterest ? `Avalanche saves ${moneyPrecise.format(snowball.totalInterest - avalanche.totalInterest)} in projected interest.` : `Snowball saves ${moneyPrecise.format(avalanche.totalInterest - snowball.totalInterest)} in this projection.`}</p></article>
+      {promoAccounts.length > 0 && <section className={forecast.stalled ? "true-cost-warning danger" : "true-cost-warning"}>
+        <div className="true-cost-icon" aria-hidden="true">!</div>
+        <div className="true-cost-copy">
+          <span>True Cost forecast</span>
+          <h2>{forecast.stalled ? "No reliable payoff date at this payment" : `${moneyPrecise.format(forecast.totalInterest)} projected interest through ${payoffDate(forecast)}`}</h2>
+          <p>{forecast.stalled
+            ? `The forecast stops when the balance no longer falls. It accumulated ${moneyPrecise.format(forecast.totalInterest)} in interest before that point.`
+            : forecast.peakMonthly > forecast.monthly + .005
+              ? `The required monthly plan rises from ${moneyPrecise.format(forecast.monthly)} to ${moneyPrecise.format(forecast.peakMonthly)} when the saved post-promo minimum takes effect.`
+              : `The monthly plan stays at ${moneyPrecise.format(forecast.monthly)} while the post-promo APR and minimum are applied.`}</p>
+          <div className="true-cost-terms">{promoAccounts.map((account) => <div key={account.id}><strong>{account.name}</strong><span>{formatDate(account.promoEndDate)} end</span><span>{account.postPromoApr.toFixed(2)}% APR after</span><span>{moneyPrecise.format(account.postPromoMinimum > 0 ? account.postPromoMinimum : effectiveMinimum(account))} minimum after</span></div>)}</div>
+          {fallbackPromoAccounts.length > 0 && <small>Minimum not yet supplied for {fallbackPromoAccounts.map((account) => account.name).join(", ")}. The forecast keeps the current minimum; it does not silently estimate a higher one.</small>}
+          {nonAmortizingAccounts.length > 0 && <strong className="non-amortizing">Non-amortizing: {nonAmortizingAccounts.map((account) => account.name).join(", ")}. The modeled payment does not reduce the balance after interest and new charges.</strong>}
+        </div>
+      </section>}\n      <section className="stats-grid">
+        <article className="strategy-card"><div className="stats-card-head"><div><span>Strategy comparison</span><strong>Same payment, different order</strong></div></div><div className="strategy-comparison"><div className={strategy === "avalanche" ? "active" : ""}><span>Avalanche</span><strong>{payoffDate(avalanche)}</strong><small>{avalanche.stalled ? "Non-amortizing" : `${avalanche.months.length} months`}</small><b>{moneyPrecise.format(avalanche.totalInterest)} interest</b></div><div className={strategy === "snowball" ? "active" : ""}><span>Snowball</span><strong>{payoffDate(snowball)}</strong><small>{snowball.stalled ? "Non-amortizing" : `${snowball.months.length} months`}</small><b>{moneyPrecise.format(snowball.totalInterest)} interest</b></div></div><p>{avalanche.totalInterest <= snowball.totalInterest ? `Avalanche saves ${moneyPrecise.format(snowball.totalInterest - avalanche.totalInterest)} in projected interest.` : `Snowball saves ${moneyPrecise.format(avalanche.totalInterest - snowball.totalInterest)} in this projection.`}</p></article>
         <article className="progress-card"><div className="stats-card-head"><div><span>Recorded progress</span><strong>What your real data shows</strong></div></div><div className="recorded-progress"><div><span>Ledger payments</span><strong>{moneyPrecise.format(payments)}</strong></div><div><span>Charges & fees</span><strong>{moneyPrecise.format(charges)}</strong></div><div className={netLedgerReduction >= 0 ? "good" : "warning"}><span>Net ledger movement</span><strong>{netLedgerReduction >= 0 ? "-" : "+"}{moneyPrecise.format(Math.abs(netLedgerReduction))}</strong></div><div className={actualSnapshotReduction >= 0 ? "good" : "warning"}><span>Snapshot change</span><strong>{orderedSnapshots.length > 1 ? `${actualSnapshotReduction >= 0 ? "-" : "+"}${moneyPrecise.format(Math.abs(actualSnapshotReduction))}` : "Need 2 months"}</strong></div></div><p>{orderedSnapshots.length > 1 ? `Average saved-month reduction: ${moneyPrecise.format(Math.abs(averageSnapshotReduction))}.` : "Capture a snapshot in two different months to measure actual monthly progress."}</p></article>
       </section>
       <section className="stats-grid lower">
@@ -1129,6 +1246,31 @@ function CashflowModal({ draft, editing, accounts, onChange, onClose, onSave, on
 }
 function AccountModal({ draft, editing, onChange, onClose, onSave, onRemove }: { draft: AccountDraft; editing: boolean; onChange: (draft: AccountDraft) => void; onClose: () => void; onSave: () => void; onRemove: () => void }) {
   const autoMinimum = estimatedMinimum(draft.balance, draft.apr);
-  return <div className="modal-backdrop" onMouseDown={(event) => { if (event.currentTarget === event.target) onClose(); }}><section className="modal" role="dialog" aria-modal="true" aria-labelledby="account-modal-title"><header><div><span>{editing ? "Edit debt account" : "New debt account"}</span><h2 id="account-modal-title">{editing ? draft.name || "Account details" : "Add a debt account"}</h2><p>Enter the current lender details. You can update them anytime.</p></div><button type="button" onClick={onClose} aria-label="Close account form">×</button></header><div className="form-grid"><label className="wide"><span>Name</span><input autoFocus value={draft.name} placeholder="Example: Everyday Rewards" onChange={(event) => onChange({ ...draft, name: event.target.value })}/></label><label><span>Debt type</span><select value={draft.type} onChange={(event) => onChange({ ...draft, type: event.target.value as DebtType })}>{DEBT_TYPES.map((type) => <option key={type}>{type}</option>)}</select></label><Field label="Opening balance" prefix="$" value={draft.balance} placeholder="0" onChange={(balance) => onChange({ ...draft, balance })}/><Field label="APR" suffix="%" value={draft.apr} placeholder="0.00" step=".01" onChange={(apr) => onChange({ ...draft, apr })}/><div><Field label="Actual interest fee" prefix="$" value={draft.interestFee} placeholder="Optional" step=".01" onChange={(interestFee) => onChange({ ...draft, interestFee })}/><small className="field-help">Leave blank to estimate from balance × APR ÷ 12.</small></div><div className="minimum-editor"><div><span>Minimum payment</span><button type="button" className={draft.minimumMode === "auto" ? "mode active" : "mode"} onClick={() => onChange({ ...draft, minimumMode: draft.minimumMode === "auto" ? "manual" : "auto" })}>{draft.minimumMode === "auto" ? "Auto estimate" : "Use auto"}</button></div><Field prefix="$" value={draft.minimumMode === "auto" ? autoMinimum : draft.minimum} placeholder="0" disabled={draft.minimumMode === "auto"} onChange={(minimum) => onChange({ ...draft, minimum })}/><small>{draft.minimumMode === "auto" ? "1% of balance + monthly interest, with a $25 floor." : "Using your lender amount."}</small></div><Field label="Credit limit" prefix="$" value={draft.creditLimit} placeholder="Optional" onChange={(creditLimit) => onChange({ ...draft, creditLimit })}/><label><span>Next due date</span><input type="date" value={draft.dueDate} onChange={(event) => onChange({ ...draft, dueDate: event.target.value })}/></label></div><footer>{editing ? <button className="danger" type="button" onClick={onRemove}>Remove account</button> : <span/>}<div><button className="secondary" type="button" onClick={onClose}>Cancel</button><button className="primary" type="button" disabled={!draft.name.trim()} onClick={onSave}>{editing ? "Save changes" : "Add account"}</button></div></footer></section></div>;
+  const isCreditCard = draft.type === "Credit card";
+  return <div className="modal-backdrop" onMouseDown={(event) => { if (event.currentTarget === event.target) onClose(); }}>
+    <section className="modal" role="dialog" aria-modal="true" aria-labelledby="account-modal-title">
+      <header><div><span>{editing ? "Edit debt account" : "New debt account"}</span><h2 id="account-modal-title">{editing ? draft.name || "Account details" : "Add a debt account"}</h2><p>Enter the current lender details. You can update them anytime.</p></div><button type="button" onClick={onClose} aria-label="Close account form">&times;</button></header>
+      <div className="form-grid">
+        <label className="wide"><span>Name</span><input autoFocus value={draft.name} placeholder="Example: Everyday Rewards" onChange={(event) => onChange({ ...draft, name: event.target.value })}/></label>
+        <label><span>Debt type</span><select value={draft.type} onChange={(event) => onChange({ ...draft, type: event.target.value as DebtType })}>{DEBT_TYPES.map((type) => <option key={type}>{type}</option>)}</select></label>
+        <Field label="Opening balance" prefix="$" value={draft.balance} placeholder="0" onChange={(balance) => onChange({ ...draft, balance })}/>
+        <Field label={isCreditCard ? "Current APR" : "APR"} suffix="%" value={draft.apr} placeholder="0.00" step=".01" onChange={(apr) => onChange({ ...draft, apr })}/>
+        <div><Field label="Actual interest fee" prefix="$" value={draft.interestFee} placeholder="Optional" step=".01" onChange={(interestFee) => onChange({ ...draft, interestFee })}/><small className="field-help">Leave blank to estimate from balance x APR / 12.</small></div>
+        <div className="minimum-editor"><div><span>Minimum payment</span><button type="button" className={draft.minimumMode === "auto" ? "mode active" : "mode"} onClick={() => onChange({ ...draft, minimumMode: draft.minimumMode === "auto" ? "manual" : "auto" })}>{draft.minimumMode === "auto" ? "Auto estimate" : "Use auto"}</button></div><Field prefix="$" value={draft.minimumMode === "auto" ? autoMinimum : draft.minimum} placeholder="0" disabled={draft.minimumMode === "auto"} onChange={(minimum) => onChange({ ...draft, minimum })}/><small>{draft.minimumMode === "auto" ? "1% of balance + monthly interest, with a $25 floor." : "Using your lender amount."}</small></div>
+        {isCreditCard && <div className="wide promo-editor">
+          <div><span>0% promotional period</span><small>Optional. These terms drive the payoff forecast after the promotion ends.</small></div>
+          <div className="promo-fields">
+            <label><span>Promotion ends</span><input type="date" value={draft.promoEndDate} onChange={(event) => onChange({ ...draft, promoEndDate: event.target.value })}/></label>
+            <Field label="APR after promotion" suffix="%" value={draft.postPromoApr} placeholder="0.00" step=".01" onChange={(postPromoApr) => onChange({ ...draft, postPromoApr })}/>
+            <Field label="Actual minimum after promotion" prefix="$" value={draft.postPromoMinimum} placeholder="Keep current" step=".01" onChange={(postPromoMinimum) => onChange({ ...draft, postPromoMinimum })}/>
+          </div>
+          <small className="promo-help">If the future minimum is unknown, DebtFree keeps today&apos;s minimum instead of inventing a higher payment. Update it when the issuer confirms the amount.</small>
+        </div>}
+        <Field label="Credit limit" prefix="$" value={draft.creditLimit} placeholder="Optional" onChange={(creditLimit) => onChange({ ...draft, creditLimit })}/>
+        <label><span>Next due date</span><input type="date" value={draft.dueDate} onChange={(event) => onChange({ ...draft, dueDate: event.target.value })}/></label>
+      </div>
+      <footer>{editing ? <button className="danger" type="button" onClick={onRemove}>Remove account</button> : <span/>}<div><button className="secondary" type="button" onClick={onClose}>Cancel</button><button className="primary" type="button" disabled={!draft.name.trim()} onClick={onSave}>{editing ? "Save changes" : "Add account"}</button></div></footer>
+    </section>
+  </div>;
 }
 function Field({ label, prefix, suffix, value, placeholder, step, disabled, onChange }: { label?: string; prefix?: string; suffix?: string; value: number; placeholder: string; step?: string; disabled?: boolean; onChange: (value: number) => void }) { return <label>{label && <span>{label}</span>}<div className="field-input">{prefix && <b>{prefix}</b>}<input type="number" min="0" step={step} inputMode="decimal" disabled={disabled} value={value || ""} placeholder={placeholder} onChange={(event) => onChange(number(event.target.value))}/>{suffix && <b>{suffix}</b>}</div></label>; }

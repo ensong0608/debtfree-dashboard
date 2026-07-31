@@ -140,3 +140,27 @@ test("exports a complete payoff report in CSV, Excel, and PDF formats", async ()
   assert.match(packageJson, /"jspdf"/);
   assert.match(packageJson, /"jspdf-autotable"/);
 });
+
+
+test("uses explicit post-promo card terms in payoff forecasts", async () => {
+  const [client, styles, releaseNotes] = await Promise.all([
+    readFile(new URL("../app/dashboard-client.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/globals.css", import.meta.url), "utf8"),
+    readFile(new URL("../RELEASE_NOTES.md", import.meta.url), "utf8"),
+  ]);
+  assert.match(client, /promoEndDate: string/);
+  assert.match(client, /postPromoApr: number/);
+  assert.match(client, /postPromoMinimum: number/);
+  assert.match(client, /function forecastMinimum/);
+  assert.match(client, /account\.postPromoMinimum > 0/);
+  assert.match(client, /The forecast keeps the current minimum; it does not silently estimate a higher one/);
+  assert.match(client, /True Cost forecast/);
+  assert.match(client, /forecast\.totalInterest/);
+  assert.match(client, /forecast\.peakMonthly/);
+  assert.match(client, /nonAmortizingAccountIds/);
+  assert.match(client, /No payoff at this payment/);
+  assert.match(styles, /true-cost-warning/);
+  assert.match(styles, /promo-fields/);
+  assert.match(releaseNotes, /Promo-aware payoff forecasting/);
+  assert.match(releaseNotes, /non-amortizing balances/);
+});
