@@ -14,6 +14,11 @@ test("renders the DebtFree Dashboard shell", async () => {
   assert.match(client, /Batch entry/i);
   assert.match(client, /softDeleteTransaction/);
   assert.match(client, /ledger-pagination/);
+  assert.match(client, /Monthly progress archive/i);
+  assert.match(client, /captureSnapshot/);
+  assert.match(client, /snapshot-chart/);
+  assert.match(client, /SnapshotNoteEditor/);
+  assert.match(client, /projectedDebtFreeMonth/);
   assert.match(client, /Add income/i);
   assert.match(client, /Add expense/i);
   assert.match(client, /Payoff Plan/i);

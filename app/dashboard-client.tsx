@@ -57,10 +57,21 @@ type LedgerTransaction = {
   deletedAt: string | null;
 };
 type TransactionDraft = Omit<LedgerTransaction, "id" | "createdAt" | "updatedAt" | "deletedAt">;
+type PayoffSnapshot = {
+  id: string;
+  month: string;
+  capturedAt: string;
+  totalBalance: number;
+  monthlyInterest: number;
+  activeAccountCount: number;
+  projectedDebtFreeMonth: string | null;
+  note: string;
+  accounts: { accountId: string; name: string; type: DebtType; balance: number; apr: number }[];
+};
 type PlanMonth = { month: number; interest: number; paid: number; remaining: number; payments: Record<string, number>; balances: Record<string, number>; paidOff: string[] };
 type LinkedCardExpenses = Record<string, number>;
 type LinkedCardExpenseItems = Record<string, CashflowItem[]>;
-type DashboardPayload = { accounts: DebtAccount[]; monthlyBudgets: Record<string, CashflowItem[]>; payees: Payee[]; transactions: LedgerTransaction[]; extra: number; strategy: PayoffStrategy };
+type DashboardPayload = { accounts: DebtAccount[]; monthlyBudgets: Record<string, CashflowItem[]>; payees: Payee[]; transactions: LedgerTransaction[]; snapshots: PayoffSnapshot[]; extra: number; strategy: PayoffStrategy };
 type CloudStatus = "connecting" | "saving" | "synced" | "error";
 type HouseholdMember = { email: string; display_name: string | null; role: "owner" | "admin"; status: "active" | "invited" };
 type HouseholdResponse = { householdName: string; role: "owner" | "admin"; payload: DashboardPayload | null; revision: number; members: HouseholdMember[] };
@@ -82,18 +93,20 @@ function normalizedPayload(value: unknown): DashboardPayload {
     : Array.isArray(parsed.cashflowItems) ? { [currentMonthKey()]: normalizeCashflow(parsed.cashflowItems) } : {};
   const payees = Array.isArray(parsed.payees) ? parsed.payees.filter((payee) => payee && typeof payee.name === "string").map((payee) => ({ ...payee, deletedAt: payee.deletedAt ?? null })) : [];
   const transactions = Array.isArray(parsed.transactions) ? parsed.transactions.filter((transaction) => transaction && typeof transaction.accountId === "string").map((transaction) => ({ ...transaction, payeeName: transaction.payeeName ?? "", memo: transaction.memo ?? "", category: transaction.category ?? "Other", updatedAt: transaction.updatedAt ?? transaction.createdAt, deletedAt: transaction.deletedAt ?? null })) : [];
+  const snapshots = Array.isArray(parsed.snapshots) ? parsed.snapshots.filter((snapshot) => snapshot && typeof snapshot.month === "string" && Array.isArray(snapshot.accounts)).map((snapshot) => ({ ...snapshot, note: snapshot.note ?? "", projectedDebtFreeMonth: snapshot.projectedDebtFreeMonth ?? null, monthlyInterest: Number.isFinite(snapshot.monthlyInterest) ? snapshot.monthlyInterest : 0 })) : [];
   return {
     accounts,
     monthlyBudgets,
     payees,
     transactions,
+    snapshots,
     extra: Number.isFinite(parsed.extra) ? parsed.extra ?? 0 : 0,
     strategy: parsed.strategy === "snowball" ? "snowball" : "avalanche",
   };
 }
 
 function hasMeaningfulData(payload: DashboardPayload) {
-  return payload.accounts.length > 0 || Object.values(payload.monthlyBudgets).some((items) => items.length > 0) || payload.payees.length > 0 || payload.transactions.length > 0 || payload.extra > 0;
+  return payload.accounts.length > 0 || Object.values(payload.monthlyBudgets).some((items) => items.length > 0) || payload.payees.length > 0 || payload.transactions.length > 0 || payload.snapshots.length > 0 || payload.extra > 0;
 }
 
 const STORAGE_KEY = "debtfree-dashboard-prototype-v1";
@@ -302,7 +315,7 @@ const NAV_ITEMS: { id: PageId; label: string; icon: string; future?: boolean }[]
   { id: "accounts", label: "Debt Accounts", icon: "▤" },
   { id: "history", label: "Transactions", icon: "↻" },
   { id: "plan", label: "Payoff Plan", icon: "✓" },
-  { id: "snapshots", label: "Payoff Snapshots", icon: "◉", future: true },
+  { id: "snapshots", label: "Payoff Snapshots", icon: "◉" },
   { id: "utilization", label: "Credit Utilization", icon: "◔", future: true },
   { id: "stats", label: "Stats & Projections", icon: "↗", future: true },
   { id: "profile", label: "My Account", icon: "⚙" },
@@ -316,6 +329,7 @@ export default function DashboardClient({ user }: { user: ChatGPTUser }) {
   const [selectedMonth, setSelectedMonth] = useState(currentMonthKey());
   const [payees, setPayees] = useState<Payee[]>([]);
   const [transactions, setTransactions] = useState<LedgerTransaction[]>([]);
+  const [snapshots, setSnapshots] = useState<PayoffSnapshot[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [sortKey, setSortKey] = useState<SortKey>("name");
   const [sortDirection, setSortDirection] = useState<SortDirection>("asc");
@@ -344,6 +358,7 @@ export default function DashboardClient({ user }: { user: ChatGPTUser }) {
       setMonthlyBudgets(payload.monthlyBudgets);
       setPayees(payload.payees);
       setTransactions(payload.transactions);
+      setSnapshots(payload.snapshots);
       setExtra(payload.extra);
       setStrategy(payload.strategy);
     };
@@ -395,7 +410,7 @@ export default function DashboardClient({ user }: { user: ChatGPTUser }) {
   }, []);
   useEffect(() => {
     if (!loaded) return;
-    const payload: DashboardPayload = { accounts, monthlyBudgets, payees, transactions, extra, strategy };
+    const payload: DashboardPayload = { accounts, monthlyBudgets, payees, transactions, snapshots, extra, strategy };
     if (hasMeaningfulData(payload)) cloudWritesEnabled.current = true;
     if (!cloudWritesEnabled.current) return;
     const serialized = JSON.stringify(payload);
@@ -414,7 +429,7 @@ export default function DashboardClient({ user }: { user: ChatGPTUser }) {
         .catch(() => setCloudStatus("error"));
     }, 650);
     return () => window.clearTimeout(syncTimer);
-  }, [accounts, extra, loaded, monthlyBudgets, payees, strategy, transactions]);
+  }, [accounts, extra, loaded, monthlyBudgets, payees, snapshots, strategy, transactions]);
   useEffect(() => {
     if (!modalOpen && !cashflowModalOpen && !transactionModalOpen && !payeeModalOpen) return;
     const close = (event: KeyboardEvent) => { if (event.key === "Escape") { setModalOpen(false); setCashflowModalOpen(false); setTransactionModalOpen(false); setPayeeModalOpen(false); } };
@@ -627,6 +642,33 @@ export default function DashboardClient({ user }: { user: ChatGPTUser }) {
     setTransactions((current) => current.map((transaction) => transaction.payeeId === id ? { ...transaction, payeeName: trimmed, updatedAt: new Date().toISOString() } : transaction));
   };
   const deletePayee = (id: string) => setPayees((current) => current.map((payee) => payee.id === id ? { ...payee, deletedAt: new Date().toISOString() } : payee));
+  const captureSnapshot = (note: string) => {
+    if (!calculatedAccounts.length) return;
+    const month = currentMonthKey();
+    const now = new Date().toISOString();
+    const projectedDebtFreeMonth = plan.months.length && !plan.stalled ? monthAfter(plan.months.length - 1) : null;
+    setSnapshots((current) => {
+      const existing = current.find((snapshot) => snapshot.month === month);
+      const next: PayoffSnapshot = {
+        id: existing?.id ?? `snapshot-${Date.now()}-${Math.random()}`,
+        month,
+        capturedAt: now,
+        totalBalance,
+        monthlyInterest: interest,
+        activeAccountCount: activeCount,
+        projectedDebtFreeMonth,
+        note: note.trim(),
+        accounts: calculatedAccounts.map((account) => ({ accountId: account.id, name: account.name, type: account.type, balance: account.balance, apr: account.apr })),
+      };
+      return existing ? current.map((snapshot) => snapshot.id === existing.id ? next : snapshot) : [...current, next];
+    });
+  };
+  const updateSnapshotNote = (id: string, note: string) => setSnapshots((current) => current.map((snapshot) => snapshot.id === id ? { ...snapshot, note: note.trim() } : snapshot));
+  const removeSnapshot = (id: string) => {
+    const snapshot = snapshots.find((item) => item.id === id);
+    if (!confirm(`Delete the ${snapshot ? monthLabel(snapshot.month) : ""} payoff snapshot?`)) return;
+    setSnapshots((current) => current.filter((item) => item.id !== id));
+  };
   return <div className="app-shell">
     <aside className="sidebar">
       <button className="brand" type="button" onClick={() => setPage("dashboard")}><span>DF</span><div><strong>DebtFree</strong><small>Dashboard</small></div></button>
@@ -641,8 +683,9 @@ export default function DashboardClient({ user }: { user: ChatGPTUser }) {
         {page === "accounts" && <AccountsPage accounts={sortedAccounts} activeCount={activeCount} totalBalance={totalBalance} minimums={minimums} interest={interest} linkedCardExpenses={linkedCardExpenses} sortKey={sortKey} sortDirection={sortDirection} paidOffById={paidOffById} onSort={changeSort} onAdd={openNew} onEdit={openEdit} onToggleMinimum={toggleMinimumMode} onTogglePayoff={togglePayoffMode} onSample={() => setAccounts(SAMPLE_ACCOUNTS)} onImport={importDebtFreeCsv} importMessage={importMessage}/>}
         {page === "history" && <TransactionsPage accounts={calculatedAccounts} payees={payees} transactions={transactions} onQuickAdd={openNewTransaction} onEdit={openEditTransaction} onDelete={softDeleteTransaction} onRestore={restoreTransaction} onBatchAdd={addBatchTransactions} onManagePayees={() => setPayeeModalOpen(true)}/>}
         {page === "plan" && <PayoffPlanPage accounts={calculatedAccounts} plan={plan} extra={extra} availableExtra={availableExtra} strategy={strategy} linkedCardExpenseItems={linkedCardExpenseItems} onExtra={setExtra} onStrategy={setStrategy} onAccounts={() => setPage("accounts")} onEditAccount={openEdit}/>}
+        {page === "snapshots" && <SnapshotsPage accounts={calculatedAccounts} snapshots={snapshots} currentInterest={interest} onCapture={captureSnapshot} onUpdateNote={updateSnapshotNote} onDelete={removeSnapshot}/>}
         {page === "profile" && <ProfilePage user={user} householdName={householdName} role={householdRole} members={householdMembers} cloudStatus={cloudStatus} onInvite={inviteAdmin} onRemove={removeAdmin}/>}
-        {(page === "snapshots" || page === "utilization" || page === "stats") && <FuturePage page={page}/>}
+        {(page === "utilization" || page === "stats") && <FuturePage page={page}/>}
       </div>
     </main>
 
@@ -783,10 +826,48 @@ function PayoffPlanPage({ accounts, plan, extra, availableExtra, strategy, linke
   };
   return <div className="screen"><div className="screen-title"><div><span className="eyebrow">Household access</span><h1>My account</h1><p>Your dashboard is protected by ChatGPT sign-in. Listed admins share the household after the same email is allowed into this private site.</p></div><button className="secondary" type="button" onClick={copyLink}>Copy dashboard link</button></div><section className="profile-grid"><article className="profile-card"><div className="profile-avatar">{user.displayName.slice(0,2).toUpperCase()}</div><div><span>{role === "owner" ? "Household owner" : "Household admin"}</span><strong>{user.displayName}</strong><small>{user.email}</small></div><div className="account-cloud-state"><i className={cloudStatus}/><span>{cloudStatus === "synced" ? "Household cloud sync is active" : cloudStatus === "error" ? "Cloud unavailable; device backup is safe" : "Syncing household changes"}</span></div><a className="secondary account-link" href="/signout-with-chatgpt?return_to=%2F">Sign out</a></article><article className="roles-card household-card"><div className="card-head"><div><span>{householdName}</span><strong>Household admins</strong></div></div>{role === "owner" && <div className="invite-admin"><label><span>Admin email</span><div><input type="email" value={email} placeholder="wife@example.com" onChange={(event) => setEmail(event.target.value)}/><button className="primary" type="button" disabled={working || !email.trim()} onClick={invite}>Add admin</button></div><small>Use the email connected to her ChatGPT account. She will sign in separately. The same email must be added to the private site access list; never share your password.</small></label></div>}{message && <p className="share-message">{message}</p>}<div className="member-list">{members.map((member) => <div className="member-row" key={member.email}><div><strong>{member.display_name || member.email}</strong><small>{member.display_name ? member.email : member.status === "invited" ? "Waiting for first sign-in" : "Household member"}</small></div><span className={member.status}>{member.role}</span>{role === "owner" && member.role !== "owner" ? <button type="button" disabled={working} onClick={() => remove(member.email)}>Remove</button> : <i/>}</div>)}</div></article></section></div>;
 }
+function SnapshotsPage({ accounts, snapshots, currentInterest, onCapture, onUpdateNote, onDelete }: { accounts: DebtAccount[]; snapshots: PayoffSnapshot[]; currentInterest: number; onCapture: (note: string) => void; onUpdateNote: (id: string, note: string) => void; onDelete: (id: string) => void }) {
+  const [captureNote, setCaptureNote] = useState(() => snapshots.find((snapshot) => snapshot.month === currentMonthKey())?.note ?? "");
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const ordered = useMemo(() => [...snapshots].sort((a, b) => a.month.localeCompare(b.month) || a.capturedAt.localeCompare(b.capturedAt)), [snapshots]);
+  const latest = ordered.at(-1) ?? null;
+  const selected = snapshots.find((snapshot) => snapshot.id === selectedId) ?? latest;
+  const currentTotal = accounts.reduce((sum, account) => sum + account.balance, 0);
+  const currentMonthSnapshot = snapshots.find((snapshot) => snapshot.month === currentMonthKey());
+  const first = ordered[0] ?? null;
+  const paidSinceFirst = first ? round(first.totalBalance - currentTotal) : 0;
+  const changedSinceLatest = latest ? round(latest.totalBalance - currentTotal) : 0;
+  const maxBalance = Math.max(currentTotal, ...ordered.map((snapshot) => snapshot.totalBalance), 1);
+  const selectedIndex = selected ? ordered.findIndex((snapshot) => snapshot.id === selected.id) : -1;
+  const previous = selectedIndex > 0 ? ordered[selectedIndex - 1] : null;
+  const previousBalances = new Map(previous?.accounts.map((account) => [account.accountId, account.balance]) ?? []);
+  const formatCaptured = (value: string) => new Date(value).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+  const capture = () => { onCapture(captureNote); };
+
+  return <div className="screen snapshots-screen">
+    <div className="screen-title"><div><span className="eyebrow">Monthly progress archive</span><h1>Payoff snapshots</h1><p>Save a monthly picture of every calculated balance so you can see real debt movement without changing the active payoff plan.</p></div><button className="primary snapshot-capture-button" type="button" disabled={!accounts.length} onClick={capture}>{currentMonthSnapshot ? `Update ${monthLabel(currentMonthKey())}` : `Save ${monthLabel(currentMonthKey())}`}</button></div>
+    {!accounts.length ? <section className="large-empty"><span>Snapshot</span><h2>Add a debt account first</h2><p>Your first snapshot will capture the calculated balance of every debt account.</p></section> : <>
+      <section className="snapshot-capture-card"><div><span>{currentMonthSnapshot ? "This month is already saved" : "Ready for this month"}</span><strong>{moneyPrecise.format(currentTotal)}</strong><small>{accounts.filter((account) => account.balance > 0).length} active accounts | {moneyPrecise.format(currentInterest)} estimated monthly interest</small></div><label><span>Monthly note</span><textarea value={captureNote} maxLength={240} placeholder="Optional: what changed this month?" onChange={(event) => setCaptureNote(event.target.value)}/></label><button className="primary" type="button" onClick={capture}>{currentMonthSnapshot ? "Refresh snapshot" : "Capture balances"}</button></section>
+      {snapshots.length ? <>
+        <section className="snapshot-metrics"><article><span>Current debt</span><strong>{moneyPrecise.format(currentTotal)}</strong><small>Live calculated balance</small></article><article className={paidSinceFirst >= 0 ? "good" : "warning"}><span>Change since first</span><strong>{paidSinceFirst >= 0 ? "-" : "+"}{moneyPrecise.format(Math.abs(paidSinceFirst))}</strong><small>{first ? `Since ${monthLabel(first.month)}` : "Capture a starting point"}</small></article><article className={changedSinceLatest >= 0 ? "good" : "warning"}><span>Since last snapshot</span><strong>{changedSinceLatest >= 0 ? "-" : "+"}{moneyPrecise.format(Math.abs(changedSinceLatest))}</strong><small>{latest ? `Compared with ${monthLabel(latest.month)}` : "No comparison yet"}</small></article><article><span>Months tracked</span><strong>{snapshots.length}</strong><small>{first && latest ? `${monthLabel(first.month)} to ${monthLabel(latest.month)}` : "Your progress archive"}</small></article></section>
+        <section className="snapshot-chart-card"><div className="snapshot-card-head"><div><span>Balance trend</span><strong>Debt remaining by snapshot</strong></div><small>Shorter bars mean less debt</small></div><div className="snapshot-chart" aria-label="Debt balance by payoff snapshot">{ordered.map((snapshot) => <button type="button" key={snapshot.id} className={selected?.id === snapshot.id ? "selected" : ""} onClick={() => setSelectedId(snapshot.id)} aria-label={`${monthLabel(snapshot.month)} balance ${moneyPrecise.format(snapshot.totalBalance)}`}><span className="snapshot-bar-value">{money.format(snapshot.totalBalance)}</span><i style={{ height: `${Math.max(8, snapshot.totalBalance / maxBalance * 100)}%` }}/><b>{monthLabel(snapshot.month)}</b></button>)}<div className="snapshot-now"><span>{money.format(currentTotal)}</span><i style={{ height: `${Math.max(8, currentTotal / maxBalance * 100)}%` }}/><b>Now</b></div></div></section>
+        <section className="snapshot-workspace">
+          <article className="snapshot-history-card"><div className="snapshot-card-head"><div><span>Snapshot history</span><strong>{snapshots.length} saved {snapshots.length === 1 ? "month" : "months"}</strong></div></div><div className="snapshot-history-list">{[...ordered].reverse().map((snapshot, reverseIndex, reversed) => { const older = reversed[reverseIndex + 1]; const change = older ? round(older.totalBalance - snapshot.totalBalance) : null; return <button type="button" key={snapshot.id} className={selected?.id === snapshot.id ? "active" : ""} onClick={() => setSelectedId(snapshot.id)}><div><strong>{monthLabel(snapshot.month)}</strong><small>Captured {formatCaptured(snapshot.capturedAt)}</small></div><div><strong>{moneyPrecise.format(snapshot.totalBalance)}</strong><small className={change === null ? "" : change >= 0 ? "improved" : "increased"}>{change === null ? "Starting point" : change >= 0 ? `${moneyPrecise.format(change)} paid down` : `${moneyPrecise.format(Math.abs(change))} increase`}</small></div><span>&gt;</span></button>; })}</div></article>
+          {selected && <article className="snapshot-detail-card"><div className="snapshot-detail-head"><div><span>Selected snapshot</span><h2>{monthLabel(selected.month)}</h2><p>{moneyPrecise.format(selected.totalBalance)} across {selected.activeAccountCount} active accounts</p></div><button className="snapshot-delete" type="button" onClick={() => onDelete(selected.id)}>Delete</button></div><div className="snapshot-detail-stats"><div><span>Monthly interest</span><strong>{moneyPrecise.format(selected.monthlyInterest)}</strong></div><div><span>Projected debt-free</span><strong>{selected.projectedDebtFreeMonth ?? "Needs adjustment"}</strong></div></div><div className="snapshot-account-list">{[...selected.accounts].sort((a, b) => b.balance - a.balance).map((account) => { const prior = previousBalances.get(account.accountId); const change = prior === undefined ? null : round(prior - account.balance); return <div key={account.accountId}><span>{account.name.slice(0, 2).toUpperCase()}</span><div><strong>{account.name}</strong><small>{account.type} | {account.apr.toFixed(2)}% APR</small></div><div><strong>{moneyPrecise.format(account.balance)}</strong><small className={change === null ? "" : change >= 0 ? "improved" : "increased"}>{change === null ? (previous ? "New since prior snapshot" : "Starting balance") : change >= 0 ? `${moneyPrecise.format(change)} lower` : `${moneyPrecise.format(Math.abs(change))} higher`}</small></div></div>; })}</div><SnapshotNoteEditor key={selected.id} snapshot={selected} onSave={onUpdateNote}/></article>}
+        </section>
+      </> : <section className="snapshot-empty"><span>Start your progress history</span><h2>Capture the balances you have today</h2><p>This becomes your baseline. Next month, DebtFree will show exactly how much the total and each account moved.</p><button className="primary" type="button" onClick={capture}>Save first snapshot</button></section>}
+    </>}
+  </div>;
+}
+
+function SnapshotNoteEditor({ snapshot, onSave }: { snapshot: PayoffSnapshot; onSave: (id: string, note: string) => void }) {
+  const [note, setNote] = useState(snapshot.note);
+  const changed = note.trim() !== snapshot.note;
+  return <label className="snapshot-note-editor"><span>Snapshot note</span><textarea value={note} maxLength={240} placeholder="Add context for this month" onChange={(event) => setNote(event.target.value)}/><button type="button" disabled={!changed} onClick={() => onSave(snapshot.id, note)}>Save note</button></label>;
+}
 function FuturePage({ page }: { page: PageId }) {
   const content: Record<string, { title: string; text: string; idea: string }> = {
     history: { title: "Payment history", text: "A chronological ledger of every payment recorded against each account.", idea: "Next: record payments, see principal versus interest, and correct or remove entries." },
-    snapshots: { title: "Payoff snapshots", text: "A saved monthly picture of your total balance and progress.", idea: "Useful later for seeing how far you have come without changing the active plan." },
     utilization: { title: "Credit utilization", text: "The percentage of each credit limit currently being used.", idea: "Balance ÷ credit limit. This will apply only to revolving credit cards, not installment loans." },
     stats: { title: "Stats & projections", text: "Trends such as interest saved, balance change, and projected payoff scenarios.", idea: "This becomes valuable after several months of real payment history exist." },
   };
