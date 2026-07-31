@@ -15,15 +15,13 @@
     "db:generate": "drizzle-kit generate"
   },
   "dependencies": {
-    "@tesseract.js-data/eng": "^1.0.0",
     "drizzle-orm": "0.45.2",
     "fflate": "^0.8.3",
     "jspdf": "^4.2.1",
     "jspdf-autotable": "^5.0.8",
     "next": "^16.2.12",
     "react": "19.2.6",
-    "react-dom": "19.2.6",
-    "tesseract.js": "^7.0.0"
+    "react-dom": "19.2.6"
   },
   "devDependencies": {
     "@cloudflare/vite-plugin": "1.37.1",

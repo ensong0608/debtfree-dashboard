@@ -1,5 +1,3 @@
-import { createWorker, OEM, PSM } from "tesseract.js";
-
 export type ReceiptScanResult = {
   merchant: string;
   date: string;
@@ -12,6 +10,15 @@ export type ReceiptScanResult = {
 };
 
 type ProgressUpdate = { status: string; progress: number };
+type OcrWorker = {
+  setParameters(parameters: Record<string, string | number>): Promise<unknown>;
+  recognize(image: HTMLCanvasElement): Promise<{ data: { text: string; confidence: number } }>;
+  terminate(): Promise<unknown>;
+};
+type OcrBrowserModule = {
+  createWorker(language: string, engineMode: number, options: { workerPath: string; corePath: string; langPath: string; logger: (message: ProgressUpdate) => void }): Promise<OcrWorker>;
+};
+
 
 const CATEGORY_RULES: { category: string; pattern: RegExp }[] = [
   { category: "Food", pattern: /\b(restaurant|cafe|coffee|bakery|pizza|grill|kitchen|diner|taco|sushi|market|grocery|grocer|foods|aldi|kroger|safeway|publix|starbucks|doordash|uber eats)\b/i },
@@ -134,14 +141,16 @@ async function prepareImage(file: File) {
 
 export async function scanReceipt(file: File, onProgress: (update: ProgressUpdate) => void): Promise<ReceiptScanResult> {
   const canvas = await prepareImage(file);
-  const worker = await createWorker("eng", OEM.LSTM_ONLY, {
+  const browserModulePath = "/ocr/tesseract.esm.min.js";
+  const { createWorker } = await import(/* @vite-ignore */ browserModulePath) as OcrBrowserModule;
+  const worker = await createWorker("eng", 1, {
     workerPath: "/ocr/worker.min.js",
     corePath: "/ocr/core",
     langPath: "/ocr/lang",
     logger: (message) => onProgress({ status: message.status, progress: Number(message.progress ?? 0) }),
   });
   try {
-    await worker.setParameters({ tessedit_pageseg_mode: PSM.AUTO, preserve_interword_spaces: "1" });
+    await worker.setParameters({ tessedit_pageseg_mode: 3, preserve_interword_spaces: "1" });
     const result = await worker.recognize(canvas);
     const rawText = result.data.text.trim();
     if (!rawText) throw new Error("No readable text was found. Try a sharper photo with the receipt filling the frame.");
