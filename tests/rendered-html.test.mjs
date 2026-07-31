@@ -28,6 +28,14 @@ test("renders the DebtFree Dashboard shell", async () => {
   assert.match(client, /Add income/i);
   assert.match(client, /Add expense/i);
   assert.match(client, /Payoff Plan/i);
+  assert.match(client, /Merchants &amp; recipients/);
+  assert.match(client, /Merchant \/ recipient/);
+  assert.match(client, /Who received the money/);
+  assert.match(client, /The Account field above is the card or debt balance/);
+  assert.match(client, /&lsaquo;/);
+  assert.match(client, /&rsaquo;/);
+  assert.match(client, /&times;/);
+  assert.doesNotMatch(client, /\? Debit|\? Credit|month\?s|>\?</);
   assert.doesNotMatch(layout + client, /codex-preview|Building your site|react-loading-skeleton/i);
 });
 
