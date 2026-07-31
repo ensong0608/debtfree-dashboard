@@ -669,6 +669,15 @@ export default function DashboardClient({ user }: { user: ChatGPTUser }) {
     if (!confirm(`Delete the ${snapshot ? monthLabel(snapshot.month) : ""} payoff snapshot?`)) return;
     setSnapshots((current) => current.filter((item) => item.id !== id));
   };
+  const closeDashboard = () => {
+    try {
+      window.open("", "_self");
+      window.close();
+    } catch { /* Some mobile browsers do not allow scripts to close an existing tab. */ }
+    window.setTimeout(() => {
+      if (document.visibilityState === "visible") window.location.assign("https://chatgpt.com/");
+    }, 250);
+  };
   return <div className="app-shell">
     <aside className="sidebar">
       <button className="brand" type="button" onClick={() => setPage("dashboard")}><span>DF</span><div><strong>DebtFree</strong><small>Dashboard</small></div></button>
@@ -677,7 +686,7 @@ export default function DashboardClient({ user }: { user: ChatGPTUser }) {
     </aside>
 
     <main className="main-area">
-      <header className="topbar"><div><span className="mobile-product">DebtFree Dashboard</span><strong>{NAV_ITEMS.find((item) => item.id === page)?.label}</strong></div><div className="top-actions"><span className={`save-state ${cloudStatus}`}><i/> {cloudStatus === "synced" ? "Household saved" : cloudStatus === "error" ? "Saved on device" : "Saving"}</span><button className="avatar" type="button" onClick={() => setPage("profile")} aria-label="Open My Account">{user.displayName.slice(0,2).toUpperCase()}</button></div></header>
+      <header className="topbar"><div><span className="mobile-product">DebtFree Dashboard</span><strong>{NAV_ITEMS.find((item) => item.id === page)?.label}</strong></div><div className="top-actions"><span className={`save-state ${cloudStatus}`}><i/> {cloudStatus === "synced" ? "Household saved" : cloudStatus === "error" ? "Saved on device" : "Saving"}</span><button className="close-dashboard" type="button" onClick={closeDashboard} aria-label="Close dashboard"><span>Close dashboard</span><b aria-hidden="true">x</b></button><button className="avatar" type="button" onClick={() => setPage("profile")} aria-label="Open My Account">{user.displayName.slice(0,2).toUpperCase()}</button></div></header>
       <div className="page-body">
         {page === "dashboard" && <DashboardPage month={selectedMonth} hasMonth={Object.prototype.hasOwnProperty.call(monthlyBudgets, selectedMonth)} previousHasItems={(monthlyBudgets[shiftMonth(selectedMonth, -1)] ?? []).length > 0} items={cashflowItems} accounts={calculatedAccounts} onMonth={setSelectedMonth} onCopyPrevious={copyPreviousBudget} onStartBlank={startBlankBudget} onAdd={openNewCashflow} onEdit={openEditCashflow}/>}
         {page === "accounts" && <AccountsPage accounts={sortedAccounts} activeCount={activeCount} totalBalance={totalBalance} minimums={minimums} interest={interest} linkedCardExpenses={linkedCardExpenses} sortKey={sortKey} sortDirection={sortDirection} paidOffById={paidOffById} onSort={changeSort} onAdd={openNew} onEdit={openEdit} onToggleMinimum={toggleMinimumMode} onTogglePayoff={togglePayoffMode} onSample={() => setAccounts(SAMPLE_ACCOUNTS)} onImport={importDebtFreeCsv} importMessage={importMessage}/>}
