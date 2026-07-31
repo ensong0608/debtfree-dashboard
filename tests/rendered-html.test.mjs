@@ -8,7 +8,12 @@ test("renders the DebtFree Dashboard shell", async () => {
     readFile(new URL("../app/dashboard-client.tsx", import.meta.url), "utf8"),
   ]);
   assert.match(layout, /DebtFree Dashboard/i);
-  assert.match(client, /Monthly income & expenses/i);
+  assert.match(client, /Monthly Budget/i);
+  assert.match(client, /Copy \{monthLabel\(shiftMonth\(month, -1\)\)\}/);
+  assert.match(client, /Core transaction ledger/i);
+  assert.match(client, /Batch entry/i);
+  assert.match(client, /softDeleteTransaction/);
+  assert.match(client, /ledger-pagination/);
   assert.match(client, /Add income/i);
   assert.match(client, /Add expense/i);
   assert.match(client, /Payoff Plan/i);
