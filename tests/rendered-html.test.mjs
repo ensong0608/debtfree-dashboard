@@ -19,6 +19,12 @@ test("renders the DebtFree Dashboard shell", async () => {
   assert.match(client, /snapshot-chart/);
   assert.match(client, /SnapshotNoteEditor/);
   assert.match(client, /projectedDebtFreeMonth/);
+  assert.match(client, /Revolving credit health/i);
+  assert.match(client, /utilization-track/);
+  assert.match(client, /What-if planner/i);
+  assert.match(client, /Strategy comparison/i);
+  assert.match(client, /Extra-payment scenarios/i);
+  assert.doesNotMatch(client, /Coming later|FuturePage|>Soon</i);
   assert.match(client, /Add income/i);
   assert.match(client, /Add expense/i);
   assert.match(client, /Payoff Plan/i);

@@ -310,14 +310,14 @@ function calculatePlan(accounts: DebtAccount[], extra: number, strategy: PayoffS
   return { months, totalInterest, monthly, stalled: true };
 }
 
-const NAV_ITEMS: { id: PageId; label: string; icon: string; future?: boolean }[] = [
+const NAV_ITEMS: { id: PageId; label: string; icon: string }[] = [
   { id: "dashboard", label: "Monthly Budget", icon: "⌂" },
   { id: "accounts", label: "Debt Accounts", icon: "▤" },
   { id: "history", label: "Transactions", icon: "↻" },
   { id: "plan", label: "Payoff Plan", icon: "✓" },
   { id: "snapshots", label: "Payoff Snapshots", icon: "◉" },
-  { id: "utilization", label: "Credit Utilization", icon: "◔", future: true },
-  { id: "stats", label: "Stats & Projections", icon: "↗", future: true },
+  { id: "utilization", label: "Credit Utilization", icon: "◔" },
+  { id: "stats", label: "Stats & Projections", icon: "↗" },
   { id: "profile", label: "My Account", icon: "⚙" },
 ];
 
@@ -672,7 +672,7 @@ export default function DashboardClient({ user }: { user: ChatGPTUser }) {
   return <div className="app-shell">
     <aside className="sidebar">
       <button className="brand" type="button" onClick={() => setPage("dashboard")}><span>DF</span><div><strong>DebtFree</strong><small>Dashboard</small></div></button>
-      <nav aria-label="Dashboard sections">{NAV_ITEMS.map((item) => <button type="button" key={item.id} className={page === item.id ? "nav-item active" : "nav-item"} onClick={() => setPage(item.id)}><i>{item.icon}</i><span>{item.label}</span>{item.future && <em>Soon</em>}</button>)}</nav>
+      <nav aria-label="Dashboard sections">{NAV_ITEMS.map((item) => <button type="button" key={item.id} className={page === item.id ? "nav-item active" : "nav-item"} onClick={() => setPage(item.id)}><i>{item.icon}</i><span>{item.label}</span></button>)}</nav>
       <div className="sidebar-foot"><span>{householdName}</span><strong>{cloudStatus === "synced" ? "Shared household data" : cloudStatus === "error" ? "Device backup active" : "Syncing changes"}</strong></div>
     </aside>
 
@@ -685,7 +685,8 @@ export default function DashboardClient({ user }: { user: ChatGPTUser }) {
         {page === "plan" && <PayoffPlanPage accounts={calculatedAccounts} plan={plan} extra={extra} availableExtra={availableExtra} strategy={strategy} linkedCardExpenseItems={linkedCardExpenseItems} onExtra={setExtra} onStrategy={setStrategy} onAccounts={() => setPage("accounts")} onEditAccount={openEdit}/>}
         {page === "snapshots" && <SnapshotsPage accounts={calculatedAccounts} snapshots={snapshots} currentInterest={interest} onCapture={captureSnapshot} onUpdateNote={updateSnapshotNote} onDelete={removeSnapshot}/>}
         {page === "profile" && <ProfilePage user={user} householdName={householdName} role={householdRole} members={householdMembers} cloudStatus={cloudStatus} onInvite={inviteAdmin} onRemove={removeAdmin}/>}
-        {(page === "utilization" || page === "stats") && <FuturePage page={page}/>}
+        {page === "utilization" && <UtilizationPage accounts={calculatedAccounts} onEditAccount={openEdit}/>}
+        {page === "stats" && <StatsPage accounts={calculatedAccounts} snapshots={snapshots} transactions={transactions} extra={extra} strategy={strategy} linkedCardExpenses={linkedCardExpenses}/>}
       </div>
     </main>
 
@@ -865,14 +866,68 @@ function SnapshotNoteEditor({ snapshot, onSave }: { snapshot: PayoffSnapshot; on
   const changed = note.trim() !== snapshot.note;
   return <label className="snapshot-note-editor"><span>Snapshot note</span><textarea value={note} maxLength={240} placeholder="Add context for this month" onChange={(event) => setNote(event.target.value)}/><button type="button" disabled={!changed} onClick={() => onSave(snapshot.id, note)}>Save note</button></label>;
 }
-function FuturePage({ page }: { page: PageId }) {
-  const content: Record<string, { title: string; text: string; idea: string }> = {
-    history: { title: "Payment history", text: "A chronological ledger of every payment recorded against each account.", idea: "Next: record payments, see principal versus interest, and correct or remove entries." },
-    utilization: { title: "Credit utilization", text: "The percentage of each credit limit currently being used.", idea: "Balance ÷ credit limit. This will apply only to revolving credit cards, not installment loans." },
-    stats: { title: "Stats & projections", text: "Trends such as interest saved, balance change, and projected payoff scenarios.", idea: "This becomes valuable after several months of real payment history exist." },
-  };
-  const item = content[page] ?? content.history;
-  return <div className="screen"><section className="large-empty future"><span>Coming later</span><h1>{item.title}</h1><p>{item.text}</p><div>{item.idea}</div></section></div>;
+function UtilizationPage({ accounts, onEditAccount }: { accounts: DebtAccount[]; onEditAccount: (account: DebtAccount) => void }) {
+  const creditCards = accounts.filter((account) => account.type === "Credit card");
+  const cardsWithLimits = creditCards.filter((account) => account.creditLimit > 0).sort((a, b) => b.balance / b.creditLimit - a.balance / a.creditLimit);
+  const cardsMissingLimits = creditCards.filter((account) => account.creditLimit <= 0);
+  const totalBalance = cardsWithLimits.reduce((sum, account) => sum + account.balance, 0);
+  const totalLimit = cardsWithLimits.reduce((sum, account) => sum + account.creditLimit, 0);
+  const availableCredit = Math.max(0, totalLimit - totalBalance);
+  const overall = totalLimit > 0 ? totalBalance / totalLimit * 100 : 0;
+  const toThirty = Math.max(0, totalBalance - totalLimit * .3);
+  const aboveThirty = cardsWithLimits.filter((account) => account.balance / account.creditLimit >= .3).length;
+  const level = (value: number) => value < 10 ? { label: "Excellent", className: "excellent" } : value < 30 ? { label: "Healthy", className: "healthy" } : value < 50 ? { label: "Watch", className: "watch" } : { label: "High", className: "high" };
+  const overallLevel = level(overall);
+
+  return <div className="screen utilization-screen">
+    <div className="screen-title"><div><span className="eyebrow">Revolving credit health</span><h1>Credit utilization</h1><p>See how much of every credit-card limit is in use, using balances calculated from the transaction ledger.</p></div></div>
+    {!creditCards.length ? <section className="large-empty"><span>CC</span><h2>No credit cards yet</h2><p>Add a debt account with the Credit card type to start tracking utilization.</p></section> : !cardsWithLimits.length ? <section className="large-empty"><span>%</span><h2>Add credit limits to your cards</h2><p>Utilization needs both a calculated balance and a credit limit.</p><div className="utilization-missing-actions">{cardsMissingLimits.map((account) => <button className="secondary" type="button" key={account.id} onClick={() => onEditAccount(account)}>Add limit for {account.name}</button>)}</div></section> : <>
+      <section className="utilization-hero"><div className="utilization-ring" style={{ background: `conic-gradient(${overall < 30 ? "#37b58a" : overall < 50 ? "#e2a13f" : "#df6b62"} ${Math.min(100, overall)}%, #e9eef4 0)` }}><div><strong>{overall.toFixed(1)}%</strong><span>Overall</span></div></div><div className="utilization-hero-copy"><span className={`utilization-status ${overallLevel.className}`}>{overallLevel.label}</span><h2>{overall < 10 ? "Your revolving balances are in a low range." : overall < 30 ? "Your total utilization is below 30%." : `Pay down ${moneyPrecise.format(toThirty)} to move below 30%.`}</h2><p>Overall utilization combines only credit cards with a saved limit. Installment loans are excluded.</p></div><div className="utilization-hero-total"><span>Used credit</span><strong>{moneyPrecise.format(totalBalance)}</strong><small>of {moneyPrecise.format(totalLimit)}</small></div></section>
+      <section className="utilization-metrics"><article><span>Available credit</span><strong>{moneyPrecise.format(availableCredit)}</strong><small>Across cards with limits</small></article><article><span>Cards tracked</span><strong>{cardsWithLimits.length}</strong><small>{cardsMissingLimits.length ? `${cardsMissingLimits.length} still need a limit` : "Every card has a limit"}</small></article><article className={aboveThirty ? "warning" : "good"}><span>At or above 30%</span><strong>{aboveThirty}</strong><small>{aboveThirty ? "Review the cards below" : "All tracked cards are below 30%"}</small></article><article><span>To overall 10%</span><strong>{moneyPrecise.format(Math.max(0, totalBalance - totalLimit * .1))}</strong><small>Optional low-utilization target</small></article></section>
+      <section className="utilization-grid">{cardsWithLimits.map((account) => { const percent = account.balance / account.creditLimit * 100; const status = level(percent); const toCardThirty = Math.max(0, account.balance - account.creditLimit * .3); const toCardTen = Math.max(0, account.balance - account.creditLimit * .1); return <article className="utilization-card" key={account.id}><header><div><span>{account.name.slice(0,2).toUpperCase()}</span><div><strong>{account.name}</strong><small>{account.apr.toFixed(2)}% APR</small></div></div><button type="button" onClick={() => onEditAccount(account)}>Edit</button></header><div className="utilization-card-value"><strong>{percent.toFixed(1)}%</strong><span className={`utilization-status ${status.className}`}>{status.label}</span></div><div className="utilization-track"><i className={status.className} style={{ width: `${Math.min(100, percent)}%` }}/><b className="marker-thirty"/><b className="marker-ten"/></div><div className="utilization-card-numbers"><div><span>Balance</span><strong>{moneyPrecise.format(account.balance)}</strong></div><div><span>Limit</span><strong>{moneyPrecise.format(account.creditLimit)}</strong></div><div><span>Available</span><strong>{moneyPrecise.format(Math.max(0, account.creditLimit - account.balance))}</strong></div></div><div className="utilization-targets"><div><span>To below 30%</span><strong>{toCardThirty > 0 ? moneyPrecise.format(toCardThirty) : "Reached"}</strong></div><div><span>To 10%</span><strong>{toCardTen > 0 ? moneyPrecise.format(toCardTen) : "Reached"}</strong></div></div></article>; })}</section>
+      {cardsMissingLimits.length > 0 && <section className="utilization-missing"><div><span>Missing credit limits</span><strong>Finish setup for {cardsMissingLimits.length} {cardsMissingLimits.length === 1 ? "card" : "cards"}</strong></div><div>{cardsMissingLimits.map((account) => <button type="button" key={account.id} onClick={() => onEditAccount(account)}>Add {account.name} limit</button>)}</div></section>}
+    </>}
+  </div>;
+}
+
+function StatsPage({ accounts, snapshots, transactions, extra, strategy, linkedCardExpenses }: { accounts: DebtAccount[]; snapshots: PayoffSnapshot[]; transactions: LedgerTransaction[]; extra: number; strategy: PayoffStrategy; linkedCardExpenses: LinkedCardExpenses }) {
+  const [scenarioExtra, setScenarioExtra] = useState(extra);
+  const totalDebt = accounts.reduce((sum, account) => sum + account.balance, 0);
+  const forecast = useMemo(() => calculatePlan(accounts, scenarioExtra, strategy, linkedCardExpenses), [accounts, linkedCardExpenses, scenarioExtra, strategy]);
+  const avalanche = useMemo(() => calculatePlan(accounts, scenarioExtra, "avalanche", linkedCardExpenses), [accounts, linkedCardExpenses, scenarioExtra]);
+  const snowball = useMemo(() => calculatePlan(accounts, scenarioExtra, "snowball", linkedCardExpenses), [accounts, linkedCardExpenses, scenarioExtra]);
+  const baseline = useMemo(() => calculatePlan(accounts, 0, strategy, linkedCardExpenses), [accounts, linkedCardExpenses, strategy]);
+  const activeTransactions = transactions.filter((transaction) => !transaction.deletedAt);
+  const payments = activeTransactions.filter((transaction) => transaction.type === "payment").reduce((sum, transaction) => sum + transaction.amount, 0);
+  const charges = activeTransactions.filter((transaction) => transaction.type !== "payment").reduce((sum, transaction) => sum + transaction.amount, 0);
+  const netLedgerReduction = round(payments - charges);
+  const orderedSnapshots = [...snapshots].sort((a, b) => a.month.localeCompare(b.month));
+  const firstSnapshot = orderedSnapshots[0] ?? null;
+  const latestSnapshot = orderedSnapshots.at(-1) ?? null;
+  const actualSnapshotReduction = firstSnapshot && latestSnapshot ? round(firstSnapshot.totalBalance - latestSnapshot.totalBalance) : 0;
+  const averageSnapshotReduction = orderedSnapshots.length > 1 ? round(actualSnapshotReduction / (orderedSnapshots.length - 1)) : 0;
+  const payoffDate = (result: ReturnType<typeof calculatePlan>) => result.stalled ? "Needs adjustment" : result.months.length ? monthAfter(result.months.length - 1) : totalDebt <= 0 ? "Debt free" : "No projection";
+  const scenarioValues = [...new Set([0, extra, extra + 100, extra + 250, extra + 500].map((value) => Math.max(0, round(value))))].sort((a, b) => a - b);
+  const scenarios = scenarioValues.map((value) => ({ value, result: calculatePlan(accounts, value, strategy, linkedCardExpenses) }));
+  const milestone = (remainingShare: number) => { const entry = forecast.months.find((month) => month.remaining <= totalDebt * remainingShare + .005); return entry ? monthAfter(entry.month - 1) : null; };
+  const forecastInterestSaved = baseline.totalInterest > 0 ? Math.max(0, round(baseline.totalInterest - forecast.totalInterest)) : 0;
+
+  return <div className="screen stats-screen">
+    <div className="screen-title"><div><span className="eyebrow">Complete debt outlook</span><h1>Stats & projections</h1><p>Combine your live ledger, saved snapshots, and payoff plan to understand progress and test faster payoff scenarios.</p></div></div>
+    {!accounts.length ? <section className="large-empty"><span>Stats</span><h2>Add debt accounts to build projections</h2><p>Once balances and minimum payments exist, this page will compare strategies and payoff scenarios.</p></section> : <>
+      <section className="stats-hero"><div><span>Projected debt-free date</span><strong>{payoffDate(forecast)}</strong><small>{forecast.stalled ? "Increase monthly payments to create a finish line" : `${forecast.months.length} months using ${strategy}`}</small></div><div><span>Current debt</span><strong>{moneyPrecise.format(totalDebt)}</strong><small>{accounts.filter((account) => account.balance > 0).length} active accounts</small></div><div><span>Monthly payoff plan</span><strong>{moneyPrecise.format(forecast.monthly)}</strong><small>Minimums, linked card expenses, and extra</small></div><div><span>Projected interest</span><strong>{moneyPrecise.format(forecast.totalInterest)}</strong><small>{forecastInterestSaved > 0 ? `${moneyPrecise.format(forecastInterestSaved)} less than minimum-only pace` : "Based on current balances and rates"}</small></div></section>
+      <section className="scenario-card"><div className="scenario-copy"><span>What-if planner</span><h2>Extra payment each month</h2><p>Adjust this amount to update every projection below. This does not change your saved payoff plan.</p></div><div className="scenario-control"><div><span>$</span><input type="number" min="0" step="25" value={scenarioExtra || ""} placeholder="0" onChange={(event) => setScenarioExtra(number(event.target.value))}/><button type="button" disabled={scenarioExtra === extra} onClick={() => setScenarioExtra(extra)}>Use saved extra</button></div><input aria-label="Extra monthly payment scenario" type="range" min="0" max="2000" step="25" value={Math.min(2000, scenarioExtra)} onChange={(event) => setScenarioExtra(number(event.target.value))}/></div><div className="scenario-result"><span>Scenario finish</span><strong>{payoffDate(forecast)}</strong><small>{forecast.stalled ? "Payments do not outpace interest" : `${forecast.months.length} months | ${moneyPrecise.format(forecast.totalInterest)} interest`}</small></div></section>
+      <section className="stats-grid">
+        <article className="strategy-card"><div className="stats-card-head"><div><span>Strategy comparison</span><strong>Same payment, different order</strong></div></div><div className="strategy-comparison"><div className={strategy === "avalanche" ? "active" : ""}><span>Avalanche</span><strong>{payoffDate(avalanche)}</strong><small>{avalanche.months.length} months</small><b>{moneyPrecise.format(avalanche.totalInterest)} interest</b></div><div className={strategy === "snowball" ? "active" : ""}><span>Snowball</span><strong>{payoffDate(snowball)}</strong><small>{snowball.months.length} months</small><b>{moneyPrecise.format(snowball.totalInterest)} interest</b></div></div><p>{avalanche.totalInterest <= snowball.totalInterest ? `Avalanche saves ${moneyPrecise.format(snowball.totalInterest - avalanche.totalInterest)} in projected interest.` : `Snowball saves ${moneyPrecise.format(avalanche.totalInterest - snowball.totalInterest)} in this projection.`}</p></article>
+        <article className="progress-card"><div className="stats-card-head"><div><span>Recorded progress</span><strong>What your real data shows</strong></div></div><div className="recorded-progress"><div><span>Ledger payments</span><strong>{moneyPrecise.format(payments)}</strong></div><div><span>Charges & fees</span><strong>{moneyPrecise.format(charges)}</strong></div><div className={netLedgerReduction >= 0 ? "good" : "warning"}><span>Net ledger movement</span><strong>{netLedgerReduction >= 0 ? "-" : "+"}{moneyPrecise.format(Math.abs(netLedgerReduction))}</strong></div><div className={actualSnapshotReduction >= 0 ? "good" : "warning"}><span>Snapshot change</span><strong>{orderedSnapshots.length > 1 ? `${actualSnapshotReduction >= 0 ? "-" : "+"}${moneyPrecise.format(Math.abs(actualSnapshotReduction))}` : "Need 2 months"}</strong></div></div><p>{orderedSnapshots.length > 1 ? `Average saved-month reduction: ${moneyPrecise.format(Math.abs(averageSnapshotReduction))}.` : "Capture a snapshot in two different months to measure actual monthly progress."}</p></article>
+      </section>
+      <section className="stats-grid lower">
+        <article className="composition-card"><div className="stats-card-head"><div><span>Balance composition</span><strong>Where your debt sits today</strong></div></div><div className="composition-list">{[...accounts].filter((account) => account.balance > 0).sort((a, b) => b.balance - a.balance).map((account) => <div key={account.id}><div><span>{account.name}</span><strong>{moneyPrecise.format(account.balance)}</strong></div><div className="composition-track"><i style={{ width: `${totalDebt > 0 ? account.balance / totalDebt * 100 : 0}%` }}/></div><small>{totalDebt > 0 ? (account.balance / totalDebt * 100).toFixed(1) : "0"}% of total | {account.apr.toFixed(2)}% APR</small></div>)}</div></article>
+        <article className="milestones-card"><div className="stats-card-head"><div><span>Payoff milestones</span><strong>Projected balance checkpoints</strong></div></div><div className="milestone-list">{[{ share: .75, label: "25% paid off" }, { share: .5, label: "Halfway there" }, { share: .25, label: "75% paid off" }, { share: 0, label: "Debt free" }].map((item, index) => <div key={item.label}><span>{index + 1}</span><div><strong>{item.label}</strong><small>{item.share > 0 ? `${moneyPrecise.format(totalDebt * item.share)} remaining` : "$0 remaining"}</small></div><b>{milestone(item.share) ?? "Needs adjustment"}</b></div>)}</div></article>
+      </section>
+      <section className="projection-table-card"><div className="stats-card-head"><div><span>Extra-payment scenarios</span><strong>Compare finish dates and interest</strong></div></div><div className="projection-table-scroll"><table className="projection-table"><thead><tr><th>Extra each month</th><th>Total monthly plan</th><th>Payoff date</th><th>Months</th><th>Projected interest</th><th>Interest saved</th></tr></thead><tbody>{scenarios.map(({ value, result }) => <tr key={value} className={Math.abs(value - scenarioExtra) < .01 ? "active" : ""}><td><strong>{moneyPrecise.format(value)}</strong>{Math.abs(value - extra) < .01 && <small>Saved plan</small>}</td><td>{moneyPrecise.format(result.monthly)}</td><td>{payoffDate(result)}</td><td>{result.stalled ? "-" : result.months.length}</td><td>{moneyPrecise.format(result.totalInterest)}</td><td className="saved">{baseline.totalInterest > result.totalInterest ? moneyPrecise.format(baseline.totalInterest - result.totalInterest) : "-"}</td></tr>)}</tbody></table></div></section>
+    </>}
+  </div>;
 }
 function CashflowModal({ draft, editing, accounts, onChange, onClose, onSave, onRemove }: { draft: CashflowDraft; editing: boolean; accounts: DebtAccount[]; onChange: (draft: CashflowDraft) => void; onClose: () => void; onSave: () => void; onRemove: () => void }) {
   const creditAccounts = accounts.filter((account) => account.type === "Credit card");
