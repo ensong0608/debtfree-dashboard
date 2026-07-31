@@ -39,6 +39,8 @@ test("removes disposable starter assets", async () => {
   assert.match(dashboardSource, /month-sticky/);
   assert.match(dashboardSource, /interest-sticky/);
   assert.match(dashboardSource, /remaining-sticky/);
+  assert.match(dashboardSource, /Amount 2 Pay\/month/);
+  assert.doesNotMatch(dashboardSource, /moneyPrecise\.format\(month\.payments\[account\.id\] \?\? 0\)\} paid/);
   assert.match(dashboardSource, /\/api\/household/);
   assert.match(dashboardSource, /Add admin/);
   assert.match(page, /requireChatGPTUser/);
