@@ -852,18 +852,25 @@ export default function DashboardClient({ user }: { user: ChatGPTUser }) {
     <aside className="sidebar" id="dashboard-navigation">
       <div className="sidebar-head"><button className="brand" type="button" onClick={() => setPage("dashboard")}><span>DF</span><div><strong>DebtFree</strong><small>Dashboard</small></div></button><button className={navigationCollapsed ? "dashboard-toggle sidebar-dashboard-toggle is-collapsed" : "dashboard-toggle sidebar-dashboard-toggle"} type="button" onClick={toggleDashboardNavigation} aria-label={navigationCollapsed ? "Expand dashboard navigation" : "Collapse dashboard navigation"} aria-controls="dashboard-navigation" aria-expanded={!navigationCollapsed}><i aria-hidden="true"><b/></i></button></div>
       <nav aria-label="Dashboard sections">{NAV_ITEMS.map((item) => <button type="button" key={item.id} className={page === item.id ? "nav-item active" : "nav-item"} onClick={() => setPage(item.id)}><i>{item.icon}</i><span>{item.label}</span></button>)}</nav>
-      <div className="sidebar-foot"><span>{householdName}</span><strong>{cloudStatus === "synced" ? "Shared household data" : cloudStatus === "error" ? "Device backup active" : "Syncing changes"}</strong></div>
+      <div className="sidebar-foot"><span>{householdName}</span><strong>{deviceOnly ? "Stored on this device" : cloudStatus === "synced" ? "Shared household data" : cloudStatus === "error" ? "Device backup active" : "Syncing changes"}</strong></div>
     </aside>
 
     <main className="main-area">
-      <header className="topbar"><div><span className="mobile-product">DebtFree Dashboard</span><strong>{NAV_ITEMS.find((item) => item.id === page)?.label}</strong></div><div className="top-actions"><span className={`save-state ${cloudStatus}`}><i/> {cloudStatus === "synced" ? "Household saved" : cloudStatus === "error" ? "Saved on device" : "Saving"}</span><button className={navigationCollapsed ? "dashboard-toggle mobile-dashboard-toggle is-collapsed" : "dashboard-toggle mobile-dashboard-toggle"} type="button" onClick={toggleDashboardNavigation} aria-label={navigationCollapsed ? "Expand dashboard navigation" : "Collapse dashboard navigation"} aria-controls="dashboard-navigation" aria-expanded={!navigationCollapsed}><i aria-hidden="true"><b/></i></button><button className="avatar" type="button" onClick={() => setPage("profile")} aria-label="Open My Account">{user.displayName.slice(0,2).toUpperCase()}</button></div></header>
+      <header className="topbar">
+        <div><span className="mobile-product">DebtFree Dashboard</span><strong>{NAV_ITEMS.find((item) => item.id === page)?.label}</strong></div>
+        <div className="top-actions">
+          <span className={`save-state ${cloudStatus}`}><i/> {deviceOnly ? "Saved on device" : cloudStatus === "synced" ? "Household saved" : cloudStatus === "error" ? "Saved on device" : "Saving"}</span>
+          <button className={navigationCollapsed ? "dashboard-toggle mobile-dashboard-toggle is-collapsed" : "dashboard-toggle mobile-dashboard-toggle"} type="button" onClick={toggleDashboardNavigation} aria-label={navigationCollapsed ? "Expand dashboard navigation" : "Collapse dashboard navigation"} aria-controls="dashboard-navigation" aria-expanded={!navigationCollapsed}><i aria-hidden="true"><b/></i></button>
+          <button className="avatar" type="button" onClick={() => setPage("profile")} aria-label="Open My Account">{user.displayName.slice(0,2).toUpperCase()}</button>
+        </div>
+      </header>
       <div className="page-body">
         {page === "dashboard" && <DashboardPage month={selectedMonth} hasMonth={Object.prototype.hasOwnProperty.call(monthlyBudgets, selectedMonth)} previousHasItems={(monthlyBudgets[shiftMonth(selectedMonth, -1)] ?? []).length > 0} items={cashflowItems} accounts={calculatedAccounts} onMonth={setSelectedMonth} onCopyPrevious={copyPreviousBudget} onStartBlank={startBlankBudget} onAdd={openNewCashflow} onEdit={openEditCashflow}/>}
         {page === "accounts" && <AccountsPage accounts={sortedAccounts} activeCount={activeCount} totalBalance={totalBalance} minimums={minimums} interest={interest} linkedCardExpenses={linkedCardExpenses} sortKey={sortKey} sortDirection={sortDirection} paidOffById={paidOffById} onSort={changeSort} onAdd={openNew} onEdit={openEdit} onToggleMinimum={toggleMinimumMode} onTogglePayoff={togglePayoffMode} onSample={() => setAccounts(SAMPLE_ACCOUNTS)} onImport={importDebtFreeCsv} importMessage={importMessage}/>}
         {page === "history" && <TransactionsPage accounts={calculatedAccounts} payees={payees} transactions={transactions} onQuickAdd={openNewTransaction} onEdit={openEditTransaction} onDelete={softDeleteTransaction} onRestore={restoreTransaction} onBatchAdd={addBatchTransactions} onManagePayees={() => setPayeeModalOpen(true)}/>}
         {page === "plan" && <PayoffPlanPage accounts={calculatedAccounts} plan={plan} extra={extra} availableExtra={availableExtra} strategy={strategy} linkedCardExpenseItems={linkedCardExpenseItems} monthlyItems={planningCashflowItems} transactions={transactions} snapshots={snapshots} onExtra={setExtra} onStrategy={setStrategy} onAccounts={() => setPage("accounts")} onEditAccount={openEdit}/>}
         {page === "snapshots" && <SnapshotsPage accounts={calculatedAccounts} snapshots={snapshots} currentInterest={interest} onCapture={captureSnapshot} onUpdateNote={updateSnapshotNote} onDelete={removeSnapshot}/>}
-        {page === "profile" && <><ProfilePage user={user} householdName={householdName} role={householdRole} members={householdMembers} cloudStatus={cloudStatus} onInvite={inviteAdmin} onRemove={removeAdmin}/><DataTransferPanel deviceOnly={deviceOnly} message={transferMessage} onExport={exportDashboardBackup} onImport={importDashboardBackup}/></>}
+        {page === "profile" && <ProfilePage user={user} householdName={householdName} role={householdRole} members={householdMembers} cloudStatus={cloudStatus} deviceOnly={deviceOnly} transferMessage={transferMessage} onExportBackup={exportDashboardBackup} onImportBackup={importDashboardBackup} onInvite={inviteAdmin} onRemove={removeAdmin}/>}
         {page === "utilization" && <UtilizationPage accounts={calculatedAccounts} onEditAccount={openEdit}/>}
         {page === "stats" && <StatsPage accounts={calculatedAccounts} snapshots={snapshots} transactions={transactions} extra={extra} strategy={strategy} linkedCardExpenses={linkedCardExpenses}/>}
       </div>
@@ -1158,7 +1165,7 @@ function PayoffPlanPage({ accounts, plan, extra, availableExtra, strategy, linke
     </> : <section className="large-empty"><span>{"\u2713"}</span><h2>{plan.stalled ? (nonAmortizingNames.length ? "A balance is not amortizing" : "The current payments do not outpace interest") : "Add debt accounts to build your plan"}</h2><p>{plan.stalled ? (nonAmortizingNames.length ? `${nonAmortizingNames.join(", ")} does not shrink after interest and new charges at the modeled payment. Enter the issuer's actual minimum or add extra payment.` : "Increase a minimum payment or add an extra monthly amount to create a finish line.") : "Once your accounts have balances, APRs, and minimums, the complete payoff schedule will appear here."}</p><button className="primary" type="button" onClick={onAccounts}>Review debt accounts</button></section>}
   </div>;
 }
-function ProfilePage({ user, householdName, role, members, cloudStatus, onInvite, onRemove }: { user: ChatGPTUser; householdName: string; role: "owner" | "admin"; members: HouseholdMember[]; cloudStatus: CloudStatus; onInvite: (email: string) => Promise<void>; onRemove: (email: string) => Promise<void> }) {
+function ProfilePage({ user, householdName, role, members, cloudStatus, deviceOnly, transferMessage, onExportBackup, onImportBackup, onInvite, onRemove }: { user: ChatGPTUser; householdName: string; role: "owner" | "admin"; members: HouseholdMember[]; cloudStatus: CloudStatus; deviceOnly: boolean; transferMessage: string; onExportBackup: () => void; onImportBackup: (file: File) => Promise<void>; onInvite: (email: string) => Promise<void>; onRemove: (email: string) => Promise<void> }) {
   const [email, setEmail] = useState("");
   const [message, setMessage] = useState("");
   const [working, setWorking] = useState(false);
@@ -1178,13 +1185,38 @@ function ProfilePage({ user, householdName, role, members, cloudStatus, onInvite
   };
   const copyLink = async () => {
     try { await navigator.clipboard.writeText(window.location.origin); setMessage("Dashboard link copied."); }
-    catch { setMessage("Copy this address from your browser and send it to your household admin."); }
+    catch { setMessage("Copy this address from your browser."); }
   };
-  return <div className="screen"><div className="screen-title"><div><span className="eyebrow">Household access</span><h1>My account</h1><p>Your dashboard is protected by ChatGPT sign-in and household membership. Listed admins share the same household data.</p></div><button className="secondary" type="button" onClick={copyLink}>Copy dashboard link</button></div><section className="profile-grid"><article className="profile-card"><div className="profile-avatar">{user.displayName.slice(0,2).toUpperCase()}</div><div><span>{role === "owner" ? "Household owner" : "Household admin"}</span><strong>{user.displayName}</strong><small>{user.email}</small></div><div className="account-cloud-state"><i className={cloudStatus}/><span>{cloudStatus === "synced" ? "Household cloud sync is active" : cloudStatus === "error" ? "Cloud unavailable; device backup is safe" : "Syncing household changes"}</span></div><a className="secondary account-link" href="/signout-with-chatgpt?return_to=%2F">Sign out</a></article><article className="roles-card household-card"><div className="card-head"><div><span>{householdName}</span><strong>Household admins</strong></div></div>{role === "owner" && <div className="invite-admin"><label><span>Admin email</span><div><input type="email" value={email} placeholder="wife@example.com" onChange={(event) => setEmail(event.target.value)}/><button className="primary" type="button" disabled={working || !email.trim()} onClick={invite}>Add admin</button></div><small>Use the exact email connected to her ChatGPT account. A paid subscription is not required. She will sign in separately and share your household data; never share your password.</small></label></div>}{message && <p className="share-message">{message}</p>}<div className="member-list">{members.map((member) => <div className="member-row" key={member.email}><div><strong>{member.display_name || member.email}</strong><small>{member.display_name ? member.email : member.status === "invited" ? "Waiting for first sign-in" : "Household member"}</small></div><span className={member.status}>{member.role}</span>{role === "owner" && member.role !== "owner" ? <button type="button" disabled={working} onClick={() => remove(member.email)}>Remove</button> : <i/>}</div>)}</div></article></section></div>;
-}
-
-function DataTransferPanel({ deviceOnly, message, onExport, onImport }: { deviceOnly: boolean; message: string; onExport: () => void; onImport: (file: File) => Promise<void> }) {
-  return <div className="screen data-transfer-screen">
+  return <div className="screen profile-screen">
+    <div className="screen-title">
+      <div>
+        <span className="eyebrow">{deviceOnly ? "Device storage" : "Household access"}</span>
+        <h1>My account</h1>
+        <p>{deviceOnly ? "This public dashboard keeps your financial data in this browser on this device." : "Your dashboard is protected by ChatGPT sign-in and household membership. Listed admins share the same household data."}</p>
+      </div>
+      <button className="secondary" type="button" onClick={copyLink}>Copy dashboard link</button>
+    </div>
+    <section className={deviceOnly ? "profile-grid device-only-profile" : "profile-grid"}>
+      <article className="profile-card">
+        <div className="profile-avatar">{user.displayName.slice(0,2).toUpperCase()}</div>
+        <div>
+          <span>{deviceOnly ? "Local dashboard" : role === "owner" ? "Household owner" : "Household admin"}</span>
+          <strong>{user.displayName}</strong>
+          <small>{user.email}</small>
+        </div>
+        <div className="account-cloud-state">
+          <i className={cloudStatus}/>
+          <span>{deviceOnly ? "Saved in this browser on this device" : cloudStatus === "synced" ? "Household cloud sync is active" : cloudStatus === "error" ? "Cloud unavailable; device backup is safe" : "Syncing household changes"}</span>
+        </div>
+        {!deviceOnly && <a className="secondary account-link" href="/signout-with-chatgpt?return_to=%2F">Sign out</a>}
+        {deviceOnly && message && <p className="share-message">{message}</p>}
+      </article>
+      {!deviceOnly && <article className="roles-card household-card">
+        <div className="card-head"><div><span>{householdName}</span><strong>Household admins</strong></div></div>
+        {role === "owner" && <div className="invite-admin"><label><span>Admin email</span><div><input type="email" value={email} placeholder="wife@example.com" onChange={(event) => setEmail(event.target.value)}/><button className="primary" type="button" disabled={working || !email.trim()} onClick={invite}>Add admin</button></div><small>Use the exact email connected to her ChatGPT account. A paid subscription is not required. She will sign in separately and share your household data; never share your password.</small></label></div>}
+        {message && <p className="share-message">{message}</p>}
+        <div className="member-list">{members.map((member) => <div className="member-row" key={member.email}><div><strong>{member.display_name || member.email}</strong><small>{member.display_name ? member.email : member.status === "invited" ? "Waiting for first sign-in" : "Household member"}</small></div><span className={member.status}>{member.role}</span>{role === "owner" && member.role !== "owner" ? <button type="button" disabled={working} onClick={() => remove(member.email)}>Remove</button> : <i/>}</div>)}</div>
+      </article>}
     <section className="data-transfer-card">
       <div>
         <span className="eyebrow">Full data transfer</span>
@@ -1193,17 +1225,18 @@ function DataTransferPanel({ deviceOnly, message, onExport, onImport }: { device
         <small>{deviceOnly ? "On this public Cloudflare dashboard, imported data is stored only in this browser on this device." : "Imported data is saved to this device and your connected household."}</small>
       </div>
       <div className="data-transfer-actions">
-        <button className="secondary" type="button" onClick={onExport}>Export full backup</button>
+        <button className="secondary" type="button" onClick={onExportBackup}>Export full backup</button>
         <label className="primary import-file">
           <input type="file" accept=".json,application/json" onChange={(event) => {
             const input = event.currentTarget;
             const file = input.files?.[0];
-            if (file) void onImport(file).finally(() => { input.value = ""; });
+            if (file) void onImportBackup(file).finally(() => { input.value = ""; });
           }}/>
           <span>Import full backup</span>
         </label>
       </div>
-      {message && <p className={message.startsWith("Import failed") ? "transfer-message error" : "transfer-message"}>{message}</p>}
+      {transferMessage && <p className={transferMessage.startsWith("Import failed") ? "transfer-message error" : "transfer-message"}>{transferMessage}</p>}
+    </section>
     </section>
   </div>;
 }

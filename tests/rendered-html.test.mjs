@@ -55,8 +55,12 @@ test("supports complete JSON backup transfer between dashboard origins", async (
   assert.match(client, /localStorage\.setItem\(STORAGE_KEY, serialized\)/);
   assert.match(client, /Replace the data currently on this device/);
   assert.match(client, /Local device storage only/);
+  assert.match(client, /deviceOnly \? "Saved on device"/);
+  assert.match(client, /profile-grid device-only-profile/);
+  assert.doesNotMatch(client, /function DataTransferPanel/);
   assert.match(styles, /data-transfer-card/);
   assert.match(styles, /data-transfer-actions/);
+  assert.match(styles, /profile-grid\.device-only-profile/);
 });
 
 test("removes disposable starter assets", async () => {

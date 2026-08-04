@@ -152,7 +152,11 @@ tfoot td { position:sticky; bottom:0; z-index:2; border-top:2px solid #c4ceda; b
 .account-cloud-state i.synced { background:var(--green); }.account-cloud-state i.error { background:var(--red); }
 .profile-card .account-link { grid-column:1/-1; display:flex; align-items:center; justify-content:center; text-decoration:none; }
 .household-card { min-width:0; }
-.data-transfer-screen{padding-top:0}
+.profile-screen{min-height:0}
+.profile-grid.device-only-profile{grid-template-columns:minmax(280px,.72fr) minmax(0,1.28fr)}
+.profile-grid>.data-transfer-card{grid-column:1/-1}
+.profile-grid.device-only-profile>.data-transfer-card{grid-column:auto}
+.profile-card .share-message{grid-column:1/-1;margin:0}
 .data-transfer-card{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:20px;padding:20px;border:1px solid var(--line);border-radius:14px;background:white;box-shadow:var(--shadow)}
 .data-transfer-card h2{margin:5px 0 6px;font-size:18px}.data-transfer-card p{max-width:760px;margin:0;color:var(--muted);font-size:10px;line-height:1.55}
 .data-transfer-card small{display:block;margin-top:7px;color:#49677e;font-size:9px;font-weight:650}
@@ -740,4 +744,9 @@ textarea:focus-visible{outline:3px solid rgba(22,119,255,.22);outline-offset:2px
   .data-transfer-actions>*{width:100%;min-height:44px}
   .data-transfer-card p{font-size:11px}
   .data-transfer-card small{font-size:10px}
+}
+
+@media(max-width:1050px){
+  .profile-grid.device-only-profile{grid-template-columns:1fr}
+  .profile-grid.device-only-profile>.data-transfer-card{grid-column:1}
 }
