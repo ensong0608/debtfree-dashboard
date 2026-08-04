@@ -63,9 +63,9 @@ test("removes disposable starter assets", async () => {
   assert.match(dashboardSource, /Minimums \+ linked card expenses \+ extra/);
   assert.match(dashboardSource, /\+ \{moneyPrecise\.format\(item\.amount\)\} \{item\.name\}/);
   assert.doesNotMatch(dashboardSource, /Includes \{moneyPrecise\.format\(cardExpense\)\} card expense/);
-  assert.match(dashboardSource, /month-sticky/);
-  assert.match(dashboardSource, /interest-sticky/);
-  assert.match(dashboardSource, /remaining-sticky/);
+  assert.doesNotMatch(dashboardSource, /month-sticky|interest-sticky|remaining-sticky|month-plan-head/);
+  assert.match(dashboardSource, /plan-table-summary/);
+  assert.match(dashboardSource, /Column headers stay visible while you scroll/);
   assert.match(dashboardSource, /Amount 2 Pay\/month/);
   assert.doesNotMatch(dashboardSource, /moneyPrecise\.format\(month\.payments\[account\.id\] \?\? 0\)\} paid/);
   assert.match(dashboardSource, /\/api\/household/);
@@ -117,6 +117,9 @@ test("supports a mobile dashboard shell and collapsible navigation", async () =>
   assert.match(styles, /grid-row:2/);
   assert.match(styles, /safe-area-inset-bottom/);
   assert.match(styles, /font-size:16px/);
+  assert.match(styles, /Compact desktop payoff workspace/);
+  assert.match(styles, /\.payoff-table thead th \{ position:sticky/);
+  assert.match(styles, /scrollbar-gutter:stable/);
 });
 
 

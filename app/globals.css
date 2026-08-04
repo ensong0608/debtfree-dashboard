@@ -133,7 +133,15 @@ tfoot td { position:sticky; bottom:0; z-index:2; border-top:2px solid #c4ceda; b
 .export-control small { display:block; margin-top:5px; color:var(--muted); font-size:7px; line-height:1.4; }
 .export-control em { display:block; margin-top:5px; color:var(--red); font-size:8px; font-style:normal; line-height:1.35; }
 
-.plan-hero { display:grid; grid-template-columns:repeat(3,1fr); gap:1px; margin-bottom:14px; overflow:hidden; background:var(--line); }.plan-hero>div { padding:18px; background:white; }.plan-hero span,.plan-hero strong,.plan-hero small { display:block; }.plan-hero span { color:var(--muted); font-size:8px; text-transform:uppercase; letter-spacing:.07em; }.plan-hero strong { margin:6px 0 4px; font-size:22px; letter-spacing:-.04em; }.plan-hero small { color:var(--muted); font-size:9px; }
+.plan-hero { display:grid; grid-template-columns:repeat(3,1fr); gap:1px; margin-bottom:10px; overflow:hidden; background:var(--line); }
+.plan-hero>div { min-width:0; padding:12px 16px; background:white; }
+.plan-hero span,.plan-hero strong,.plan-hero small { display:block; }
+.plan-hero>div>span { color:var(--muted); font-size:8px; text-transform:uppercase; letter-spacing:.07em; }
+.plan-hero-value { min-width:0; display:flex; align-items:baseline; gap:6px; flex-wrap:wrap; margin-top:5px; }
+.plan-hero-value strong { margin:0; font-size:20px; letter-spacing:-.04em; }
+.plan-hero-value small { color:var(--muted); font-size:9px; }
+.plan-table-summary { min-width:0; display:flex; align-items:center; gap:10px; white-space:nowrap; }
+.plan-table-summary strong,.plan-table-summary span { margin:0; }
 .plan-scroll { max-height:calc(100dvh - 290px); }.plan-scroll table { width:max-content; min-width:100%; }.remaining { color:var(--red); font-weight:800; }
 .large-empty { min-height:430px; display:grid; justify-items:center; align-content:center; padding:35px; text-align:center; }.large-empty>span { width:58px; height:58px; display:grid; place-items:center; border-radius:18px; background:var(--blue-soft); color:var(--blue); font-size:23px; }.large-empty h2,.large-empty h1 { margin:15px 0 6px; font-size:24px; letter-spacing:-.035em; }.large-empty p { max-width:540px; margin:0 0 17px; color:var(--muted); font-size:12px; line-height:1.6; }
 .profile-grid { display:grid; grid-template-columns:.85fr 1.15fr; gap:15px; }.profile-card,.roles-card { padding:20px; }.profile-card { display:grid; grid-template-columns:auto minmax(0,1fr); align-items:center; gap:13px; }.profile-avatar { width:55px; height:55px; display:grid; place-items:center; border-radius:16px; background:var(--navy); color:white; font-size:15px; font-weight:800; }.profile-card span,.profile-card strong,.profile-card small { display:block; }.profile-card span { color:var(--muted); font-size:8px; text-transform:uppercase; letter-spacing:.07em; }.profile-card strong { margin:4px 0; font-size:15px; }.profile-card small { color:var(--muted); font-size:9px; }.profile-card button { grid-column:1/-1; }.roles-card .card-head { margin-bottom:12px; }.role { padding:12px 0; border-top:1px solid var(--line); }.role span { display:inline-block; padding:4px 7px; border-radius:999px; background:var(--blue-soft); color:var(--blue); font-size:8px; font-weight:780; }.role p { margin:5px 0 0; color:var(--muted); font-size:10px; line-height:1.45; }
@@ -280,8 +288,7 @@ th button i { font-size:14px; }
 .minimum-toggle { min-width:152px; padding:9px 11px; }
 .status-toggle { min-width:116px; font-size:12px; }
 .needs { font-size:12px; }
-.payoff-table .month-plan-head { min-width:116px; text-align:center; vertical-align:middle; }
-.account-plan-head { position:relative; width:210px; min-width:190px; max-width:380px; padding:0; overflow:hidden; resize:horizontal; }
+.account-plan-head { position:sticky; top:0; z-index:6; width:210px; min-width:190px; max-width:380px; padding:0; overflow:hidden; resize:horizontal; }
 .account-plan-head::after { content:"\22EE"; position:absolute; right:2px; bottom:0; color:#8a98aa; font-size:16px; line-height:18px; pointer-events:none; }
 .account-plan-edit { min-height:72px; display:block; padding:12px 16px; text-align:center; text-transform:none; }
 .account-plan-edit span,.account-plan-edit small { display:block; }
@@ -291,13 +298,8 @@ th button i { font-size:14px; }
 .account-plan-cell strong { font-size:14px; }
 .account-plan-cell small { font-size:12px; }
 .account-plan-cell em { display:block; margin-top:5px; color:#9a5b0e; font-size:10px; font-style:normal; font-weight:750; }
-.payoff-table .month-sticky { position:sticky; left:0; z-index:4; width:116px; min-width:116px; max-width:116px; box-shadow:5px 0 10px -9px rgba(18,39,68,.9); }
-.payoff-table .interest-sticky { position:sticky; right:142px; z-index:4; width:128px; min-width:128px; max-width:128px; box-shadow:-5px 0 10px -9px rgba(18,39,68,.9); }
-.payoff-table .remaining-sticky { position:sticky; right:0; z-index:4; width:142px; min-width:142px; max-width:142px; box-shadow:-5px 0 10px -9px rgba(18,39,68,.9); }
-.payoff-table thead .month-sticky,.payoff-table thead .interest-sticky,.payoff-table thead .remaining-sticky { z-index:8; background:#eaf0f7; }
-.payoff-table tbody .month-sticky,.payoff-table tbody .interest-sticky,.payoff-table tbody .remaining-sticky { background:white; }
-.payoff-table tbody tr:nth-child(even) .month-sticky,.payoff-table tbody tr:nth-child(even) .interest-sticky,.payoff-table tbody tr:nth-child(even) .remaining-sticky { background:#fbfcfe; }
-.payoff-table tbody tr:hover .month-sticky,.payoff-table tbody tr:hover .interest-sticky,.payoff-table tbody tr:hover .remaining-sticky { background:#f2f7ff; }
+.payoff-table th:first-child,.payoff-table td:first-child { text-align:center; }
+.payoff-table thead th { position:sticky; top:0; z-index:6; background:#eaf0f7; }
 .field-help { display:block; margin-top:5px; color:var(--muted); font-size:9px; line-height:1.4; }
 .monthly-screen { min-height:100%; padding-bottom:20px; }
 .monthly-title { margin-bottom:13px; }
@@ -546,8 +548,6 @@ textarea:focus-visible{outline:3px solid rgba(22,119,255,.22);outline-offset:2px
   .cashflow-column-list>button,.snapshot-history-list>button,.payee-row,.member-row{min-height:56px}
   .table-scroll,.plan-scroll,.ledger-table-scroll,.batch-scroll,.projection-table-scroll{max-height:none;overflow-x:auto;overflow-y:visible;overscroll-behavior-x:contain;-webkit-overflow-scrolling:touch}
   .snapshot-history-list,.snapshot-account-list{max-height:none}
-  .payoff-table .interest-sticky,.payoff-table .remaining-sticky{position:static!important;box-shadow:none!important}
-  .payoff-table thead .interest-sticky,.payoff-table thead .remaining-sticky{background:#eaf0f7}
   .table-card-head,.stats-card-head,.snapshot-card-head{position:relative}
   .swipe-note{max-width:140px;font-size:11px!important;line-height:1.3}
   .modal-backdrop{padding:10px 10px 0;place-items:end}
@@ -693,3 +693,35 @@ textarea:focus-visible{outline:3px solid rgba(22,119,255,.22);outline-offset:2px
 
 
 @media(max-width:600px){.promo-fields{grid-template-columns:1fr}.true-cost-warning{grid-template-columns:1fr}.true-cost-icon{width:31px;height:31px}}
+
+/* Compact desktop payoff workspace: the table owns the remaining viewport. */
+@media(min-width:821px){
+  .plan-screen{
+    height:100%;
+    min-height:0;
+    display:flex;
+    flex-direction:column;
+    overflow:hidden;
+    padding-top:18px;
+    padding-bottom:14px;
+  }
+  .plan-screen>.screen-title{flex:0 0 auto;align-items:center;gap:18px;margin-bottom:10px}
+  .plan-screen>.screen-title h1{margin:3px 0 2px;font-size:36px}
+  .plan-screen>.screen-title p{font-size:13px;line-height:1.35}
+  .plan-controls{gap:10px}
+  .plan-hero{flex:0 0 auto}
+  .plan-table-card{min-height:0;display:flex;flex:1 1 auto;flex-direction:column}
+  .plan-table-card>.table-card-head{min-height:44px;flex:0 0 auto;padding:9px 14px}
+  .plan-table-summary strong{font-size:13px;text-transform:uppercase;letter-spacing:.04em}
+  .plan-table-summary span{color:var(--muted);font-size:11px;font-weight:750;text-transform:none;letter-spacing:0}
+  .plan-scroll{min-height:0;max-height:none;flex:1 1 auto;overflow:auto;scrollbar-gutter:stable}
+  .payoff-table tbody td{height:68px;padding:11px 16px}
+  .payoff-table thead th{top:0}
+  .large-empty{min-height:0;flex:1 1 auto}
+}
+
+@media(max-width:600px){
+  .plan-table-card>.table-card-head{align-items:flex-start;flex-direction:column;gap:4px}
+  .plan-table-card .swipe-note{max-width:none;text-align:left}
+  .plan-table-summary{max-width:100%;gap:7px}
+}
