@@ -328,16 +328,22 @@ th button i { font-size:14px; }
 .monthly-summary-strip strong { margin-top:5px; overflow:hidden; font-size:18px; text-overflow:ellipsis; }
 .monthly-summary-strip .positive strong { color:var(--green); }.monthly-summary-strip .negative strong { color:var(--red); }
 .cashflow-columns { height:calc(100dvh - 270px); min-height:350px; display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:13px; }
-.cashflow-column { min-width:0; display:grid; grid-template-rows:auto minmax(0,1fr); overflow:hidden; border:1px solid var(--line); border-radius:14px; background:white; box-shadow:var(--shadow); }
+.cashflow-column { position:relative; min-width:0; display:grid; grid-template-rows:auto minmax(0,1fr); overflow:hidden; border:1px solid var(--line); border-radius:14px; background:white; box-shadow:var(--shadow); transition:border-color .16s ease,box-shadow .16s ease,transform .16s ease; }
 .cashflow-column>header { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:14px 15px; border-bottom:2px solid var(--line); }
 .cashflow-column.income>header { border-top:4px solid #46bd91; }.cashflow-column.expense>header { border-top:4px solid #f0a64b; }.cashflow-column.purchase>header { border-top:4px solid #dc7777; }.cashflow-column.budget>header { border-top:4px solid #8277df; }
 .cashflow-column>header span,.cashflow-column>header small { display:block; }
 .cashflow-column>header span { font-size:15px; font-weight:850; }.cashflow-column>header small { margin-top:3px; color:var(--muted); font-size:10px; }.cashflow-column>header>strong { font-size:16px; }
 .cashflow-column-list { min-height:0; overflow:auto; }
-.cashflow-column-list>button { width:100%; min-height:62px; display:grid; grid-template-columns:minmax(0,1fr) auto; align-items:center; gap:12px; padding:10px 14px; border:0; border-bottom:1px solid var(--line); background:white; text-align:left; }
+.cashflow-column-list>button { width:100%; min-height:62px; display:grid; grid-template-columns:auto minmax(0,1fr) auto; align-items:center; gap:10px; padding:10px 14px 10px 10px; border:0; border-bottom:1px solid var(--line); background:white; cursor:grab; text-align:left; transition:opacity .14s ease,background .14s ease; }
 .cashflow-column-list>button:hover { background:#f7fafc; }.cashflow-column-list>button:last-child { border-bottom:0; }
 .cashflow-column-list>button div { min-width:0; }.cashflow-column-list strong,.cashflow-column-list small { display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .cashflow-column-list strong { font-size:13px; }.cashflow-column-list small { margin-top:4px; color:var(--muted); font-size:10px; }.cashflow-column-list b { font-size:12px; font-variant-numeric:tabular-nums; }
+.drag-handle { width:18px; height:22px; background:radial-gradient(circle,#9aabba 1.5px,transparent 1.8px) 1px 1px/6px 6px; cursor:grab; user-select:none; }
+.cashflow-column-list>button:active,.cashflow-column-list>button.dragging { cursor:grabbing; }
+.cashflow-column-list>button.dragging { opacity:.38; background:#eef5f8; }
+.cashflow-column.drag-over { border-color:#1677ff; box-shadow:0 0 0 4px rgba(22,119,255,.14),var(--shadow); transform:translateY(-2px); }
+.cashflow-column.drag-over::after { position:absolute; inset:62px 10px 10px; z-index:8; display:grid; place-items:center; border:2px dashed #1677ff; border-radius:10px; background:rgba(240,247,255,.92); color:#1268d8; content:"Drop here"; font-size:14px; font-weight:850; letter-spacing:.02em; pointer-events:none; }
+.sr-only { position:absolute!important; width:1px!important; height:1px!important; padding:0!important; margin:-1px!important; overflow:hidden!important; clip:rect(0,0,0,0)!important; white-space:nowrap!important; border:0!important; }
 .cashflow-column-empty { display:grid; justify-items:center; align-content:center; padding:24px; text-align:center; }
 .cashflow-column-empty>span { width:44px; height:44px; display:grid; place-items:center; border-radius:13px; background:#f0f5f8; color:#537084; font-size:19px; font-weight:850; }
 .cashflow-column-empty>strong { margin-top:11px; font-size:14px; }.cashflow-column-empty p { max-width:260px; margin:6px 0 0; color:var(--muted); font-size:11px; line-height:1.5; }

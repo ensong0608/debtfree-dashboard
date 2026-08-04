@@ -63,6 +63,22 @@ test("supports complete JSON backup transfer between dashboard origins", async (
   assert.match(styles, /profile-grid\.device-only-profile/);
 });
 
+test("moves monthly budget items between columns with drag and drop", async () => {
+  const [client, styles] = await Promise.all([
+    readFile(new URL("../app/dashboard-client.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/globals.css", import.meta.url), "utf8"),
+  ]);
+  assert.match(client, /moveCashflowItemToKind/);
+  assert.match(client, /onMove=\{moveCashflow\}/);
+  assert.match(client, /draggable/);
+  assert.match(client, /onDrop=\{\(event\) => dropOnKind\(event, kind\)\}/);
+  assert.match(client, /dataTransfer\.setData\("text\/plain", item\.id\)/);
+  assert.match(client, /Drag to move it to another budget column/);
+  assert.match(styles, /\.drag-handle/);
+  assert.match(styles, /\.cashflow-column\.drag-over/);
+  assert.match(styles, /content:"Drop here"/);
+});
+
 test("removes disposable starter assets", async () => {
   const [page, client, layout, packageJson] = await Promise.all([
     readFile(new URL("../app/page.tsx", import.meta.url), "utf8"),

@@ -1,7 +1,7 @@
 "use client";
 /* eslint-disable @next/next/no-img-element */
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent } from "react";
 import type { ChatGPTUser } from "./chatgpt-auth";
 import { exportPayoffCsv, exportPayoffExcel, exportPayoffPdf, type PayoffReportData } from "./payoff-export";
 import { scanReceipt, type ReceiptScanResult } from "./receipt-ocr";
@@ -144,6 +144,26 @@ const CASHFLOW_CATEGORIES: Record<CashflowKind, string[]> = {
   budget: ["Savings", "Emergency fund", "Groceries", "Travel", "Personal", "Other budget"],
   purchase: ["Shopping", "Home", "Transportation", "Health", "Travel", "Gifts", "Other purchase"],
 };
+function moveCashflowItemToKind(item: CashflowItem, kind: CashflowKind): CashflowItem {
+  const targetCategories = CASHFLOW_CATEGORIES[kind];
+  const categoryAlias: Record<string, string> = { Housing: "Home", Home: "Housing" };
+  const aliasedCategory = categoryAlias[item.category];
+  const category = targetCategories.includes(item.category)
+    ? item.category
+    : aliasedCategory && targetCategories.includes(aliasedCategory)
+      ? aliasedCategory
+      : targetCategories.at(-1) ?? item.category;
+  const targetIsOutflow = kind === "expense" || kind === "purchase";
+  const sourceIsOutflow = item.kind === "expense" || item.kind === "purchase";
+  const keepPayment = targetIsOutflow && sourceIsOutflow;
+  return {
+    ...item,
+    kind,
+    category,
+    paymentMethod: keepPayment ? item.paymentMethod : "debit",
+    creditAccountId: keepPayment && item.paymentMethod === "credit" ? item.creditAccountId : "",
+  };
+}
 const SAMPLE_ACCOUNTS: DebtAccount[] = [
   { id: "sample-1", name: "Everyday Rewards", type: "Credit card", balance: 3577.28, apr: 21.49, interestFee: 0, minimum: 0, minimumMode: "auto", payoffMode: "priority", creditLimit: 8500, dueDate: "2026-08-18", promoEndDate: "", postPromoApr: 0, postPromoMinimum: 0, createdAt: "2026-07-01" },
   { id: "sample-2", name: "Freedom Card", type: "Credit card", balance: 5254.68, apr: 24.74, interestFee: 0, minimum: 0, minimumMode: "auto", payoffMode: "priority", creditLimit: 10000, dueDate: "2026-08-22", promoEndDate: "", postPromoApr: 0, postPromoMinimum: 0, createdAt: "2026-07-01" },
@@ -648,6 +668,9 @@ export default function DashboardClient({ user }: { user: ChatGPTUser }) {
       setCashflowModalOpen(false);
     }
   };
+  const moveCashflow = (id: string, kind: CashflowKind) => {
+    setCashflowItems((current) => current.map((item) => item.id === id && item.kind !== kind ? moveCashflowItemToKind(item, kind) : item));
+  };
   const openEdit = (account: DebtAccount) => {
     const stored = accounts.find((item) => item.id === account.id) ?? account;
     setEditingId(stored.id);
@@ -865,7 +888,7 @@ export default function DashboardClient({ user }: { user: ChatGPTUser }) {
         </div>
       </header>
       <div className="page-body">
-        {page === "dashboard" && <DashboardPage month={selectedMonth} hasMonth={Object.prototype.hasOwnProperty.call(monthlyBudgets, selectedMonth)} previousHasItems={(monthlyBudgets[shiftMonth(selectedMonth, -1)] ?? []).length > 0} items={cashflowItems} accounts={calculatedAccounts} onMonth={setSelectedMonth} onCopyPrevious={copyPreviousBudget} onStartBlank={startBlankBudget} onAdd={openNewCashflow} onEdit={openEditCashflow}/>}
+        {page === "dashboard" && <DashboardPage month={selectedMonth} hasMonth={Object.prototype.hasOwnProperty.call(monthlyBudgets, selectedMonth)} previousHasItems={(monthlyBudgets[shiftMonth(selectedMonth, -1)] ?? []).length > 0} items={cashflowItems} accounts={calculatedAccounts} onMonth={setSelectedMonth} onCopyPrevious={copyPreviousBudget} onStartBlank={startBlankBudget} onAdd={openNewCashflow} onEdit={openEditCashflow} onMove={moveCashflow}/>}
         {page === "accounts" && <AccountsPage accounts={sortedAccounts} activeCount={activeCount} totalBalance={totalBalance} minimums={minimums} interest={interest} linkedCardExpenses={linkedCardExpenses} sortKey={sortKey} sortDirection={sortDirection} paidOffById={paidOffById} onSort={changeSort} onAdd={openNew} onEdit={openEdit} onToggleMinimum={toggleMinimumMode} onTogglePayoff={togglePayoffMode} onSample={() => setAccounts(SAMPLE_ACCOUNTS)} onImport={importDebtFreeCsv} importMessage={importMessage}/>}
         {page === "history" && <TransactionsPage accounts={calculatedAccounts} payees={payees} transactions={transactions} onQuickAdd={openNewTransaction} onEdit={openEditTransaction} onDelete={softDeleteTransaction} onRestore={restoreTransaction} onBatchAdd={addBatchTransactions} onManagePayees={() => setPayeeModalOpen(true)}/>}
         {page === "plan" && <PayoffPlanPage accounts={calculatedAccounts} plan={plan} extra={extra} availableExtra={availableExtra} strategy={strategy} linkedCardExpenseItems={linkedCardExpenseItems} monthlyItems={planningCashflowItems} transactions={transactions} snapshots={snapshots} onExtra={setExtra} onStrategy={setStrategy} onAccounts={() => setPage("accounts")} onEditAccount={openEdit}/>}
@@ -883,7 +906,11 @@ export default function DashboardClient({ user }: { user: ChatGPTUser }) {
   </div>;
 }
 
-function DashboardPage({ month, hasMonth, previousHasItems, items, accounts, onMonth, onCopyPrevious, onStartBlank, onAdd, onEdit }: { month: string; hasMonth: boolean; previousHasItems: boolean; items: CashflowItem[]; accounts: DebtAccount[]; onMonth: (month: string) => void; onCopyPrevious: () => void; onStartBlank: () => void; onAdd: (kind: CashflowKind) => void; onEdit: (item: CashflowItem) => void }) {
+function DashboardPage({ month, hasMonth, previousHasItems, items, accounts, onMonth, onCopyPrevious, onStartBlank, onAdd, onEdit, onMove }: { month: string; hasMonth: boolean; previousHasItems: boolean; items: CashflowItem[]; accounts: DebtAccount[]; onMonth: (month: string) => void; onCopyPrevious: () => void; onStartBlank: () => void; onAdd: (kind: CashflowKind) => void; onEdit: (item: CashflowItem) => void; onMove: (id: string, kind: CashflowKind) => void }) {
+  const [draggedId, setDraggedId] = useState<string | null>(null);
+  const [dragOverKind, setDragOverKind] = useState<CashflowKind | null>(null);
+  const [moveAnnouncement, setMoveAnnouncement] = useState("");
+  const suppressItemClick = useRef(false);
   const kinds: { kind: CashflowKind; title: string; empty: string }[] = [
     { kind: "income", title: "Income", empty: "Add salary, freelance work, benefits, or another monthly source." },
     { kind: "expense", title: "Monthly expenses", empty: "Add recurring bills and choose debit or the credit card that pays each one." },
@@ -903,16 +930,63 @@ function DashboardPage({ month, hasMonth, previousHasItems, items, accounts, onM
     if (item.paymentMethod === "debit") return `${item.category} / Debit`;
     return `${item.category} / Credit / ${creditNames.get(item.creditAccountId) ?? "Card not selected"}`;
   };
+  const finishDrag = () => {
+    setDraggedId(null);
+    setDragOverKind(null);
+    window.setTimeout(() => { suppressItemClick.current = false; }, 0);
+  };
+  const dropOnKind = (event: DragEvent<HTMLElement>, kind: CashflowKind) => {
+    event.preventDefault();
+    const id = draggedId ?? event.dataTransfer.getData("text/plain");
+    const item = items.find((entry) => entry.id === id);
+    if (item && item.kind !== kind) {
+      onMove(item.id, kind);
+      const destination = kinds.find((entry) => entry.kind === kind)?.title ?? kind;
+      setMoveAnnouncement(`${item.name} moved to ${destination}.`);
+    }
+    finishDrag();
+  };
 
   return <div className="screen dashboard-screen monthly-screen">
     <div className="screen-title monthly-title"><div><span className="eyebrow">{isCurrent ? "Current monthly budget" : "Monthly budget archive"}</span><h1>Monthly Budget</h1><p>Plan recurring cash flow, then keep unplanned one-time purchases separate so they only affect the month they happen.</p></div><div className="cashflow-quick-actions"><button className="income-action" type="button" onClick={() => onAdd("income")}>+ Add income</button><button className="expense-action" type="button" onClick={() => onAdd("expense")}>+ Add expense</button><button className="purchase-action" type="button" onClick={() => onAdd("purchase")}>+ Add one-time purchase</button><button className="budget-action" type="button" onClick={() => onAdd("budget")}>+ Add budget</button></div></div>
     <section className="month-switcher" aria-label="Select budget month"><button type="button" onClick={() => onMonth(shiftMonth(month, -1))} aria-label="Previous month">&lsaquo;</button><div><span>{isCurrent ? "Current month" : "Budget month"}</span><strong>{monthLabel(month)}</strong></div><button type="button" onClick={() => onMonth(shiftMonth(month, 1))} aria-label="Next month">&rsaquo;</button><button className="today-month" type="button" disabled={isCurrent} onClick={() => onMonth(currentMonthKey())}>This month</button></section>
     {!hasMonth ? <section className="month-start-card"><span>New month</span><h2>Set up {monthLabel(month)}</h2><p>This month does not have a budget yet. Carry forward last month&apos;s recurring income, expenses, and set-asides, or begin with a clean plan. One-time purchases are never copied.</p><div>{previousHasItems && <button className="primary" type="button" onClick={onCopyPrevious}>Copy {monthLabel(shiftMonth(month, -1))}</button>}<button className="secondary" type="button" onClick={onStartBlank}>Start with no entries</button></div></section> : <>
       <section className="monthly-summary-strip" aria-label="Monthly totals"><div><span>Income</span><strong>{moneyPrecise.format(totalIncome)}</strong></div><div><span>Monthly expenses</span><strong>{moneyPrecise.format(totalExpenses)}</strong></div><div><span>One-time purchases</span><strong>{moneyPrecise.format(totalPurchases)}</strong></div><div><span>Budget</span><strong>{moneyPrecise.format(totalBudget)}</strong></div><div className={available >= 0 ? "available positive" : "available negative"}><span>Available</span><strong>{moneyPrecise.format(available)}</strong></div></section>
+      <p className="sr-only" aria-live="polite">{moveAnnouncement}</p>
       <section className="cashflow-columns" aria-label="Income, monthly expenses, one-time purchases, and budget">
         {kinds.map(({ kind, title, empty }) => {
           const columnItems = items.filter((item) => item.kind === kind).sort((a, b) => b.amount - a.amount);
-          return <article className={`cashflow-column ${kind}`} key={kind}><header><div><span>{title}</span><small>{columnItems.length} {columnItems.length === 1 ? "item" : "items"}</small></div><strong>{moneyPrecise.format(totalFor(kind))}</strong></header>{columnItems.length ? <div className="cashflow-column-list">{columnItems.map((item) => <button type="button" key={item.id} onClick={() => onEdit(item)} aria-label={`Edit ${item.name}`}><div><strong>{item.name}</strong><small>{detail(item)}</small></div><b>{moneyPrecise.format(item.amount)}</b></button>)}</div> : <div className="cashflow-column-empty"><span>{kind === "income" ? "$" : kind === "expense" ? "EXP" : kind === "purchase" ? "1x" : "BUD"}</span><strong>No {title.toLowerCase()} yet</strong><p>{empty}</p></div>}</article>;
+          return <article
+            className={`cashflow-column ${kind}${dragOverKind === kind ? " drag-over" : ""}`}
+            key={kind}
+            onDragEnter={(event) => { event.preventDefault(); if (draggedId) setDragOverKind(kind); }}
+            onDragOver={(event) => { event.preventDefault(); event.dataTransfer.dropEffect = "move"; if (draggedId && dragOverKind !== kind) setDragOverKind(kind); }}
+            onDragLeave={(event) => { const next = event.relatedTarget; if (!(next instanceof Node) || !event.currentTarget.contains(next)) setDragOverKind((current) => current === kind ? null : current); }}
+            onDrop={(event) => dropOnKind(event, kind)}
+          >
+            <header><div><span>{title}</span><small>{columnItems.length} {columnItems.length === 1 ? "item" : "items"}{columnItems.length ? " | drag to move" : " | drop items here"}</small></div><strong>{moneyPrecise.format(totalFor(kind))}</strong></header>
+            {columnItems.length ? <div className="cashflow-column-list">{columnItems.map((item) => <button
+              type="button"
+              draggable
+              className={draggedId === item.id ? "dragging" : ""}
+              key={item.id}
+              title={`Drag ${item.name} to another column, or click to edit`}
+              aria-label={`Edit ${item.name}. Drag to move it to another budget column.`}
+              onDragStart={(event) => {
+                suppressItemClick.current = true;
+                setDraggedId(item.id);
+                setDragOverKind(null);
+                event.dataTransfer.effectAllowed = "move";
+                event.dataTransfer.setData("text/plain", item.id);
+              }}
+              onDragEnd={finishDrag}
+              onClick={() => { if (!suppressItemClick.current) onEdit(item); }}
+            >
+              <span className="drag-handle" aria-hidden="true"/>
+              <div><strong>{item.name}</strong><small>{detail(item)}</small></div>
+              <b>{moneyPrecise.format(item.amount)}</b>
+            </button>)}</div> : <div className="cashflow-column-empty"><span>{kind === "income" ? "$" : kind === "expense" ? "EXP" : kind === "purchase" ? "1x" : "BUD"}</span><strong>No {title.toLowerCase()} yet</strong><p>{empty}</p></div>}
+          </article>;
         })}
       </section>
     </>}
