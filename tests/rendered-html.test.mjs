@@ -171,3 +171,21 @@ test("uses explicit post-promo card terms in payoff forecasts", async () => {
   assert.match(releaseNotes, /Promo-aware payoff forecasting/);
   assert.match(releaseNotes, /non-amortizing balances/);
 });
+
+test("keeps the public Cloudflare Worker deployment reproducible", async () => {
+  const [wranglerSource, packageSource] = await Promise.all([
+    readFile(new URL("../wrangler.jsonc", import.meta.url), "utf8"),
+    readFile(new URL("../package.json", import.meta.url), "utf8"),
+  ]);
+  const wrangler = JSON.parse(wranglerSource);
+  const packageJson = JSON.parse(packageSource);
+  assert.equal(wrangler.name, "debtfree-dashboard");
+  assert.equal(wrangler.main, "dist/server/index.js");
+  assert.deepEqual(wrangler.compatibility_flags, ["nodejs_compat"]);
+  assert.equal(wrangler.assets.binding, "ASSETS");
+  assert.equal(wrangler.d1_databases[0].binding, "DB");
+  assert.equal(wrangler.d1_databases[0].database_name, "debtfree-dashboard-prod");
+  assert.equal(wrangler.images.binding, "IMAGES");
+  assert.match(packageJson.scripts["deploy:cloudflare"], /wrangler deploy/);
+  assert.match(packageJson.scripts["db:migrate:cloudflare"], /migrations apply/);
+});
