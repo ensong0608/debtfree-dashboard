@@ -11,7 +11,7 @@ type DebtType = "Credit card" | "Personal loan" | "Auto loan" | "Student loan" |
 type MinimumMode = "auto" | "manual";
 type PayoffMode = "priority" | "minimum-only";
 type PayoffStrategy = "avalanche" | "snowball";
-type CashflowKind = "income" | "expense" | "budget";
+type CashflowKind = "income" | "expense" | "purchase" | "budget";
 type PaymentMethod = "debit" | "credit";
 type SortKey = "name" | "balance" | "creditLimit" | "apr" | "minimum" | "monthlyInterest" | "status" | "dueDate" | "payoff";
 type SortDirection = "asc" | "desc";
@@ -107,7 +107,7 @@ function normalizedPayload(value: unknown): DashboardPayload {
   })) : [];
   const normalizeCashflow = (items: CashflowItem[]) => items.map((item) => ({
     ...item,
-    paymentMethod: item.kind === "expense" && item.paymentMethod === "credit" ? "credit" as const : "debit" as const,
+    paymentMethod: (item.kind === "expense" || item.kind === "purchase") && item.paymentMethod === "credit" ? "credit" as const : "debit" as const,
     creditAccountId: typeof item.creditAccountId === "string" ? item.creditAccountId : "",
   }));
   const monthlyBudgets = parsed.monthlyBudgets && typeof parsed.monthlyBudgets === "object"
@@ -141,6 +141,7 @@ const CASHFLOW_CATEGORIES: Record<CashflowKind, string[]> = {
   income: ["Salary", "Freelance", "Benefits", "Investment", "Other income"],
   expense: ["Housing", "Transportation", "Utilities", "Subscriptions", "Insurance", "Food", "Other expense"],
   budget: ["Savings", "Emergency fund", "Groceries", "Travel", "Personal", "Other budget"],
+  purchase: ["Shopping", "Home", "Transportation", "Health", "Travel", "Gifts", "Other purchase"],
 };
 const SAMPLE_ACCOUNTS: DebtAccount[] = [
   { id: "sample-1", name: "Everyday Rewards", type: "Credit card", balance: 3577.28, apr: 21.49, interestFee: 0, minimum: 0, minimumMode: "auto", payoffMode: "priority", creditLimit: 8500, dueDate: "2026-08-18", promoEndDate: "", postPromoApr: 0, postPromoMinimum: 0, createdAt: "2026-07-01" },
@@ -623,7 +624,7 @@ export default function DashboardClient({ user }: { user: ChatGPTUser }) {
   };
   const saveCashflow = () => {
     if (!cashflowDraft.name.trim() || cashflowDraft.amount <= 0) return;
-    const normalized = { ...cashflowDraft, name: cashflowDraft.name.trim(), creditAccountId: cashflowDraft.kind === "expense" && cashflowDraft.paymentMethod === "credit" ? cashflowDraft.creditAccountId : "" };
+    const normalized = { ...cashflowDraft, name: cashflowDraft.name.trim(), creditAccountId: (cashflowDraft.kind === "expense" || cashflowDraft.kind === "purchase") && cashflowDraft.paymentMethod === "credit" ? cashflowDraft.creditAccountId : "" };
     if (editingCashflowId) setCashflowItems((current) => current.map((item) => item.id === editingCashflowId ? { ...item, ...normalized } : item));
     else setCashflowItems((current) => [...current, { ...normalized, id: `${Date.now()}-${Math.random()}`, createdAt: new Date().toISOString() }]);
     setCashflowModalOpen(false);
@@ -631,7 +632,7 @@ export default function DashboardClient({ user }: { user: ChatGPTUser }) {
   const removeCashflow = () => {
     if (!editingCashflowId) return;
     const item = cashflowItems.find((entry) => entry.id === editingCashflowId);
-    if (confirm(`Remove ${item?.name ?? "this monthly item"}?`)) {
+    if (confirm(`Remove ${item?.name ?? "this budget item"}?`)) {
       setCashflowItems((current) => current.filter((entry) => entry.id !== editingCashflowId));
       setCashflowModalOpen(false);
     }
@@ -687,7 +688,7 @@ export default function DashboardClient({ user }: { user: ChatGPTUser }) {
   const copyPreviousBudget = () => {
     const sourceMonth = shiftMonth(selectedMonth, -1);
     const source = monthlyBudgets[sourceMonth] ?? [];
-    setMonthlyBudgets((current) => ({ ...current, [selectedMonth]: source.map((item) => ({ ...item, id: `${Date.now()}-${Math.random()}`, createdAt: new Date().toISOString() })) }));
+    setMonthlyBudgets((current) => ({ ...current, [selectedMonth]: source.filter((item) => item.kind !== "purchase").map((item) => ({ ...item, id: `${Date.now()}-${Math.random()}`, createdAt: new Date().toISOString() })) }));
   };
   const startBlankBudget = () => setMonthlyBudgets((current) => ({ ...current, [selectedMonth]: [] }));
   const openNewTransaction = () => {
@@ -816,31 +817,33 @@ export default function DashboardClient({ user }: { user: ChatGPTUser }) {
 function DashboardPage({ month, hasMonth, previousHasItems, items, accounts, onMonth, onCopyPrevious, onStartBlank, onAdd, onEdit }: { month: string; hasMonth: boolean; previousHasItems: boolean; items: CashflowItem[]; accounts: DebtAccount[]; onMonth: (month: string) => void; onCopyPrevious: () => void; onStartBlank: () => void; onAdd: (kind: CashflowKind) => void; onEdit: (item: CashflowItem) => void }) {
   const kinds: { kind: CashflowKind; title: string; empty: string }[] = [
     { kind: "income", title: "Income", empty: "Add salary, freelance work, benefits, or another monthly source." },
-    { kind: "expense", title: "Expenses", empty: "Add recurring bills and choose debit or the credit card that pays each one." },
+    { kind: "expense", title: "Monthly expenses", empty: "Add recurring bills and choose debit or the credit card that pays each one." },
+    { kind: "purchase", title: "One-time purchases", empty: "Add unplanned purchases that only affect this month. They will not be copied forward." },
     { kind: "budget", title: "Budget", empty: "Add money you want to reserve for savings, groceries, travel, or another goal." },
   ];
   const totalFor = (kind: CashflowKind) => items.filter((item) => item.kind === kind).reduce((sum, item) => sum + item.amount, 0);
   const totalIncome = totalFor("income");
   const totalExpenses = totalFor("expense");
+  const totalPurchases = totalFor("purchase");
   const totalBudget = totalFor("budget");
-  const available = totalIncome - totalExpenses - totalBudget;
+  const available = totalIncome - totalExpenses - totalPurchases - totalBudget;
   const creditNames = new Map(accounts.map((account) => [account.id, account.name]));
   const isCurrent = month === currentMonthKey();
   const detail = (item: CashflowItem) => {
-    if (item.kind !== "expense") return item.category;
+    if (item.kind !== "expense" && item.kind !== "purchase") return item.category;
     if (item.paymentMethod === "debit") return `${item.category} / Debit`;
     return `${item.category} / Credit / ${creditNames.get(item.creditAccountId) ?? "Card not selected"}`;
   };
 
   return <div className="screen dashboard-screen monthly-screen">
-    <div className="screen-title monthly-title"><div><span className="eyebrow">{isCurrent ? "Current monthly budget" : "Monthly budget archive"}</span><h1>Monthly Budget</h1><p>Plan each month separately, then copy the previous plan or start fresh when a new month begins.</p></div><div className="cashflow-quick-actions"><button className="income-action" type="button" onClick={() => onAdd("income")}>+ Add income</button><button className="expense-action" type="button" onClick={() => onAdd("expense")}>+ Add expense</button><button className="budget-action" type="button" onClick={() => onAdd("budget")}>+ Add budget</button></div></div>
+    <div className="screen-title monthly-title"><div><span className="eyebrow">{isCurrent ? "Current monthly budget" : "Monthly budget archive"}</span><h1>Monthly Budget</h1><p>Plan recurring cash flow, then keep unplanned one-time purchases separate so they only affect the month they happen.</p></div><div className="cashflow-quick-actions"><button className="income-action" type="button" onClick={() => onAdd("income")}>+ Add income</button><button className="expense-action" type="button" onClick={() => onAdd("expense")}>+ Add expense</button><button className="purchase-action" type="button" onClick={() => onAdd("purchase")}>+ Add one-time purchase</button><button className="budget-action" type="button" onClick={() => onAdd("budget")}>+ Add budget</button></div></div>
     <section className="month-switcher" aria-label="Select budget month"><button type="button" onClick={() => onMonth(shiftMonth(month, -1))} aria-label="Previous month">&lsaquo;</button><div><span>{isCurrent ? "Current month" : "Budget month"}</span><strong>{monthLabel(month)}</strong></div><button type="button" onClick={() => onMonth(shiftMonth(month, 1))} aria-label="Next month">&rsaquo;</button><button className="today-month" type="button" disabled={isCurrent} onClick={() => onMonth(currentMonthKey())}>This month</button></section>
-    {!hasMonth ? <section className="month-start-card"><span>New month</span><h2>Set up {monthLabel(month)}</h2><p>This month does not have a budget yet. Carry forward last month&apos;s income, expenses, and set-asides, or begin with a clean plan.</p><div>{previousHasItems && <button className="primary" type="button" onClick={onCopyPrevious}>Copy {monthLabel(shiftMonth(month, -1))}</button>}<button className="secondary" type="button" onClick={onStartBlank}>Start with no entries</button></div></section> : <>
-      <section className="monthly-summary-strip" aria-label="Monthly totals"><div><span>Income</span><strong>{moneyPrecise.format(totalIncome)}</strong></div><div><span>Expenses</span><strong>{moneyPrecise.format(totalExpenses)}</strong></div><div><span>Budget</span><strong>{moneyPrecise.format(totalBudget)}</strong></div><div className={available >= 0 ? "available positive" : "available negative"}><span>Available</span><strong>{moneyPrecise.format(available)}</strong></div></section>
-      <section className="cashflow-columns" aria-label="Income, expenses, and budget">
+    {!hasMonth ? <section className="month-start-card"><span>New month</span><h2>Set up {monthLabel(month)}</h2><p>This month does not have a budget yet. Carry forward last month&apos;s recurring income, expenses, and set-asides, or begin with a clean plan. One-time purchases are never copied.</p><div>{previousHasItems && <button className="primary" type="button" onClick={onCopyPrevious}>Copy {monthLabel(shiftMonth(month, -1))}</button>}<button className="secondary" type="button" onClick={onStartBlank}>Start with no entries</button></div></section> : <>
+      <section className="monthly-summary-strip" aria-label="Monthly totals"><div><span>Income</span><strong>{moneyPrecise.format(totalIncome)}</strong></div><div><span>Monthly expenses</span><strong>{moneyPrecise.format(totalExpenses)}</strong></div><div><span>One-time purchases</span><strong>{moneyPrecise.format(totalPurchases)}</strong></div><div><span>Budget</span><strong>{moneyPrecise.format(totalBudget)}</strong></div><div className={available >= 0 ? "available positive" : "available negative"}><span>Available</span><strong>{moneyPrecise.format(available)}</strong></div></section>
+      <section className="cashflow-columns" aria-label="Income, monthly expenses, one-time purchases, and budget">
         {kinds.map(({ kind, title, empty }) => {
           const columnItems = items.filter((item) => item.kind === kind).sort((a, b) => b.amount - a.amount);
-          return <article className={`cashflow-column ${kind}`} key={kind}><header><div><span>{title}</span><small>{columnItems.length} {columnItems.length === 1 ? "item" : "items"}</small></div><strong>{moneyPrecise.format(totalFor(kind))}</strong></header>{columnItems.length ? <div className="cashflow-column-list">{columnItems.map((item) => <button type="button" key={item.id} onClick={() => onEdit(item)} aria-label={`Edit ${item.name}`}><div><strong>{item.name}</strong><small>{detail(item)}</small></div><b>{moneyPrecise.format(item.amount)}</b></button>)}</div> : <div className="cashflow-column-empty"><span>{kind === "income" ? "$" : kind === "expense" ? "EXP" : "BUD"}</span><strong>No {title.toLowerCase()} yet</strong><p>{empty}</p></div>}</article>;
+          return <article className={`cashflow-column ${kind}`} key={kind}><header><div><span>{title}</span><small>{columnItems.length} {columnItems.length === 1 ? "item" : "items"}</small></div><strong>{moneyPrecise.format(totalFor(kind))}</strong></header>{columnItems.length ? <div className="cashflow-column-list">{columnItems.map((item) => <button type="button" key={item.id} onClick={() => onEdit(item)} aria-label={`Edit ${item.name}`}><div><strong>{item.name}</strong><small>{detail(item)}</small></div><b>{moneyPrecise.format(item.amount)}</b></button>)}</div> : <div className="cashflow-column-empty"><span>{kind === "income" ? "$" : kind === "expense" ? "EXP" : kind === "purchase" ? "1x" : "BUD"}</span><strong>No {title.toLowerCase()} yet</strong><p>{empty}</p></div>}</article>;
         })}
       </section>
     </>}
@@ -983,7 +986,7 @@ function PayoffPlanPage({ accounts, plan, extra, availableExtra, strategy, linke
   const createReport = (): PayoffReportData => {
     const accountNames = new Map(accounts.map((account) => [account.id, account.name]));
     const totalIncome = monthlyItems.filter((item) => item.kind === "income").reduce((sum, item) => sum + item.amount, 0);
-    const totalExpenses = monthlyItems.filter((item) => item.kind === "expense").reduce((sum, item) => sum + item.amount, 0);
+    const totalExpenses = monthlyItems.filter((item) => item.kind === "expense" || item.kind === "purchase").reduce((sum, item) => sum + item.amount, 0);
     const totalBudget = monthlyItems.filter((item) => item.kind === "budget").reduce((sum, item) => sum + item.amount, 0);
     const totalMinimums = accounts.reduce((sum, account) => sum + effectiveMinimum(account), 0);
     const payoffMonthByName = new Map<string, number>();
@@ -1006,12 +1009,12 @@ function PayoffPlanPage({ accounts, plan, extra, availableExtra, strategy, linke
       totalMinimums: round(totalMinimums),
       availableExtra: round(availableExtra),
       cashflow: monthlyItems.map((item) => ({
-        type: item.kind === "income" ? "Income" : item.kind === "expense" ? "Expense" : "Budget",
+        type: item.kind === "income" ? "Income" : item.kind === "expense" ? "Expense" : item.kind === "purchase" ? "One-time purchase" : "Budget",
         name: item.name,
         category: item.category,
         amount: item.amount,
-        paymentMethod: item.kind !== "expense" ? "Not applicable" : item.paymentMethod === "credit" ? "Credit card" : "Debit / checking",
-        linkedAccount: item.kind === "expense" && item.paymentMethod === "credit" ? accountNames.get(item.creditAccountId) ?? "Card not selected" : "",
+        paymentMethod: item.kind !== "expense" && item.kind !== "purchase" ? "Not applicable" : item.paymentMethod === "credit" ? "Credit card" : "Debit / checking",
+        linkedAccount: (item.kind === "expense" || item.kind === "purchase") && item.paymentMethod === "credit" ? accountNames.get(item.creditAccountId) ?? "Card not selected" : "",
       })),
       accounts: accounts.map((account) => {
         const linkedExpenses = (linkedCardExpenseItems[account.id] ?? []).reduce((sum, item) => sum + item.amount, 0);
@@ -1238,11 +1241,18 @@ function StatsPage({ accounts, snapshots, transactions, extra, strategy, linkedC
 }
 function CashflowModal({ draft, editing, accounts, onChange, onClose, onSave, onRemove }: { draft: CashflowDraft; editing: boolean; accounts: DebtAccount[]; onChange: (draft: CashflowDraft) => void; onClose: () => void; onSave: () => void; onRemove: () => void }) {
   const creditAccounts = accounts.filter((account) => account.type === "Credit card");
-  const needsCreditAccount = draft.kind === "expense" && draft.paymentMethod === "credit";
+  const isOutflow = draft.kind === "expense" || draft.kind === "purchase";
+  const needsCreditAccount = isOutflow && draft.paymentMethod === "credit";
   const canSave = Boolean(draft.name.trim()) && draft.amount > 0 && (!needsCreditAccount || Boolean(draft.creditAccountId));
-  const changeKind = (kind: CashflowKind) => onChange({ ...draft, kind, category: CASHFLOW_CATEGORIES[kind][0], paymentMethod: kind === "expense" ? draft.paymentMethod : "debit", creditAccountId: kind === "expense" ? draft.creditAccountId : "" });
-  const title = draft.kind === "income" ? "income" : draft.kind === "expense" ? "recurring expense" : "set-aside budget";
+  const changeKind = (kind: CashflowKind) => { const outflow = kind === "expense" || kind === "purchase"; onChange({ ...draft, kind, category: CASHFLOW_CATEGORIES[kind][0], paymentMethod: outflow ? draft.paymentMethod : "debit", creditAccountId: outflow ? draft.creditAccountId : "" }); };
+  const title = draft.kind === "income" ? "income" : draft.kind === "expense" ? "monthly expense" : draft.kind === "purchase" ? "one-time purchase" : "set-aside budget";
+  const amountLabel = draft.kind === "budget" ? "Budget amount" : draft.kind === "purchase" ? "Purchase amount" : "Monthly amount";
+  const placeholder = draft.kind === "income" ? "Example: Salary" : draft.kind === "expense" ? "Example: Electric bill" : draft.kind === "purchase" ? "Example: New tires" : "Example: Emergency fund";
+  const modalDescription = draft.kind === "purchase" ? "This purchase affects only this month and will not be copied into future budgets." : "This month's planning data is saved with your shared household dashboard.";
+  return <div className="modal-backdrop" onMouseDown={(event) => { if (event.currentTarget === event.target) onClose(); }}><section className="modal cashflow-modal" role="dialog" aria-modal="true" aria-labelledby="cashflow-modal-title"><header><div><span>{editing ? `Edit ${title}` : `New ${title}`}</span><h2 id="cashflow-modal-title">{editing ? draft.name || "Budget item" : `Add ${title}`}</h2><p>{modalDescription}</p></div><button type="button" onClick={onClose} aria-label="Close budget item form">&times;</button></header><div className="form-grid"><div className="wide kind-editor"><span>Item type</span><div>{(["income", "expense", "purchase", "budget"] as CashflowKind[]).map((kind) => <button type="button" key={kind} className={draft.kind === kind ? `active ${kind}` : kind} onClick={() => changeKind(kind)}>{kind === "income" ? "Income" : kind === "expense" ? "Monthly expense" : kind === "purchase" ? "One-time purchase" : "Budget"}</button>)}</div></div><label className="wide"><span>Name</span><input autoFocus value={draft.name} placeholder={placeholder} onChange={(event) => onChange({ ...draft, name: event.target.value })}/></label><Field label={amountLabel} prefix="$" value={draft.amount} placeholder="0" onChange={(amount) => onChange({ ...draft, amount })}/><label><span>Category</span><select value={draft.category} onChange={(event) => onChange({ ...draft, category: event.target.value })}>{CASHFLOW_CATEGORIES[draft.kind].map((category) => <option key={category}>{category}</option>)}</select></label>{isOutflow && <div className="wide payment-editor"><span>Paid with</span><div><button type="button" className={draft.paymentMethod === "debit" ? "active" : ""} onClick={() => onChange({ ...draft, paymentMethod: "debit", creditAccountId: "" })}><i>DB</i><span>Debit</span><small>Paid from checking</small></button><button type="button" className={draft.paymentMethod === "credit" ? "active" : ""} onClick={() => onChange({ ...draft, paymentMethod: "credit" })}><i>CC</i><span>Credit</span><small>Charged to a card</small></button></div></div>}{needsCreditAccount && <label className="wide credit-account-field"><span>Credit card</span><select value={draft.creditAccountId} onChange={(event) => onChange({ ...draft, creditAccountId: event.target.value })}><option value="">Select the card used for this {draft.kind === "purchase" ? "purchase" : "expense"}</option>{creditAccounts.map((account) => <option value={account.id} key={account.id}>{account.name}</option>)}</select><small>{creditAccounts.length ? (draft.kind === "purchase" ? "This records how you paid without turning the purchase into a recurring card charge." : "This links the recurring expense to the card you use.") : `Add a credit card under Debt Accounts before assigning this ${draft.kind === "purchase" ? "purchase" : "expense"} to credit.`}</small></label>}</div><footer>{editing ? <button className="danger" type="button" onClick={onRemove}>Remove item</button> : <span/>}<div><button className="secondary" type="button" onClick={onClose}>Cancel</button><button className="primary" type="button" disabled={!canSave} onClick={onSave}>{editing ? "Save changes" : draft.kind === "purchase" ? "Add one-time purchase" : "Add monthly item"}</button></div></footer></section></div>;
+  /*
   return <div className="modal-backdrop" onMouseDown={(event) => { if (event.currentTarget === event.target) onClose(); }}><section className="modal cashflow-modal" role="dialog" aria-modal="true" aria-labelledby="cashflow-modal-title"><header><div><span>{editing ? `Edit ${title}` : `New ${title}`}</span><h2 id="cashflow-modal-title">{editing ? draft.name || "Monthly item" : `Add ${title}`}</h2><p>This month&apos;s planning data is saved with your shared household dashboard.</p></div><button type="button" onClick={onClose} aria-label="Close monthly item form">×</button></header><div className="form-grid"><div className="wide kind-editor"><span>Item type</span><div>{(["income", "expense", "budget"] as CashflowKind[]).map((kind) => <button type="button" key={kind} className={draft.kind === kind ? `active ${kind}` : kind} onClick={() => changeKind(kind)}>{kind === "income" ? "Income" : kind === "expense" ? "Expense" : "Budget"}</button>)}</div></div><label className="wide"><span>Name</span><input autoFocus value={draft.name} placeholder={draft.kind === "income" ? "Example: Salary" : draft.kind === "expense" ? "Example: Electric bill" : "Example: Emergency fund"} onChange={(event) => onChange({ ...draft, name: event.target.value })}/></label><Field label={draft.kind === "budget" ? "Budget amount" : "Monthly amount"} prefix="$" value={draft.amount} placeholder="0" onChange={(amount) => onChange({ ...draft, amount })}/><label><span>Category</span><select value={draft.category} onChange={(event) => onChange({ ...draft, category: event.target.value })}>{CASHFLOW_CATEGORIES[draft.kind].map((category) => <option key={category}>{category}</option>)}</select></label>{draft.kind === "expense" && <div className="wide payment-editor"><span>Paid with</span><div><button type="button" className={draft.paymentMethod === "debit" ? "active" : ""} onClick={() => onChange({ ...draft, paymentMethod: "debit", creditAccountId: "" })}><i>DB</i><span>Debit</span><small>Paid from checking</small></button><button type="button" className={draft.paymentMethod === "credit" ? "active" : ""} onClick={() => onChange({ ...draft, paymentMethod: "credit" })}><i>CC</i><span>Credit</span><small>Charged to a card</small></button></div></div>}{needsCreditAccount && <label className="wide credit-account-field"><span>Credit card</span><select value={draft.creditAccountId} onChange={(event) => onChange({ ...draft, creditAccountId: event.target.value })}><option value="">Select the card used for this expense</option>{creditAccounts.map((account) => <option value={account.id} key={account.id}>{account.name}</option>)}</select><small>{creditAccounts.length ? "This links the recurring expense to the card you use." : "Add a credit card under Debt Accounts before assigning this expense to credit."}</small></label>}</div><footer>{editing ? <button className="danger" type="button" onClick={onRemove}>Remove item</button> : <span/>}<div><button className="secondary" type="button" onClick={onClose}>Cancel</button><button className="primary" type="button" disabled={!canSave} onClick={onSave}>{editing ? "Save changes" : "Add monthly item"}</button></div></footer></section></div>;
+  */
 }
 function AccountModal({ draft, editing, onChange, onClose, onSave, onRemove }: { draft: AccountDraft; editing: boolean; onChange: (draft: AccountDraft) => void; onClose: () => void; onSave: () => void; onRemove: () => void }) {
   const autoMinimum = estimatedMinimum(draft.balance, draft.apr);

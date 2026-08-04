@@ -1,4 +1,4 @@
-export type PayoffReportCashflow = { type: "Income" | "Expense" | "Budget"; name: string; category: string; amount: number; paymentMethod: string; linkedAccount: string };
+export type PayoffReportCashflow = { type: "Income" | "Expense" | "One-time purchase" | "Budget"; name: string; category: string; amount: number; paymentMethod: string; linkedAccount: string };
 export type PayoffReportAccount = { name: string; type: string; balance: number; apr: number; monthlyInterest: number; minimumPayment: number; linkedCardExpenses: number; plannedMonthlyPayment: number; payoffMode: string; creditLimit: number; utilization: number | null; dueDate: string; projectedPayoff: string };
 export type PayoffReportScheduleRow = { month: string; totalPaid: number; interest: number; remaining: number; milestone: string; accounts: { name: string; payment: number; endingBalance: number }[] };
 export type PayoffReportTransaction = { date: string; merchant: string; account: string; type: string; category: string; memo: string; amount: number; status: string };
@@ -42,6 +42,13 @@ function categoryTotals(report: PayoffReportData, type?: PayoffReportCashflow["t
   return [...totals.entries()].sort((a, b) => b[1] - a[1]);
 }
 
+function spendingCategoryTotals(report: PayoffReportData) {
+  const totals = new Map<string, number>();
+  report.cashflow.filter((item) => item.type === "Expense" || item.type === "One-time purchase").forEach((item) => {
+    totals.set(item.category, (totals.get(item.category) ?? 0) + item.amount);
+  });
+  return [...totals.entries()].sort((a, b) => b[1] - a[1]);
+}
 export function buildPayoffCsv(report: PayoffReportData) {
   const rows: string[] = [];
   const section = (title: string) => { if (rows.length) rows.push(""); rows.push(csvRow([title])); };
@@ -169,7 +176,7 @@ function tableSheet(name: string, subtitle: string, headers: string[], rows: (Ce
 }
 
 function reportSheets(report: PayoffReportData): SheetSpec[] {
-  const categories = categoryTotals(report, "Expense");
+  const categories = spendingCategoryTotals(report);
   const overviewRows: (CellValue | StyledCell)[][] = [
     [styled("DebtFree household payoff report", 1)],
     [styled(`Generated ${report.generatedAt} | Budget month ${report.budgetMonth} | ${report.strategy} strategy`, 2)], [],
@@ -319,7 +326,7 @@ export async function exportPayoffPdf(report: PayoffReportData) {
   doc.setFont("helvetica", "bold");
   doc.setFontSize(12);
   doc.text("Expense breakdown", 10, 96);
-  const categories = categoryTotals(report, "Expense").slice(0, 7);
+  const categories = spendingCategoryTotals(report).slice(0, 7);
   const maxCategory = Math.max(1, ...categories.map(([, amount]) => amount));
   if (!categories.length) {
     doc.setFont("helvetica", "normal");

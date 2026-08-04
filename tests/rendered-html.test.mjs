@@ -25,6 +25,9 @@ test("renders the DebtFree Dashboard shell", async () => {
   assert.match(client, /Strategy comparison/i);
   assert.match(client, /Extra-payment scenarios/i);
   assert.doesNotMatch(client, /Coming later|FuturePage|>Soon</i);
+  assert.match(client, /One-time purchases/i);
+  assert.match(client, /Add one-time purchase/i);
+  assert.match(client, /item\.kind !== "purchase"/);
   assert.match(client, /Add income/i);
   assert.match(client, /Add expense/i);
   assert.match(client, /Payoff Plan/i);
