@@ -213,7 +213,7 @@ test("uses explicit post-promo card terms in payoff forecasts", async () => {
   assert.match(releaseNotes, /non-amortizing balances/);
 });
 
-test("keeps the public Cloudflare Worker deployment reproducible", async () => {
+test("keeps the direct Cloudflare Worker deployment reproducible", async () => {
   const [wranglerSource, packageSource] = await Promise.all([
     readFile(new URL("../wrangler.jsonc", import.meta.url), "utf8"),
     readFile(new URL("../package.json", import.meta.url), "utf8"),
@@ -228,6 +228,9 @@ test("keeps the public Cloudflare Worker deployment reproducible", async () => {
   assert.equal(wrangler.d1_databases[0].database_name, "debtfree-dashboard-prod");
   assert.equal(wrangler.images.binding, "IMAGES");
   assert.match(packageJson.scripts["deploy:cloudflare"], /dist\/server\/wrangler\.json/);
+  assert.equal(packageJson.scripts.deploy, "npm run deploy:cloudflare");
+  assert.match(packageJson.scripts["deploy:check"], /--dry-run/);
+  assert.equal(packageJson.scripts["sites:prepare"], undefined);
   assert.match(packageJson.scripts["db:migrate:cloudflare"], /migrations apply/);
 });
 
@@ -243,7 +246,7 @@ test("pays linked credit-card one-time purchases in the current payoff month onl
 });
 test("uses verified personal email accounts with household admin and viewer roles", async () => {
   const [auth, client, householdRoute, membersRoute, schema, wranglerSource] = await Promise.all([
-    readFile(new URL("../app/chatgpt-auth.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/cloudflare-auth.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/dashboard-client.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/api/household/route.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/api/household/members/route.ts", import.meta.url), "utf8"),
@@ -256,6 +259,7 @@ test("uses verified personal email accounts with household admin and viewer role
   assert.match(auth, /CF_ACCESS_TEAM_DOMAIN/);
   assert.match(auth, /CF_ACCESS_AUD/);
   assert.match(auth, /payload\.email/);
+  assert.doesNotMatch(auth, /oai-authenticated-user-email/);
   assert.match(client, /HouseholdRole = "owner" \| "admin" \| "viewer"/);
   assert.match(client, /Viewer access/);
   assert.match(client, /viewer-readonly-surface/);

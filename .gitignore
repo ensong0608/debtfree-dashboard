@@ -43,4 +43,8 @@ next-env.d.ts
 
 .dev-output.log
 .dev-error.log
+
+# local user and Codex reference files
+/.codex-remote-attachments/
+/debtfree-old-dashboard.json
 .dev-server.pid

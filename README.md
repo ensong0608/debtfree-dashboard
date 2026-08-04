@@ -18,7 +18,7 @@ The production Worker configuration is stored in wrangler.jsonc. Structured hous
 
 The production Worker is protected by Cloudflare Access using one-time PIN email authentication.
 
-- app/chatgpt-auth.ts validates the Cf-Access-Jwt-Assertion JWT against the configured team JWKS and audience before trusting the email identity.
+- app/cloudflare-auth.ts validates the Cf-Access-Jwt-Assertion JWT against the configured team JWKS and audience before trusting the email identity.
 - The first verified email creates the household owner.
 - Owners can invite an exact personal email as an admin or viewer.
 - Admins can update shared household data.
@@ -26,8 +26,6 @@ The production Worker is protected by Cloudflare Access using one-time PIN email
 - Unknown verified emails are denied by the application membership check.
 
 The Access team domain and audience are non-secret Worker variables. The JWT is still validated on every request so forwarded identity headers are never trusted by themselves.
-
-The linked Sites deployment can continue to use its platform-provided authenticated email headers as a compatibility fallback.
 
 ## Data persistence
 
@@ -37,9 +35,10 @@ Use the private JSON backup export before changing origins or replacing househol
 
 ## Deployment
 
-- npm run sites:prepare builds and packages the linked Sites project.
-- npm run deploy:cloudflare builds and deploys the production Worker.
+- npm run deploy:check builds and validates the production Worker bundle without publishing it.
+- npm run deploy builds and deploys directly to the production Cloudflare Worker.
 - npm run db:generate generates Drizzle migrations after schema changes.
+- npm run db:migrate:cloudflare applies committed migrations to the production D1 database; run it only when the schema changed.
 
 ## Learn More
 

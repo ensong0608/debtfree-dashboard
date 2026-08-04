@@ -2,7 +2,7 @@
 /* eslint-disable @next/next/no-img-element */
 
 import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent } from "react";
-import type { DashboardUser } from "./chatgpt-auth";
+import type { DashboardUser } from "./cloudflare-auth";
 import {
   createDashboardBackup,
   createDashboardPayload,

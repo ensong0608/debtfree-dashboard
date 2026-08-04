@@ -1,6 +1,6 @@
 import DashboardClient from "./dashboard-client";
 import { getOrCreateMember, normalizeEmail } from "./api/household/store";
-import { getAuthenticatedUser } from "./chatgpt-auth";
+import { getAuthenticatedUser } from "./cloudflare-auth";
 
 export const dynamic = "force-dynamic";
 

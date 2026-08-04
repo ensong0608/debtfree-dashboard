@@ -1,5 +1,5 @@
 import { env } from "cloudflare:workers";
-import { getAuthenticatedUser } from "@/app/chatgpt-auth";
+import { getAuthenticatedUser } from "@/app/cloudflare-auth";
 
 export type HouseholdRole = "owner" | "admin" | "viewer";
 export type HouseholdMemberRecord = {

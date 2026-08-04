@@ -8,9 +8,10 @@
   "scripts": {
     "dev": "vinext dev",
     "build": "vinext build",
+    "deploy": "npm run deploy:cloudflare",
+    "deploy:check": "npm run build && wrangler deploy --dry-run --config dist/server/wrangler.json",
     "deploy:cloudflare": "npm run build && wrangler deploy --config dist/server/wrangler.json",
     "db:migrate:cloudflare": "wrangler d1 migrations apply debtfree-dashboard-prod --remote --config wrangler.jsonc",
-    "sites:prepare": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/prepare-sites-deploy.ps1",
     "start": "vinext start",
     "test": "npm run build && node --test tests/*.test.mjs",
     "lint": "eslint . --ignore-pattern dist --ignore-pattern .next --ignore-pattern public/ocr",
