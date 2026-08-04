@@ -1,7 +1,7 @@
 "use client";
 /* eslint-disable @next/next/no-img-element */
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ChatGPTUser } from "./chatgpt-auth";
 import { exportPayoffCsv, exportPayoffExcel, exportPayoffPdf, type PayoffReportData } from "./payoff-export";
 import { scanReceipt, type ReceiptScanResult } from "./receipt-ocr";
@@ -91,6 +91,7 @@ type PlanMonth = {
 type LinkedCardExpenses = Record<string, number>;
 type LinkedCardExpenseItems = Record<string, CashflowItem[]>;
 type DashboardPayload = { accounts: DebtAccount[]; monthlyBudgets: Record<string, CashflowItem[]>; payees: Payee[]; transactions: LedgerTransaction[]; snapshots: PayoffSnapshot[]; extra: number; strategy: PayoffStrategy };
+type DashboardBackup = { format: "debtfree-dashboard-backup"; version: 1; exportedAt: string; payload: DashboardPayload };
 type CloudStatus = "connecting" | "saving" | "synced" | "error";
 type HouseholdMember = { email: string; display_name: string | null; role: "owner" | "admin"; status: "active" | "invited" };
 type HouseholdResponse = { householdName: string; role: "owner" | "admin"; payload: DashboardPayload | null; revision: number; members: HouseholdMember[] };
@@ -455,6 +456,18 @@ export default function DashboardClient({ user }: { user: ChatGPTUser }) {
   const [householdRole, setHouseholdRole] = useState<"owner" | "admin">("owner");
   const [householdMembers, setHouseholdMembers] = useState<HouseholdMember[]>([]);
   const [navigationCollapsed, setNavigationCollapsed] = useState(false);
+  const [transferMessage, setTransferMessage] = useState("");
+  const deviceOnly = user.email === "Local device storage only";
+
+  const applyDashboardPayload = useCallback((payload: DashboardPayload) => {
+    setAccounts(payload.accounts);
+    setMonthlyBudgets(payload.monthlyBudgets);
+    setPayees(payload.payees);
+    setTransactions(payload.transactions);
+    setSnapshots(payload.snapshots);
+    setExtra(payload.extra);
+    setStrategy(payload.strategy);
+  }, []);
 
   useEffect(() => {
     const timer = window.setTimeout(() => setNavigationCollapsed(localStorage.getItem(NAVIGATION_COLLAPSED_KEY) === "true"), 0);
@@ -463,15 +476,6 @@ export default function DashboardClient({ user }: { user: ChatGPTUser }) {
 
   useEffect(() => {
     let cancelled = false;
-    const applyPayload = (payload: DashboardPayload) => {
-      setAccounts(payload.accounts);
-      setMonthlyBudgets(payload.monthlyBudgets);
-      setPayees(payload.payees);
-      setTransactions(payload.transactions);
-      setSnapshots(payload.snapshots);
-      setExtra(payload.extra);
-      setStrategy(payload.strategy);
-    };
     const load = async () => {
       let localPayload: DashboardPayload | null = null;
       try {
@@ -484,8 +488,14 @@ export default function DashboardClient({ user }: { user: ChatGPTUser }) {
           localPayload = backupPayload;
           setImportMessage("Recovered your most recent device backup.");
         } else localPayload = primaryPayload;
-        if (localPayload) applyPayload(localPayload);
+        if (localPayload) applyDashboardPayload(localPayload);
       } catch { /* Keep going so a damaged local draft cannot block cloud data. */ }
+      if (deviceOnly) {
+        setHouseholdName("This device");
+        setCloudStatus("synced");
+        setLoaded(true);
+        return;
+      }
       try {
         const response = await fetch("/api/household", { cache: "no-store" });
         const data = await response.json() as HouseholdResponse & { error?: string };
@@ -499,14 +509,14 @@ export default function DashboardClient({ user }: { user: ChatGPTUser }) {
         const cloudHasData = cloudPayload ? hasMeaningfulData(cloudPayload) : false;
         if (cloudHasData && cloudPayload) {
           cloudWritesEnabled.current = true;
-          applyPayload(cloudPayload);
+          applyDashboardPayload(cloudPayload);
         } else if (localHasData && localPayload) {
           cloudWritesEnabled.current = true;
-          applyPayload(localPayload);
+          applyDashboardPayload(localPayload);
           const upload = await fetch("/api/household", { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify({ payload: localPayload }) });
           if (!upload.ok) throw new Error("Your existing device data could not be copied to the household yet");
         } else if (cloudPayload) {
-          applyPayload(cloudPayload);
+          applyDashboardPayload(cloudPayload);
         }
         setCloudStatus("synced");
       } catch {
@@ -517,7 +527,7 @@ export default function DashboardClient({ user }: { user: ChatGPTUser }) {
     };
     void load();
     return () => { cancelled = true; };
-  }, []);
+  }, [applyDashboardPayload, deviceOnly]);
   useEffect(() => {
     if (!loaded) return;
     const payload: DashboardPayload = { accounts, monthlyBudgets, payees, transactions, snapshots, extra, strategy };
@@ -532,6 +542,7 @@ export default function DashboardClient({ user }: { user: ChatGPTUser }) {
       }
     } catch { /* A damaged old draft should not block the current safe save. */ }
     localStorage.setItem(STORAGE_KEY, serialized);
+    if (deviceOnly) return;
     const syncTimer = window.setTimeout(() => {
       setCloudStatus("saving");
       void fetch("/api/household", { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify({ payload }) })
@@ -539,7 +550,7 @@ export default function DashboardClient({ user }: { user: ChatGPTUser }) {
         .catch(() => setCloudStatus("error"));
     }, 650);
     return () => window.clearTimeout(syncTimer);
-  }, [accounts, extra, loaded, monthlyBudgets, payees, snapshots, strategy, transactions]);
+  }, [accounts, deviceOnly, extra, loaded, monthlyBudgets, payees, snapshots, strategy, transactions]);
   useEffect(() => {
     if (!modalOpen && !cashflowModalOpen && !transactionModalOpen && !payeeModalOpen) return;
     const close = (event: KeyboardEvent) => { if (event.key === "Escape") { setModalOpen(false); setCashflowModalOpen(false); setTransactionModalOpen(false); setPayeeModalOpen(false); } };
@@ -685,6 +696,57 @@ export default function DashboardClient({ user }: { user: ChatGPTUser }) {
     }
   };
 
+  const exportDashboardBackup = () => {
+    const payload: DashboardPayload = { accounts, monthlyBudgets, payees, transactions, snapshots, extra, strategy };
+    const backup: DashboardBackup = {
+      format: "debtfree-dashboard-backup",
+      version: 1,
+      exportedAt: new Date().toISOString(),
+      payload,
+    };
+    const url = URL.createObjectURL(new Blob([JSON.stringify(backup, null, 2)], { type: "application/json" }));
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `debtfree-dashboard-full-backup-${dateInputValue()}.json`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+    setTransferMessage("Full backup downloaded. Keep this JSON file private because it contains your financial data.");
+  };
+
+  const importDashboardBackup = async (file: File) => {
+    setTransferMessage("");
+    try {
+      const parsed = JSON.parse(await file.text()) as unknown;
+      const source = parsed && typeof parsed === "object" && "payload" in parsed
+        ? (parsed as Partial<DashboardBackup>).payload
+        : parsed;
+      if (!source || typeof source !== "object") throw new Error("This is not a DebtFree full-backup file.");
+      const payload = normalizedPayload(source);
+      if (!hasMeaningfulData(payload)) throw new Error("The backup does not contain dashboard data.");
+      const current: DashboardPayload = { accounts, monthlyBudgets, payees, transactions, snapshots, extra, strategy };
+      if (hasMeaningfulData(current) && !window.confirm("Replace the data currently on this device with the selected full backup?")) {
+        setTransferMessage("Import canceled. Your current dashboard was not changed.");
+        return;
+      }
+      const serialized = JSON.stringify(payload);
+      try {
+        const previous = localStorage.getItem(STORAGE_KEY);
+        if (previous && previous !== serialized) {
+          const previousPayload = normalizedPayload(JSON.parse(previous));
+          if (hasMeaningfulData(previousPayload)) localStorage.setItem(STORAGE_BACKUP_KEY, previous);
+        }
+      } catch { /* A damaged previous draft should not block a verified backup import. */ }
+      localStorage.setItem(STORAGE_KEY, serialized);
+      cloudWritesEnabled.current = true;
+      applyDashboardPayload(payload);
+      setTransferMessage(`Full backup imported: ${payload.accounts.length} accounts, ${payload.transactions.length} transactions, and ${Object.keys(payload.monthlyBudgets).length} budget months restored.`);
+    } catch (error) {
+      setTransferMessage(`Import failed: ${error instanceof Error ? error.message : "The backup could not be read."}`);
+    }
+  };
+
   const copyPreviousBudget = () => {
     const sourceMonth = shiftMonth(selectedMonth, -1);
     const source = monthlyBudgets[sourceMonth] ?? [];
@@ -801,7 +863,7 @@ export default function DashboardClient({ user }: { user: ChatGPTUser }) {
         {page === "history" && <TransactionsPage accounts={calculatedAccounts} payees={payees} transactions={transactions} onQuickAdd={openNewTransaction} onEdit={openEditTransaction} onDelete={softDeleteTransaction} onRestore={restoreTransaction} onBatchAdd={addBatchTransactions} onManagePayees={() => setPayeeModalOpen(true)}/>}
         {page === "plan" && <PayoffPlanPage accounts={calculatedAccounts} plan={plan} extra={extra} availableExtra={availableExtra} strategy={strategy} linkedCardExpenseItems={linkedCardExpenseItems} monthlyItems={planningCashflowItems} transactions={transactions} snapshots={snapshots} onExtra={setExtra} onStrategy={setStrategy} onAccounts={() => setPage("accounts")} onEditAccount={openEdit}/>}
         {page === "snapshots" && <SnapshotsPage accounts={calculatedAccounts} snapshots={snapshots} currentInterest={interest} onCapture={captureSnapshot} onUpdateNote={updateSnapshotNote} onDelete={removeSnapshot}/>}
-        {page === "profile" && <ProfilePage user={user} householdName={householdName} role={householdRole} members={householdMembers} cloudStatus={cloudStatus} onInvite={inviteAdmin} onRemove={removeAdmin}/>}
+        {page === "profile" && <><ProfilePage user={user} householdName={householdName} role={householdRole} members={householdMembers} cloudStatus={cloudStatus} onInvite={inviteAdmin} onRemove={removeAdmin}/><DataTransferPanel deviceOnly={deviceOnly} message={transferMessage} onExport={exportDashboardBackup} onImport={importDashboardBackup}/></>}
         {page === "utilization" && <UtilizationPage accounts={calculatedAccounts} onEditAccount={openEdit}/>}
         {page === "stats" && <StatsPage accounts={calculatedAccounts} snapshots={snapshots} transactions={transactions} extra={extra} strategy={strategy} linkedCardExpenses={linkedCardExpenses}/>}
       </div>
@@ -1120,6 +1182,32 @@ function ProfilePage({ user, householdName, role, members, cloudStatus, onInvite
   };
   return <div className="screen"><div className="screen-title"><div><span className="eyebrow">Household access</span><h1>My account</h1><p>Your dashboard is protected by ChatGPT sign-in and household membership. Listed admins share the same household data.</p></div><button className="secondary" type="button" onClick={copyLink}>Copy dashboard link</button></div><section className="profile-grid"><article className="profile-card"><div className="profile-avatar">{user.displayName.slice(0,2).toUpperCase()}</div><div><span>{role === "owner" ? "Household owner" : "Household admin"}</span><strong>{user.displayName}</strong><small>{user.email}</small></div><div className="account-cloud-state"><i className={cloudStatus}/><span>{cloudStatus === "synced" ? "Household cloud sync is active" : cloudStatus === "error" ? "Cloud unavailable; device backup is safe" : "Syncing household changes"}</span></div><a className="secondary account-link" href="/signout-with-chatgpt?return_to=%2F">Sign out</a></article><article className="roles-card household-card"><div className="card-head"><div><span>{householdName}</span><strong>Household admins</strong></div></div>{role === "owner" && <div className="invite-admin"><label><span>Admin email</span><div><input type="email" value={email} placeholder="wife@example.com" onChange={(event) => setEmail(event.target.value)}/><button className="primary" type="button" disabled={working || !email.trim()} onClick={invite}>Add admin</button></div><small>Use the exact email connected to her ChatGPT account. A paid subscription is not required. She will sign in separately and share your household data; never share your password.</small></label></div>}{message && <p className="share-message">{message}</p>}<div className="member-list">{members.map((member) => <div className="member-row" key={member.email}><div><strong>{member.display_name || member.email}</strong><small>{member.display_name ? member.email : member.status === "invited" ? "Waiting for first sign-in" : "Household member"}</small></div><span className={member.status}>{member.role}</span>{role === "owner" && member.role !== "owner" ? <button type="button" disabled={working} onClick={() => remove(member.email)}>Remove</button> : <i/>}</div>)}</div></article></section></div>;
 }
+
+function DataTransferPanel({ deviceOnly, message, onExport, onImport }: { deviceOnly: boolean; message: string; onExport: () => void; onImport: (file: File) => Promise<void> }) {
+  return <div className="screen data-transfer-screen">
+    <section className="data-transfer-card">
+      <div>
+        <span className="eyebrow">Full data transfer</span>
+        <h2>Backup or restore the complete dashboard</h2>
+        <p>Use one private JSON file to move debts, monthly budgets, one-time purchases, payees, transactions, payoff settings, and snapshots between dashboard addresses.</p>
+        <small>{deviceOnly ? "On this public Cloudflare dashboard, imported data is stored only in this browser on this device." : "Imported data is saved to this device and your connected household."}</small>
+      </div>
+      <div className="data-transfer-actions">
+        <button className="secondary" type="button" onClick={onExport}>Export full backup</button>
+        <label className="primary import-file">
+          <input type="file" accept=".json,application/json" onChange={(event) => {
+            const input = event.currentTarget;
+            const file = input.files?.[0];
+            if (file) void onImport(file).finally(() => { input.value = ""; });
+          }}/>
+          <span>Import full backup</span>
+        </label>
+      </div>
+      {message && <p className={message.startsWith("Import failed") ? "transfer-message error" : "transfer-message"}>{message}</p>}
+    </section>
+  </div>;
+}
+
 function SnapshotsPage({ accounts, snapshots, currentInterest, onCapture, onUpdateNote, onDelete }: { accounts: DebtAccount[]; snapshots: PayoffSnapshot[]; currentInterest: number; onCapture: (note: string) => void; onUpdateNote: (id: string, note: string) => void; onDelete: (id: string) => void }) {
   const [captureNote, setCaptureNote] = useState(() => snapshots.find((snapshot) => snapshot.month === currentMonthKey())?.note ?? "");
   const [selectedId, setSelectedId] = useState<string | null>(null);

@@ -42,6 +42,23 @@ test("renders the DebtFree Dashboard shell", async () => {
   assert.doesNotMatch(layout + client, /codex-preview|Building your site|react-loading-skeleton/i);
 });
 
+test("supports complete JSON backup transfer between dashboard origins", async () => {
+  const [client, styles] = await Promise.all([
+    readFile(new URL("../app/dashboard-client.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/globals.css", import.meta.url), "utf8"),
+  ]);
+  assert.match(client, /debtfree-dashboard-backup/);
+  assert.match(client, /Export full backup/);
+  assert.match(client, /Import full backup/);
+  assert.match(client, /monthlyBudgets, payees, transactions, snapshots, extra, strategy/);
+  assert.match(client, /normalizedPayload\(source\)/);
+  assert.match(client, /localStorage\.setItem\(STORAGE_KEY, serialized\)/);
+  assert.match(client, /Replace the data currently on this device/);
+  assert.match(client, /Local device storage only/);
+  assert.match(styles, /data-transfer-card/);
+  assert.match(styles, /data-transfer-actions/);
+});
+
 test("removes disposable starter assets", async () => {
   const [page, client, layout, packageJson] = await Promise.all([
     readFile(new URL("../app/page.tsx", import.meta.url), "utf8"),

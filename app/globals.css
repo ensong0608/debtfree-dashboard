@@ -152,6 +152,14 @@ tfoot td { position:sticky; bottom:0; z-index:2; border-top:2px solid #c4ceda; b
 .account-cloud-state i.synced { background:var(--green); }.account-cloud-state i.error { background:var(--red); }
 .profile-card .account-link { grid-column:1/-1; display:flex; align-items:center; justify-content:center; text-decoration:none; }
 .household-card { min-width:0; }
+.data-transfer-screen{padding-top:0}
+.data-transfer-card{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:20px;padding:20px;border:1px solid var(--line);border-radius:14px;background:white;box-shadow:var(--shadow)}
+.data-transfer-card h2{margin:5px 0 6px;font-size:18px}.data-transfer-card p{max-width:760px;margin:0;color:var(--muted);font-size:10px;line-height:1.55}
+.data-transfer-card small{display:block;margin-top:7px;color:#49677e;font-size:9px;font-weight:650}
+.data-transfer-actions{display:flex;align-items:center;gap:8px}.data-transfer-actions>*{min-width:155px;justify-content:center}
+.data-transfer-actions .import-file{display:flex}.data-transfer-actions .import-file span{display:flex;align-items:center;justify-content:center;width:100%}
+.transfer-message{grid-column:1/-1;margin:0;padding:10px 12px;border-radius:9px;background:#eaf8f1;color:#16794d;font-size:10px;font-weight:700}
+.transfer-message.error{background:#fff0ef;color:var(--red)}
 .invite-admin { margin:12px 0; padding:14px; border:1px solid var(--line); border-radius:11px; background:#f8fafc; }
 .invite-admin label>span { display:block; margin-bottom:7px; color:#536176; font-size:10px; font-weight:800; }
 .invite-admin label>div { display:grid; grid-template-columns:minmax(0,1fr) auto; gap:8px; }
@@ -724,4 +732,12 @@ textarea:focus-visible{outline:3px solid rgba(22,119,255,.22);outline-offset:2px
   .plan-table-card>.table-card-head{align-items:flex-start;flex-direction:column;gap:4px}
   .plan-table-card .swipe-note{max-width:none;text-align:left}
   .plan-table-summary{max-width:100%;gap:7px}
+}
+
+@media(max-width:600px){
+  .data-transfer-card{grid-template-columns:1fr;padding:16px}
+  .data-transfer-actions{display:grid;grid-template-columns:1fr}
+  .data-transfer-actions>*{width:100%;min-height:44px}
+  .data-transfer-card p{font-size:11px}
+  .data-transfer-card small{font-size:10px}
 }
