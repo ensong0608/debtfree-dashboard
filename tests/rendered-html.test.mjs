@@ -70,7 +70,8 @@ test("removes disposable starter assets", async () => {
   assert.doesNotMatch(dashboardSource, /moneyPrecise\.format\(month\.payments\[account\.id\] \?\? 0\)\} paid/);
   assert.match(dashboardSource, /\/api\/household/);
   assert.match(dashboardSource, /Add admin/);
-  assert.match(page, /requireChatGPTUser/);
+  assert.match(page, /getChatGPTUser/);
+  assert.match(page, /Local device storage only/);
   assert.match(dashboardSource, /never share your password/i);
   assert.match(dashboardSource, /monthlySurplus/);
   assert.match(dashboardSource, /Use my \$\{moneyPrecise\.format\(availableExtra\)\} available extra/);
