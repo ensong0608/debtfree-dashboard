@@ -1,5 +1,11 @@
 # DebtFree Dashboard release notes
 
+## 2026-08-04 - One-time credit-card purchase payments
+
+- One-time purchases linked to a credit card are now added to that card's payoff payment in the current month only.
+- The payoff schedule labels those purchases as one-time and does not carry them into future months.
+- Recurring credit-card expenses continue to be charged and covered by the planned payment every month.
+
 ## 2026-07-31 - Promo-aware payoff forecasting
 
 - Payoff forecasts now use the card's saved post-promotion APR and actual minimum payment after a 0% offer ends.

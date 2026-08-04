@@ -226,3 +226,14 @@ test("keeps the public Cloudflare Worker deployment reproducible", async () => {
   assert.match(packageJson.scripts["deploy:cloudflare"], /dist\/server\/wrangler\.json/);
   assert.match(packageJson.scripts["db:migrate:cloudflare"], /migrations apply/);
 });
+
+test("pays linked credit-card one-time purchases in the current payoff month only", async () => {
+  const client = await readFile(new URL("../app/dashboard-client.tsx", import.meta.url), "utf8");
+  assert.match(client, /item\.kind === "purchase"/);
+  assert.match(client, /linkedCardPurchases/);
+  assert.match(client, /month === 1 \? \(linkedCardPurchases\[accountId\] \?\? 0\) : 0/);
+  assert.match(client, /plannedMonthly = monthly \+ \(month === 1 \? oneTimePurchaseTotal : 0\)/);
+  assert.match(client, /scheduledPayment = \(minimums\[account\.id\] \?\? 0\) \+ cardChargeForMonth\(account\.id, month\)/);
+  assert.match(client, /month\.month === 1 \? \(linkedCardPurchaseItems\[account\.id\] \?\? \[\]\) : \[\]/);
+  assert.match(client, /\{item\.name\} \(one-time\)/);
+});
