@@ -1,0 +1,158 @@
+{
+  "accounts": [
+    {
+      "id": "account-card-1",
+      "name": "Sample Rewards Card",
+      "type": "Credit card",
+      "balance": 2450.75,
+      "apr": 22.49,
+      "minimum": 85,
+      "minimumMode": "manual",
+      "creditLimit": 7000,
+      "dueDate": "2026-09-18",
+      "createdAt": "2026-07-01T12:00:00.000Z",
+      "payoffMode": "priority",
+      "interestFee": 42.15,
+      "promoEndDate": "",
+      "postPromoApr": 0,
+      "postPromoMinimum": 0
+    },
+    {
+      "id": "account-loan-1",
+      "name": "Sample Personal Loan",
+      "type": "Personal loan",
+      "balance": 6800,
+      "apr": 8.25,
+      "minimum": 210,
+      "minimumMode": "auto",
+      "creditLimit": 0,
+      "dueDate": "2026-09-05",
+      "createdAt": "2026-07-02T12:00:00.000Z",
+      "payoffMode": "minimum-only",
+      "interestFee": 0,
+      "promoEndDate": "2027-01-31",
+      "postPromoApr": 11.5,
+      "postPromoMinimum": 225
+    }
+  ],
+  "monthlyBudgets": {
+    "2026-07": [
+      {
+        "name": "Sample Paycheck",
+        "kind": "income",
+        "category": "Salary",
+        "amount": 4200,
+        "paymentMethod": "debit",
+        "creditAccountId": "",
+        "id": "budget-income-1",
+        "createdAt": "2026-07-01T12:00:00.000Z"
+      },
+      {
+        "name": "Sample Rent",
+        "kind": "expense",
+        "category": "Housing",
+        "amount": 1450,
+        "paymentMethod": "debit",
+        "creditAccountId": "",
+        "id": "budget-expense-1",
+        "createdAt": "2026-07-01T12:05:00.000Z"
+      }
+    ],
+    "2026-08": [
+      {
+        "name": "Sample Groceries",
+        "kind": "budget",
+        "category": "Groceries",
+        "amount": 500,
+        "paymentMethod": "debit",
+        "creditAccountId": "",
+        "id": "budget-groceries-1",
+        "createdAt": "2026-08-01T12:00:00.000Z"
+      },
+      {
+        "name": "Sample Repair",
+        "kind": "purchase",
+        "category": "Home",
+        "amount": 180,
+        "paymentMethod": "credit",
+        "creditAccountId": "account-card-1",
+        "id": "budget-purchase-1",
+        "createdAt": "2026-08-03T12:00:00.000Z"
+      }
+    ]
+  },
+  "payees": [
+    {
+      "id": "payee-1",
+      "name": "Sample Market",
+      "createdAt": "2026-07-10T12:00:00.000Z",
+      "deletedAt": null
+    },
+    {
+      "id": "payee-2",
+      "name": "Sample Lender",
+      "createdAt": "2026-07-11T12:00:00.000Z",
+      "deletedAt": null
+    }
+  ],
+  "transactions": [
+    {
+      "date": "2026-07-10",
+      "accountId": "account-card-1",
+      "payeeId": "payee-1",
+      "payeeName": "Sample Market",
+      "type": "charge",
+      "category": "Food",
+      "memo": "Anonymized example",
+      "amount": 64.25,
+      "id": "transaction-1",
+      "createdAt": "2026-07-10T12:00:00.000Z",
+      "updatedAt": "2026-07-10T12:00:00.000Z",
+      "deletedAt": null
+    },
+    {
+      "date": "2026-07-15",
+      "accountId": "account-loan-1",
+      "payeeId": "payee-2",
+      "payeeName": "Sample Lender",
+      "type": "payment",
+      "category": "Debt payment",
+      "memo": "",
+      "amount": 210,
+      "id": "transaction-2",
+      "createdAt": "2026-07-15T12:00:00.000Z",
+      "updatedAt": "2026-07-16T12:00:00.000Z",
+      "deletedAt": "2026-07-16T12:00:00.000Z"
+    }
+  ],
+  "snapshots": [
+    {
+      "id": "snapshot-2026-07",
+      "month": "2026-07",
+      "capturedAt": "2026-07-31T23:00:00.000Z",
+      "totalBalance": 9250.75,
+      "monthlyInterest": 88.9,
+      "activeAccountCount": 2,
+      "projectedDebtFreeMonth": "2029-04",
+      "note": "Anonymized month-end snapshot",
+      "accounts": [
+        {
+          "accountId": "account-card-1",
+          "name": "Sample Rewards Card",
+          "type": "Credit card",
+          "balance": 2450.75,
+          "apr": 22.49
+        },
+        {
+          "accountId": "account-loan-1",
+          "name": "Sample Personal Loan",
+          "type": "Personal loan",
+          "balance": 6800,
+          "apr": 8.25
+        }
+      ]
+    }
+  ],
+  "extra": 175,
+  "strategy": "avalanche"
+}

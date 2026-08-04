@@ -162,7 +162,7 @@ tfoot td { position:sticky; bottom:0; z-index:2; border-top:2px solid #c4ceda; b
 .data-transfer-card small{display:block;margin-top:7px;color:#49677e;font-size:9px;font-weight:650}
 .data-transfer-actions{display:flex;align-items:center;gap:8px}.data-transfer-actions>*{min-width:155px;justify-content:center}
 .data-transfer-actions .import-file{display:flex}.data-transfer-actions .import-file span{display:flex;align-items:center;justify-content:center;width:100%}
-.transfer-message{grid-column:1/-1;margin:0;padding:10px 12px;border-radius:9px;background:#eaf8f1;color:#16794d;font-size:10px;font-weight:700}
+.transfer-message{grid-column:1/-1;margin:0;padding:10px 12px;border-radius:9px;background:#eaf8f1;color:#16794d;font-size:10px;font-weight:700;line-height:1.45;overflow-wrap:anywhere}
 .transfer-message.error{background:#fff0ef;color:var(--red)}
 .invite-admin { margin:12px 0; padding:14px; border:1px solid var(--line); border-radius:11px; background:#f8fafc; }
 .invite-admin label>span { display:block; margin-bottom:7px; color:#536176; font-size:10px; font-weight:800; }

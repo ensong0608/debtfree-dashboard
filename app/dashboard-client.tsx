@@ -3,77 +3,35 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent } from "react";
 import type { DashboardUser } from "./chatgpt-auth";
+import {
+  createDashboardBackup,
+  createDashboardPayload,
+  dashboardDataErrorMessage,
+  parseDashboardContract,
+  parseDashboardJson,
+  serializeDashboardBackup,
+  type CashflowItem,
+  type CashflowKind,
+  type DashboardBackupV1,
+  type DashboardPayload,
+  type DebtAccount,
+  type DebtType,
+  type LedgerTransaction,
+  type Payee,
+  type PayoffSnapshot,
+  type PayoffStrategy,
+  type TransactionType,
+} from "./dashboard-data";
 import { exportPayoffCsv, exportPayoffExcel, exportPayoffPdf, type PayoffReportData } from "./payoff-export";
 import { scanReceipt, type ReceiptScanResult } from "./receipt-ocr";
 
 type PageId = "dashboard" | "accounts" | "history" | "plan" | "snapshots" | "utilization" | "stats" | "profile";
-type DebtType = "Credit card" | "Personal loan" | "Auto loan" | "Student loan" | "Medical debt" | "Other";
-type MinimumMode = "auto" | "manual";
-type PayoffMode = "priority" | "minimum-only";
-type PayoffStrategy = "avalanche" | "snowball";
-type CashflowKind = "income" | "expense" | "purchase" | "budget";
-type PaymentMethod = "debit" | "credit";
 type SortKey = "name" | "balance" | "creditLimit" | "apr" | "minimum" | "monthlyInterest" | "status" | "dueDate" | "payoff";
 type SortDirection = "asc" | "desc";
 
-type DebtAccount = {
-  id: string;
-  name: string;
-  type: DebtType;
-  balance: number;
-  apr: number;
-  interestFee: number;
-  minimum: number;
-  minimumMode: MinimumMode;
-  payoffMode: PayoffMode;
-  creditLimit: number;
-  dueDate: string;
-  promoEndDate: string;
-  postPromoApr: number;
-  postPromoMinimum: number;
-  createdAt: string;
-};
-
-type AccountDraft = Omit<DebtAccount, "id" | "createdAt">;
-type CashflowItem = {
-  id: string;
-  name: string;
-  kind: CashflowKind;
-  category: string;
-  amount: number;
-  paymentMethod: PaymentMethod;
-  creditAccountId: string;
-  createdAt: string;
-};
-type CashflowDraft = Omit<CashflowItem, "id" | "createdAt">;
-type TransactionType = "charge" | "payment" | "fee";
-type Payee = { id: string; name: string; createdAt: string; deletedAt: string | null };
-type LedgerTransaction = {
-  id: string;
-  date: string;
-  accountId: string;
-  payeeId: string;
-  payeeName: string;
-  type: TransactionType;
-  category: string;
-  memo: string;
-  amount: number;
-  createdAt: string;
-  updatedAt: string;
-  deletedAt: string | null;
-};
-type TransactionDraft = Omit<LedgerTransaction, "id" | "createdAt" | "updatedAt" | "deletedAt">;
-type PayoffSnapshot = {
-  id: string;
-  month: string;
-  capturedAt: string;
-  totalBalance: number;
-  monthlyInterest: number;
-  activeAccountCount: number;
-  projectedDebtFreeMonth: string | null;
-  note: string;
-  accounts: { accountId: string; name: string; type: DebtType; balance: number; apr: number }[];
-};
+type AccountDraft = Pick<DebtAccount, "name" | "type" | "balance" | "apr" | "interestFee" | "minimum" | "minimumMode" | "payoffMode" | "creditLimit" | "dueDate" | "promoEndDate" | "postPromoApr" | "postPromoMinimum">;
+type CashflowDraft = Pick<CashflowItem, "name" | "kind" | "category" | "amount" | "paymentMethod" | "creditAccountId">;
+type TransactionDraft = Pick<LedgerTransaction, "date" | "accountId" | "payeeId" | "payeeName" | "type" | "category" | "memo" | "amount">;
 type PlanMonth = {
   month: number;
   interest: number;
@@ -91,44 +49,10 @@ type PlanMonth = {
 type LinkedCardExpenses = Record<string, number>;
 type LinkedCardExpenseItems = Record<string, CashflowItem[]>;
 type LinkedCardPurchaseItems = Record<string, CashflowItem[]>;
-type DashboardPayload = { accounts: DebtAccount[]; monthlyBudgets: Record<string, CashflowItem[]>; payees: Payee[]; transactions: LedgerTransaction[]; snapshots: PayoffSnapshot[]; extra: number; strategy: PayoffStrategy };
-type DashboardBackup = { format: "debtfree-dashboard-backup"; version: 1; exportedAt: string; payload: DashboardPayload };
 type CloudStatus = "connecting" | "saving" | "synced" | "error";
 type HouseholdRole = "owner" | "admin" | "viewer";
 type HouseholdMember = { email: string; display_name: string | null; role: HouseholdRole; status: "active" | "invited" };
-type HouseholdResponse = { householdName: string; role: HouseholdRole; payload: DashboardPayload | null; revision: number; members: HouseholdMember[] };
-
-function normalizedPayload(value: unknown): DashboardPayload {
-  const parsed = value && typeof value === "object" ? value as Partial<DashboardPayload> & { cashflowItems?: CashflowItem[] } : {};
-  const accounts = Array.isArray(parsed.accounts) ? parsed.accounts.map((account) => ({
-    ...account,
-    interestFee: Number.isFinite(account.interestFee) ? account.interestFee : 0,
-    promoEndDate: typeof account.promoEndDate === "string" ? account.promoEndDate : "",
-    postPromoApr: Number.isFinite(account.postPromoApr) ? account.postPromoApr : 0,
-    postPromoMinimum: Number.isFinite(account.postPromoMinimum) ? account.postPromoMinimum : 0,
-    payoffMode: account.payoffMode === "minimum-only" ? "minimum-only" as const : "priority" as const,
-  })) : [];
-  const normalizeCashflow = (items: CashflowItem[]) => items.map((item) => ({
-    ...item,
-    paymentMethod: (item.kind === "expense" || item.kind === "purchase") && item.paymentMethod === "credit" ? "credit" as const : "debit" as const,
-    creditAccountId: typeof item.creditAccountId === "string" ? item.creditAccountId : "",
-  }));
-  const monthlyBudgets = parsed.monthlyBudgets && typeof parsed.monthlyBudgets === "object"
-    ? Object.fromEntries(Object.entries(parsed.monthlyBudgets).filter(([, items]) => Array.isArray(items)).map(([month, items]) => [month, normalizeCashflow(items as CashflowItem[])]))
-    : Array.isArray(parsed.cashflowItems) ? { [currentMonthKey()]: normalizeCashflow(parsed.cashflowItems) } : {};
-  const payees = Array.isArray(parsed.payees) ? parsed.payees.filter((payee) => payee && typeof payee.name === "string").map((payee) => ({ ...payee, deletedAt: payee.deletedAt ?? null })) : [];
-  const transactions = Array.isArray(parsed.transactions) ? parsed.transactions.filter((transaction) => transaction && typeof transaction.accountId === "string").map((transaction) => ({ ...transaction, payeeName: transaction.payeeName ?? "", memo: transaction.memo ?? "", category: transaction.category ?? "Other", updatedAt: transaction.updatedAt ?? transaction.createdAt, deletedAt: transaction.deletedAt ?? null })) : [];
-  const snapshots = Array.isArray(parsed.snapshots) ? parsed.snapshots.filter((snapshot) => snapshot && typeof snapshot.month === "string" && Array.isArray(snapshot.accounts)).map((snapshot) => ({ ...snapshot, note: snapshot.note ?? "", projectedDebtFreeMonth: snapshot.projectedDebtFreeMonth ?? null, monthlyInterest: Number.isFinite(snapshot.monthlyInterest) ? snapshot.monthlyInterest : 0 })) : [];
-  return {
-    accounts,
-    monthlyBudgets,
-    payees,
-    transactions,
-    snapshots,
-    extra: Number.isFinite(parsed.extra) ? parsed.extra ?? 0 : 0,
-    strategy: parsed.strategy === "snowball" ? "snowball" : "avalanche",
-  };
-}
+type HouseholdResponse = { householdName: string; role: HouseholdRole; payload: unknown; revision: number; members: HouseholdMember[] };
 
 function hasMeaningfulData(payload: DashboardPayload) {
   return payload.accounts.length > 0 || Object.values(payload.monthlyBudgets).some((items) => items.length > 0) || payload.payees.length > 0 || payload.transactions.length > 0 || payload.snapshots.length > 0 || payload.extra > 0;
@@ -456,6 +380,7 @@ const NAV_ITEMS: { id: PageId; label: string; icon: string }[] = [
 
 export default function DashboardClient({ user }: { user: DashboardUser }) {
   const cloudWritesEnabled = useRef(false);
+  const dashboardContract = useRef<DashboardBackupV1 | null>(null);
   const [page, setPage] = useState<PageId>("dashboard");
   const [accounts, setAccounts] = useState<DebtAccount[]>([]);
   const [monthlyBudgets, setMonthlyBudgets] = useState<Record<string, CashflowItem[]>>({});
@@ -488,7 +413,9 @@ export default function DashboardClient({ user }: { user: DashboardUser }) {
   const deviceOnly = user.email === "Local device storage only";
   const isViewer = !deviceOnly && householdRole === "viewer";
 
-  const applyDashboardPayload = useCallback((payload: DashboardPayload) => {
+  const applyDashboardPayload = useCallback((contract: DashboardBackupV1) => {
+    dashboardContract.current = contract;
+    const { payload } = contract;
     setAccounts(payload.accounts);
     setMonthlyBudgets(payload.monthlyBudgets);
     setPayees(payload.payees);
@@ -506,20 +433,20 @@ export default function DashboardClient({ user }: { user: DashboardUser }) {
   useEffect(() => {
     let cancelled = false;
     const load = async () => {
-      let localPayload: DashboardPayload | null = null;
+      let localContract: DashboardBackupV1 | null = null;
       try {
         const saved = localStorage.getItem(STORAGE_KEY);
         const backup = localStorage.getItem(STORAGE_BACKUP_KEY);
-        const primaryPayload = saved ? normalizedPayload(JSON.parse(saved)) : null;
-        const backupPayload = backup ? normalizedPayload(JSON.parse(backup)) : null;
-        if (primaryPayload && hasMeaningfulData(primaryPayload)) localPayload = primaryPayload;
-        else if (backupPayload && hasMeaningfulData(backupPayload)) {
-          localPayload = backupPayload;
+        const primaryContract = saved ? parseDashboardContract(JSON.parse(saved), "Saved dashboard") : null;
+        const backupContract = backup ? parseDashboardContract(JSON.parse(backup), "Saved dashboard backup") : null;
+        if (primaryContract && hasMeaningfulData(primaryContract.payload)) localContract = primaryContract;
+        else if (backupContract && hasMeaningfulData(backupContract.payload)) {
+          localContract = backupContract;
           setImportMessage("Recovered your most recent device backup.");
-        } else localPayload = primaryPayload;
+        } else localContract = primaryContract;
       } catch { /* Keep going so a damaged local draft cannot block cloud data. */ }
       if (deviceOnly) {
-        if (localPayload) applyDashboardPayload(localPayload);
+        if (localContract) applyDashboardPayload(localContract);
         setHouseholdName("This device");
         setCloudStatus("synced");
         setLoaded(true);
@@ -534,19 +461,19 @@ export default function DashboardClient({ user }: { user: DashboardUser }) {
         setHouseholdRole(data.role);
         setHouseholdMembers(data.members);
         const canWrite = data.role !== "viewer";
-        const cloudPayload = data.payload ? normalizedPayload(data.payload) : null;
-        const localHasData = localPayload ? hasMeaningfulData(localPayload) : false;
-        const cloudHasData = cloudPayload ? hasMeaningfulData(cloudPayload) : false;
-        if (cloudHasData && cloudPayload) {
+        const cloudContract = data.payload ? parseDashboardContract(data.payload, "Household dashboard") : null;
+        const localHasData = localContract ? hasMeaningfulData(localContract.payload) : false;
+        const cloudHasData = cloudContract ? hasMeaningfulData(cloudContract.payload) : false;
+        if (cloudHasData && cloudContract) {
           cloudWritesEnabled.current = canWrite;
-          applyDashboardPayload(cloudPayload);
-        } else if (localHasData && localPayload && canWrite) {
+          applyDashboardPayload(cloudContract);
+        } else if (localHasData && localContract && canWrite) {
           cloudWritesEnabled.current = true;
-          applyDashboardPayload(localPayload);
-          const upload = await fetch("/api/household", { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify({ payload: localPayload }) });
+          applyDashboardPayload(localContract);
+          const upload = await fetch("/api/household", { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify({ payload: localContract }) });
           if (!upload.ok) throw new Error("Your existing device data could not be copied to the household yet");
-        } else if (cloudPayload) {
-          applyDashboardPayload(cloudPayload);
+        } else if (cloudContract) {
+          applyDashboardPayload(cloudContract);
         }
         setCloudStatus("synced");
       } catch {
@@ -560,22 +487,24 @@ export default function DashboardClient({ user }: { user: DashboardUser }) {
   }, [applyDashboardPayload, deviceOnly]);
   useEffect(() => {
     if (!loaded || isViewer) return;
-    const payload: DashboardPayload = { accounts, monthlyBudgets, payees, transactions, snapshots, extra, strategy };
+    const payload = createDashboardPayload(dashboardContract.current?.payload, { accounts, monthlyBudgets, payees, transactions, snapshots, extra, strategy });
     if (hasMeaningfulData(payload)) cloudWritesEnabled.current = true;
     if (!cloudWritesEnabled.current) return;
-    const serialized = JSON.stringify(payload);
+    const contract = createDashboardBackup(payload, dashboardContract.current);
+    dashboardContract.current = contract;
+    const serialized = serializeDashboardBackup(contract);
     try {
       const previous = localStorage.getItem(STORAGE_KEY);
       if (previous && previous !== serialized) {
-        const previousPayload = normalizedPayload(JSON.parse(previous));
-        if (hasMeaningfulData(previousPayload)) localStorage.setItem(STORAGE_BACKUP_KEY, previous);
+        const previousContract = parseDashboardContract(JSON.parse(previous), "Saved dashboard");
+        if (hasMeaningfulData(previousContract.payload)) localStorage.setItem(STORAGE_BACKUP_KEY, previous);
       }
     } catch { /* A damaged old draft should not block the current safe save. */ }
     localStorage.setItem(STORAGE_KEY, serialized);
     if (deviceOnly) return;
     const syncTimer = window.setTimeout(() => {
       setCloudStatus("saving");
-      void fetch("/api/household", { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify({ payload }) })
+      void fetch("/api/household", { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify({ payload: contract }) })
         .then((response) => { if (!response.ok) throw new Error("Sync failed"); setCloudStatus("synced"); })
         .catch(() => setCloudStatus("error"));
     }, 650);
@@ -737,14 +666,10 @@ export default function DashboardClient({ user }: { user: DashboardUser }) {
   };
 
   const exportDashboardBackup = () => {
-    const payload: DashboardPayload = { accounts, monthlyBudgets, payees, transactions, snapshots, extra, strategy };
-    const backup: DashboardBackup = {
-      format: "debtfree-dashboard-backup",
-      version: 1,
-      exportedAt: new Date().toISOString(),
-      payload,
-    };
-    const url = URL.createObjectURL(new Blob([JSON.stringify(backup, null, 2)], { type: "application/json" }));
+    const payload = createDashboardPayload(dashboardContract.current?.payload, { accounts, monthlyBudgets, payees, transactions, snapshots, extra, strategy });
+    const backup = createDashboardBackup(payload, dashboardContract.current);
+    dashboardContract.current = backup;
+    const url = URL.createObjectURL(new Blob([serializeDashboardBackup(backup, true)], { type: "application/json" }));
     const link = document.createElement("a");
     link.href = url;
     link.download = `debtfree-dashboard-full-backup-${dateInputValue()}.json`;
@@ -758,32 +683,28 @@ export default function DashboardClient({ user }: { user: DashboardUser }) {
   const importDashboardBackup = async (file: File) => {
     setTransferMessage("");
     try {
-      const parsed = JSON.parse(await file.text()) as unknown;
-      const source = parsed && typeof parsed === "object" && "payload" in parsed
-        ? (parsed as Partial<DashboardBackup>).payload
-        : parsed;
-      if (!source || typeof source !== "object") throw new Error("This is not a DebtFree full-backup file.");
-      const payload = normalizedPayload(source);
+      const contract = parseDashboardJson(await file.text());
+      const { payload } = contract;
       if (!hasMeaningfulData(payload)) throw new Error("The backup does not contain dashboard data.");
-      const current: DashboardPayload = { accounts, monthlyBudgets, payees, transactions, snapshots, extra, strategy };
+      const current = createDashboardPayload(dashboardContract.current?.payload, { accounts, monthlyBudgets, payees, transactions, snapshots, extra, strategy });
       if (hasMeaningfulData(current) && !window.confirm("Replace the data currently on this device with the selected full backup?")) {
         setTransferMessage("Import canceled. Your current dashboard was not changed.");
         return;
       }
-      const serialized = JSON.stringify(payload);
+      const serialized = serializeDashboardBackup(contract);
       try {
         const previous = localStorage.getItem(STORAGE_KEY);
         if (previous && previous !== serialized) {
-          const previousPayload = normalizedPayload(JSON.parse(previous));
-          if (hasMeaningfulData(previousPayload)) localStorage.setItem(STORAGE_BACKUP_KEY, previous);
+          const previousContract = parseDashboardContract(JSON.parse(previous), "Saved dashboard");
+          if (hasMeaningfulData(previousContract.payload)) localStorage.setItem(STORAGE_BACKUP_KEY, previous);
         }
       } catch { /* A damaged previous draft should not block a verified backup import. */ }
       localStorage.setItem(STORAGE_KEY, serialized);
       cloudWritesEnabled.current = true;
-      applyDashboardPayload(payload);
+      applyDashboardPayload(contract);
       setTransferMessage(`Full backup imported: ${payload.accounts.length} accounts, ${payload.transactions.length} transactions, and ${Object.keys(payload.monthlyBudgets).length} budget months restored.`);
     } catch (error) {
-      setTransferMessage(`Import failed: ${error instanceof Error ? error.message : "The backup could not be read."}`);
+      setTransferMessage(`Import failed: ${dashboardDataErrorMessage(error)}`);
     }
   };
 
@@ -862,6 +783,7 @@ export default function DashboardClient({ user }: { user: DashboardUser }) {
     setSnapshots((current) => {
       const existing = current.find((snapshot) => snapshot.month === month);
       const next: PayoffSnapshot = {
+        ...(existing ?? {}),
         id: existing?.id ?? `snapshot-${Date.now()}-${Math.random()}`,
         month,
         capturedAt: now,
@@ -870,7 +792,10 @@ export default function DashboardClient({ user }: { user: DashboardUser }) {
         activeAccountCount: activeCount,
         projectedDebtFreeMonth,
         note: note.trim(),
-        accounts: calculatedAccounts.map((account) => ({ accountId: account.id, name: account.name, type: account.type, balance: account.balance, apr: account.apr })),
+        accounts: calculatedAccounts.map((account) => ({
+          ...(existing?.accounts.find((saved) => saved.accountId === account.id) ?? {}),
+          accountId: account.id, name: account.name, type: account.type, balance: account.balance, apr: account.apr,
+        })),
       };
       return existing ? current.map((snapshot) => snapshot.id === existing.id ? next : snapshot) : [...current, next];
     });
@@ -1338,7 +1263,7 @@ function ProfilePage({ user, householdName, role, members, cloudStatus, deviceOn
             <span>Import full backup</span>
           </label>}
         </div>
-        {transferMessage && <p className={transferMessage.startsWith("Import failed") ? "transfer-message error" : "transfer-message"}>{transferMessage}</p>}
+        {transferMessage && <p role={transferMessage.startsWith("Import failed") ? "alert" : "status"} className={transferMessage.startsWith("Import failed") ? "transfer-message error" : "transfer-message"}>{transferMessage}</p>}
       </section>
     </section>
   </div>;

@@ -43,15 +43,16 @@ test("renders the DebtFree Dashboard shell", async () => {
 });
 
 test("supports complete JSON backup transfer between dashboard origins", async () => {
-  const [client, styles] = await Promise.all([
+  const [client, styles, contract] = await Promise.all([
     readFile(new URL("../app/dashboard-client.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/globals.css", import.meta.url), "utf8"),
+    readFile(new URL("../app/dashboard-data.ts", import.meta.url), "utf8"),
   ]);
-  assert.match(client, /debtfree-dashboard-backup/);
+  assert.match(contract, /debtfree-dashboard-backup/);
   assert.match(client, /Export full backup/);
   assert.match(client, /Import full backup/);
   assert.match(client, /monthlyBudgets, payees, transactions, snapshots, extra, strategy/);
-  assert.match(client, /normalizedPayload\(source\)/);
+  assert.match(client, /parseDashboardJson\(await file\.text\(\)\)/);
   assert.match(client, /localStorage\.setItem\(STORAGE_KEY, serialized\)/);
   assert.match(client, /Replace the data currently on this device/);
   assert.match(client, /Local device storage only/);
@@ -60,6 +61,8 @@ test("supports complete JSON backup transfer between dashboard origins", async (
   assert.doesNotMatch(client, /function DataTransferPanel/);
   assert.match(styles, /data-transfer-card/);
   assert.match(styles, /data-transfer-actions/);
+  assert.match(client, /role=\{transferMessage\.startsWith\("Import failed"\) \? "alert" : "status"\}/);
+  assert.match(styles, /overflow-wrap:anywhere/);
   assert.match(styles, /profile-grid\.device-only-profile/);
 });
 
@@ -187,14 +190,15 @@ test("exports a complete payoff report in CSV, Excel, and PDF formats", async ()
 
 
 test("uses explicit post-promo card terms in payoff forecasts", async () => {
-  const [client, styles, releaseNotes] = await Promise.all([
+  const [client, styles, releaseNotes, contract] = await Promise.all([
     readFile(new URL("../app/dashboard-client.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/globals.css", import.meta.url), "utf8"),
     readFile(new URL("../RELEASE_NOTES.md", import.meta.url), "utf8"),
+    readFile(new URL("../app/dashboard-data.ts", import.meta.url), "utf8"),
   ]);
-  assert.match(client, /promoEndDate: string/);
-  assert.match(client, /postPromoApr: number/);
-  assert.match(client, /postPromoMinimum: number/);
+  assert.match(contract, /promoEndDate: string/);
+  assert.match(contract, /postPromoApr: number/);
+  assert.match(contract, /postPromoMinimum: number/);
   assert.match(client, /function forecastMinimum/);
   assert.match(client, /account\.postPromoMinimum > 0/);
   assert.match(client, /The forecast keeps the current minimum; it does not silently estimate a higher one/);

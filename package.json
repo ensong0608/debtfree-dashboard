@@ -12,7 +12,7 @@
     "db:migrate:cloudflare": "wrangler d1 migrations apply debtfree-dashboard-prod --remote --config wrangler.jsonc",
     "sites:prepare": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/prepare-sites-deploy.ps1",
     "start": "vinext start",
-    "test": "npm run build && node --test tests/rendered-html.test.mjs",
+    "test": "npm run build && node --test tests/*.test.mjs",
     "lint": "eslint . --ignore-pattern dist --ignore-pattern .next --ignore-pattern public/ocr",
     "db:generate": "drizzle-kit generate"
   },
