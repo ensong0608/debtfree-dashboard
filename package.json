@@ -8,7 +8,7 @@
   "scripts": {
     "dev": "vinext dev",
     "build": "vinext build",
-    "deploy:cloudflare": "npm run build && wrangler deploy --config wrangler.jsonc",
+    "deploy:cloudflare": "npm run build && wrangler deploy --config dist/server/wrangler.json",
     "db:migrate:cloudflare": "wrangler d1 migrations apply debtfree-dashboard-prod --remote --config wrangler.jsonc",
     "sites:prepare": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/prepare-sites-deploy.ps1",
     "start": "vinext start",

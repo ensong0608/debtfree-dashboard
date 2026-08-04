@@ -180,12 +180,12 @@ test("keeps the public Cloudflare Worker deployment reproducible", async () => {
   const wrangler = JSON.parse(wranglerSource);
   const packageJson = JSON.parse(packageSource);
   assert.equal(wrangler.name, "debtfree-dashboard");
-  assert.equal(wrangler.main, "dist/server/index.js");
+  assert.equal(wrangler.main, "worker/index.ts");
   assert.deepEqual(wrangler.compatibility_flags, ["nodejs_compat"]);
   assert.equal(wrangler.assets.binding, "ASSETS");
   assert.equal(wrangler.d1_databases[0].binding, "DB");
   assert.equal(wrangler.d1_databases[0].database_name, "debtfree-dashboard-prod");
   assert.equal(wrangler.images.binding, "IMAGES");
-  assert.match(packageJson.scripts["deploy:cloudflare"], /wrangler deploy/);
+  assert.match(packageJson.scripts["deploy:cloudflare"], /dist\/server\/wrangler\.json/);
   assert.match(packageJson.scripts["db:migrate:cloudflare"], /migrations apply/);
 });
