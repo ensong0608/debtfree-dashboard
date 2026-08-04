@@ -2,8 +2,12 @@
   "$schema": "./node_modules/wrangler/config-schema.json",
   "name": "debtfree-dashboard",
   "main": "worker/index.ts",
-  "compatibility_date": "2026-08-03",
+  "compatibility_date": "2026-08-04",
   "compatibility_flags": ["nodejs_compat"],
+  "vars": {
+    "CF_ACCESS_AUD": "a34f9cc950a7a2be8be8515a43be497772596220cc515fe60e7a53c8e5405e62",
+    "CF_ACCESS_TEAM_DOMAIN": "https://ensong0608.cloudflareaccess.com"
+  },
   "assets": {
     "directory": "dist/client",
     "binding": "ASSETS"

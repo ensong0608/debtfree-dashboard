@@ -1,5 +1,11 @@
 # DebtFree Dashboard release notes
 
+## 2026-08-04 - Personal-email household accounts
+
+- Cloudflare Access one-time PINs now verify each member's personal email before the app accepts their identity.
+- Household owners can invite either admins with edit access or viewers with read-only access.
+- Viewer writes are blocked by the API and editing controls are disabled in the dashboard.
+- Existing device data is copied into an empty owner household after the first authenticated sign-in.
 ## 2026-08-04 - One-time credit-card purchase payments
 
 - One-time purchases linked to a credit card are now added to that card's payoff payment in the current month only.

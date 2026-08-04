@@ -2,7 +2,7 @@
 /* eslint-disable @next/next/no-img-element */
 
 import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent } from "react";
-import type { ChatGPTUser } from "./chatgpt-auth";
+import type { DashboardUser } from "./chatgpt-auth";
 import { exportPayoffCsv, exportPayoffExcel, exportPayoffPdf, type PayoffReportData } from "./payoff-export";
 import { scanReceipt, type ReceiptScanResult } from "./receipt-ocr";
 
@@ -94,8 +94,9 @@ type LinkedCardPurchaseItems = Record<string, CashflowItem[]>;
 type DashboardPayload = { accounts: DebtAccount[]; monthlyBudgets: Record<string, CashflowItem[]>; payees: Payee[]; transactions: LedgerTransaction[]; snapshots: PayoffSnapshot[]; extra: number; strategy: PayoffStrategy };
 type DashboardBackup = { format: "debtfree-dashboard-backup"; version: 1; exportedAt: string; payload: DashboardPayload };
 type CloudStatus = "connecting" | "saving" | "synced" | "error";
-type HouseholdMember = { email: string; display_name: string | null; role: "owner" | "admin"; status: "active" | "invited" };
-type HouseholdResponse = { householdName: string; role: "owner" | "admin"; payload: DashboardPayload | null; revision: number; members: HouseholdMember[] };
+type HouseholdRole = "owner" | "admin" | "viewer";
+type HouseholdMember = { email: string; display_name: string | null; role: HouseholdRole; status: "active" | "invited" };
+type HouseholdResponse = { householdName: string; role: HouseholdRole; payload: DashboardPayload | null; revision: number; members: HouseholdMember[] };
 
 function normalizedPayload(value: unknown): DashboardPayload {
   const parsed = value && typeof value === "object" ? value as Partial<DashboardPayload> & { cashflowItems?: CashflowItem[] } : {};
@@ -453,7 +454,7 @@ const NAV_ITEMS: { id: PageId; label: string; icon: string }[] = [
   { id: "profile", label: "My Account", icon: "⚙" },
 ];
 
-export default function DashboardClient({ user }: { user: ChatGPTUser }) {
+export default function DashboardClient({ user }: { user: DashboardUser }) {
   const cloudWritesEnabled = useRef(false);
   const [page, setPage] = useState<PageId>("dashboard");
   const [accounts, setAccounts] = useState<DebtAccount[]>([]);
@@ -480,11 +481,12 @@ export default function DashboardClient({ user }: { user: ChatGPTUser }) {
   const [payeeModalOpen, setPayeeModalOpen] = useState(false);
   const [cloudStatus, setCloudStatus] = useState<CloudStatus>("connecting");
   const [householdName, setHouseholdName] = useState("My household");
-  const [householdRole, setHouseholdRole] = useState<"owner" | "admin">("owner");
+  const [householdRole, setHouseholdRole] = useState<HouseholdRole>("owner");
   const [householdMembers, setHouseholdMembers] = useState<HouseholdMember[]>([]);
   const [navigationCollapsed, setNavigationCollapsed] = useState(false);
   const [transferMessage, setTransferMessage] = useState("");
   const deviceOnly = user.email === "Local device storage only";
+  const isViewer = !deviceOnly && householdRole === "viewer";
 
   const applyDashboardPayload = useCallback((payload: DashboardPayload) => {
     setAccounts(payload.accounts);
@@ -515,9 +517,9 @@ export default function DashboardClient({ user }: { user: ChatGPTUser }) {
           localPayload = backupPayload;
           setImportMessage("Recovered your most recent device backup.");
         } else localPayload = primaryPayload;
-        if (localPayload) applyDashboardPayload(localPayload);
       } catch { /* Keep going so a damaged local draft cannot block cloud data. */ }
       if (deviceOnly) {
+        if (localPayload) applyDashboardPayload(localPayload);
         setHouseholdName("This device");
         setCloudStatus("synced");
         setLoaded(true);
@@ -531,13 +533,14 @@ export default function DashboardClient({ user }: { user: ChatGPTUser }) {
         setHouseholdName(data.householdName);
         setHouseholdRole(data.role);
         setHouseholdMembers(data.members);
+        const canWrite = data.role !== "viewer";
         const cloudPayload = data.payload ? normalizedPayload(data.payload) : null;
         const localHasData = localPayload ? hasMeaningfulData(localPayload) : false;
         const cloudHasData = cloudPayload ? hasMeaningfulData(cloudPayload) : false;
         if (cloudHasData && cloudPayload) {
-          cloudWritesEnabled.current = true;
+          cloudWritesEnabled.current = canWrite;
           applyDashboardPayload(cloudPayload);
-        } else if (localHasData && localPayload) {
+        } else if (localHasData && localPayload && canWrite) {
           cloudWritesEnabled.current = true;
           applyDashboardPayload(localPayload);
           const upload = await fetch("/api/household", { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify({ payload: localPayload }) });
@@ -556,7 +559,7 @@ export default function DashboardClient({ user }: { user: ChatGPTUser }) {
     return () => { cancelled = true; };
   }, [applyDashboardPayload, deviceOnly]);
   useEffect(() => {
-    if (!loaded) return;
+    if (!loaded || isViewer) return;
     const payload: DashboardPayload = { accounts, monthlyBudgets, payees, transactions, snapshots, extra, strategy };
     if (hasMeaningfulData(payload)) cloudWritesEnabled.current = true;
     if (!cloudWritesEnabled.current) return;
@@ -577,7 +580,7 @@ export default function DashboardClient({ user }: { user: ChatGPTUser }) {
         .catch(() => setCloudStatus("error"));
     }, 650);
     return () => window.clearTimeout(syncTimer);
-  }, [accounts, deviceOnly, extra, loaded, monthlyBudgets, payees, snapshots, strategy, transactions]);
+  }, [accounts, deviceOnly, extra, isViewer, loaded, monthlyBudgets, payees, snapshots, strategy, transactions]);
   useEffect(() => {
     if (!modalOpen && !cashflowModalOpen && !transactionModalOpen && !payeeModalOpen) return;
     const close = (event: KeyboardEvent) => { if (event.key === "Escape") { setModalOpen(false); setCashflowModalOpen(false); setTransactionModalOpen(false); setPayeeModalOpen(false); } };
@@ -639,10 +642,10 @@ export default function DashboardClient({ user }: { user: ChatGPTUser }) {
     return sortDirection === "asc" ? compared : -compared;
   }), [calculatedAccounts, linkedCardExpenses, paidOffById, sortDirection, sortKey]);
 
-  const inviteAdmin = async (email: string) => {
-    const response = await fetch("/api/household/members", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ email }) });
+  const inviteMember = async (email: string, role: Exclude<HouseholdRole, "owner">) => {
+    const response = await fetch("/api/household/members", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ email, role }) });
     const data = await response.json() as { members?: HouseholdMember[]; error?: string };
-    if (!response.ok) throw new Error(data.error ?? "The admin could not be added");
+    if (!response.ok) throw new Error(data.error ?? "The household member could not be added");
     if (data.members) setHouseholdMembers(data.members);
   };
   const removeAdmin = async (email: string) => {
@@ -902,21 +905,24 @@ export default function DashboardClient({ user }: { user: ChatGPTUser }) {
         </div>
       </header>
       <div className="page-body">
+        {isViewer && <section className="viewer-notice" role="status"><strong>Viewer access</strong><span>You can review this household dashboard, but only the owner and admins can make changes.</span></section>}
+        <fieldset className="viewer-readonly-surface" disabled={isViewer}>
         {page === "dashboard" && <DashboardPage month={selectedMonth} hasMonth={Object.prototype.hasOwnProperty.call(monthlyBudgets, selectedMonth)} previousHasItems={(monthlyBudgets[shiftMonth(selectedMonth, -1)] ?? []).length > 0} items={cashflowItems} accounts={calculatedAccounts} onMonth={setSelectedMonth} onCopyPrevious={copyPreviousBudget} onStartBlank={startBlankBudget} onAdd={openNewCashflow} onEdit={openEditCashflow} onMove={moveCashflow}/>}
         {page === "accounts" && <AccountsPage accounts={sortedAccounts} activeCount={activeCount} totalBalance={totalBalance} minimums={minimums} interest={interest} linkedCardExpenses={linkedCardExpenses} sortKey={sortKey} sortDirection={sortDirection} paidOffById={paidOffById} onSort={changeSort} onAdd={openNew} onEdit={openEdit} onToggleMinimum={toggleMinimumMode} onTogglePayoff={togglePayoffMode} onSample={() => setAccounts(SAMPLE_ACCOUNTS)} onImport={importDebtFreeCsv} importMessage={importMessage}/>}
         {page === "history" && <TransactionsPage accounts={calculatedAccounts} payees={payees} transactions={transactions} onQuickAdd={openNewTransaction} onEdit={openEditTransaction} onDelete={softDeleteTransaction} onRestore={restoreTransaction} onBatchAdd={addBatchTransactions} onManagePayees={() => setPayeeModalOpen(true)}/>}
         {page === "plan" && <PayoffPlanPage accounts={calculatedAccounts} plan={plan} extra={extra} availableExtra={availableExtra} strategy={strategy} linkedCardExpenseItems={linkedCardExpenseItems} linkedCardPurchaseItems={linkedCardPurchaseItems} monthlyItems={planningCashflowItems} transactions={transactions} snapshots={snapshots} onExtra={setExtra} onStrategy={setStrategy} onAccounts={() => setPage("accounts")} onEditAccount={openEdit}/>}
         {page === "snapshots" && <SnapshotsPage accounts={calculatedAccounts} snapshots={snapshots} currentInterest={interest} onCapture={captureSnapshot} onUpdateNote={updateSnapshotNote} onDelete={removeSnapshot}/>}
-        {page === "profile" && <ProfilePage user={user} householdName={householdName} role={householdRole} members={householdMembers} cloudStatus={cloudStatus} deviceOnly={deviceOnly} transferMessage={transferMessage} onExportBackup={exportDashboardBackup} onImportBackup={importDashboardBackup} onInvite={inviteAdmin} onRemove={removeAdmin}/>}
+        {page === "profile" && <ProfilePage user={user} householdName={householdName} role={householdRole} members={householdMembers} cloudStatus={cloudStatus} deviceOnly={deviceOnly} transferMessage={transferMessage} onExportBackup={exportDashboardBackup} onImportBackup={importDashboardBackup} onInvite={inviteMember} onRemove={removeAdmin}/>}
         {page === "utilization" && <UtilizationPage accounts={calculatedAccounts} onEditAccount={openEdit}/>}
         {page === "stats" && <StatsPage accounts={calculatedAccounts} snapshots={snapshots} transactions={transactions} extra={extra} strategy={strategy} linkedCardExpenses={linkedCardExpenses} linkedCardPurchases={linkedCardPurchases}/>}
+        </fieldset>
       </div>
     </main>
 
-    {modalOpen && <AccountModal draft={draft} editing={Boolean(editingId)} onChange={setDraft} onClose={() => setModalOpen(false)} onSave={saveAccount} onRemove={removeAccount}/>}
-    {cashflowModalOpen && <CashflowModal draft={cashflowDraft} editing={Boolean(editingCashflowId)} accounts={calculatedAccounts} onChange={setCashflowDraft} onClose={() => setCashflowModalOpen(false)} onSave={saveCashflow} onRemove={removeCashflow}/>}
-    {transactionModalOpen && <TransactionModal draft={transactionDraft} editing={Boolean(editingTransactionId)} accounts={calculatedAccounts} payees={payees} onChange={setTransactionDraft} onClose={() => setTransactionModalOpen(false)} onSave={saveTransaction} onRemove={() => editingTransactionId && softDeleteTransaction(editingTransactionId)}/>}
-    {payeeModalOpen && <PayeeModal payees={payees} onAdd={addPayee} onRename={renamePayee} onDelete={deletePayee} onClose={() => setPayeeModalOpen(false)}/>}
+    {!isViewer && modalOpen && <AccountModal draft={draft} editing={Boolean(editingId)} onChange={setDraft} onClose={() => setModalOpen(false)} onSave={saveAccount} onRemove={removeAccount}/>}
+    {!isViewer && cashflowModalOpen && <CashflowModal draft={cashflowDraft} editing={Boolean(editingCashflowId)} accounts={calculatedAccounts} onChange={setCashflowDraft} onClose={() => setCashflowModalOpen(false)} onSave={saveCashflow} onRemove={removeCashflow}/>}
+    {!isViewer && transactionModalOpen && <TransactionModal draft={transactionDraft} editing={Boolean(editingTransactionId)} accounts={calculatedAccounts} payees={payees} onChange={setTransactionDraft} onClose={() => setTransactionModalOpen(false)} onSave={saveTransaction} onRemove={() => editingTransactionId && softDeleteTransaction(editingTransactionId)}/>}
+    {!isViewer && payeeModalOpen && <PayeeModal payees={payees} onAdd={addPayee} onRename={renamePayee} onDelete={deletePayee} onClose={() => setPayeeModalOpen(false)}/>}
   </div>;
 }
 
@@ -1254,34 +1260,42 @@ function PayoffPlanPage({ accounts, plan, extra, availableExtra, strategy, linke
     </> : <section className="large-empty"><span>{"\u2713"}</span><h2>{plan.stalled ? (nonAmortizingNames.length ? "A balance is not amortizing" : "The current payments do not outpace interest") : "Add debt accounts to build your plan"}</h2><p>{plan.stalled ? (nonAmortizingNames.length ? `${nonAmortizingNames.join(", ")} does not shrink after interest and new charges at the modeled payment. Enter the issuer's actual minimum or add extra payment.` : "Increase a minimum payment or add an extra monthly amount to create a finish line.") : "Once your accounts have balances, APRs, and minimums, the complete payoff schedule will appear here."}</p><button className="primary" type="button" onClick={onAccounts}>Review debt accounts</button></section>}
   </div>;
 }
-function ProfilePage({ user, householdName, role, members, cloudStatus, deviceOnly, transferMessage, onExportBackup, onImportBackup, onInvite, onRemove }: { user: ChatGPTUser; householdName: string; role: "owner" | "admin"; members: HouseholdMember[]; cloudStatus: CloudStatus; deviceOnly: boolean; transferMessage: string; onExportBackup: () => void; onImportBackup: (file: File) => Promise<void>; onInvite: (email: string) => Promise<void>; onRemove: (email: string) => Promise<void> }) {
+function ProfilePage({ user, householdName, role, members, cloudStatus, deviceOnly, transferMessage, onExportBackup, onImportBackup, onInvite, onRemove }: { user: DashboardUser; householdName: string; role: HouseholdRole; members: HouseholdMember[]; cloudStatus: CloudStatus; deviceOnly: boolean; transferMessage: string; onExportBackup: () => void; onImportBackup: (file: File) => Promise<void>; onInvite: (email: string, role: Exclude<HouseholdRole, "owner">) => Promise<void>; onRemove: (email: string) => Promise<void> }) {
   const [email, setEmail] = useState("");
+  const [accessRole, setAccessRole] = useState<Exclude<HouseholdRole, "owner">>("admin");
   const [message, setMessage] = useState("");
   const [working, setWorking] = useState(false);
   const invite = async () => {
     setWorking(true);
     setMessage("");
-    try { await onInvite(email); setEmail(""); setMessage("Admin saved. This email must also be allowed into the private site before the link will open."); }
-    catch (error) { setMessage(error instanceof Error ? error.message : "The admin could not be added"); }
-    finally { setWorking(false); }
+    try {
+      await onInvite(email, accessRole);
+      setEmail("");
+      setMessage((accessRole === "admin" ? "Admin" : "Viewer") + " access saved for that email.");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "The household member could not be added");
+    } finally {
+      setWorking(false);
+    }
   };
   const remove = async (memberEmail: string) => {
     if (!confirm("Remove " + memberEmail + " from this household?")) return;
     setWorking(true);
-    try { await onRemove(memberEmail); setMessage("Admin removed."); }
-    catch (error) { setMessage(error instanceof Error ? error.message : "The admin could not be removed"); }
+    try { await onRemove(memberEmail); setMessage("Household member removed."); }
+    catch (error) { setMessage(error instanceof Error ? error.message : "The household member could not be removed"); }
     finally { setWorking(false); }
   };
   const copyLink = async () => {
     try { await navigator.clipboard.writeText(window.location.origin); setMessage("Dashboard link copied."); }
     catch { setMessage("Copy this address from your browser."); }
   };
+  const roleLabel = role === "owner" ? "Household owner" : role === "admin" ? "Household admin" : "Household viewer";
   return <div className="screen profile-screen">
     <div className="screen-title">
       <div>
         <span className="eyebrow">{deviceOnly ? "Device storage" : "Household access"}</span>
         <h1>My account</h1>
-        <p>{deviceOnly ? "This public dashboard keeps your financial data in this browser on this device." : "Your dashboard is protected by ChatGPT sign-in and household membership. Listed admins share the same household data."}</p>
+        <p>{deviceOnly ? "This dashboard keeps your financial data in this browser on this device." : "Your verified personal email controls access to this shared household dashboard."}</p>
       </div>
       <button className="secondary" type="button" onClick={copyLink}>Copy dashboard link</button>
     </div>
@@ -1289,47 +1303,46 @@ function ProfilePage({ user, householdName, role, members, cloudStatus, deviceOn
       <article className="profile-card">
         <div className="profile-avatar">{user.displayName.slice(0,2).toUpperCase()}</div>
         <div>
-          <span>{deviceOnly ? "Local dashboard" : role === "owner" ? "Household owner" : "Household admin"}</span>
+          <span>{deviceOnly ? "Local dashboard" : roleLabel}</span>
           <strong>{user.displayName}</strong>
           <small>{user.email}</small>
         </div>
         <div className="account-cloud-state">
           <i className={cloudStatus}/>
-          <span>{deviceOnly ? "Saved in this browser on this device" : cloudStatus === "synced" ? "Household cloud sync is active" : cloudStatus === "error" ? "Cloud unavailable; device backup is safe" : "Syncing household changes"}</span>
+          <span>{deviceOnly ? "Saved in this browser on this device" : role === "viewer" ? "Read-only household access" : cloudStatus === "synced" ? "Household cloud sync is active" : cloudStatus === "error" ? "Cloud unavailable; device backup is safe" : "Syncing household changes"}</span>
         </div>
-        {!deviceOnly && <a className="secondary account-link" href="/signout-with-chatgpt?return_to=%2F">Sign out</a>}
+        {!deviceOnly && <a className="secondary account-link" href="/cdn-cgi/access/logout">Sign out</a>}
         {deviceOnly && message && <p className="share-message">{message}</p>}
       </article>
       {!deviceOnly && <article className="roles-card household-card">
-        <div className="card-head"><div><span>{householdName}</span><strong>Household admins</strong></div></div>
-        {role === "owner" && <div className="invite-admin"><label><span>Admin email</span><div><input type="email" value={email} placeholder="wife@example.com" onChange={(event) => setEmail(event.target.value)}/><button className="primary" type="button" disabled={working || !email.trim()} onClick={invite}>Add admin</button></div><small>Use the exact email connected to her ChatGPT account. A paid subscription is not required. She will sign in separately and share your household data; never share your password.</small></label></div>}
+        <div className="card-head"><div><span>{householdName}</span><strong>Household members</strong></div></div>
+        {role === "owner" && <div className="invite-admin"><label><span>Member email and access</span><div><input type="email" value={email} placeholder="member@example.com" onChange={(event) => setEmail(event.target.value)}/><select aria-label="Household access role" value={accessRole} onChange={(event) => setAccessRole(event.target.value as Exclude<HouseholdRole, "owner">)}><option value="admin">Admin</option><option value="viewer">Viewer</option></select><button className="primary" type="button" disabled={working || !email.trim()} onClick={invite}>Add member</button></div><small>Admins can edit the shared dashboard. Viewers can only review it. Each member signs in with a one-time code sent to their own email.</small></label></div>}
         {message && <p className="share-message">{message}</p>}
         <div className="member-list">{members.map((member) => <div className="member-row" key={member.email}><div><strong>{member.display_name || member.email}</strong><small>{member.display_name ? member.email : member.status === "invited" ? "Waiting for first sign-in" : "Household member"}</small></div><span className={member.status}>{member.role}</span>{role === "owner" && member.role !== "owner" ? <button type="button" disabled={working} onClick={() => remove(member.email)}>Remove</button> : <i/>}</div>)}</div>
       </article>}
-    <section className="data-transfer-card">
-      <div>
-        <span className="eyebrow">Full data transfer</span>
-        <h2>Backup or restore the complete dashboard</h2>
-        <p>Use one private JSON file to move debts, monthly budgets, one-time purchases, payees, transactions, payoff settings, and snapshots between dashboard addresses.</p>
-        <small>{deviceOnly ? "On this public Cloudflare dashboard, imported data is stored only in this browser on this device." : "Imported data is saved to this device and your connected household."}</small>
-      </div>
-      <div className="data-transfer-actions">
-        <button className="secondary" type="button" onClick={onExportBackup}>Export full backup</button>
-        <label className="primary import-file">
-          <input type="file" accept=".json,application/json" onChange={(event) => {
-            const input = event.currentTarget;
-            const file = input.files?.[0];
-            if (file) void onImportBackup(file).finally(() => { input.value = ""; });
-          }}/>
-          <span>Import full backup</span>
-        </label>
-      </div>
-      {transferMessage && <p className={transferMessage.startsWith("Import failed") ? "transfer-message error" : "transfer-message"}>{transferMessage}</p>}
-    </section>
+      <section className="data-transfer-card">
+        <div>
+          <span className="eyebrow">Full data transfer</span>
+          <h2>Backup or restore the complete dashboard</h2>
+          <p>Use one private JSON file to move debts, monthly budgets, one-time purchases, payees, transactions, payoff settings, and snapshots between dashboard addresses.</p>
+          <small>{deviceOnly ? "Imported data is stored only in this browser on this device." : role === "viewer" ? "Viewers cannot replace household data." : "Imported data is saved to this device and your connected household."}</small>
+        </div>
+        <div className="data-transfer-actions">
+          <button className="secondary" type="button" onClick={onExportBackup}>Export full backup</button>
+          {role !== "viewer" && <label className="primary import-file">
+            <input type="file" accept=".json,application/json" onChange={(event) => {
+              const input = event.currentTarget;
+              const file = input.files?.[0];
+              if (file) void onImportBackup(file).finally(() => { input.value = ""; });
+            }}/>
+            <span>Import full backup</span>
+          </label>}
+        </div>
+        {transferMessage && <p className={transferMessage.startsWith("Import failed") ? "transfer-message error" : "transfer-message"}>{transferMessage}</p>}
+      </section>
     </section>
   </div>;
 }
-
 function SnapshotsPage({ accounts, snapshots, currentInterest, onCapture, onUpdateNote, onDelete }: { accounts: DebtAccount[]; snapshots: PayoffSnapshot[]; currentInterest: number; onCapture: (note: string) => void; onUpdateNote: (id: string, note: string) => void; onDelete: (id: string) => void }) {
   const [captureNote, setCaptureNote] = useState(() => snapshots.find((snapshot) => snapshot.month === currentMonthKey())?.note ?? "");
   const [selectedId, setSelectedId] = useState<string | null>(null);

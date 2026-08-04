@@ -1,80 +1,51 @@
+import { env } from "cloudflare:workers";
+import { createRemoteJWKSet, jwtVerify } from "jose";
 import { headers } from "next/headers";
-import { redirect } from "next/navigation";
 
-export type ChatGPTUser = {
+export type DashboardUser = {
   displayName: string;
   email: string;
   fullName: string | null;
 };
 
-const USER_EMAIL_HEADER = "oai-authenticated-user-email";
-const USER_FULL_NAME_HEADER = "oai-authenticated-user-full-name";
-const USER_FULL_NAME_ENCODING_HEADER =
-  "oai-authenticated-user-full-name-encoding";
+const ACCESS_JWT_HEADER = "cf-access-jwt-assertion";
+const ACCESS_EMAIL_HEADER = "cf-access-authenticated-user-email";
+const SITES_EMAIL_HEADER = "oai-authenticated-user-email";
+const SITES_FULL_NAME_HEADER = "oai-authenticated-user-full-name";
+const SITES_FULL_NAME_ENCODING_HEADER = "oai-authenticated-user-full-name-encoding";
 const PERCENT_ENCODED_UTF8 = "percent-encoded-utf-8";
-const SIGN_IN_PATH = "/signin-with-chatgpt";
-const SIGN_OUT_PATH = "/signout-with-chatgpt";
-const CALLBACK_PATH = "/callback";
 
-export async function getChatGPTUser(): Promise<ChatGPTUser | null> {
+let accessJwks: ReturnType<typeof createRemoteJWKSet> | null = null;
+
+export async function getAuthenticatedUser(): Promise<DashboardUser | null> {
   const requestHeaders = await headers();
-  const email = requestHeaders.get(USER_EMAIL_HEADER);
-  if (!email) return null;
-
-  const encodedFullName = requestHeaders.get(USER_FULL_NAME_HEADER);
-  const fullName =
-    encodedFullName &&
-    requestHeaders.get(USER_FULL_NAME_ENCODING_HEADER) === PERCENT_ENCODED_UTF8
-      ? safeDecodeURIComponent(encodedFullName)
-      : null;
-
-  return {
-    displayName: fullName ?? email,
-    email,
-    fullName,
-  };
-}
-
-export async function requireChatGPTUser(
-  returnTo: string,
-): Promise<ChatGPTUser> {
-  const user = await getChatGPTUser();
-  if (user) return user;
-
-  redirect(chatGPTSignInPath(returnTo));
-}
-
-export function chatGPTSignInPath(returnTo: string): string {
-  const safeReturnTo = safeRelativeReturnPath(returnTo);
-  return `${SIGN_IN_PATH}?return_to=${encodeURIComponent(safeReturnTo)}`;
-}
-
-export function chatGPTSignOutPath(returnTo = "/"): string {
-  const safeReturnTo = safeRelativeReturnPath(returnTo);
-  return `${SIGN_OUT_PATH}?return_to=${encodeURIComponent(safeReturnTo)}`;
-}
-
-function safeRelativeReturnPath(value: string): string {
-  if (!value.startsWith("/") || value.startsWith("//")) return "/";
-
-  let url: URL;
-  try {
-    url = new URL(value, "https://app.local");
-  } catch {
-    return "/";
+  const accessToken = requestHeaders.get(ACCESS_JWT_HEADER);
+  if (accessToken) {
+    try {
+      accessJwks ??= createRemoteJWKSet(new URL(env.CF_ACCESS_TEAM_DOMAIN + "/cdn-cgi/access/certs"));
+      const { payload } = await jwtVerify(accessToken, accessJwks, {
+        issuer: env.CF_ACCESS_TEAM_DOMAIN,
+        audience: env.CF_ACCESS_AUD,
+      });
+      const verifiedEmail = typeof payload.email === "string" ? payload.email.trim().toLowerCase() : "";
+      const forwardedEmail = (requestHeaders.get(ACCESS_EMAIL_HEADER) ?? "").trim().toLowerCase();
+      if (!verifiedEmail || (forwardedEmail && forwardedEmail !== verifiedEmail)) return null;
+      return { displayName: verifiedEmail.split("@")[0] || verifiedEmail, email: verifiedEmail, fullName: null };
+    } catch {
+      return null;
+    }
   }
-  if (url.origin !== "https://app.local") return "/";
-  if (isReservedAuthPath(url.pathname)) return "/";
 
-  return `${url.pathname}${url.search}${url.hash}`;
-}
+  // The Cloudflare Worker must never trust client-supplied Sites compatibility headers.
+  if (env.CF_ACCESS_AUD || env.CF_ACCESS_TEAM_DOMAIN) return null;
 
-function isReservedAuthPath(pathname: string): boolean {
-  return (
-    pathname === SIGN_IN_PATH ||
-    pathname === SIGN_OUT_PATH ||
-    pathname === CALLBACK_PATH
-  );
+  const sitesEmail = requestHeaders.get(SITES_EMAIL_HEADER);
+  if (!sitesEmail) return null;
+  const encodedFullName = requestHeaders.get(SITES_FULL_NAME_HEADER);
+  const fullName = encodedFullName && requestHeaders.get(SITES_FULL_NAME_ENCODING_HEADER) === PERCENT_ENCODED_UTF8
+    ? safeDecodeURIComponent(encodedFullName)
+    : null;
+  return { displayName: fullName ?? sitesEmail, email: sitesEmail.trim().toLowerCase(), fullName };
 }
 
 function safeDecodeURIComponent(value: string): string | null {

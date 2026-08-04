@@ -1,98 +1,49 @@
-# vinext-starter
+# DebtFree Dashboard
 
-A clean full-stack starter running on
-[vinext](https://github.com/cloudflare/vinext), with optional Cloudflare D1 and
-Drizzle support.
+A full-stack household budget and debt-payoff dashboard built with vinext and deployed to Cloudflare Workers.
 
-## Prerequisites
+## Development
 
-- Node.js `>=22.13.0`
+Requirements: Node.js 22.13 or newer.
 
-## Quick Start
+- npm install
+- npm run dev
+- npm run lint
+- npm test
+- npm run build
 
-```bash
-npm install
-npm run dev
-npm run build
-```
+The production Worker configuration is stored in wrangler.jsonc. Structured household data is stored in the D1 database bound as DB.
 
-This starter does not use `wrangler.jsonc`.
+## Personal-email authentication
 
-## Included Shape
+The production Worker is protected by Cloudflare Access using one-time PIN email authentication.
 
-- edit site code under `app/`
-- `.openai/hosting.json` declares optional Sites D1 and R2 bindings
-- `vite.config.ts` simulates declared bindings for local development
-- `db/schema.ts` starts intentionally empty
-- `examples/d1/` contains an optional D1 example surface
-- `drizzle.config.ts` supports local migration generation when needed
+- app/chatgpt-auth.ts validates the Cf-Access-Jwt-Assertion JWT against the configured team JWKS and audience before trusting the email identity.
+- The first verified email creates the household owner.
+- Owners can invite an exact personal email as an admin or viewer.
+- Admins can update shared household data.
+- Viewers can read the dashboard, while API writes and interface controls are disabled.
+- Unknown verified emails are denied by the application membership check.
 
-## Workspace Auth Headers
+The Access team domain and audience are non-secret Worker variables. The JWT is still validated on every request so forwarded identity headers are never trusted by themselves.
 
-OpenAI workspace sites can read the current user's email from
-`oai-authenticated-user-email`.
+The linked Sites deployment can continue to use its platform-provided authenticated email headers as a compatibility fallback.
 
-SIWC-authenticated workspace sites may also receive
-`oai-authenticated-user-full-name` when the user's SIWC profile has a non-empty
-`name` claim. The full-name value is percent-encoded UTF-8 and is accompanied by
-`oai-authenticated-user-full-name-encoding: percent-encoded-utf-8`.
+## Data persistence
 
-Treat the full name as optional and fall back to email when it is absent:
+D1 stores household membership and the shared serialized dashboard payload. Browser storage is retained as a device backup and is copied to an empty owner household on first authenticated use.
 
-```tsx
-import { headers } from "next/headers";
+Use the private JSON backup export before changing origins or replacing household data.
 
-export default async function Home() {
-  const requestHeaders = await headers();
-  const email = requestHeaders.get("oai-authenticated-user-email");
-  const encodedFullName = requestHeaders.get("oai-authenticated-user-full-name");
-  const fullName =
-    encodedFullName &&
-    requestHeaders.get("oai-authenticated-user-full-name-encoding") ===
-      "percent-encoded-utf-8"
-      ? decodeURIComponent(encodedFullName)
-      : null;
+## Deployment
 
-  const displayName = fullName ?? email;
-  // ...
-}
-```
-
-## Optional Dispatch-Owned ChatGPT Sign-In
-
-Import the ready-to-use helpers from `app/chatgpt-auth.ts` when the site needs
-optional or required ChatGPT sign-in:
-
-- Use `getChatGPTUser()` for optional signed-in UI.
-- Use `requireChatGPTUser(returnTo)` for server-rendered pages that should send
-  anonymous visitors through Sign in with ChatGPT.
-- Use `chatGPTSignInPath(returnTo)` and `chatGPTSignOutPath(returnTo)` for
-  browser links or actions.
-- Pass a same-origin relative `returnTo` path for the destination after sign-in
-  or sign-out. The helper validates and safely encodes it.
-- Mark protected pages with `export const dynamic = "force-dynamic"` because
-  they depend on per-request identity headers.
-
-Dispatch owns `/signin-with-chatgpt`, `/signout-with-chatgpt`, `/callback`, the
-OAuth cookies, and identity header injection. Do not implement app routes for
-those reserved paths. Routes that do not import and call the helper remain
-anonymous-compatible.
-
-SIWC establishes identity only; it does not prove workspace membership. Use the
-Sites hosting platform's access policy controls for workspace-wide restrictions,
-or enforce explicit server-side membership or allowlist checks.
-
-Use SIWC for account pages, user-specific dashboards, saved records, and write
-actions tied to the current ChatGPT user. Leave public content anonymous.
-
-## Useful Commands
-
-- `npm run dev`: start local development
-- `npm run build`: verify the vinext build output
-- `npm test`: build the starter and verify its rendered loading skeleton
-- `npm run db:generate`: generate Drizzle migrations after schema changes
+- npm run sites:prepare builds and packages the linked Sites project.
+- npm run deploy:cloudflare builds and deploys the production Worker.
+- npm run db:generate generates Drizzle migrations after schema changes.
 
 ## Learn More
 
-- [vinext Documentation](https://github.com/cloudflare/vinext)
+- [Cloudflare Access JWT validation](https://developers.cloudflare.com/cloudflare-one/access-controls/applications/http-apps/authorization-cookie/validating-json/)
+- [Cloudflare Workers](https://developers.cloudflare.com/workers/)
+- [vinext](https://github.com/cloudflare/vinext)
 - [Drizzle D1 Guide](https://orm.drizzle.team/docs/get-started/d1-new)

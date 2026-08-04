@@ -106,10 +106,10 @@ test("removes disposable starter assets", async () => {
   assert.match(dashboardSource, /Amount 2 Pay\/month/);
   assert.doesNotMatch(dashboardSource, /moneyPrecise\.format\(month\.payments\[account\.id\] \?\? 0\)\} paid/);
   assert.match(dashboardSource, /\/api\/household/);
-  assert.match(dashboardSource, /Add admin/);
-  assert.match(page, /getChatGPTUser/);
+  assert.match(dashboardSource, /Add member/);
+  assert.match(page, /getAuthenticatedUser/);
   assert.match(page, /Local device storage only/);
-  assert.match(dashboardSource, /never share your password/i);
+  assert.match(dashboardSource, /one-time code sent to their own email/i);
   assert.match(dashboardSource, /monthlySurplus/);
   assert.match(dashboardSource, /Use my \$\{moneyPrecise\.format\(availableExtra\)\} available extra/);
   assert.match(dashboardSource, /Calculated after monthly expenses, budgets, and debt minimums\. Edit anytime/);
@@ -146,7 +146,7 @@ test("supports a mobile dashboard shell and collapsible navigation", async () =>
   assert.match(client, /sidebar-head/);
   assert.match(client, /mobile-dashboard-toggle/);
   assert.doesNotMatch(client, /<span>\{navigationCollapsed \? "Expand" : "Collapse"\}<\/span>/);
-  assert.match(client, /A paid subscription is not required/);
+  assert.match(client, /one-time code sent to their own email/);
   assert.match(store, /SELECT id FROM households LIMIT 1/);
   assert.match(page, /This account is not part of the shared household/);
   assert.doesNotMatch(client, /window\.close\(\)|Close dashboard/);
@@ -236,4 +236,30 @@ test("pays linked credit-card one-time purchases in the current payoff month onl
   assert.match(client, /scheduledPayment = \(minimums\[account\.id\] \?\? 0\) \+ cardChargeForMonth\(account\.id, month\)/);
   assert.match(client, /month\.month === 1 \? \(linkedCardPurchaseItems\[account\.id\] \?\? \[\]\) : \[\]/);
   assert.match(client, /\{item\.name\} \(one-time\)/);
+});
+test("uses verified personal email accounts with household admin and viewer roles", async () => {
+  const [auth, client, householdRoute, membersRoute, schema, wranglerSource] = await Promise.all([
+    readFile(new URL("../app/chatgpt-auth.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/dashboard-client.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/household/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/household/members/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../db/schema.ts", import.meta.url), "utf8"),
+    readFile(new URL("../wrangler.jsonc", import.meta.url), "utf8"),
+  ]);
+  const wrangler = JSON.parse(wranglerSource);
+  assert.match(auth, /cf-access-jwt-assertion/);
+  assert.match(auth, /jwtVerify/);
+  assert.match(auth, /CF_ACCESS_TEAM_DOMAIN/);
+  assert.match(auth, /CF_ACCESS_AUD/);
+  assert.match(auth, /payload\.email/);
+  assert.match(client, /HouseholdRole = "owner" \| "admin" \| "viewer"/);
+  assert.match(client, /Viewer access/);
+  assert.match(client, /viewer-readonly-surface/);
+  assert.match(client, /Household members/);
+  assert.match(client, /<option value="viewer">Viewer<\/option>/);
+  assert.match(householdRoute, /Viewer access is read-only/);
+  assert.match(membersRoute, /\["admin", "viewer"\]/);
+  assert.match(schema, /\["owner", "admin", "viewer"\]/);
+  assert.equal(wrangler.vars.CF_ACCESS_TEAM_DOMAIN, "https://ensong0608.cloudflareaccess.com");
+  assert.equal(wrangler.vars.CF_ACCESS_AUD.length, 64);
 });

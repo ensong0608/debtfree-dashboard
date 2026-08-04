@@ -14,7 +14,7 @@ type CellValue = string | number | null;
 type StyledCell = { value: CellValue; style: number };
 type SheetSpec = { name: string; rows: (CellValue | StyledCell)[][]; widths: number[]; merges?: string[]; freezeRows?: number; autoFilter?: string; landscape?: boolean };
 const BLUE = [22, 119, 255] as const;
-const NAVY = [19, 34, 56] as const;
+const NAVY: [number, number, number] = [19, 34, 56];
 const GREEN = [13, 139, 99] as const;
 const ORANGE = [231, 137, 38] as const;
 const VIOLET = [106, 93, 231] as const;
@@ -198,7 +198,7 @@ function reportSheets(report: PayoffReportData): SheetSpec[] {
   ];
   const overview: SheetSpec = { name: "Overview", rows: overviewRows, widths: [24, 18, 24, 18, 24, 18, 24, 20], merges: ["A1:H1", "A2:H2", "A4:H4", "A8:H8", "A12:H12"], freezeRows: 2 };
 
-  const monthlyRows = report.cashflow.map((item, index) => [styled(item.type, index % 2 ? 13 : 7), styled(item.name, 15), styled(item.category, 13), styled(item.paymentMethod, 13), styled(item.linkedAccount, 15), styled(item.amount, index % 2 ? 5 : 14)]);
+  const monthlyRows: (CellValue | StyledCell)[][] = report.cashflow.map((item, index) => [styled(item.type, index % 2 ? 13 : 7), styled(item.name, 15), styled(item.category, 13), styled(item.paymentMethod, 13), styled(item.linkedAccount, 15), styled(item.amount, index % 2 ? 5 : 14)]);
   monthlyRows.push([styled("TOTAL INCOME", 11), "", "", "", "", styled(report.totalIncome, 12)]);
   monthlyRows.push([styled("TOTAL EXPENSES", 11), "", "", "", "", styled(report.totalExpenses, 12)]);
   monthlyRows.push([styled("TOTAL BUDGET", 11), "", "", "", "", styled(report.totalBudget, 12)]);

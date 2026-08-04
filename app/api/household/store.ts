@@ -1,7 +1,7 @@
 import { env } from "cloudflare:workers";
-import { getChatGPTUser } from "@/app/chatgpt-auth";
+import { getAuthenticatedUser } from "@/app/chatgpt-auth";
 
-export type HouseholdRole = "owner" | "admin";
+export type HouseholdRole = "owner" | "admin" | "viewer";
 export type HouseholdMemberRecord = {
   email: string;
   household_id: string;
@@ -20,7 +20,7 @@ export function normalizeEmail(value: string) {
 }
 
 export async function authenticatedUser() {
-  const user = await getChatGPTUser();
+  const user = await getAuthenticatedUser();
   if (!user) return null;
   return { ...user, email: normalizeEmail(user.email) };
 }
@@ -64,7 +64,7 @@ export async function householdContext() {
 }
 
 export async function listMembers(householdId: string) {
-  const result = await database().prepare("SELECT email, display_name, role, status FROM household_members WHERE household_id = ? ORDER BY CASE role WHEN 'owner' THEN 0 ELSE 1 END, email")
+  const result = await database().prepare("SELECT email, display_name, role, status FROM household_members WHERE household_id = ? ORDER BY CASE role WHEN 'owner' THEN 0 WHEN 'admin' THEN 1 ELSE 2 END, email")
     .bind(householdId).all();
   return result.results;
 }

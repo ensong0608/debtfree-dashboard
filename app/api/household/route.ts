@@ -21,6 +21,7 @@ export async function GET() {
 export async function PUT(request: Request) {
   const context = await householdContext();
   if (!context) return Response.json({ error: "Sign in required" }, { status: 401 });
+  if (context.member.role === "viewer") return Response.json({ error: "Viewer access is read-only" }, { status: 403 });
   const raw = await request.text();
   if (raw.length > 1_000_000) return Response.json({ error: "Dashboard data is too large" }, { status: 413 });
   let body: { payload?: unknown };

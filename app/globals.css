@@ -756,3 +756,14 @@ textarea:focus-visible{outline:3px solid rgba(22,119,255,.22);outline-offset:2px
   .profile-grid.device-only-profile{grid-template-columns:1fr}
   .profile-grid.device-only-profile>.data-transfer-card{grid-column:1}
 }
+
+/* Verified email household roles */
+.viewer-notice { display:flex; align-items:center; gap:10px; margin:0 0 12px; padding:11px 14px; border:1px solid #b9d4ff; border-radius:12px; background:#eef6ff; color:#174b91; }
+.viewer-notice strong { font-size:12px; }
+.viewer-notice span { font-size:11px; }
+.viewer-readonly-surface { min-width:0; margin:0; padding:0; border:0; }
+.viewer-readonly-surface:disabled { color:inherit; }
+.viewer-readonly-surface:disabled [draggable="true"] { pointer-events:none; }
+.invite-admin label>div { grid-template-columns:minmax(0,1fr) 110px auto; }
+.invite-admin select { min-width:0; height:41px; padding:0 10px; border:1px solid var(--line); border-radius:9px; background:white; color:var(--ink); font-size:12px; }
+@media(max-width:700px){.viewer-notice{align-items:flex-start;flex-direction:column;gap:3px}.invite-admin label>div{grid-template-columns:1fr}.invite-admin button{min-height:44px}}

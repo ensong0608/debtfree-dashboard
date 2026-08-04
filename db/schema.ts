@@ -12,7 +12,7 @@ export const householdMembers = sqliteTable("household_members", {
   email: text("email").primaryKey(),
   householdId: text("household_id").notNull().references(() => households.id, { onDelete: "cascade" }),
   displayName: text("display_name"),
-  role: text("role", { enum: ["owner", "admin"] }).notNull(),
+  role: text("role", { enum: ["owner", "admin", "viewer"] }).notNull(),
   status: text("status", { enum: ["active", "invited"] }).notNull(),
   invitedBy: text("invited_by"),
   createdAt: integer("created_at").notNull(),
