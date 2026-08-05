@@ -83,13 +83,14 @@ test("moves monthly budget items between columns with drag and drop", async () =
 });
 
 test("removes disposable starter assets", async () => {
-  const [page, client, layout, packageJson] = await Promise.all([
+  const [page, client, payoffEngine, layout, packageJson] = await Promise.all([
     readFile(new URL("../app/page.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/dashboard-client.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/payoff-engine.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/layout.tsx", import.meta.url), "utf8"),
     readFile(new URL("../package.json", import.meta.url), "utf8"),
   ]);
-  const dashboardSource = page + client;
+  const dashboardSource = page + client + payoffEngine;
   assert.match(dashboardSource, /DebtFree Dashboard/);
   assert.match(dashboardSource, /Import DebtFree CSV/);
   assert.match(dashboardSource, /extractDebtFreeAccounts/);
@@ -190,8 +191,9 @@ test("exports a complete payoff report in CSV, Excel, and PDF formats", async ()
 
 
 test("uses explicit post-promo card terms in payoff forecasts", async () => {
-  const [client, styles, releaseNotes, contract] = await Promise.all([
+  const [client, engine, styles, releaseNotes, contract] = await Promise.all([
     readFile(new URL("../app/dashboard-client.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/payoff-engine.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/globals.css", import.meta.url), "utf8"),
     readFile(new URL("../RELEASE_NOTES.md", import.meta.url), "utf8"),
     readFile(new URL("../app/dashboard-data.ts", import.meta.url), "utf8"),
@@ -199,8 +201,9 @@ test("uses explicit post-promo card terms in payoff forecasts", async () => {
   assert.match(contract, /promoEndDate: string/);
   assert.match(contract, /postPromoApr: number/);
   assert.match(contract, /postPromoMinimum: number/);
-  assert.match(client, /function forecastMinimum/);
-  assert.match(client, /account\.postPromoMinimum > 0/);
+  assert.match(client, /from "\.\/payoff-engine"/);
+  assert.match(engine, /function forecastMinimum/);
+  assert.match(engine, /account\.postPromoMinimum > 0/);
   assert.match(client, /The forecast keeps the current minimum; it does not silently estimate a higher one/);
   assert.match(client, /True Cost forecast/);
   assert.match(client, /forecast\.totalInterest/);
@@ -235,12 +238,15 @@ test("keeps the direct Cloudflare Worker deployment reproducible", async () => {
 });
 
 test("pays linked credit-card one-time purchases in the current payoff month only", async () => {
-  const client = await readFile(new URL("../app/dashboard-client.tsx", import.meta.url), "utf8");
+  const [client, engine] = await Promise.all([
+    readFile(new URL("../app/dashboard-client.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/payoff-engine.ts", import.meta.url), "utf8"),
+  ]);
   assert.match(client, /item\.kind === "purchase"/);
   assert.match(client, /linkedCardPurchases/);
-  assert.match(client, /month === 1 \? \(linkedCardPurchases\[accountId\] \?\? 0\) : 0/);
-  assert.match(client, /plannedMonthly = monthly \+ \(month === 1 \? oneTimePurchaseTotal : 0\)/);
-  assert.match(client, /scheduledPayment = \(minimums\[account\.id\] \?\? 0\) \+ cardChargeForMonth\(account\.id, month\)/);
+  assert.match(engine, /month === 1 \? \(linkedCardPurchases\[accountId\] \?\? 0\) : 0/);
+  assert.match(engine, /plannedMonthly = monthly \+ \(month === 1 \? oneTimePurchaseTotal : 0\)/);
+  assert.match(engine, /scheduledPayment = \(minimums\[account\.id\] \?\? 0\) \+ cardChargeForMonth\(account\.id, month\)/);
   assert.match(client, /month\.month === 1 \? \(linkedCardPurchaseItems\[account\.id\] \?\? \[\]\) : \[\]/);
   assert.match(client, /\{item\.name\} \(one-time\)/);
 });

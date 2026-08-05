@@ -23,6 +23,17 @@ import {
   type TransactionType,
 } from "./dashboard-data";
 import { exportPayoffCsv, exportPayoffExcel, exportPayoffPdf, type PayoffReportData } from "./payoff-export";
+import {
+  calculatePlan,
+  estimatedMinimum,
+  effectiveMinimum,
+  hasPromoTerms,
+  individualPayoffMonths,
+  monthlyInterest,
+  round,
+  type LinkedCardExpenses,
+  type PayoffPlan,
+} from "./payoff-engine";
 import { scanReceipt, type ReceiptScanResult } from "./receipt-ocr";
 
 type PageId = "dashboard" | "accounts" | "history" | "plan" | "snapshots" | "utilization" | "stats" | "profile";
@@ -32,21 +43,6 @@ type SortDirection = "asc" | "desc";
 type AccountDraft = Pick<DebtAccount, "name" | "type" | "balance" | "apr" | "interestFee" | "minimum" | "minimumMode" | "payoffMode" | "creditLimit" | "dueDate" | "promoEndDate" | "postPromoApr" | "postPromoMinimum">;
 type CashflowDraft = Pick<CashflowItem, "name" | "kind" | "category" | "amount" | "paymentMethod" | "creditAccountId">;
 type TransactionDraft = Pick<LedgerTransaction, "date" | "accountId" | "payeeId" | "payeeName" | "type" | "category" | "memo" | "amount">;
-type PlanMonth = {
-  month: number;
-  interest: number;
-  paid: number;
-  remaining: number;
-  requiredMonthly: number;
-  minimumIncrease: number;
-  payments: Record<string, number>;
-  minimums: Record<string, number>;
-  aprs: Record<string, number>;
-  balances: Record<string, number>;
-  paidOff: string[];
-  nonAmortizingAccountIds: string[];
-};
-type LinkedCardExpenses = Record<string, number>;
 type LinkedCardExpenseItems = Record<string, CashflowItem[]>;
 type LinkedCardPurchaseItems = Record<string, CashflowItem[]>;
 type CloudStatus = "connecting" | "saving" | "synced" | "error";
@@ -191,22 +187,6 @@ function extractDebtFreeAccounts(text: string): DebtAccount[] {
   if (!unique.size) throw new Error("No debt accounts were found in the export.");
   return [...unique.values()];
 }
-const round = (value: number) => Math.round((value + Number.EPSILON) * 100) / 100;
-
-function estimatedMinimum(balance: number, apr: number) {
-  if (balance <= 0) return 0;
-  const monthlyInterest = balance * apr / 1200;
-  return Math.min(round(balance + monthlyInterest), Math.max(25, round(balance * 0.01 + monthlyInterest)));
-}
-function effectiveMinimum(account: DebtAccount) {
-  return account.balance <= 0 ? 0 : account.minimumMode === "auto" ? estimatedMinimum(account.balance, account.apr) : account.minimum;
-}
-function projectedMonthlyRate(account: DebtAccount) {
-  return account.interestFee > 0 && account.balance > 0 ? account.interestFee / account.balance : account.apr / 1200;
-}
-function monthlyInterest(account: DebtAccount) {
-  return round(account.balance * projectedMonthlyRate(account));
-}
 function formatDate(value: string) {
   if (!value) return "Not set";
   const [year, month, day] = value.split("-").map(Number);
@@ -217,154 +197,6 @@ function monthAfter(offset: number) {
   date.setDate(1);
   date.setMonth(date.getMonth() + offset);
   return date.toLocaleDateString("en-US", { month: "short", year: "numeric" });
-}
-function forecastMonthKey(month: number) {
-  const date = new Date();
-  date.setDate(1);
-  date.setMonth(date.getMonth() + month - 1);
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
-}
-function hasPromoTerms(account: DebtAccount) {
-  return account.type === "Credit card" && Boolean(account.promoEndDate) && account.postPromoApr > 0;
-}
-function promoIsActive(account: DebtAccount, month: number) {
-  return hasPromoTerms(account) && forecastMonthKey(month) <= account.promoEndDate.slice(0, 7);
-}
-function forecastApr(account: DebtAccount, month: number) {
-  return hasPromoTerms(account) && !promoIsActive(account, month) ? account.postPromoApr : account.apr;
-}
-function forecastMinimum(account: DebtAccount, balance: number, month: number) {
-  if (balance <= 0) return 0;
-  const currentMinimum = effectiveMinimum(account);
-  const amount = hasPromoTerms(account) && !promoIsActive(account, month) && account.postPromoMinimum > 0
-    ? account.postPromoMinimum
-    : currentMinimum;
-  return Math.min(balance, amount);
-}
-function forecastMonthlyRate(account: DebtAccount, month: number) {
-  if (hasPromoTerms(account) && !promoIsActive(account, month)) return account.postPromoApr / 1200;
-  return projectedMonthlyRate(account);
-}
-function individualPayoffMonths(account: DebtAccount) {
-  if (account.balance <= 0) return 0;
-  const result = calculatePlan([account], 0, "avalanche");
-  return result.stalled ? null : result.months.length;
-}
-function calculatePlan(accounts: DebtAccount[], extra: number, strategy: PayoffStrategy, linkedCardExpenses: LinkedCardExpenses = {}, linkedCardPurchases: LinkedCardExpenses = {}) {
-  const active = accounts.filter((account) => account.balance > 0 || (linkedCardExpenses[account.id] ?? 0) > 0 || (linkedCardPurchases[account.id] ?? 0) > 0);
-  const balances = new Map(active.map((account) => [account.id, account.balance]));
-  const monthly = active.reduce((sum, account) => sum + effectiveMinimum(account) + (linkedCardExpenses[account.id] ?? 0), 0) + extra;
-  const oneTimePurchaseTotal = active.reduce((sum, account) => sum + (linkedCardPurchases[account.id] ?? 0), 0);
-  const cardChargeForMonth = (accountId: string, month: number) => (
-    (linkedCardExpenses[accountId] ?? 0)
-    + (month === 1 ? (linkedCardPurchases[accountId] ?? 0) : 0)
-  );
-  const months: PlanMonth[] = [];
-  let totalInterest = 0;
-  let peakMonthly = monthly;
-  const promoMinimumFallbackIds = active.filter((account) => hasPromoTerms(account) && account.postPromoMinimum <= 0).map((account) => account.id);
-  const emptyResult = { months, totalInterest, monthly, peakMonthly, stalled: false, nonAmortizingAccountIds: [] as string[], promoMinimumFallbackIds };
-  if (!active.length) return emptyResult;
-  if (monthly <= 0 && oneTimePurchaseTotal <= 0) return { ...emptyResult, stalled: true, nonAmortizingAccountIds: active.map((account) => account.id) };
-
-  for (let month = 1; month <= 1200; month++) {
-    const before = new Map(balances);
-    const payments: Record<string, number> = {};
-    const minimums: Record<string, number> = {};
-    const aprs: Record<string, number> = {};
-    const interestByAccount: Record<string, number> = {};
-    let interest = 0;
-
-    active.forEach((account) => {
-      const balance = balances.get(account.id) ?? 0;
-      if (balance <= 0) return;
-      const apr = forecastApr(account, month);
-      const charge = balance * forecastMonthlyRate(account, month);
-      aprs[account.id] = apr;
-      interestByAccount[account.id] = charge;
-      balances.set(account.id, balance + charge);
-      interest += charge;
-    });
-    totalInterest += interest;
-
-    active.forEach((account) => {
-      const cardCharge = cardChargeForMonth(account.id, month);
-      if (cardCharge <= 0) return;
-      balances.set(account.id, (balances.get(account.id) ?? 0) + cardCharge);
-    });
-
-    let requiredMinimumTotal = 0;
-    active.forEach((account) => {
-      const balance = balances.get(account.id) ?? 0;
-      if (balance <= 0) return;
-      const minimum = forecastMinimum(account, balance, month);
-      minimums[account.id] = minimum;
-      requiredMinimumTotal += minimum + cardChargeForMonth(account.id, month);
-    });
-    const plannedMonthly = monthly + (month === 1 ? oneTimePurchaseTotal : 0);
-    const requiredMonthly = Math.max(plannedMonthly, round(requiredMinimumTotal));
-    const minimumIncrease = round(Math.max(0, requiredMonthly - monthly));
-    peakMonthly = Math.max(peakMonthly, requiredMonthly);
-    let available = requiredMonthly;
-
-    active.forEach((account) => {
-      const balance = balances.get(account.id) ?? 0;
-      const scheduledPayment = (minimums[account.id] ?? 0) + cardChargeForMonth(account.id, month);
-      const payment = Math.min(scheduledPayment, balance, available);
-      if (payment > 0) {
-        balances.set(account.id, balance - payment);
-        payments[account.id] = payment;
-        available -= payment;
-      }
-    });
-
-    const priority = [...active]
-      .filter((account) => account.payoffMode !== "minimum-only" && (balances.get(account.id) ?? 0) > 0.005)
-      .sort((a, b) => strategy === "avalanche"
-        ? forecastApr(b, month) - forecastApr(a, month) || (balances.get(a.id) ?? 0) - (balances.get(b.id) ?? 0)
-        : (balances.get(a.id) ?? 0) - (balances.get(b.id) ?? 0) || forecastApr(b, month) - forecastApr(a, month));
-    priority.forEach((account) => {
-      const balance = balances.get(account.id) ?? 0;
-      const payment = Math.min(balance, available);
-      if (payment > 0) {
-        balances.set(account.id, balance - payment);
-        payments[account.id] = (payments[account.id] ?? 0) + payment;
-        available -= payment;
-      }
-    });
-
-    const nonAmortizingAccountIds = active.filter((account) => {
-      const starting = before.get(account.id) ?? 0;
-      const ending = balances.get(account.id) ?? 0;
-      if (starting <= 0 || ending <= 0.005) return false;
-      const cost = (interestByAccount[account.id] ?? 0) + cardChargeForMonth(account.id, month);
-      return (payments[account.id] ?? 0) <= cost + 0.005 && ending >= starting - 0.005;
-    }).map((account) => account.id);
-    const remaining = [...balances.values()].reduce((sum, balance) => sum + balance, 0);
-    const paidOff = active.filter((account) => (before.get(account.id) ?? 0) > 0 && (balances.get(account.id) ?? 0) <= 0.005).map((account) => account.name);
-    months.push({
-      month,
-      interest,
-      paid: Object.values(payments).reduce((sum, payment) => sum + payment, 0),
-      remaining,
-      requiredMonthly,
-      minimumIncrease,
-      payments,
-      minimums,
-      aprs,
-      balances: Object.fromEntries([...balances].map(([id, balance]) => [id, Math.max(0, round(balance))])),
-      paidOff,
-      nonAmortizingAccountIds,
-    });
-    if (remaining <= 0.005) return { months, totalInterest, monthly, peakMonthly, stalled: false, nonAmortizingAccountIds: [], promoMinimumFallbackIds };
-    const previousRemaining = [...before.values()].reduce((sum, balance) => sum + balance, 0);
-    const hasPendingPromoChange = active.some((account) => promoIsActive(account, month));
-    if (!paidOff.length && remaining >= previousRemaining - 0.005 && !hasPendingPromoChange) {
-      return { months, totalInterest, monthly, peakMonthly, stalled: true, nonAmortizingAccountIds, promoMinimumFallbackIds };
-    }
-  }
-  const nonAmortizingAccountIds = active.filter((account) => (balances.get(account.id) ?? 0) > 0.005).map((account) => account.id);
-  return { months, totalInterest, monthly, peakMonthly, stalled: true, nonAmortizingAccountIds, promoMinimumFallbackIds };
 }
 
 const NAV_ITEMS: { id: PageId; label: string; icon: string }[] = [
@@ -1064,7 +896,7 @@ function AccountsPage({ accounts, activeCount, totalBalance, minimums, interest,
   return <div className="screen"><div className="screen-title"><div><span className="eyebrow">Debt workspace</span><h1>Debt accounts</h1><p>Review balances, minimums, payoff priority, limits, and due dates in one clear table.</p></div><div className="screen-actions"><label className="secondary import-file"><input type="file" accept=".csv,text/csv" onChange={(event) => { const input = event.currentTarget; const file = input.files?.[0]; if (file) void onImport(file).finally(() => { input.value = ""; }); }}/><span>Import CSV</span></label><button className="primary" type="button" onClick={onAdd}>+ Add account</button></div></div>{importMessage && <p className={importMessage.startsWith("Import failed") ? "import-message error" : "import-message"}>{importMessage}</p>}<section className="metrics"><article className="metric"><span>Total balance</span><strong>{moneyPrecise.format(totalBalance)}</strong><small>Opening balances plus active ledger entries</small></article><article className="metric"><span>Active accounts</span><strong>{activeCount}</strong><small>{accounts.length - activeCount} paid off</small></article><article className="metric"><span>Monthly card payments</span><strong>{moneyPrecise.format(minimums + totalLinkedExpenses)}</strong><small>{totalLinkedExpenses > 0 ? `${moneyPrecise.format(minimums)} minimums + ${moneyPrecise.format(totalLinkedExpenses)} card expenses` : "Auto estimates included"}</small></article><article className="metric"><span>Monthly interest</span><strong>{moneyPrecise.format(interest)}</strong><small>At current balances</small></article></section><section className="table-card"><div className="table-card-head"><div><span>Your debt accounts</span><strong>{accounts.length} {accounts.length === 1 ? "record" : "records"}</strong></div><span className="swipe-note">Click minimum or status to change it</span></div>{accounts.length ? <div className="table-scroll"><table className="accounts-table"><caption>Sortable debt account list</caption><thead><tr>{headers.map((header) => <th key={header.key}><button type="button" onClick={() => onSort(header.key)}>{header.label}<i>{sortKey === header.key ? (sortDirection === "asc" ? "↑" : "↓") : "↕"}</i></button></th>)}</tr></thead><tbody>{accounts.map((account) => { const payoff = paidOffById.get(account.id); const cardExpense = linkedCardExpenses[account.id] ?? 0; return <tr key={account.id}><td><button className="account-name" type="button" onClick={() => onEdit(account)}><span>{account.name.slice(0,2).toUpperCase()}</span><div><strong>{account.name}</strong><small>{account.type}</small></div></button></td><td className="number-cell"><strong>{moneyPrecise.format(account.balance)}</strong>{account.creditLimit > 0 && <small>{Math.round(account.balance/account.creditLimit*100)}% utilized</small>}</td><td className="number-cell"><strong>{account.creditLimit > 0 ? moneyPrecise.format(account.creditLimit) : "—"}</strong></td><td className="number-cell">{account.apr.toFixed(2)}%</td><td><button className={`minimum-toggle ${account.minimumMode}`} type="button" onClick={() => onToggleMinimum(account.id)} aria-label={`${account.name}: ${account.minimumMode === "auto" ? "use manual minimum payment" : "use automatic minimum estimate"}`}><strong>{moneyPrecise.format(effectiveMinimum(account) + cardExpense)}</strong><small>{cardExpense > 0 ? `${moneyPrecise.format(effectiveMinimum(account))} min + ${moneyPrecise.format(cardExpense)} expenses` : account.minimumMode === "auto" ? "Auto estimate" : "Manual amount"}</small></button></td><td className="number-cell"><strong>{moneyPrecise.format(monthlyInterest(account))}</strong><small>{account.interestFee > 0 ? "Actual statement fee" : "APR estimate"}</small></td><td><button className={`status-toggle ${account.balance <= 0 ? "paid" : account.payoffMode}`} type="button" disabled={account.balance <= 0} onClick={() => onTogglePayoff(account.id)} title={account.balance > 0 ? "Switch between payoff priority and minimum-only payments" : "This account is paid off"}>{account.balance <= 0 ? "Paid off" : account.payoffMode === "minimum-only" ? "Minimum only" : "Payoff priority"}</button></td><td><span className="date-cell"><i>□</i>{formatDate(account.dueDate)}</span></td><td>{account.balance <= 0 ? <strong className="paid-date">Complete</strong> : payoff ? <span>{monthAfter(payoff - 1)}</span> : <span className="needs">Needs adjustment</span>}</td></tr>; })}</tbody><tfoot><tr><td>Total</td><td className="number-cell">{moneyPrecise.format(totalBalance)}</td><td className="number-cell">{moneyPrecise.format(totalCreditLimit)}</td><td></td><td className="number-cell">{moneyPrecise.format(minimums + totalLinkedExpenses)}</td><td className="number-cell">{moneyPrecise.format(interest)}</td><td colSpan={3}></td></tr></tfoot></table></div> : <div className="empty-table"><span>▤</span><h2>No debt accounts yet</h2><p>Import the CSV from your original DebtFree app, add your first account, or load temporary sample records.</p><div><label className="secondary import-file"><input type="file" accept=".csv,text/csv" onChange={(event) => { const input = event.currentTarget; const file = input.files?.[0]; if (file) void onImport(file).finally(() => { input.value = ""; }); }}/><span>Import DebtFree CSV</span></label><button className="primary" type="button" onClick={onAdd}>+ Add account</button><button className="secondary" type="button" onClick={onSample}>Load samples</button></div></div>}</section></div>;
 }
 
-function PayoffPlanPage({ accounts, plan, extra, availableExtra, strategy, linkedCardExpenseItems, linkedCardPurchaseItems, monthlyItems, transactions, snapshots, onExtra, onStrategy, onAccounts, onEditAccount }: { accounts: DebtAccount[]; plan: ReturnType<typeof calculatePlan>; extra: number; availableExtra: number; strategy: PayoffStrategy; linkedCardExpenseItems: LinkedCardExpenseItems; linkedCardPurchaseItems: LinkedCardPurchaseItems; monthlyItems: CashflowItem[]; transactions: LedgerTransaction[]; snapshots: PayoffSnapshot[]; onExtra: (value: number) => void; onStrategy: (strategy: PayoffStrategy) => void; onAccounts: () => void; onEditAccount: (account: DebtAccount) => void }) {
+function PayoffPlanPage({ accounts, plan, extra, availableExtra, strategy, linkedCardExpenseItems, linkedCardPurchaseItems, monthlyItems, transactions, snapshots, onExtra, onStrategy, onAccounts, onEditAccount }: { accounts: DebtAccount[]; plan: PayoffPlan; extra: number; availableExtra: number; strategy: PayoffStrategy; linkedCardExpenseItems: LinkedCardExpenseItems; linkedCardPurchaseItems: LinkedCardPurchaseItems; monthlyItems: CashflowItem[]; transactions: LedgerTransaction[]; snapshots: PayoffSnapshot[]; onExtra: (value: number) => void; onStrategy: (strategy: PayoffStrategy) => void; onAccounts: () => void; onEditAccount: (account: DebtAccount) => void }) {
   const [exporting, setExporting] = useState<"csv" | "excel" | "pdf" | null>(null);
   const [exportError, setExportError] = useState("");
   const description = strategy === "avalanche" ? "Highest APR first - usually the lowest total interest." : "Lowest balance first - faster early wins.";
@@ -1347,7 +1179,7 @@ function StatsPage({ accounts, snapshots, transactions, extra, strategy, linkedC
   const latestSnapshot = orderedSnapshots.at(-1) ?? null;
   const actualSnapshotReduction = firstSnapshot && latestSnapshot ? round(firstSnapshot.totalBalance - latestSnapshot.totalBalance) : 0;
   const averageSnapshotReduction = orderedSnapshots.length > 1 ? round(actualSnapshotReduction / (orderedSnapshots.length - 1)) : 0;
-  const payoffDate = (result: ReturnType<typeof calculatePlan>) => result.stalled ? (result.nonAmortizingAccountIds.length ? "No payoff at this payment" : "Needs adjustment") : result.months.length ? monthAfter(result.months.length - 1) : totalDebt <= 0 ? "Debt free" : "No projection";
+  const payoffDate = (result: PayoffPlan) => result.stalled ? (result.nonAmortizingAccountIds.length ? "No payoff at this payment" : "Needs adjustment") : result.months.length ? monthAfter(result.months.length - 1) : totalDebt <= 0 ? "Debt free" : "No projection";
   const scenarioValues = [...new Set([0, extra, extra + 100, extra + 250, extra + 500].map((value) => Math.max(0, round(value))))].sort((a, b) => a - b);
   const scenarios = scenarioValues.map((value) => ({ value, result: calculatePlan(accounts, value, strategy, linkedCardExpenses, linkedCardPurchases) }));
   const milestone = (remainingShare: number) => { const entry = forecast.months.find((month) => month.remaining <= totalDebt * remainingShare + .005); return entry ? monthAfter(entry.month - 1) : null; };
