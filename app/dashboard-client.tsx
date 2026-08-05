@@ -12,13 +12,14 @@ import {
   serializeDashboardBackup,
   type CashflowItem,
   type CashflowKind,
-  type DashboardBackupV1,
+  type DashboardBackup,
   type DashboardPayload,
   type DebtAccount,
   type DebtType,
   type LedgerTransaction,
   type Payee,
   type PayoffSnapshot,
+  type PlannedPayoffData,
   type PayoffStrategy,
   type TransactionType,
 } from "./dashboard-data";
@@ -34,6 +35,14 @@ import {
   type LinkedCardExpenses,
   type PayoffPlan,
 } from "./payoff-engine";
+import OnboardingFlow from "./onboarding-flow";
+import {
+  createOnboardingPlanning,
+  hasEstablishedDashboardData,
+  hasOnboardingProgress,
+  shouldShowOnboarding,
+  type GeneratedOnboardingPlan,
+} from "./onboarding-plan";
 import { scanReceipt, type ReceiptScanResult } from "./receipt-ocr";
 
 type PageId = "dashboard" | "accounts" | "history" | "plan" | "snapshots" | "utilization" | "stats" | "profile";
@@ -51,7 +60,7 @@ type HouseholdMember = { email: string; display_name: string | null; role: House
 type HouseholdResponse = { householdName: string; role: HouseholdRole; payload: unknown; revision: number; members: HouseholdMember[] };
 
 function hasMeaningfulData(payload: DashboardPayload) {
-  return payload.accounts.length > 0 || Object.values(payload.monthlyBudgets).some((items) => items.length > 0) || payload.payees.length > 0 || payload.transactions.length > 0 || payload.snapshots.length > 0 || payload.extra > 0;
+  return hasEstablishedDashboardData(payload) || payload.planning.onboarding.completed || hasOnboardingProgress(payload.planning);
 }
 
 const STORAGE_KEY = "debtfree-dashboard-prototype-v1";
@@ -212,10 +221,11 @@ const NAV_ITEMS: { id: PageId; label: string; icon: string }[] = [
 
 export default function DashboardClient({ user }: { user: DashboardUser }) {
   const cloudWritesEnabled = useRef(false);
-  const dashboardContract = useRef<DashboardBackupV1 | null>(null);
+  const dashboardContract = useRef<DashboardBackup | null>(null);
   const [page, setPage] = useState<PageId>("dashboard");
   const [accounts, setAccounts] = useState<DebtAccount[]>([]);
   const [monthlyBudgets, setMonthlyBudgets] = useState<Record<string, CashflowItem[]>>({});
+  const [planning, setPlanning] = useState<PlannedPayoffData>(() => createOnboardingPlanning());
   const [selectedMonth, setSelectedMonth] = useState(currentMonthKey());
   const [payees, setPayees] = useState<Payee[]>([]);
   const [transactions, setTransactions] = useState<LedgerTransaction[]>([]);
@@ -245,7 +255,7 @@ export default function DashboardClient({ user }: { user: DashboardUser }) {
   const deviceOnly = user.email === "Local device storage only";
   const isViewer = !deviceOnly && householdRole === "viewer";
 
-  const applyDashboardPayload = useCallback((contract: DashboardBackupV1) => {
+  const applyDashboardPayload = useCallback((contract: DashboardBackup) => {
     dashboardContract.current = contract;
     const { payload } = contract;
     setAccounts(payload.accounts);
@@ -255,6 +265,7 @@ export default function DashboardClient({ user }: { user: DashboardUser }) {
     setSnapshots(payload.snapshots);
     setExtra(payload.extra);
     setStrategy(payload.strategy);
+    setPlanning(payload.planning);
   }, []);
 
   useEffect(() => {
@@ -265,7 +276,7 @@ export default function DashboardClient({ user }: { user: DashboardUser }) {
   useEffect(() => {
     let cancelled = false;
     const load = async () => {
-      let localContract: DashboardBackupV1 | null = null;
+      let localContract: DashboardBackup | null = null;
       try {
         const saved = localStorage.getItem(STORAGE_KEY);
         const backup = localStorage.getItem(STORAGE_BACKUP_KEY);
@@ -319,7 +330,7 @@ export default function DashboardClient({ user }: { user: DashboardUser }) {
   }, [applyDashboardPayload, deviceOnly]);
   useEffect(() => {
     if (!loaded || isViewer) return;
-    const payload = createDashboardPayload(dashboardContract.current?.payload, { accounts, monthlyBudgets, payees, transactions, snapshots, extra, strategy });
+    const payload = createDashboardPayload(dashboardContract.current?.payload, { accounts, monthlyBudgets, payees, transactions, snapshots, extra, strategy, planning });
     if (hasMeaningfulData(payload)) cloudWritesEnabled.current = true;
     if (!cloudWritesEnabled.current) return;
     const contract = createDashboardBackup(payload, dashboardContract.current);
@@ -341,7 +352,7 @@ export default function DashboardClient({ user }: { user: DashboardUser }) {
         .catch(() => setCloudStatus("error"));
     }, 650);
     return () => window.clearTimeout(syncTimer);
-  }, [accounts, deviceOnly, extra, isViewer, loaded, monthlyBudgets, payees, snapshots, strategy, transactions]);
+  }, [accounts, deviceOnly, extra, isViewer, loaded, monthlyBudgets, payees, planning, snapshots, strategy, transactions]);
   useEffect(() => {
     if (!modalOpen && !cashflowModalOpen && !transactionModalOpen && !payeeModalOpen) return;
     const close = (event: KeyboardEvent) => { if (event.key === "Escape") { setModalOpen(false); setCashflowModalOpen(false); setTransactionModalOpen(false); setPayeeModalOpen(false); } };
@@ -498,7 +509,7 @@ export default function DashboardClient({ user }: { user: DashboardUser }) {
   };
 
   const exportDashboardBackup = () => {
-    const payload = createDashboardPayload(dashboardContract.current?.payload, { accounts, monthlyBudgets, payees, transactions, snapshots, extra, strategy });
+    const payload = createDashboardPayload(dashboardContract.current?.payload, { accounts, monthlyBudgets, payees, transactions, snapshots, extra, strategy, planning });
     const backup = createDashboardBackup(payload, dashboardContract.current);
     dashboardContract.current = backup;
     const url = URL.createObjectURL(new Blob([serializeDashboardBackup(backup, true)], { type: "application/json" }));
@@ -518,7 +529,7 @@ export default function DashboardClient({ user }: { user: DashboardUser }) {
       const contract = parseDashboardJson(await file.text());
       const { payload } = contract;
       if (!hasMeaningfulData(payload)) throw new Error("The backup does not contain dashboard data.");
-      const current = createDashboardPayload(dashboardContract.current?.payload, { accounts, monthlyBudgets, payees, transactions, snapshots, extra, strategy });
+      const current = createDashboardPayload(dashboardContract.current?.payload, { accounts, monthlyBudgets, payees, transactions, snapshots, extra, strategy, planning });
       if (hasMeaningfulData(current) && !window.confirm("Replace the data currently on this device with the selected full backup?")) {
         setTransferMessage("Import canceled. Your current dashboard was not changed.");
         return;
@@ -645,6 +656,24 @@ export default function DashboardClient({ user }: { user: DashboardUser }) {
       return next;
     });
   };
+  const completeOnboarding = (result: GeneratedOnboardingPlan) => {
+    cloudWritesEnabled.current = true;
+    setAccounts(result.accounts);
+    setPlanning(result.planning);
+    setExtra(result.extra);
+    setStrategy(result.strategy);
+    setPage("plan");
+  };
+  if (!loaded) return <main className="onboarding-shell onboarding-loading" role="status"><div><span>DF</span><strong>Loading your household.</strong></div></main>;
+  if (!isViewer && shouldShowOnboarding({ accounts, monthlyBudgets, payees, transactions, snapshots, extra, strategy, planning })) {
+    return <OnboardingFlow
+      planning={planning}
+      importMessage={transferMessage}
+      onPlanningChange={setPlanning}
+      onImport={importDashboardBackup}
+      onComplete={completeOnboarding}
+    />;
+  }
   return <div className={navigationCollapsed ? "app-shell dashboard-collapsed" : "app-shell"}>
     <aside className="sidebar" id="dashboard-navigation">
       <div className="sidebar-head"><button className="brand" type="button" onClick={() => setPage("dashboard")}><span>DF</span><div><strong>DebtFree</strong><small>Dashboard</small></div></button><button className={navigationCollapsed ? "dashboard-toggle sidebar-dashboard-toggle is-collapsed" : "dashboard-toggle sidebar-dashboard-toggle"} type="button" onClick={toggleDashboardNavigation} aria-label={navigationCollapsed ? "Expand dashboard navigation" : "Collapse dashboard navigation"} aria-controls="dashboard-navigation" aria-expanded={!navigationCollapsed}><i aria-hidden="true"><b/></i></button></div>

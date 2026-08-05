@@ -1,5 +1,6 @@
 export const DASHBOARD_BACKUP_FORMAT = "debtfree-dashboard-backup" as const;
-export const DASHBOARD_DATA_VERSION = 1 as const;
+export const LEGACY_DASHBOARD_DATA_VERSION = 1 as const;
+export const DASHBOARD_DATA_VERSION = 2 as const;
 
 export type DebtType = "Credit card" | "Personal loan" | "Auto loan" | "Student loan" | "Medical debt" | "Other";
 export type MinimumMode = "auto" | "manual";
@@ -8,6 +9,8 @@ export type PayoffStrategy = "avalanche" | "snowball";
 export type CashflowKind = "income" | "expense" | "purchase" | "budget";
 export type PaymentMethod = "debit" | "credit";
 export type TransactionType = "charge" | "payment" | "fee";
+export type PlannedAssignment = "household" | "partner-1" | "partner-2";
+export type PayoffCapacityMethod = "known" | "calculated";
 
 export type DebtAccount = {
   id: string;
@@ -25,6 +28,7 @@ export type DebtAccount = {
   postPromoApr: number;
   postPromoMinimum: number;
   createdAt: string;
+  householdMember?: PlannedAssignment;
   [key: string]: unknown;
 };
 
@@ -86,7 +90,62 @@ export type PayoffSnapshot = {
   [key: string]: unknown;
 };
 
-export type DashboardPayload = {
+export type PlannedIncomeSource = {
+  id: string;
+  name: string;
+  monthlyTakeHome: number;
+  assignment: PlannedAssignment;
+  [key: string]: unknown;
+};
+
+export type PlannedDebt = {
+  id: string;
+  name: string;
+  balance: number;
+  apr: number;
+  minimum: number;
+  dueDate: string;
+  creditLimit: number;
+  promoEndDate: string;
+  postPromoApr: number;
+  postPromoMinimum: number;
+  type: DebtType;
+  assignment: PlannedAssignment;
+  payoffMode: PayoffMode;
+  [key: string]: unknown;
+};
+
+export type PlannedEssentialExpenses = {
+  housing: number;
+  utilities: number;
+  food: number;
+  transportation: number;
+  insurance: number;
+  subscriptions: number;
+  otherObligations: number;
+  safetyBuffer: number;
+  [key: string]: unknown;
+};
+
+export type PlannedPayoffData = {
+  onboarding: {
+    completed: boolean;
+    currentStep: number;
+    completedAt: string | null;
+    [key: string]: unknown;
+  };
+  incomeSources: PlannedIncomeSource[];
+  debts: PlannedDebt[];
+  essentialExpenses: PlannedEssentialExpenses;
+  capacity: {
+    method: PayoffCapacityMethod;
+    monthlyAmount: number;
+    [key: string]: unknown;
+  };
+  [key: string]: unknown;
+};
+
+export type DashboardPayloadV1 = {
   accounts: DebtAccount[];
   monthlyBudgets: Record<string, CashflowItem[]>;
   payees: Payee[];
@@ -97,7 +156,19 @@ export type DashboardPayload = {
   [key: string]: unknown;
 };
 
+export type DashboardPayload = DashboardPayloadV1 & {
+  planning: PlannedPayoffData;
+};
+
 export type DashboardBackupV1 = {
+  format: typeof DASHBOARD_BACKUP_FORMAT;
+  version: typeof LEGACY_DASHBOARD_DATA_VERSION;
+  exportedAt: string;
+  payload: DashboardPayloadV1;
+  [key: string]: unknown;
+};
+
+export type DashboardBackupV2 = {
   format: typeof DASHBOARD_BACKUP_FORMAT;
   version: typeof DASHBOARD_DATA_VERSION;
   exportedAt: string;
@@ -105,7 +176,28 @@ export type DashboardBackupV1 = {
   [key: string]: unknown;
 };
 
+export type DashboardBackup = DashboardBackupV2;
+
 type UnknownRecord = Record<string, unknown>;
+
+export function createEmptyPlannedPayoff(): PlannedPayoffData {
+  return {
+    onboarding: { completed: false, currentStep: 1, completedAt: null },
+    incomeSources: [],
+    debts: [],
+    essentialExpenses: {
+      housing: 0,
+      utilities: 0,
+      food: 0,
+      transportation: 0,
+      insurance: 0,
+      subscriptions: 0,
+      otherObligations: 0,
+      safetyBuffer: 0,
+    },
+    capacity: { method: "known", monthlyAmount: 0 },
+  };
+}
 
 export class DashboardDataError extends Error {
   readonly issues: string[];
@@ -126,6 +218,8 @@ const paymentMethods = new Set<PaymentMethod>(["debit", "credit"]);
 const transactionTypes = new Set<TransactionType>(["charge", "payment", "fee"]);
 const strategies = new Set<PayoffStrategy>(["avalanche", "snowball"]);
 
+const plannedAssignments = new Set<PlannedAssignment>(["household", "partner-1", "partner-2"]);
+const capacityMethods = new Set<PayoffCapacityMethod>(["known", "calculated"]);
 function isRecord(value: unknown): value is UnknownRecord {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
 }
@@ -192,6 +286,52 @@ function migrateSnapshot(value: unknown) {
   };
 }
 
+function migratePlannedDebt(value: unknown) {
+  if (!isRecord(value)) return value;
+  return {
+    ...value,
+    dueDate: withDefault(value, "dueDate", ""),
+    creditLimit: withDefault(value, "creditLimit", 0),
+    promoEndDate: withDefault(value, "promoEndDate", ""),
+    postPromoApr: withDefault(value, "postPromoApr", 0),
+    postPromoMinimum: withDefault(value, "postPromoMinimum", 0),
+    type: withDefault(value, "type", "Credit card"),
+    assignment: withDefault(value, "assignment", "household"),
+    payoffMode: withDefault(value, "payoffMode", "priority"),
+  };
+}
+
+function migratePlanning(value: unknown): unknown {
+  const defaults = createEmptyPlannedPayoff();
+  if (!isRecord(value)) return defaults;
+  const onboarding = isRecord(value.onboarding) ? {
+    ...value.onboarding,
+    completed: withDefault(value.onboarding, "completed", false),
+    currentStep: withDefault(value.onboarding, "currentStep", 1),
+    completedAt: withDefault(value.onboarding, "completedAt", null),
+  } : defaults.onboarding;
+  const expenses = isRecord(value.essentialExpenses) ? {
+    ...value.essentialExpenses,
+    ...Object.fromEntries(Object.entries(defaults.essentialExpenses).map(([key, fallback]) => [key, withDefault(value.essentialExpenses as UnknownRecord, key, fallback)])),
+  } : defaults.essentialExpenses;
+  const capacity = isRecord(value.capacity) ? {
+    ...value.capacity,
+    method: withDefault(value.capacity, "method", "known"),
+    monthlyAmount: withDefault(value.capacity, "monthlyAmount", 0),
+  } : defaults.capacity;
+  return {
+    ...value,
+    onboarding,
+    incomeSources: Array.isArray(value.incomeSources) ? value.incomeSources.map((item) => isRecord(item) ? {
+      ...item,
+      assignment: withDefault(item, "assignment", "household"),
+    } : item) : [],
+    debts: Array.isArray(value.debts) ? value.debts.map(migratePlannedDebt) : [],
+    essentialExpenses: expenses,
+    capacity,
+  };
+}
+
 function migratePayloadFields(value: unknown): unknown {
   if (!isRecord(value)) return value;
   const legacyCashflow = Array.isArray(value.cashflowItems)
@@ -211,6 +351,11 @@ function migratePayloadFields(value: unknown): unknown {
     extra: withDefault(value, "extra", 0),
     strategy: withDefault(value, "strategy", "avalanche"),
   };
+}
+
+function migratePayloadV1ToV2(value: unknown): unknown {
+  if (!isRecord(value)) return value;
+  return { ...value, planning: migratePlanning(value.planning) };
 }
 
 function requiredRecord(value: unknown, path: string, issues: string[]): UnknownRecord | null {
@@ -245,6 +390,10 @@ function requiredNumber(value: unknown, path: string, issues: string[], integer 
   if (value < 0) issues.push(`${path} must be zero or greater.`);
   if (integer && !Number.isInteger(value)) issues.push(`${path} must be a whole number.`);
 }
+function requiredBoolean(value: unknown, path: string, issues: string[]) {
+  if (typeof value !== "boolean") issues.push(path + " must be true or false.");
+}
+
 
 function enumValue<T extends string>(value: unknown, allowed: Set<T>, path: string, issues: string[]) {
   if (typeof value !== "string" || !allowed.has(value as T)) issues.push(`${path} must be one of: ${[...allowed].join(", ")}.`);
@@ -268,6 +417,7 @@ function validateAccount(value: unknown, path: string, issues: string[]) {
   requiredNumber(item.postPromoApr, `${path}.postPromoApr`, issues);
   requiredNumber(item.postPromoMinimum, `${path}.postPromoMinimum`, issues);
   requiredString(item.createdAt, `${path}.createdAt`, issues);
+  if (hasOwn(item, "householdMember")) enumValue(item.householdMember, plannedAssignments, path + ".householdMember", issues);
 }
 
 function validateCashflow(value: unknown, path: string, issues: string[]) {
@@ -334,7 +484,60 @@ function validateSnapshot(value: unknown, path: string, issues: string[]) {
   accounts?.forEach((account, index) => validateSnapshotAccount(account, `${path}.accounts[${index}]`, issues));
 }
 
-export function validateDashboardPayload(value: unknown, path = "payload"): DashboardPayload {
+function validatePlannedIncome(value: unknown, path: string, issues: string[]) {
+  const item = requiredRecord(value, path, issues);
+  if (!item) return;
+  requiredString(item.id, path + ".id", issues);
+  requiredString(item.name, path + ".name", issues);
+  requiredNumber(item.monthlyTakeHome, path + ".monthlyTakeHome", issues);
+  enumValue(item.assignment, plannedAssignments, path + ".assignment", issues);
+}
+
+function validatePlannedDebt(value: unknown, path: string, issues: string[]) {
+  const item = requiredRecord(value, path, issues);
+  if (!item) return;
+  requiredString(item.id, path + ".id", issues);
+  requiredString(item.name, path + ".name", issues);
+  requiredNumber(item.balance, path + ".balance", issues);
+  requiredNumber(item.apr, path + ".apr", issues);
+  requiredNumber(item.minimum, path + ".minimum", issues);
+  requiredString(item.dueDate, path + ".dueDate", issues, true);
+  requiredNumber(item.creditLimit, path + ".creditLimit", issues);
+  requiredString(item.promoEndDate, path + ".promoEndDate", issues, true);
+  requiredNumber(item.postPromoApr, path + ".postPromoApr", issues);
+  requiredNumber(item.postPromoMinimum, path + ".postPromoMinimum", issues);
+  enumValue(item.type, debtTypes, path + ".type", issues);
+  enumValue(item.assignment, plannedAssignments, path + ".assignment", issues);
+  enumValue(item.payoffMode, payoffModes, path + ".payoffMode", issues);
+}
+
+function validatePlanning(value: unknown, path: string, issues: string[]) {
+  const planning = requiredRecord(value, path, issues);
+  if (!planning) return;
+  const onboarding = requiredRecord(planning.onboarding, path + ".onboarding", issues);
+  if (onboarding) {
+    requiredBoolean(onboarding.completed, path + ".onboarding.completed", issues);
+    requiredNumber(onboarding.currentStep, path + ".onboarding.currentStep", issues, true);
+    if (typeof onboarding.currentStep === "number" && (onboarding.currentStep < 1 || onboarding.currentStep > 5)) issues.push(path + ".onboarding.currentStep must be between 1 and 5.");
+    nullableString(onboarding.completedAt, path + ".onboarding.completedAt", issues);
+  }
+  const incomeSources = requiredArray(planning.incomeSources, path + ".incomeSources", issues);
+  incomeSources?.forEach((income, index) => validatePlannedIncome(income, path + ".incomeSources[" + index + "]", issues));
+  const debts = requiredArray(planning.debts, path + ".debts", issues);
+  debts?.forEach((debt, index) => validatePlannedDebt(debt, path + ".debts[" + index + "]", issues));
+  const expenses = requiredRecord(planning.essentialExpenses, path + ".essentialExpenses", issues);
+  if (expenses) {
+    ["housing", "utilities", "food", "transportation", "insurance", "subscriptions", "otherObligations", "safetyBuffer"]
+      .forEach((key) => requiredNumber(expenses[key], path + ".essentialExpenses." + key, issues));
+  }
+  const capacity = requiredRecord(planning.capacity, path + ".capacity", issues);
+  if (capacity) {
+    enumValue(capacity.method, capacityMethods, path + ".capacity.method", issues);
+    requiredNumber(capacity.monthlyAmount, path + ".capacity.monthlyAmount", issues);
+  }
+}
+
+function validateDashboardPayloadFields(value: unknown, path: string, includePlanning: boolean) {
   const issues: string[] = [];
   const payload = requiredRecord(value, path, issues);
   if (payload) {
@@ -354,31 +557,52 @@ export function validateDashboardPayload(value: unknown, path = "payload"): Dash
     requiredNumber(payload.extra, `${path}.extra`, issues);
     enumValue(payload.strategy, strategies, `${path}.strategy`, issues);
   }
+  if (payload && includePlanning) validatePlanning(payload.planning, path + ".planning", issues);
   if (issues.length) throw new DashboardDataError(issues);
-  return value as DashboardPayload;
+  return value as DashboardPayload | DashboardPayloadV1;
+}
+
+function validateDashboardPayloadV1(value: unknown, path = "payload"): DashboardPayloadV1 {
+  return validateDashboardPayloadFields(value, path, false) as DashboardPayloadV1;
+}
+
+export function validateDashboardPayload(value: unknown, path = "payload"): DashboardPayload {
+  return validateDashboardPayloadFields(value, path, true) as DashboardPayload;
 }
 
 export function migrateV0ToV1(value: unknown, exportedAt = new Date().toISOString()): DashboardBackupV1 {
-  const payload = validateDashboardPayload(migratePayloadFields(value));
-  return { format: DASHBOARD_BACKUP_FORMAT, version: DASHBOARD_DATA_VERSION, exportedAt, payload };
+  const payload = validateDashboardPayloadV1(migratePayloadFields(value));
+  return { format: DASHBOARD_BACKUP_FORMAT, version: LEGACY_DASHBOARD_DATA_VERSION, exportedAt, payload };
+}
+
+export function migrateV1ToV2(value: DashboardBackupV1): DashboardBackup {
+  const payload = validateDashboardPayload(migratePayloadV1ToV2(value.payload));
+  return { ...value, format: DASHBOARD_BACKUP_FORMAT, version: DASHBOARD_DATA_VERSION, exportedAt: value.exportedAt, payload };
 }
 
 function wrapperSignal(value: UnknownRecord) {
   return hasOwn(value, "format") || hasOwn(value, "version") || hasOwn(value, "payload") || hasOwn(value, "exportedAt");
 }
 
-export function parseDashboardContract(value: unknown, path = "backup"): DashboardBackupV1 {
+export function parseDashboardContract(value: unknown, path = "backup"): DashboardBackup {
   if (!isRecord(value)) throw new DashboardDataError([`${path} must be a JSON object.`]);
-  if (!wrapperSignal(value)) return migrateV0ToV1(value);
+  if (!wrapperSignal(value)) return migrateV1ToV2(migrateV0ToV1(value));
 
   const issues: string[] = [];
   if (value.format !== DASHBOARD_BACKUP_FORMAT) issues.push(`${path}.format must be "${DASHBOARD_BACKUP_FORMAT}".`);
-  if (value.version !== DASHBOARD_DATA_VERSION) issues.push(`${path}.version must be ${DASHBOARD_DATA_VERSION}; received ${JSON.stringify(value.version)}.`);
+  if (value.version !== LEGACY_DASHBOARD_DATA_VERSION && value.version !== DASHBOARD_DATA_VERSION) {
+    issues.push(`${path}.version must be ${LEGACY_DASHBOARD_DATA_VERSION} or ${DASHBOARD_DATA_VERSION}; received ${JSON.stringify(value.version)}.`);
+  }
   requiredString(value.exportedAt, `${path}.exportedAt`, issues);
   if (!hasOwn(value, "payload")) issues.push(`${path}.payload is required.`);
   if (issues.length) throw new DashboardDataError(issues);
-  const payload = validateDashboardPayload(migratePayloadFields(value.payload), `${path}.payload`);
-  return { ...value, format: DASHBOARD_BACKUP_FORMAT, version: DASHBOARD_DATA_VERSION, exportedAt: value.exportedAt as string, payload } as DashboardBackupV1;
+  const corePayload = migratePayloadFields(value.payload);
+  if (value.version === LEGACY_DASHBOARD_DATA_VERSION) {
+    const payload = validateDashboardPayloadV1(corePayload, `${path}.payload`);
+    return migrateV1ToV2({ ...value, format: DASHBOARD_BACKUP_FORMAT, version: LEGACY_DASHBOARD_DATA_VERSION, exportedAt: value.exportedAt as string, payload } as DashboardBackupV1);
+  }
+  const payload = validateDashboardPayload(migratePayloadV1ToV2(corePayload), `${path}.payload`);
+  return { ...value, format: DASHBOARD_BACKUP_FORMAT, version: DASHBOARD_DATA_VERSION, exportedAt: value.exportedAt as string, payload } as DashboardBackup;
 }
 
 function jsonError(error: unknown, text: string, path: string) {
@@ -393,18 +617,18 @@ function jsonError(error: unknown, text: string, path: string) {
   return new DashboardDataError([`${path} contains invalid JSON at line ${line}, column ${column}.`]);
 }
 
-export function parseDashboardJson(text: string): DashboardBackupV1 {
+export function parseDashboardJson(text: string): DashboardBackup {
   let value: unknown;
   try { value = JSON.parse(text); }
   catch (error) { throw jsonError(error, text, "Backup file"); }
   return parseDashboardContract(value);
 }
 
-export function createDashboardPayload(template: DashboardPayload | null | undefined, known: Pick<DashboardPayload, "accounts" | "monthlyBudgets" | "payees" | "transactions" | "snapshots" | "extra" | "strategy">): DashboardPayload {
+export function createDashboardPayload(template: DashboardPayload | null | undefined, known: Pick<DashboardPayload, "accounts" | "monthlyBudgets" | "payees" | "transactions" | "snapshots" | "extra" | "strategy" | "planning">): DashboardPayload {
   return validateDashboardPayload({ ...(template ?? {}), ...known });
 }
 
-export function createDashboardBackup(payload: DashboardPayload, template?: DashboardBackupV1 | null, exportedAt = new Date().toISOString()): DashboardBackupV1 {
+export function createDashboardBackup(payload: DashboardPayload, template?: DashboardBackup | null, exportedAt = new Date().toISOString()): DashboardBackup {
   return {
     ...(template ?? {}),
     format: DASHBOARD_BACKUP_FORMAT,
@@ -414,12 +638,12 @@ export function createDashboardBackup(payload: DashboardPayload, template?: Dash
   };
 }
 
-export function serializeDashboardBackup(backup: DashboardBackupV1, pretty = false) {
+export function serializeDashboardBackup(backup: DashboardBackup | DashboardBackupV1, pretty = false) {
   const validated = parseDashboardContract(backup);
   return JSON.stringify(validated, null, pretty ? 2 : undefined);
 }
 
-export function parseHouseholdWriteJson(raw: string): DashboardBackupV1 {
+export function parseHouseholdWriteJson(raw: string): DashboardBackup {
   let body: unknown;
   try { body = JSON.parse(raw); }
   catch (error) { throw jsonError(error, raw, "Household request"); }

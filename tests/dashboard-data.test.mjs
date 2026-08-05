@@ -5,10 +5,13 @@ import test from "node:test";
 import {
   DASHBOARD_BACKUP_FORMAT,
   DASHBOARD_DATA_VERSION,
+  LEGACY_DASHBOARD_DATA_VERSION,
   DashboardDataError,
   createDashboardBackup,
+  createEmptyPlannedPayoff,
   createDashboardPayload,
   migrateV0ToV1,
+  migrateV1ToV2,
   parseDashboardContract,
   parseDashboardJson,
   parseHouseholdWriteJson,
@@ -34,17 +37,23 @@ test("imports the anonymized unwrapped legacy v0 shape without loss", () => {
   const contract = parseDashboardContract(fixture);
   assert.equal(contract.format, DASHBOARD_BACKUP_FORMAT);
   assert.equal(contract.version, DASHBOARD_DATA_VERSION);
-  assert.deepEqual(contract.payload, fixture);
+  const { planning, ...legacyPayload } = contract.payload;
+  assert.deepEqual(legacyPayload, fixture);
+  assert.deepEqual(planning, createEmptyPlannedPayoff());
 });
 
 test("imports the existing wrapped version-1 backup", () => {
   const wrapped = {
     format: DASHBOARD_BACKUP_FORMAT,
-    version: DASHBOARD_DATA_VERSION,
+    version: LEGACY_DASHBOARD_DATA_VERSION,
     exportedAt: fixedExportedAt,
     payload: fixture,
+    legacyWrapperField: { retained: true },
   };
-  assert.deepEqual(parseDashboardContract(wrapped), wrapped);
+  const migrated = parseDashboardContract(wrapped);
+  assert.equal(migrated.version, DASHBOARD_DATA_VERSION);
+  assert.deepEqual(migrated.legacyWrapperField, wrapped.legacyWrapperField);
+  assert.deepEqual(migrated.payload.planning, createEmptyPlannedPayoff());
 });
 
 test("migrates legacy v0 defaults to v1 while retaining every supplied field", () => {
@@ -80,8 +89,23 @@ test("migrates legacy v0 defaults to v1 while retaining every supplied field", (
   assert.deepEqual(migrated.payload.futureTopLevel, { retained: true });
 });
 
+test("migrates wrapped v1 to v2 with explicit planned-data defaults", () => {
+  const v1 = migrateV0ToV1(fixture, fixedExportedAt);
+  const migrated = migrateV1ToV2(v1);
+  assert.equal(v1.version, LEGACY_DASHBOARD_DATA_VERSION);
+  assert.equal(migrated.version, DASHBOARD_DATA_VERSION);
+  assert.deepEqual(migrated.payload.planning, createEmptyPlannedPayoff());
+  const legacyPayload = Object.fromEntries(Object.entries(migrated.payload).filter(([key]) => key !== "planning"));
+  assert.deepEqual(legacyPayload, fixture);
+});
+
 test("round-trips versioned imports and exports", () => {
-  const initial = migrateV0ToV1(fixture, fixedExportedAt);
+  const initial = parseDashboardContract({
+    format: DASHBOARD_BACKUP_FORMAT,
+    version: LEGACY_DASHBOARD_DATA_VERSION,
+    exportedAt: fixedExportedAt,
+    payload: fixture,
+  });
   const serialized = serializeDashboardBackup(initial, true);
   const reparsed = parseDashboardJson(serialized);
   assert.deepEqual(reparsed, initial);
@@ -98,7 +122,7 @@ test("preserves unknown wrapper, payload, and nested fields through application 
   extended.snapshots[0].accounts[0].futureSnapshotAccountField = 9;
   const imported = parseDashboardContract({
     format: DASHBOARD_BACKUP_FORMAT,
-    version: DASHBOARD_DATA_VERSION,
+    version: LEGACY_DASHBOARD_DATA_VERSION,
     exportedAt: fixedExportedAt,
     vendorMetadata: { source: "future-version" },
     payload: extended,
@@ -112,6 +136,7 @@ test("preserves unknown wrapper, payload, and nested fields through application 
     snapshots: imported.payload.snapshots,
     extra: imported.payload.extra + 25,
     strategy: imported.payload.strategy,
+    planning: imported.payload.planning,
   });
   const exported = parseDashboardJson(serializeDashboardBackup(createDashboardBackup(savedPayload, imported, fixedExportedAt)));
 
@@ -124,6 +149,40 @@ test("preserves unknown wrapper, payload, and nested fields through application 
   assert.equal(exported.payload.snapshots[0].futureSnapshotField, "retained");
   assert.equal(exported.payload.snapshots[0].accounts[0].futureSnapshotAccountField, 9);
   assert.equal(exported.payload.extra, fixture.extra + 25);
+});
+
+test("round-trips planned income, broad expenses, capacity, and unknown planning fields", () => {
+  const imported = parseDashboardContract(fixture);
+  const planning = {
+    ...createEmptyPlannedPayoff(),
+    onboarding: { completed: false, currentStep: 4, completedAt: null },
+    incomeSources: [
+      { id: "income-a", name: "Primary salary", monthlyTakeHome: 5200, assignment: "partner-1", futureIncomeField: "keep" },
+      { id: "income-b", name: "Benefits", monthlyTakeHome: 450, assignment: "household" },
+    ],
+    essentialExpenses: {
+      ...createEmptyPlannedPayoff().essentialExpenses,
+      housing: 1800,
+      utilities: 275,
+      food: 650,
+      safetyBuffer: 500,
+      futureExpenseField: { keep: true },
+    },
+    capacity: { method: "calculated", monthlyAmount: 2025, futureCapacityField: 9 },
+    futurePlanningField: ["preserve"],
+  };
+  const payload = createDashboardPayload(imported.payload, {
+    accounts: imported.payload.accounts,
+    monthlyBudgets: imported.payload.monthlyBudgets,
+    payees: imported.payload.payees,
+    transactions: imported.payload.transactions,
+    snapshots: imported.payload.snapshots,
+    extra: imported.payload.extra,
+    strategy: imported.payload.strategy,
+    planning,
+  });
+  const reparsed = parseDashboardJson(serializeDashboardBackup(createDashboardBackup(payload, imported, fixedExportedAt)));
+  assert.deepEqual(reparsed.payload.planning, planning);
 });
 
 test("rejects invalid JSON with a useful location", () => {
@@ -170,11 +229,17 @@ test("rejects invalid strategies and unsupported wrapper versions", () => {
 
   const invalidVersion = {
     format: DASHBOARD_BACKUP_FORMAT,
-    version: 2,
+    version: 3,
     exportedAt: fixedExportedAt,
     payload: fixture,
   };
-  expectFieldError(invalidVersion, "backup.version must be 1");
+  expectFieldError(invalidVersion, "backup.version must be 1 or 2");
+});
+
+test("rejects invalid planned-data fields with useful paths", () => {
+  const invalid = parseDashboardContract(fixture);
+  invalid.payload.planning.essentialExpenses.safetyBuffer = "a lot";
+  expectFieldError(invalid, "backup.payload.planning.essentialExpenses.safetyBuffer");
 });
 
 test("does not accept arbitrary objects as valid dashboard data", () => {
@@ -197,10 +262,15 @@ test("reports multiple useful field errors while leading with the first field", 
 test("validates and migrates household API write payloads with the shared contract", () => {
   const unwrapped = parseHouseholdWriteJson(JSON.stringify({ payload: fixture }));
   assert.equal(unwrapped.version, DASHBOARD_DATA_VERSION);
-  assert.deepEqual(unwrapped.payload, fixture);
+  const { planning, ...legacyPayload } = unwrapped.payload;
+  assert.deepEqual(legacyPayload, fixture);
+  assert.deepEqual(planning, createEmptyPlannedPayoff());
 
   const wrapped = migrateV0ToV1(fixture, fixedExportedAt);
-  assert.deepEqual(parseHouseholdWriteJson(JSON.stringify({ payload: wrapped })), wrapped);
+  assert.deepEqual(
+    parseHouseholdWriteJson(JSON.stringify({ payload: wrapped })),
+    parseDashboardContract(wrapped),
+  );
 
   const invalid = copy(fixture);
   invalid.transactions[0].date = 20260710;
