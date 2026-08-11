@@ -37,7 +37,7 @@ import {
 } from "./payoff-engine";
 import OnboardingFlow from "./onboarding-flow";
 import HomeDashboardPage from "./home-dashboard-page";
-import { buildHomeDashboard } from "./home-dashboard";
+import { buildHomeDashboard, type HomeAction } from "./home-dashboard";
 import {
   createOnboardingPlanning,
   hasEstablishedDashboardData,
@@ -407,7 +407,8 @@ export default function DashboardClient({ user }: { user: DashboardUser }) {
     strategy,
     planning,
     snapshots,
-  }), [accounts, calculatedAccounts, extra, plan, planning, snapshots, strategy]);
+    transactions,
+  }), [accounts, calculatedAccounts, extra, plan, planning, snapshots, strategy, transactions]);
   const paidOffById = useMemo(() => new Map(calculatedAccounts.map((account) => {
     const month = plan.months.find((entry) => entry.paidOff.includes(account.name))?.month;
     return [account.id, month ?? individualPayoffMonths(account)];
@@ -593,6 +594,19 @@ export default function DashboardClient({ user }: { user: DashboardUser }) {
     });
     setTransactionModalOpen(true);
   };
+  const openHomeAction = (action: HomeAction) => {
+    if (action.destination === "payment" && action.accountId) {
+      openRecommendedPayment(action.accountId, action.amount ?? 0);
+      return;
+    }
+    if (action.destination === "debt") {
+      const account = calculatedAccounts.find((item) => item.id === action.accountId);
+      if (account) openEdit(account);
+      else setPage("accounts");
+      return;
+    }
+    setPage("snapshots");
+  };
   const openEditTransaction = (transaction: LedgerTransaction) => {
     setEditingTransactionId(transaction.id);
     setTransactionDraft({ date: transaction.date, accountId: transaction.accountId, payeeId: transaction.payeeId, payeeName: transaction.payeeName, type: transaction.type, category: transaction.category, memo: transaction.memo, amount: transaction.amount });
@@ -725,7 +739,7 @@ export default function DashboardClient({ user }: { user: DashboardUser }) {
       <div className="page-body">
         {isViewer && <section className="viewer-notice" role="status"><strong>Viewer access</strong><span>You can review this household dashboard, but only the owner and admins can make changes.</span></section>}
         <fieldset className="viewer-readonly-surface" disabled={isViewer}>
-        {page === "home" && <HomeDashboardPage model={homeDashboard} onRecordPayment={openRecommendedPayment} onViewPlan={() => setPage("plan")} onViewDebts={() => setPage("accounts")} onViewProgress={() => setPage("snapshots")} onViewMonthlyPlan={() => setPage("monthly")}/>}
+        {page === "home" && <HomeDashboardPage model={homeDashboard} onRecordPayment={openRecommendedPayment} onExtra={setExtra} onAction={openHomeAction} onViewPayments={() => setPage("history")} onViewPlan={() => setPage("plan")} onViewDebts={() => setPage("accounts")} onViewProgress={() => setPage("snapshots")} onViewMonthlyPlan={() => setPage("monthly")}/>}
         {page === "monthly" && <DashboardPage month={selectedMonth} hasMonth={Object.prototype.hasOwnProperty.call(monthlyBudgets, selectedMonth)} previousHasItems={(monthlyBudgets[shiftMonth(selectedMonth, -1)] ?? []).length > 0} items={cashflowItems} accounts={calculatedAccounts} onMonth={setSelectedMonth} onCopyPrevious={copyPreviousBudget} onStartBlank={startBlankBudget} onAdd={openNewCashflow} onEdit={openEditCashflow} onMove={moveCashflow}/>}
         {page === "accounts" && <AccountsPage accounts={sortedAccounts} activeCount={activeCount} totalBalance={totalBalance} minimums={minimums} interest={interest} linkedCardExpenses={linkedCardExpenses} sortKey={sortKey} sortDirection={sortDirection} paidOffById={paidOffById} onSort={changeSort} onAdd={openNew} onEdit={openEdit} onToggleMinimum={toggleMinimumMode} onTogglePayoff={togglePayoffMode} onSample={() => setAccounts(SAMPLE_ACCOUNTS)} onImport={importDebtFreeCsv} importMessage={importMessage}/>}
         {page === "history" && <TransactionsPage accounts={calculatedAccounts} payees={payees} transactions={transactions} onQuickAdd={openNewTransaction} onEdit={openEditTransaction} onDelete={softDeleteTransaction} onRestore={restoreTransaction} onBatchAdd={addBatchTransactions} onManagePayees={() => setPayeeModalOpen(true)}/>}

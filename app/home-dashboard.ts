@@ -1,4 +1,4 @@
-import type { DebtAccount, PayoffSnapshot, PayoffStrategy, PlannedPayoffData } from "./dashboard-data.ts";
+import type { DebtAccount, LedgerTransaction, PayoffSnapshot, PayoffStrategy, PlannedPayoffData } from "./dashboard-data.ts";
 import { effectiveMinimum, forecastMonthKey, round, type PayoffPlan } from "./payoff-engine.ts";
 
 export type HomeActionKind = "due" | "promo" | "warning" | "review";
@@ -9,6 +9,9 @@ export type HomeAction = {
   title: string;
   detail: string;
   date?: string;
+  destination: "payment" | "debt" | "progress";
+  accountId?: string;
+  amount?: number;
 };
 
 export type HomePayoffItem = {
@@ -24,6 +27,14 @@ export type HomePayment = HomePayoffItem & {
   minimum: number;
   aboveMinimum: number;
   dueDate: string | null;
+};
+
+export type HomeActualPayment = {
+  id: string;
+  accountId: string;
+  accountName: string;
+  amount: number;
+  date: string;
 };
 
 export type HomeDashboardModel = {
@@ -42,6 +53,9 @@ export type HomeDashboardModel = {
   nextPayment: HomePayment | null;
   payoffOrder: HomePayoffItem[];
   actions: HomeAction[];
+  paymentMonth: string;
+  actualPaymentTotal: number;
+  actualPayments: HomeActualPayment[];
 };
 
 type HomeDashboardInput = {
@@ -52,6 +66,7 @@ type HomeDashboardInput = {
   strategy: PayoffStrategy;
   planning: PlannedPayoffData;
   snapshots: PayoffSnapshot[];
+  transactions: LedgerTransaction[];
   calculationDate?: Date;
 };
 
@@ -107,6 +122,22 @@ function payoffPriority(accounts: DebtAccount[], plan: PayoffPlan, strategy: Pay
       : a.balance - b.balance || (firstMonth?.aprs[b.id] ?? b.apr) - (firstMonth?.aprs[a.id] ?? a.apr) || a.name.localeCompare(b.name));
 }
 
+function actualPaymentsForMonth(accounts: DebtAccount[], transactions: LedgerTransaction[], calculationDate: Date) {
+  const paymentMonth = currentMonthKey(calculationDate);
+  const accountNames = new Map(accounts.map((account) => [account.id, account.name]));
+  const payments = transactions
+    .filter((transaction) => !transaction.deletedAt && transaction.type === "payment" && transaction.date.slice(0, 7) === paymentMonth)
+    .sort((a, b) => b.date.localeCompare(a.date) || b.createdAt.localeCompare(a.createdAt))
+    .map<HomeActualPayment>((transaction) => ({
+      id: transaction.id,
+      accountId: transaction.accountId,
+      accountName: accountNames.get(transaction.accountId) ?? transaction.payeeName,
+      amount: round(transaction.amount),
+      date: transaction.date,
+    }));
+  return { paymentMonth, payments, total: round(payments.reduce((sum, payment) => sum + payment.amount, 0)) };
+}
+
 function upcomingActions(accounts: DebtAccount[], snapshots: PayoffSnapshot[], calculationDate: Date) {
   const actions: HomeAction[] = [];
   const currentMonth = currentMonthKey(calculationDate);
@@ -122,6 +153,9 @@ function upcomingActions(accounts: DebtAccount[], snapshots: PayoffSnapshot[], c
     title: `${account.name} payment is coming up`,
     detail: `${effectiveMinimum(account).toFixed(2)} minimum payment`,
     date,
+    destination: "payment",
+    accountId: account.id,
+    amount: effectiveMinimum(account),
   }));
 
   accounts
@@ -134,6 +168,8 @@ function upcomingActions(accounts: DebtAccount[], snapshots: PayoffSnapshot[], c
       title: `${account.name} promotional rate expires`,
       detail: account.postPromoApr > 0 ? `APR changes to ${account.postPromoApr.toFixed(2)}%` : "Add the post-promotional APR for an accurate projection",
       date: account.promoEndDate,
+      destination: "debt",
+      accountId: account.id,
     }));
 
   const missingDueDates = accounts.filter((account) => account.balance > 0 && !account.dueDate);
@@ -142,6 +178,8 @@ function upcomingActions(accounts: DebtAccount[], snapshots: PayoffSnapshot[], c
     kind: "warning",
     title: `${missingDueDates.length} ${missingDueDates.length === 1 ? "debt is" : "debts are"} missing a due date`,
     detail: "Add due dates to make the next-payment guidance more useful.",
+    destination: "debt",
+    accountId: missingDueDates[0].id,
   });
   const missingPromoApr = accounts.filter((account) => account.balance > 0 && account.promoEndDate && account.postPromoApr <= 0);
   if (missingPromoApr.length) actions.push({
@@ -149,12 +187,15 @@ function upcomingActions(accounts: DebtAccount[], snapshots: PayoffSnapshot[], c
     kind: "warning",
     title: "A post-promotional APR is missing",
     detail: "Your payoff projection may be inaccurate after the promotional period ends.",
+    destination: "debt",
+    accountId: missingPromoApr[0].id,
   });
   if (!snapshots.some((snapshot) => snapshot.month === currentMonth)) actions.push({
     id: "monthly-review",
     kind: "review",
     title: "Save this month’s progress review",
     detail: "Capture a snapshot after balances and payments are up to date.",
+    destination: "progress",
   });
   return actions.slice(0, 6);
 }
@@ -168,6 +209,7 @@ export function buildHomeDashboard(input: HomeDashboardInput): HomeDashboardMode
   const progressPercent = baseline.amount > 0 ? Math.min(100, round(amountPaid / baseline.amount * 100)) : 0;
   const firstMonth = input.plan.months[0];
   const priority = payoffPriority(active, input.plan, input.strategy);
+  const actualPayments = actualPaymentsForMonth(input.accounts, input.transactions, calculationDate);
   const payoffOrder = priority.slice(0, 3).map<HomePayoffItem>((account) => ({
     accountId: account.id,
     name: account.name,
@@ -210,5 +252,8 @@ export function buildHomeDashboard(input: HomeDashboardInput): HomeDashboardMode
     nextPayment,
     payoffOrder,
     actions: upcomingActions(active, input.snapshots, calculationDate),
+    paymentMonth: actualPayments.paymentMonth,
+    actualPaymentTotal: actualPayments.total,
+    actualPayments: actualPayments.payments,
   };
 }

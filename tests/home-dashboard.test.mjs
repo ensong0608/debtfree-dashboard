@@ -28,6 +28,24 @@ function account(id, overrides = {}) {
     ...overrides,
   };
 }
+function transaction(id, overrides = {}) {
+  return {
+    id,
+    date: "2026-08-11",
+    accountId: "booking",
+    payeeId: "payee-booking",
+    payeeName: "Booking",
+    type: "payment",
+    category: "Debt payment",
+    memo: "Recommended payoff payment",
+    amount: 800,
+    createdAt: "2026-08-11T12:00:00.000Z",
+    updatedAt: "2026-08-11T12:00:00.000Z",
+    deletedAt: null,
+    ...overrides,
+  };
+}
+
 
 function scenario(strategy = "avalanche") {
   const accounts = [
@@ -55,7 +73,7 @@ function scenario(strategy = "avalanche") {
   }));
   const extra = 700;
   const plan = calculatePlan(accounts, extra, strategy, {}, {}, calculationDate);
-  return { accounts, planning, extra, plan, strategy };
+  return { accounts, planning, extra, plan, strategy, transactions: [] };
 }
 
 test("builds the Phase 3 Home summary and next avalanche payment from the payoff engine", () => {
@@ -98,6 +116,22 @@ test("recorded payment balances immediately increase Home progress and update th
   assert.ok(model.nextPayment.payment > model.nextPayment.minimum);
 });
 
+test("Home shows actual payments recorded in the current month", () => {
+  const input = scenario();
+  input.transactions = [
+    transaction("payment-booking"),
+    transaction("payment-citi", { date: "2026-08-15", accountId: "citi", payeeName: "Citi", amount: 50, createdAt: "2026-08-15T12:00:00.000Z" }),
+    transaction("charge", { type: "charge", amount: 30 }),
+    transaction("prior-month", { date: "2026-07-31", amount: 100 }),
+    transaction("deleted-payment", { amount: 200, deletedAt: "2026-08-12T00:00:00.000Z" }),
+  ];
+  const model = buildHomeDashboard({ ...input, openingAccounts: input.accounts, snapshots: [], calculationDate });
+
+  assert.equal(model.paymentMonth, "2026-08");
+  assert.equal(model.actualPaymentTotal, 850);
+  assert.deepEqual(model.actualPayments.map((payment) => payment.accountName), ["Citi", "Booking"]);
+});
+
 test("Home actions include due dates, promotional expirations, missing information, and monthly review", () => {
   const input = scenario();
   input.accounts[2].postPromoApr = 0;
@@ -110,6 +144,12 @@ test("Home actions include due dates, promotional expirations, missing informati
   assert.ok(model.actions.some((action) => action.id === "missing-promo-apr"));
   assert.ok(model.actions.some((action) => action.id === "monthly-review"));
   assert.equal(model.actions.find((action) => action.id === "due-family")?.date, "2026-08-17");
+  const dueAction = model.actions.find((action) => action.id === "due-family");
+  assert.equal(dueAction?.destination, "payment");
+  assert.equal(dueAction?.accountId, "family");
+  assert.equal(dueAction?.amount, 25);
+  assert.equal(model.actions.find((action) => action.id === "promo-discover")?.destination, "debt");
+  assert.equal(model.actions.find((action) => action.id === "monthly-review")?.destination, "progress");
 });
 
 test("Phase 3 UI exposes the required Home actions and mobile layout", async () => {
@@ -125,6 +165,9 @@ test("Phase 3 UI exposes the required Home actions and mobile layout", async () 
   assert.match(page, /Record payment/);
   assert.match(page, /Upcoming actions/);
   assert.match(page, /Next three debts/);
+  assert.match(page, /Actual payments/);
+  assert.match(page, /id="home-extra-payment"/);
+  assert.match(page, /className="home-action-item"/);
   assert.match(client, /label: "Home"/);
   assert.match(client, /label: "Debts"/);
   assert.match(client, /label: "Monthly Plan"/);
@@ -133,7 +176,13 @@ test("Phase 3 UI exposes the required Home actions and mobile layout", async () 
   assert.match(client, /<details className="secondary-navigation">/);
   assert.match(client, /setPage\("home"\)/);
   assert.match(client, /Recommended payoff payment/);
+  assert.match(client, /onExtra=\{setExtra\}/);
+  assert.match(client, /onAction=\{openHomeAction\}/);
+  assert.match(client, /onViewPayments=\{\(\) => setPage\("history"\)\}/);
   assert.match(styles, /Phase 3 action-focused Home/);
   assert.match(styles, /@media\(max-width:600px\)[\s\S]*\.home-summary\{grid-template-columns:minmax\(0,1fr\)/);
   assert.match(styles, /\.next-payment-button\{width:100%;min-height:50px\}/);
+  assert.match(styles, /\.home-extra-editor\{/);
+  assert.match(styles, /\.home-payment-list\{/);
+  assert.match(styles, /\.home-action-item\{/);
 });

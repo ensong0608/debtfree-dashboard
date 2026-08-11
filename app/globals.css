@@ -819,8 +819,14 @@ textarea:focus-visible{outline:3px solid rgba(22,119,255,.22);outline-offset:2px
 .home-progress-card>div:first-child strong{font-size:23px}
 .home-progress-track{height:11px;margin-top:18px;overflow:hidden;border-radius:99px;background:#e8eef3}
 .home-progress-track i{height:100%;display:block;border-radius:inherit;background:linear-gradient(90deg,#1677ff,#28b891)}
+.home-extra-card>label{display:block;color:var(--muted);font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.055em}
+.home-extra-editor{height:48px;display:flex;align-items:center;margin-top:10px;overflow:hidden;border:1px solid #cbd7e1;border-radius:10px;background:#fbfdff}
+.home-extra-editor:focus-within{border-color:var(--blue);box-shadow:0 0 0 3px rgba(22,119,255,.12)}
+.home-extra-editor>span{padding-left:13px;color:#526579;font-size:18px;font-weight:800}
+.home-extra-editor input{width:100%;min-width:0;height:100%;padding:0 12px 0 7px;border:0;outline:0;background:transparent;color:var(--ink);font-size:24px;font-weight:850}
+.home-extra-card>small{display:block}
 .home-primary-grid{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(360px,1fr);gap:14px;margin-bottom:14px}
-.next-payment-card,.payoff-preview-card,.upcoming-actions-card{min-width:0;border:1px solid var(--line);border-radius:17px;background:white;box-shadow:0 12px 34px rgba(25,48,67,.07)}
+.next-payment-card,.payoff-preview-card,.home-payments-card,.upcoming-actions-card{min-width:0;border:1px solid var(--line);border-radius:17px;background:white;box-shadow:0 12px 34px rgba(25,48,67,.07)}
 .next-payment-card{padding:24px;background:linear-gradient(145deg,#eefbfa,#f8fcfd 52%,#edf6ff);border-color:#bcdedb}
 .next-payment-label{display:flex;align-items:center;justify-content:space-between;gap:12px}
 .next-payment-label>span{color:#087b6a;font-size:10px;font-weight:900;text-transform:uppercase;letter-spacing:.08em}
@@ -853,16 +859,27 @@ textarea:focus-visible{outline:3px solid rgba(22,119,255,.22);outline-offset:2px
 .home-empty-compact{padding:28px 19px;text-align:center}
 .home-empty-compact strong{font-size:13px}
 .home-empty-compact p{margin:6px 0 0;color:var(--muted);font-size:11px}
+.home-payments-card{margin-bottom:14px;overflow:hidden}
+.home-payments-card>header{display:grid;grid-template-columns:minmax(0,1fr) auto auto;align-items:center;gap:18px;padding:17px 19px;border-bottom:1px solid var(--line)}
+.home-payments-card>header span,.home-payments-card>header strong,.home-payments-card>header small{display:block}
+.home-payments-card>header span{color:var(--muted);font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:.06em}
+.home-payments-card>header strong{margin-top:4px;font-size:14px}.home-payments-card>header>div:nth-child(2){text-align:right}.home-payments-card>header>div:nth-child(2)>strong{margin:0;font-size:20px}.home-payments-card>header small{margin-top:3px;color:var(--muted);font-size:9px}
+.home-payments-card>header button{min-height:36px;padding:0 10px;border:1px solid var(--line);border-radius:8px;background:white;color:var(--blue);font-size:9px;font-weight:850}
+.home-payment-list{display:grid;grid-template-columns:repeat(3,minmax(0,1fr))}
+.home-payment-list>article{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:16px 19px;border-right:1px solid var(--line);border-bottom:1px solid var(--line)}
+.home-payment-list>article:nth-child(3n){border-right:0}.home-payment-list strong,.home-payment-list small{display:block}.home-payment-list>article>strong{font-size:14px}.home-payment-list small{margin-top:4px;color:var(--muted);font-size:9px}
 .upcoming-actions-card{overflow:hidden}
 .home-action-list{display:grid;grid-template-columns:repeat(2,minmax(0,1fr))}
-.home-action-list>article{min-width:0;display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:11px;padding:16px 19px;border-bottom:1px solid var(--line)}
-.home-action-list>article:nth-child(odd){border-right:1px solid var(--line)}
+.home-action-item{width:100%;min-width:0;display:grid;grid-template-columns:auto minmax(0,1fr) auto auto;align-items:center;gap:11px;padding:16px 19px;border:0;border-bottom:1px solid var(--line);background:white;color:var(--ink);text-align:left;cursor:pointer}
+.home-action-item:nth-child(odd){border-right:1px solid var(--line)}
 .home-action-icon{width:32px;height:32px;display:grid;place-items:center;border-radius:10px;background:#eef5ff;color:var(--blue);font-size:12px;font-weight:900}
 .home-action-icon.promo{background:#fff3da;color:#9b6507}.home-action-icon.warning{background:#fff0ed;color:var(--red)}.home-action-icon.review{background:var(--green-soft);color:var(--green)}
 .home-action-list strong,.home-action-list small{display:block}
 .home-action-list strong{font-size:11px}
 .home-action-list small{margin-top:4px;color:var(--muted);font-size:9px;line-height:1.4}
 .home-action-list time{padding:5px 7px;border-radius:7px;background:#f2f5f7;color:#4f6276;font-size:9px;font-weight:800;white-space:nowrap}
+.home-action-item:hover{background:#f7fbff}.home-action-item:focus-visible{position:relative;z-index:1;outline:3px solid rgba(22,119,255,.22);outline-offset:-3px}
+.home-action-arrow{color:var(--blue);font-size:17px;font-weight:800}
 
 @media(max-width:1100px){
   .home-summary{grid-template-columns:repeat(2,minmax(0,1fr))}
@@ -903,6 +920,11 @@ textarea:focus-visible{outline:3px solid rgba(22,119,255,.22);outline-offset:2px
   .payoff-preview-card li{grid-template-columns:auto minmax(0,1fr)}
   .payoff-preview-card li>div:last-child{grid-column:2;text-align:left}
   .home-action-list{grid-template-columns:minmax(0,1fr)}
-  .home-action-list>article:nth-child(odd){border-right:0}
-  .home-action-list>article{padding:15px}
+  .home-action-item:nth-child(odd){border-right:0}
+  .home-action-item{padding:15px}
+  .home-payments-card>header{grid-template-columns:minmax(0,1fr);align-items:flex-start}
+  .home-payments-card>header>div:nth-child(2){text-align:left}
+  .home-payments-card>header button{width:100%;min-height:44px}
+  .home-payment-list{grid-template-columns:minmax(0,1fr)}
+  .home-payment-list>article{border-right:0}
 }

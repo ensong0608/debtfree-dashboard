@@ -23,6 +23,9 @@ function ActionIcon({ action }: { action: HomeAction }) {
 export default function HomeDashboardPage({
   model,
   onRecordPayment,
+  onExtra,
+  onAction,
+  onViewPayments,
   onViewPlan,
   onViewDebts,
   onViewProgress,
@@ -30,6 +33,9 @@ export default function HomeDashboardPage({
 }: {
   model: HomeDashboardModel;
   onRecordPayment: (accountId: string, amount: number) => void;
+  onExtra: (value: number) => void;
+  onAction: (action: HomeAction) => void;
+  onViewPayments: () => void;
   onViewPlan: () => void;
   onViewDebts: () => void;
   onViewProgress: () => void;
@@ -48,7 +54,7 @@ export default function HomeDashboardPage({
       <article><span>Amount already paid off</span><strong>{preciseMoney.format(model.amountPaid)}</strong><small>{model.progressLabel}</small></article>
       <article className="home-progress-card"><div><span>Plan progress</span><strong>{model.progressPercent.toFixed(1)}%</strong></div><div className="home-progress-track" role="progressbar" aria-label="Debt payoff progress" aria-valuemin={0} aria-valuemax={100} aria-valuenow={model.progressPercent}><i style={{ width: `${model.progressPercent}%` }}/></div><small>{money.format(model.startingDebt)} starting debt</small></article>
       <article><span>Monthly debt target</span><strong>{preciseMoney.format(model.monthlyTarget)}</strong><small>Includes all minimum payments</small></article>
-      <article><span>Extra above minimums</span><strong>{preciseMoney.format(model.extraPayment)}</strong><small>Directed by your selected strategy</small></article>
+      <article className="home-extra-card"><label htmlFor="home-extra-payment">Extra above minimums</label><div className="home-extra-editor"><span>$</span><input id="home-extra-payment" type="number" min="0" step=".01" inputMode="decimal" value={model.extraPayment || ""} placeholder="0" aria-describedby="home-extra-help" onChange={(event) => onExtra(Math.max(0, Number(event.target.value) || 0))}/></div><small id="home-extra-help">Updates the Home target, Payoff Plan, and projections everywhere.</small></article>
     </section>
 
     <section className="home-primary-grid">
@@ -73,9 +79,14 @@ export default function HomeDashboardPage({
       </article>
     </section>
 
+    <section className="home-payments-card" aria-label="Actual debt payments this month">
+      <header><div><span>Actual payments</span><strong>{formatMonth(model.paymentMonth)}</strong></div><div><strong>{preciseMoney.format(model.actualPaymentTotal)}</strong><small>Recorded this month</small></div><button type="button" onClick={onViewPayments}>View all payments</button></header>
+      {model.actualPayments.length ? <div className="home-payment-list">{model.actualPayments.slice(0, 6).map((payment) => <article key={payment.id}><div><strong>{payment.accountName}</strong><small>Paid {formatDate(payment.date)}</small></div><strong>{preciseMoney.format(payment.amount)}</strong></article>)}</div> : <div className="home-empty-compact"><strong>No payments recorded this month</strong><p>Use Record payment above and the actual amount will appear here immediately.</p></div>}
+    </section>
+
     <section className="upcoming-actions-card">
       <header><div><span>Upcoming actions</span><strong>Keep the plan accurate</strong></div><button type="button" onClick={onViewProgress}>Open progress</button></header>
-      {model.actions.length ? <div className="home-action-list">{model.actions.map((action) => <article key={action.id}><ActionIcon action={action}/><div><strong>{action.title}</strong><small>{action.detail}</small></div>{action.date && <time dateTime={action.date}>{formatDate(action.date)}</time>}</article>)}</div> : <div className="home-empty-compact"><strong>You’re all caught up</strong><p>No due dates, warnings, or monthly reviews need attention right now.</p></div>}
+      {model.actions.length ? <div className="home-action-list">{model.actions.map((action) => <button className="home-action-item" type="button" key={action.id} onClick={() => onAction(action)}><ActionIcon action={action}/><div><strong>{action.title}</strong><small>{action.detail}</small></div>{action.date && <time dateTime={action.date}>{formatDate(action.date)}</time>}<span className="home-action-arrow" aria-hidden="true">→</span></button>)}</div> : <div className="home-empty-compact"><strong>You’re all caught up</strong><p>No due dates, warnings, or monthly reviews need attention right now.</p></div>}
     </section>
   </div>;
 }
