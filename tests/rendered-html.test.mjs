@@ -161,6 +161,8 @@ test("supports a mobile dashboard shell and collapsible navigation", async () =>
   assert.match(styles, /font-size:16px/);
   assert.match(styles, /Compact desktop payoff workspace/);
   assert.match(styles, /\.payoff-table thead th \{ position:sticky/);
+  assert.match(styles, /\.plan-screen\{\s*height:calc\(100dvh - 72px\)/);
+  assert.match(styles, /\.plan-scroll\{[^}]*flex:1 1 auto;overflow:auto/);
   assert.match(styles, /scrollbar-gutter:stable/);
 });
 

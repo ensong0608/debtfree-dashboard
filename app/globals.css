@@ -715,7 +715,7 @@ textarea:focus-visible{outline:3px solid rgba(22,119,255,.22);outline-offset:2px
 /* Compact desktop payoff workspace: the table owns the remaining viewport. */
 @media(min-width:821px){
   .plan-screen{
-    height:100%;
+    height:calc(100dvh - 72px);
     min-height:0;
     display:flex;
     flex-direction:column;
