@@ -1,5 +1,12 @@
 # DebtFree Dashboard release notes
 
+## 2026-08-11 - Action-focused Home dashboard
+
+- Home now leads with the next recommended payment, debt-free date, remaining debt, progress, and monthly target.
+- The next payment action opens a prefilled payment record and updates balances and projections through the existing ledger.
+- Upcoming due dates, promotional expirations, missing projection details, and the monthly review are visible together.
+- Primary navigation now follows Home, Debts, Payoff Plan, Monthly Plan, Progress, and Settings; detailed tools remain available in the advanced menu.
+
 ## 2026-08-04 - Personal-email household accounts
 
 - Cloudflare Access one-time PINs now verify each member's personal email before the app accepts their identity.

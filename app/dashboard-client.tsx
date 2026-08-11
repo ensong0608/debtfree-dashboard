@@ -36,6 +36,8 @@ import {
   type PayoffPlan,
 } from "./payoff-engine";
 import OnboardingFlow from "./onboarding-flow";
+import HomeDashboardPage from "./home-dashboard-page";
+import { buildHomeDashboard } from "./home-dashboard";
 import {
   createOnboardingPlanning,
   hasEstablishedDashboardData,
@@ -45,7 +47,7 @@ import {
 } from "./onboarding-plan";
 import { scanReceipt, type ReceiptScanResult } from "./receipt-ocr";
 
-type PageId = "dashboard" | "accounts" | "history" | "plan" | "snapshots" | "utilization" | "stats" | "profile";
+type PageId = "home" | "accounts" | "history" | "plan" | "monthly" | "snapshots" | "utilization" | "stats" | "profile";
 type SortKey = "name" | "balance" | "creditLimit" | "apr" | "minimum" | "monthlyInterest" | "status" | "dueDate" | "payoff";
 type SortDirection = "asc" | "desc";
 
@@ -209,20 +211,24 @@ function monthAfter(offset: number) {
 }
 
 const NAV_ITEMS: { id: PageId; label: string; icon: string }[] = [
-  { id: "dashboard", label: "Monthly Budget", icon: "⌂" },
-  { id: "accounts", label: "Debt Accounts", icon: "▤" },
-  { id: "history", label: "Transactions", icon: "↻" },
-  { id: "plan", label: "Payoff Plan", icon: "✓" },
-  { id: "snapshots", label: "Payoff Snapshots", icon: "◉" },
-  { id: "utilization", label: "Credit Utilization", icon: "◔" },
-  { id: "stats", label: "Stats & Projections", icon: "↗" },
-  { id: "profile", label: "My Account", icon: "⚙" },
+  { id: "home", label: "Home", icon: "\u2302" },
+  { id: "accounts", label: "Debts", icon: "\u25a4" },
+  { id: "plan", label: "Payoff Plan", icon: "\u2713" },
+  { id: "monthly", label: "Monthly Plan", icon: "\u25a6" },
+  { id: "snapshots", label: "Progress", icon: "\u25c9" },
+  { id: "profile", label: "Settings", icon: "\u2699" },
 ];
+const ADVANCED_NAV_ITEMS: { id: PageId; label: string; icon: string }[] = [
+  { id: "history", label: "Transactions", icon: "\u21bb" },
+  { id: "utilization", label: "Credit Utilization", icon: "\u25d4" },
+  { id: "stats", label: "Stats & Projections", icon: "\u2197" },
+];
+const ALL_NAV_ITEMS = [...NAV_ITEMS, ...ADVANCED_NAV_ITEMS];
 
 export default function DashboardClient({ user }: { user: DashboardUser }) {
   const cloudWritesEnabled = useRef(false);
   const dashboardContract = useRef<DashboardBackup | null>(null);
-  const [page, setPage] = useState<PageId>("dashboard");
+  const [page, setPage] = useState<PageId>("home");
   const [accounts, setAccounts] = useState<DebtAccount[]>([]);
   const [monthlyBudgets, setMonthlyBudgets] = useState<Record<string, CashflowItem[]>>({});
   const [planning, setPlanning] = useState<PlannedPayoffData>(() => createOnboardingPlanning());
@@ -393,6 +399,15 @@ export default function DashboardClient({ user }: { user: DashboardUser }) {
   const linkedCardPurchases = useMemo(() => Object.fromEntries(Object.entries(linkedCardPurchaseItems).map(([accountId, items]) => [accountId, round(items.reduce((sum, item) => sum + item.amount, 0))])), [linkedCardPurchaseItems]);
   const availableExtra = useMemo(() => Math.max(0, round(monthlySurplus - minimums)), [minimums, monthlySurplus]);
   const plan = useMemo(() => calculatePlan(calculatedAccounts, extra, strategy, linkedCardExpenses, linkedCardPurchases), [calculatedAccounts, extra, linkedCardExpenses, linkedCardPurchases, strategy]);
+  const homeDashboard = useMemo(() => buildHomeDashboard({
+    accounts: calculatedAccounts,
+    openingAccounts: accounts,
+    plan,
+    extra,
+    strategy,
+    planning,
+    snapshots,
+  }), [accounts, calculatedAccounts, extra, plan, planning, snapshots, strategy]);
   const paidOffById = useMemo(() => new Map(calculatedAccounts.map((account) => {
     const month = plan.months.find((entry) => entry.paidOff.includes(account.name))?.month;
     return [account.id, month ?? individualPayoffMonths(account)];
@@ -562,6 +577,22 @@ export default function DashboardClient({ user }: { user: DashboardUser }) {
     setTransactionDraft(emptyTransactionDraft(calculatedAccounts));
     setTransactionModalOpen(true);
   };
+  const openRecommendedPayment = (accountId: string, amount: number) => {
+    const account = calculatedAccounts.find((item) => item.id === accountId);
+    if (!account) return;
+    setEditingTransactionId(null);
+    setTransactionDraft({
+      date: dateInputValue(),
+      accountId,
+      payeeId: "",
+      payeeName: account.name,
+      type: "payment",
+      category: "Debt payment",
+      memo: "Recommended payoff payment",
+      amount: round(amount),
+    });
+    setTransactionModalOpen(true);
+  };
   const openEditTransaction = (transaction: LedgerTransaction) => {
     setEditingTransactionId(transaction.id);
     setTransactionDraft({ date: transaction.date, accountId: transaction.accountId, payeeId: transaction.payeeId, payeeName: transaction.payeeName, type: transaction.type, category: transaction.category, memo: transaction.memo, amount: transaction.amount });
@@ -662,7 +693,7 @@ export default function DashboardClient({ user }: { user: DashboardUser }) {
     setPlanning(result.planning);
     setExtra(result.extra);
     setStrategy(result.strategy);
-    setPage("plan");
+    setPage("home");
   };
   if (!loaded) return <main className="onboarding-shell onboarding-loading" role="status"><div><span>DF</span><strong>Loading your household.</strong></div></main>;
   if (!isViewer && shouldShowOnboarding({ accounts, monthlyBudgets, payees, transactions, snapshots, extra, strategy, planning })) {
@@ -676,14 +707,15 @@ export default function DashboardClient({ user }: { user: DashboardUser }) {
   }
   return <div className={navigationCollapsed ? "app-shell dashboard-collapsed" : "app-shell"}>
     <aside className="sidebar" id="dashboard-navigation">
-      <div className="sidebar-head"><button className="brand" type="button" onClick={() => setPage("dashboard")}><span>DF</span><div><strong>DebtFree</strong><small>Dashboard</small></div></button><button className={navigationCollapsed ? "dashboard-toggle sidebar-dashboard-toggle is-collapsed" : "dashboard-toggle sidebar-dashboard-toggle"} type="button" onClick={toggleDashboardNavigation} aria-label={navigationCollapsed ? "Expand dashboard navigation" : "Collapse dashboard navigation"} aria-controls="dashboard-navigation" aria-expanded={!navigationCollapsed}><i aria-hidden="true"><b/></i></button></div>
-      <nav aria-label="Dashboard sections">{NAV_ITEMS.map((item) => <button type="button" key={item.id} className={page === item.id ? "nav-item active" : "nav-item"} onClick={() => setPage(item.id)}><i>{item.icon}</i><span>{item.label}</span></button>)}</nav>
+      <div className="sidebar-head"><button className="brand" type="button" onClick={() => setPage("home")}><span>DF</span><div><strong>DebtFree</strong><small>Dashboard</small></div></button><button className={navigationCollapsed ? "dashboard-toggle sidebar-dashboard-toggle is-collapsed" : "dashboard-toggle sidebar-dashboard-toggle"} type="button" onClick={toggleDashboardNavigation} aria-label={navigationCollapsed ? "Expand dashboard navigation" : "Collapse dashboard navigation"} aria-controls="dashboard-navigation" aria-expanded={!navigationCollapsed}><i aria-hidden="true"><b/></i></button></div>
+      <nav aria-label="Primary navigation">{NAV_ITEMS.map((item) => <button type="button" key={item.id} className={page === item.id ? "nav-item active" : "nav-item"} onClick={() => setPage(item.id)}><i>{item.icon}</i><span>{item.label}</span></button>)}</nav>
+      <details className="secondary-navigation"><summary>Advanced tools</summary><nav aria-label="Advanced tools">{ADVANCED_NAV_ITEMS.map((item) => <button type="button" key={item.id} className={page === item.id ? "nav-item active" : "nav-item"} onClick={() => setPage(item.id)}><i>{item.icon}</i><span>{item.label}</span></button>)}</nav></details>
       <div className="sidebar-foot"><span>{householdName}</span><strong>{deviceOnly ? "Stored on this device" : cloudStatus === "synced" ? "Shared household data" : cloudStatus === "error" ? "Device backup active" : "Syncing changes"}</strong></div>
     </aside>
 
     <main className="main-area">
       <header className="topbar">
-        <div><span className="mobile-product">DebtFree Dashboard</span><strong>{NAV_ITEMS.find((item) => item.id === page)?.label}</strong></div>
+        <div><span className="mobile-product">DebtFree Dashboard</span><strong>{ALL_NAV_ITEMS.find((item) => item.id === page)?.label}</strong></div>
         <div className="top-actions">
           <span className={`save-state ${cloudStatus}`}><i/> {deviceOnly ? "Saved on device" : cloudStatus === "synced" ? "Household saved" : cloudStatus === "error" ? "Saved on device" : "Saving"}</span>
           <button className={navigationCollapsed ? "dashboard-toggle mobile-dashboard-toggle is-collapsed" : "dashboard-toggle mobile-dashboard-toggle"} type="button" onClick={toggleDashboardNavigation} aria-label={navigationCollapsed ? "Expand dashboard navigation" : "Collapse dashboard navigation"} aria-controls="dashboard-navigation" aria-expanded={!navigationCollapsed}><i aria-hidden="true"><b/></i></button>
@@ -693,7 +725,8 @@ export default function DashboardClient({ user }: { user: DashboardUser }) {
       <div className="page-body">
         {isViewer && <section className="viewer-notice" role="status"><strong>Viewer access</strong><span>You can review this household dashboard, but only the owner and admins can make changes.</span></section>}
         <fieldset className="viewer-readonly-surface" disabled={isViewer}>
-        {page === "dashboard" && <DashboardPage month={selectedMonth} hasMonth={Object.prototype.hasOwnProperty.call(monthlyBudgets, selectedMonth)} previousHasItems={(monthlyBudgets[shiftMonth(selectedMonth, -1)] ?? []).length > 0} items={cashflowItems} accounts={calculatedAccounts} onMonth={setSelectedMonth} onCopyPrevious={copyPreviousBudget} onStartBlank={startBlankBudget} onAdd={openNewCashflow} onEdit={openEditCashflow} onMove={moveCashflow}/>}
+        {page === "home" && <HomeDashboardPage model={homeDashboard} onRecordPayment={openRecommendedPayment} onViewPlan={() => setPage("plan")} onViewDebts={() => setPage("accounts")} onViewProgress={() => setPage("snapshots")} onViewMonthlyPlan={() => setPage("monthly")}/>}
+        {page === "monthly" && <DashboardPage month={selectedMonth} hasMonth={Object.prototype.hasOwnProperty.call(monthlyBudgets, selectedMonth)} previousHasItems={(monthlyBudgets[shiftMonth(selectedMonth, -1)] ?? []).length > 0} items={cashflowItems} accounts={calculatedAccounts} onMonth={setSelectedMonth} onCopyPrevious={copyPreviousBudget} onStartBlank={startBlankBudget} onAdd={openNewCashflow} onEdit={openEditCashflow} onMove={moveCashflow}/>}
         {page === "accounts" && <AccountsPage accounts={sortedAccounts} activeCount={activeCount} totalBalance={totalBalance} minimums={minimums} interest={interest} linkedCardExpenses={linkedCardExpenses} sortKey={sortKey} sortDirection={sortDirection} paidOffById={paidOffById} onSort={changeSort} onAdd={openNew} onEdit={openEdit} onToggleMinimum={toggleMinimumMode} onTogglePayoff={togglePayoffMode} onSample={() => setAccounts(SAMPLE_ACCOUNTS)} onImport={importDebtFreeCsv} importMessage={importMessage}/>}
         {page === "history" && <TransactionsPage accounts={calculatedAccounts} payees={payees} transactions={transactions} onQuickAdd={openNewTransaction} onEdit={openEditTransaction} onDelete={softDeleteTransaction} onRestore={restoreTransaction} onBatchAdd={addBatchTransactions} onManagePayees={() => setPayeeModalOpen(true)}/>}
         {page === "plan" && <PayoffPlanPage accounts={calculatedAccounts} plan={plan} extra={extra} availableExtra={availableExtra} strategy={strategy} linkedCardExpenseItems={linkedCardExpenseItems} linkedCardPurchaseItems={linkedCardPurchaseItems} monthlyItems={planningCashflowItems} transactions={transactions} snapshots={snapshots} onExtra={setExtra} onStrategy={setStrategy} onAccounts={() => setPage("accounts")} onEditAccount={openEdit}/>}
