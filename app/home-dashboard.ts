@@ -50,6 +50,7 @@ export type HomeDashboardModel = {
   estimatedInterest: number;
   activeDebtCount: number;
   stalled: boolean;
+  nonAmortizingDebtNames: string[];
   strategy: PayoffStrategy;
   nextPayment: HomePayment | null;
   payoffOrder: HomePayoffItem[];
@@ -210,7 +211,7 @@ export function buildHomeDashboard(input: HomeDashboardInput): HomeDashboardMode
     payment: round(firstMonth?.payments[account.id] ?? effectiveMinimum(account)),
     projectedPayoffMonth: projectedPayoffMonth(input.plan, account.id, calculationDate),
   }));
-  const focus = priority[0];
+  const focus = firstMonth ? priority[0] : undefined;
   const minimum = focus ? round(firstMonth?.minimums[focus.id] ?? effectiveMinimum(focus)) : 0;
   const payment = focus ? round(firstMonth?.payments[focus.id] ?? minimum) : 0;
   const nextPayment = focus ? {
@@ -240,6 +241,7 @@ export function buildHomeDashboard(input: HomeDashboardInput): HomeDashboardMode
     estimatedInterest: round(input.plan.totalInterest),
     activeDebtCount: active.length,
     stalled: input.plan.stalled,
+    nonAmortizingDebtNames: active.filter((account) => input.plan.nonAmortizingAccountIds.includes(account.id)).map((account) => account.name),
     strategy: input.strategy,
     nextPayment,
     payoffOrder,

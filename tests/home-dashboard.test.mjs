@@ -186,3 +186,69 @@ test("Phase 3 UI exposes the required Home actions and mobile layout", async () 
   assert.match(styles, /\.home-payment-list\{/);
   assert.match(styles, /\.home-action-item\{/);
 });
+
+test("missing due dates are explicit without changing the engine recommendation", async () => {
+  const input = scenario();
+  input.accounts[0].dueDate = "";
+  input.planning.debts[0].dueDate = "";
+  input.plan = calculatePlan(input.accounts, input.extra, input.strategy, {}, {}, calculationDate);
+  const model = buildHomeDashboard({ ...input, openingAccounts: input.accounts, snapshots: [], calculationDate });
+  const page = await readFile(new URL("../app/home-dashboard-page.tsx", import.meta.url), "utf8");
+
+  assert.equal(model.nextPayment.accountId, "booking");
+  assert.equal(model.nextPayment.payment, input.plan.months[0].payments.booking);
+  assert.equal(model.nextPayment.dueDate, null);
+  assert.match(page, /due date missing/i);
+});
+
+test("empty and non-amortizing plans produce actionable Home states", async () => {
+  const emptyPlanning = createEmptyPlannedPayoff();
+  const emptyPlan = calculatePlan([], 0, "avalanche", {}, {}, calculationDate);
+  const empty = buildHomeDashboard({
+    accounts: [], openingAccounts: [], plan: emptyPlan, extra: 0, strategy: "avalanche", planning: emptyPlanning, snapshots: [], transactions: [], calculationDate,
+  });
+  assert.equal(empty.activeDebtCount, 0);
+  assert.equal(empty.nextPayment, null);
+  assert.deepEqual(empty.payoffOrder, []);
+
+  const stuckAccount = account("stuck", { name: "Stuck Card", apr: 36, minimum: 1, dueDate: "" });
+  const stuckPlan = calculatePlan([stuckAccount], 0, "avalanche", {}, {}, calculationDate);
+  const stuck = buildHomeDashboard({
+    accounts: [stuckAccount], openingAccounts: [stuckAccount], plan: stuckPlan, extra: 0, strategy: "avalanche", planning: emptyPlanning, snapshots: [], transactions: [], calculationDate,
+  });
+  const page = await readFile(new URL("../app/home-dashboard-page.tsx", import.meta.url), "utf8");
+
+  assert.equal(stuck.stalled, true);
+  assert.deepEqual(stuck.nonAmortizingDebtNames, ["Stuck Card"]);
+  assert.match(page, /Add first debt/);
+  assert.match(page, /Payment plan needs attention/);
+  assert.match(page, /Adjust payoff plan/);
+});
+
+test("Phase 4 navigation, advanced access, mobile targets, and headings are explicit", async () => {
+  const [page, client, styles] = await Promise.all([
+    readFile(new URL("../app/home-dashboard-page.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/dashboard-client.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/globals.css", import.meta.url), "utf8"),
+  ]);
+  const primaryBlock = client.slice(client.indexOf("const NAV_ITEMS"), client.indexOf("const ADVANCED_NAV_ITEMS"));
+  const labels = [...primaryBlock.matchAll(/label: "([^"]+)"/g)].map((match) => match[1]);
+
+  assert.deepEqual(labels, ["Home", "Debts", "Payoff Plan", "Monthly Plan", "Progress", "Settings"]);
+  assert.doesNotMatch(primaryBlock, /Transactions|Payees|Credit Utilization|Stats/);
+  assert.match(client, /const \[page, setPage\] = useState<PageId>\("home"\)/);
+  assert.match(client, /const completeOnboarding[\s\S]*?setPage\("home"\)/);
+  assert.match(client, /aria-current=\{page === item\.id \? "page" : undefined\}/);
+  assert.match(client, /onViewTransactions=\{\(\) => setPage\("history"\)\}/);
+  assert.match(client, />Open transactions</);
+  assert.match(client, /<h1>Progress<\/h1>/);
+  assert.match(client, /progress-projection-card/);
+  assert.match(client, />Detailed projections</);
+  assert.match(page, /aria-labelledby="home-summary-title"/);
+  assert.match(page, /<h2[^>]*>Payoff summary<\/h2>/);
+  assert.match(page, /<h2>Next three debts<\/h2>/);
+  assert.match(page, /<h2>Keep the plan accurate<\/h2>/);
+  assert.match(styles, /button:focus-visible/);
+  assert.match(styles, /@media\(max-width:820px\)[\s\S]*?\.nav-item\{min-width:52px;min-height:58px/);
+  assert.match(styles, /\.dashboard-collapsed \.sidebar\{display:flex\}/);
+});
