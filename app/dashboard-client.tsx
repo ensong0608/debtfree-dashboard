@@ -39,7 +39,7 @@ import {
 import OnboardingFlow from "./onboarding-flow";
 import HomeDashboardPage from "./home-dashboard-page";
 import { buildHomeDashboard, type HomeAction } from "./home-dashboard";
-import { canArchiveDebt, createBalanceAdjustment, createDebtPayment, DebtPaymentError, debtStatus, payoffPriority, promoNotice, setDebtArchived, splitDebtAccounts } from "./debts-screen";
+import { canArchiveDebt, createBalanceAdjustment, createDebtPayment, DebtBalanceError, DebtPaymentError, debtStatus, payoffPriority, promoNotice, setDebtArchived, splitDebtAccounts } from "./debts-screen";
 import { buildProgressBalanceView, transactionAdjustedAccounts } from "./progress-balances";
 import {
   createOnboardingPlanning,
@@ -579,12 +579,16 @@ export default function DashboardClient({ user }: { user: DashboardUser }) {
     const storedAccount = accounts.find((item) => item.id === balanceAccountId);
     const currentAccount = calculatedAccounts.find((item) => item.id === balanceAccountId);
     if (!storedAccount || !currentAccount) return;
-    const result = createBalanceAdjustment({ storedAccount, currentBalance: currentAccount.balance, nextBalance: draft.balance, date: draft.date, note: draft.note, creator: auditCreator });
-    setAccounts((current) => current.map((item) => item.id === result.account.id ? result.account : item));
-    setBalanceAdjustments((current) => [...current, result.adjustment]);
-    setBalanceAccountId(null);
-    const direction = result.adjustment.difference >= 0 ? "increased" : "decreased";
-    setDebtActionMessage(currentAccount.name + " balance " + direction + " by " + moneyPrecise.format(Math.abs(result.adjustment.difference)) + ", from " + moneyPrecise.format(result.adjustment.balanceBefore) + " to " + moneyPrecise.format(result.adjustment.balanceAfter) + ".");
+    try {
+      const result = createBalanceAdjustment({ storedAccount, currentBalance: currentAccount.balance, nextBalance: draft.balance, date: draft.date, note: draft.note, creator: auditCreator });
+      setAccounts((current) => current.map((item) => item.id === result.account.id ? result.account : item));
+      setBalanceAdjustments((current) => [...current, result.adjustment]);
+      setBalanceAccountId(null);
+      const direction = result.adjustment.difference >= 0 ? "increased" : "decreased";
+      setDebtActionMessage(currentAccount.name + " balance " + direction + " by " + moneyPrecise.format(Math.abs(result.adjustment.difference)) + ", from " + moneyPrecise.format(result.adjustment.balanceBefore) + " to " + moneyPrecise.format(result.adjustment.balanceAfter) + ".");
+    } catch (error) {
+      if (error instanceof DebtBalanceError) setDebtActionMessage(error.message);
+    }
   };
   const markAccountPaidOff = (id: string) => {
     const account = calculatedAccounts.find((item) => item.id === id);
@@ -1130,13 +1134,13 @@ function AccountsPage({
     const payoff = paidOffById.get(account.id);
     return payoff ? monthAfter(payoff - 1) : "Needs adjustment";
   };
-  const actionButtons = (account: DebtAccount) => <div className="debt-actions">
-    <button type="button" className="debt-action primary-action" disabled={account.balance <= 0} onClick={() => onRecordPayment(account)}>Record payment</button>
-    <button type="button" className="debt-action" onClick={() => onUpdateBalance(account)}>Update balance</button>
+  const actionButtons = (account: DebtAccount) => <div className="debt-actions" aria-label={`Actions for ${account.name}`}>
+    <button type="button" className="debt-action primary-action" aria-label={`Record payment for ${account.name}`} disabled={account.balance <= 0} onClick={() => onRecordPayment(account)}>Record payment</button>
+    <button type="button" className="debt-action" aria-label={`Update balance for ${account.name}`} onClick={() => onUpdateBalance(account)}>Update balance</button>
     {account.balance > 0
-      ? <button type="button" className="debt-action" onClick={() => onMarkPaidOff(account.id)}>Mark paid off</button>
-      : <button type="button" className="debt-action" onClick={() => onArchive(account.id)}>Archive</button>}
-    <button type="button" className="debt-action" onClick={() => onEdit(account)}>Edit</button>
+      ? <button type="button" className="debt-action" aria-label={`Mark ${account.name} paid off`} onClick={() => onMarkPaidOff(account.id)}>Mark paid off</button>
+      : <button type="button" className="debt-action" aria-label={`Archive ${account.name}`} onClick={() => onArchive(account.id)}>Archive</button>}
+    <button type="button" className="debt-action" aria-label={`Edit ${account.name}`} onClick={() => onEdit(account)}>Edit</button>
   </div>;
 
   return <div className="screen debts-screen">
@@ -1205,7 +1209,7 @@ function AccountsPage({
     {auditRows.length > 0 && <section className="debt-audit-card" aria-labelledby="debt-audit-title"><header><div><span>Auditable debt activity</span><h2 id="debt-audit-title">Payment and balance history</h2></div><small>Every entry preserves the balance before and after the action.</small></header><div className="debt-audit-list">{auditRows.slice(0, 10).map((row) => <article key={row.id}><div><strong>{row.kind}: {accountNames.get(row.accountId) ?? "Removed debt"}</strong><span>{formatDate(row.date)} - {auditCreatorLabel(row.creator)}</span>{row.note && <small>{row.note}</small>}</div><div><strong>{moneyPrecise.format(row.before)} to {moneyPrecise.format(row.after)}</strong><span className={row.difference <= 0 ? "decrease" : "increase"}>{row.difference <= 0 ? "-" : "+"}{moneyPrecise.format(Math.abs(row.difference))}</span></div></article>)}</div></section>}
     {archived.length > 0 && <details className="archived-debts">
       <summary>Archived debts ({archived.length})</summary>
-      <div>{archived.map((account) => <article key={account.id}><div><strong>{account.name}</strong><span>Paid off - {account.type}</span></div><button type="button" className="secondary" onClick={() => onRestore(account.id)}>Restore</button></article>)}</div>
+      <div>{archived.map((account) => <article key={account.id}><div><strong>{account.name}</strong><span>Paid off - {account.type}</span></div><button type="button" className="secondary" aria-label={`Restore ${account.name}`} onClick={() => onRestore(account.id)}>Restore</button></article>)}</div>
     </details>}
   </div>;
 }
@@ -1641,12 +1645,14 @@ function PaymentModal({ account, suggestedAmount, onClose, onSave }: { account: 
 function BalanceUpdateModal({ account, onClose, onSave }: { account: DebtAccount; onClose: () => void; onSave: (draft: BalanceDraft) => void }) {
   const [draft, setDraft] = useState<BalanceDraft>({ balance: account.balance, date: dateInputValue(), note: "" });
   const difference = round(draft.balance - account.balance);
-  const changed = Math.abs(difference) >= 0.005;
+  const invalidBalance = !Number.isFinite(draft.balance) || draft.balance < 0;
+  const changed = !invalidBalance && Math.abs(difference) >= 0.005;
   return <div className="modal-backdrop" onMouseDown={(event) => { if (event.currentTarget === event.target) onClose(); }}>
     <section className="modal debt-action-modal" role="dialog" aria-modal="true" aria-labelledby="balance-modal-title" aria-describedby="balance-modal-description">
       <header><div><span>Balance reconciliation</span><h2 id="balance-modal-title">Update {account.name} balance</h2><p id="balance-modal-description">Match the lender&apos;s current balance without creating a payment, charge, or duplicate ledger effect.</p></div><button type="button" onClick={onClose} aria-label="Close balance update form">&times;</button></header>
       <div className="debt-action-form">
         <div className="balance-change-preview" aria-live="polite"><div><span>Previous balance</span><strong>{moneyPrecise.format(account.balance)}</strong></div><i aria-hidden="true">&rarr;</i><div><span>New balance</span><strong>{moneyPrecise.format(draft.balance)}</strong></div></div>
+        {invalidBalance && <p className="form-error" role="alert">Current balance must be $0.00 or greater.</p>}
         <p className={difference > 0 ? "balance-difference increase" : "balance-difference decrease"}>{changed ? (difference > 0 ? "Increase " : "Decrease ") + moneyPrecise.format(Math.abs(difference)) : "Enter a different current balance to continue."}</p>
         <div className="form-grid"><Field label="New current balance" prefix="$" value={draft.balance} placeholder="0.00" step=".01" autoFocus onChange={(balance) => setDraft({ ...draft, balance })}/><label><span>Effective date</span><input type="date" value={draft.date} onChange={(event) => setDraft({ ...draft, date: event.target.value })}/></label><label className="wide"><span>Optional note</span><input value={draft.note} maxLength={240} placeholder="Example: Reconciled to August statement" onChange={(event) => setDraft({ ...draft, note: event.target.value })}/></label></div>
       </div>

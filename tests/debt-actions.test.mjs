@@ -3,7 +3,7 @@ import { readFile } from "node:fs/promises";
 import test from "node:test";
 
 import { createDashboardBackup, createDashboardPayload, createEmptyPlannedPayoff, parseDashboardContract, parseDashboardJson, serializeDashboardBackup } from "../app/dashboard-data.ts";
-import { createBalanceAdjustment, createDebtPayment, DebtPaymentError, setDebtArchived } from "../app/debts-screen.ts";
+import { createBalanceAdjustment, createDebtPayment, DebtBalanceError, DebtPaymentError, setDebtArchived } from "../app/debts-screen.ts";
 import { buildHomeDashboard } from "../app/home-dashboard.ts";
 import { calculatePlan } from "../app/payoff-engine.ts";
 import { transactionAdjustedAccounts } from "../app/progress-balances.ts";
@@ -79,6 +79,13 @@ test("balance updates reconcile upward and downward without duplicate ledger eff
   assert.equal(transactionAdjustedAccounts([downward.account], [charge])[0].balance, 900);
 });
 
+test("balance updates reject negative and unchanged balances", () => {
+  const debt = account("card");
+  const input = { storedAccount: debt, currentBalance: 1000, date: paymentDate, createdAt };
+  assert.throws(() => createBalanceAdjustment({ ...input, nextBalance: -0.01 }), (error) => error instanceof DebtBalanceError && /\$0\.00 or greater/i.test(error.message));
+  assert.throws(() => createBalanceAdjustment({ ...input, nextBalance: 1000 }), (error) => error instanceof DebtBalanceError && /different from the current balance/i.test(error.message));
+});
+
 test("mark paid off retains the debt and archive/restore preserves history", () => {
   const debt = account("card", { balance: 75 });
   const finalPayment = payment(debt, 75, { action: "mark-paid-off" });
@@ -135,6 +142,9 @@ test("desktop table, mobile stacked cards, explicit actions, and accessible dial
   assert.match(client, /role="dialog" aria-modal="true" aria-labelledby="payment-modal-title" aria-describedby="payment-modal-description"/);
   assert.match(client, /role="dialog" aria-modal="true" aria-labelledby="balance-modal-title" aria-describedby="balance-modal-description"/);
   assert.match(client, /role="alert"/);
+  assert.match(client, /aria-label={`Record payment for \${account\.name}`}/);
+  assert.match(client, /aria-label={`Update balance for \${account\.name}`}/);
+  assert.match(client, /aria-label={`Restore \${account\.name}`}/);
   assert.match(client, /event\.key === "Escape"/);
   assert.match(styles, /@media\(max-width:760px\)[\s\S]*\.debt-table-wrap\{display:none\}/);
   assert.match(styles, /\.debt-card-list\{display:grid/);

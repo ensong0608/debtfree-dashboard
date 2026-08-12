@@ -64,6 +64,13 @@ export class DebtPaymentError extends Error {
   }
 }
 
+export class DebtBalanceError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "DebtBalanceError";
+  }
+}
+
 export type DebtPaymentInput = {
   account: DebtAccount;
   amount: number;
@@ -117,8 +124,14 @@ export type BalanceAdjustmentInput = {
 };
 
 export function createBalanceAdjustment(input: BalanceAdjustmentInput) {
+  if (!Number.isFinite(input.nextBalance) || input.nextBalance < 0) {
+    throw new DebtBalanceError("Current balance must be $0.00 or greater.");
+  }
   const balanceBefore = cents(input.currentBalance);
   const balanceAfter = cents(input.nextBalance);
+  if (balanceBefore === balanceAfter) {
+    throw new DebtBalanceError("Enter a balance different from the current balance.");
+  }
   const createdAt = input.createdAt ?? new Date().toISOString();
   const account = {
     ...input.storedAccount,
