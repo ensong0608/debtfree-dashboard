@@ -211,6 +211,11 @@ function monthAfter(offset: number) {
   date.setMonth(date.getMonth() + offset);
   return date.toLocaleDateString("en-US", { month: "short", year: "numeric" });
 }
+function strategyLabel(strategy: PayoffStrategy) {
+  if (strategy === "avalanche") return "Avalanche";
+  if (strategy === "snowball") return "Snowball";
+  return "Custom";
+}
 
 const NAV_ITEMS: { id: PageId; label: string; icon: string }[] = [
   { id: "home", label: "Home", icon: "\u2302" },
@@ -798,7 +803,7 @@ export default function DashboardClient({ user }: { user: DashboardUser }) {
         {page === "monthly" && <DashboardPage month={selectedMonth} hasMonth={Object.prototype.hasOwnProperty.call(monthlyBudgets, selectedMonth)} previousHasItems={(monthlyBudgets[shiftMonth(selectedMonth, -1)] ?? []).length > 0} items={cashflowItems} accounts={calculatedAccounts} onMonth={setSelectedMonth} onCopyPrevious={copyPreviousBudget} onStartBlank={startBlankBudget} onAdd={openNewCashflow} onEdit={openEditCashflow} onMove={moveCashflow}/>}
         {page === "accounts" && <AccountsPage accounts={sortedAccounts} activeCount={activeCount} totalBalance={totalBalance} minimums={minimums} interest={interest} linkedCardExpenses={linkedCardExpenses} sortKey={sortKey} sortDirection={sortDirection} paidOffById={paidOffById} priorityById={priorityById} strategy={strategy} onSort={changeSort} onAdd={openNew} onEdit={openEdit} onUpdateBalance={openBalanceEdit} onRecordPayment={(account) => openRecommendedPayment(account.id, plan.months[0]?.payments[account.id] ?? effectiveMinimum(account))} onMarkPaidOff={markAccountPaidOff} onArchive={archiveAccount} onRestore={restoreAccount} onToggleMinimum={toggleMinimumMode} onTogglePayoff={togglePayoffMode} onSample={() => setAccounts(SAMPLE_ACCOUNTS)} onImport={importDebtFreeCsv} importMessage={importMessage}/>}
         {page === "history" && <TransactionsPage accounts={calculatedAccounts} payees={payees} transactions={transactions} onQuickAdd={openNewTransaction} onEdit={openEditTransaction} onDelete={softDeleteTransaction} onRestore={restoreTransaction} onBatchAdd={addBatchTransactions} onManagePayees={() => setPayeeModalOpen(true)}/>}
-        {page === "plan" && <PayoffPlanPage accounts={calculatedAccounts} plan={plan} extra={extra} availableExtra={availableExtra} strategy={strategy} linkedCardExpenseItems={linkedCardExpenseItems} linkedCardPurchaseItems={linkedCardPurchaseItems} monthlyItems={planningCashflowItems} transactions={transactions} snapshots={snapshots} onExtra={setExtra} onStrategy={setStrategy} onAccounts={() => setPage("accounts")} onEditAccount={openEdit}/>}
+        {page === "plan" && <PayoffPlanPage accounts={calculatedAccounts} plan={plan} extra={extra} availableExtra={availableExtra} strategy={strategy} linkedCardExpenseItems={linkedCardExpenseItems} linkedCardPurchaseItems={linkedCardPurchaseItems} monthlyItems={planningCashflowItems} transactions={transactions} snapshots={snapshots} onExtra={setExtra} onStrategy={setStrategy} onCustomOrder={(orderedIds) => { const positions = new Map(orderedIds.map((id, index) => [id, index])); setAccounts((current) => current.map((account) => positions.has(account.id) ? { ...account, customOrder: positions.get(account.id) } : account)); }} onAccounts={() => setPage("accounts")}/>}
         {page === "snapshots" && <SnapshotsPage openingAccounts={accounts} transactions={transactions} snapshots={snapshots} currentInterest={interest} onCapture={captureSnapshot} onUpdateNote={updateSnapshotNote} onDelete={removeSnapshot}/>}
         {page === "profile" && <ProfilePage user={user} householdName={householdName} role={householdRole} members={householdMembers} cloudStatus={cloudStatus} deviceOnly={deviceOnly} transferMessage={transferMessage} onExportBackup={exportDashboardBackup} onImportBackup={importDashboardBackup} onInvite={inviteMember} onRemove={removeAdmin}/>}
         {page === "utilization" && <UtilizationPage accounts={calculatedAccounts} onEditAccount={openEdit}/>}
@@ -1071,7 +1076,7 @@ function AccountsPage({
     if (account.balance <= 0) return "Complete";
     if (account.payoffMode === "minimum-only") return "Minimum only";
     const priority = priorityById.get(account.id);
-    return priority ? "#" + priority + " " + (strategy === "avalanche" ? "Avalanche" : "Snowball") : "Not ranked";
+    return priority ? "#" + priority + " " + strategyLabel(strategy) : "Not ranked";
   };
   const payoffLabel = (account: DebtAccount) => {
     if (account.balance <= 0) return "Paid off";
@@ -1155,13 +1160,63 @@ function AccountsPage({
     </details>}
   </div>;
 }
-function PayoffPlanPage({ accounts, plan, extra, availableExtra, strategy, linkedCardExpenseItems, linkedCardPurchaseItems, monthlyItems, transactions, snapshots, onExtra, onStrategy, onAccounts, onEditAccount }: { accounts: DebtAccount[]; plan: PayoffPlan; extra: number; availableExtra: number; strategy: PayoffStrategy; linkedCardExpenseItems: LinkedCardExpenseItems; linkedCardPurchaseItems: LinkedCardPurchaseItems; monthlyItems: CashflowItem[]; transactions: LedgerTransaction[]; snapshots: PayoffSnapshot[]; onExtra: (value: number) => void; onStrategy: (strategy: PayoffStrategy) => void; onAccounts: () => void; onEditAccount: (account: DebtAccount) => void }) {
+function PayoffPlanPage({ accounts, plan, extra, availableExtra, strategy, linkedCardExpenseItems, linkedCardPurchaseItems, monthlyItems, transactions, snapshots, onExtra, onStrategy, onCustomOrder, onAccounts }: { accounts: DebtAccount[]; plan: PayoffPlan; extra: number; availableExtra: number; strategy: PayoffStrategy; linkedCardExpenseItems: LinkedCardExpenseItems; linkedCardPurchaseItems: LinkedCardPurchaseItems; monthlyItems: CashflowItem[]; transactions: LedgerTransaction[]; snapshots: PayoffSnapshot[]; onExtra: (value: number) => void; onStrategy: (strategy: PayoffStrategy) => void; onCustomOrder: (orderedIds: string[]) => void; onAccounts: () => void }) {
   const [exporting, setExporting] = useState<"csv" | "excel" | "pdf" | null>(null);
   const [exportError, setExportError] = useState("");
-  const description = strategy === "avalanche" ? "Highest APR first - usually the lowest total interest." : "Lowest balance first - faster early wins.";
+  const [draggedCustomId, setDraggedCustomId] = useState<string | null>(null);
+  const description = strategy === "avalanche"
+    ? "Highest effective APR first - usually the lowest total interest."
+    : strategy === "snowball"
+      ? "Lowest balance first - faster early wins."
+      : "Choose the exact order. Drag on desktop or use Move up and Move down.";
   const planAccounts = accounts.filter((account) => account.balance > 0 || (linkedCardExpenseItems[account.id]?.length ?? 0) > 0 || (linkedCardPurchaseItems[account.id]?.length ?? 0) > 0);
   const currentMonthPurchaseTotal = Object.values(linkedCardPurchaseItems).flat().reduce((sum, item) => sum + item.amount, 0);
   const nonAmortizingNames = accounts.filter((account) => plan.nonAmortizingAccountIds.includes(account.id)).map((account) => account.name);
+  const linkedExpenseTotals = useMemo(() => Object.fromEntries(Object.entries(linkedCardExpenseItems).map(([id, items]) => [id, round(items.reduce((sum, item) => sum + item.amount, 0))])), [linkedCardExpenseItems]);
+  const linkedPurchaseTotals = useMemo(() => Object.fromEntries(Object.entries(linkedCardPurchaseItems).map(([id, items]) => [id, round(items.reduce((sum, item) => sum + item.amount, 0))])), [linkedCardPurchaseItems]);
+  const avalanchePlan = useMemo(() => calculatePlan(accounts, extra, "avalanche", linkedExpenseTotals, linkedPurchaseTotals), [accounts, extra, linkedExpenseTotals, linkedPurchaseTotals]);
+  const snowballPlan = useMemo(() => calculatePlan(accounts, extra, "snowball", linkedExpenseTotals, linkedPurchaseTotals), [accounts, extra, linkedExpenseTotals, linkedPurchaseTotals]);
+  const effectiveAprs = Object.fromEntries(accounts.map((account) => [account.id, plan.months[0]?.aprs[account.id] ?? account.apr]));
+  const comparison = [
+    { strategy: "avalanche" as const, plan: avalanchePlan, firstDebt: payoffPriority(accounts, "avalanche", effectiveAprs)[0]?.name ?? "No priority debt" },
+    { strategy: "snowball" as const, plan: snowballPlan, firstDebt: payoffPriority(accounts, "snowball", effectiveAprs)[0]?.name ?? "No priority debt" },
+  ];
+  const recommendedStrategy: Exclude<PayoffStrategy, "custom"> = avalanchePlan.totalInterest <= snowballPlan.totalInterest ? "avalanche" : "snowball";
+  const alternativeStrategy: Exclude<PayoffStrategy, "custom"> = recommendedStrategy === "avalanche" ? "snowball" : "avalanche";
+  const projectedSavings = Math.abs(avalanchePlan.totalInterest - snowballPlan.totalInterest);
+  const customAccounts = payoffPriority(accounts, "custom", effectiveAprs);
+  const reorderCustom = (movingId: string, targetId: string) => {
+    if (movingId === targetId) return;
+    const ids = customAccounts.map((account) => account.id);
+    const from = ids.indexOf(movingId);
+    const to = ids.indexOf(targetId);
+    if (from < 0 || to < 0) return;
+    ids.splice(to, 0, ids.splice(from, 1)[0]);
+    onCustomOrder(ids);
+  };
+  const moveCustom = (accountId: string, direction: -1 | 1) => {
+    const ids = customAccounts.map((account) => account.id);
+    const from = ids.indexOf(accountId);
+    const to = from + direction;
+    if (from < 0 || to < 0 || to >= ids.length) return;
+    [ids[from], ids[to]] = [ids[to], ids[from]];
+    onCustomOrder(ids);
+  };
+  const scheduleRows = plan.months.map((month) => {
+    let minimumPayments = 0;
+    const extraRecipients: string[] = [];
+    let extraPayment = 0;
+    planAccounts.forEach((account) => {
+      const payment = month.payments[account.id] ?? 0;
+      const cardCharges = (linkedExpenseTotals[account.id] ?? 0) + (month.month === 1 ? linkedPurchaseTotals[account.id] ?? 0 : 0);
+      const minimumPayment = month.minimums[account.id] ?? 0;
+      const scheduled = minimumPayment + cardCharges;
+      minimumPayments += Math.min(payment, minimumPayment);
+      extraPayment += Math.max(0, payment - scheduled);
+      if (payment > scheduled + .005) extraRecipients.push(account.name);
+    });
+    return { month, minimumPayments: round(minimumPayments), extraPayment: round(extraPayment), extraRecipients };
+  });
 
   const createReport = (): PayoffReportData => {
     const accountNames = new Map(accounts.map((account) => [account.id, account.name]));
@@ -1174,7 +1229,7 @@ function PayoffPlanPage({ accounts, plan, extra, availableExtra, strategy, linke
     return {
       generatedAt: new Date().toLocaleString("en-US"),
       budgetMonth: monthLabel(currentMonthKey()),
-      strategy: strategy === "avalanche" ? "Avalanche" : "Snowball",
+      strategy: strategyLabel(strategy),
       projectedDebtFree: plan.months.length && !plan.stalled ? monthAfter(plan.months.length - 1) : "Needs adjustment",
       monthsToPayoff: plan.months.length,
       stalled: plan.stalled,
@@ -1263,16 +1318,35 @@ function PayoffPlanPage({ accounts, plan, extra, availableExtra, strategy, linke
 
   return <div className="screen plan-screen">
     <div className="screen-title">
-      <div><span className="eyebrow">{strategy} strategy</span><h1>Payoff plan</h1><p>Minimums and linked credit-card expenses are paid first, then extra money follows your selected strategy. Zero-balance accounts are hidden.</p></div>
+      <div><span className="eyebrow">{strategyLabel(strategy)} strategy</span><h1>Payoff plan</h1><p>Compare proven payoff methods, choose your own order, and open the monthly details only when you need them.</p></div>
       <div className="plan-controls">
-        <div className="strategy-control"><span>Strategy</span><div><button type="button" className={strategy === "avalanche" ? "active" : ""} onClick={() => onStrategy("avalanche")}>Avalanche</button><button type="button" className={strategy === "snowball" ? "active" : ""} onClick={() => onStrategy("snowball")}>Snowball</button></div><small>{description}</small></div>
+        <div className="strategy-control"><span>Strategy</span><div><button type="button" className={strategy === "avalanche" ? "active" : ""} onClick={() => onStrategy("avalanche")}>Avalanche</button><button type="button" className={strategy === "snowball" ? "active" : ""} onClick={() => onStrategy("snowball")}>Snowball</button><button type="button" className={strategy === "custom" ? "active" : ""} onClick={() => onStrategy("custom")}>Custom</button></div><small>{description}</small></div>
         <div className="extra-control"><label htmlFor="extra-monthly">Extra each month</label><div><b>$</b><input id="extra-monthly" type="number" min="0" inputMode="decimal" value={extra || ""} placeholder="0" onChange={(event) => onExtra(number(event.target.value))}/></div><button className={availableExtra > 0 && Math.abs(extra - availableExtra) < 0.01 ? "surplus-shortcut active" : "surplus-shortcut"} type="button" disabled={availableExtra <= 0} onClick={() => onExtra(availableExtra)}>{availableExtra > 0 ? `Use my ${moneyPrecise.format(availableExtra)} available extra` : "No extra available yet"}</button><small>{availableExtra > 0 ? "Calculated after monthly expenses, budgets, and debt minimums. Edit anytime." : "Add income or adjust expenses, budgets, and minimums to create extra."}</small></div>
         <div className="export-control"><span>Export full report</span><div><button type="button" disabled={Boolean(exporting)} onClick={() => void exportReport("csv")}>{exporting === "csv" ? "Preparing..." : "CSV"}</button><button type="button" disabled={Boolean(exporting)} onClick={() => void exportReport("excel")}>{exporting === "excel" ? "Preparing..." : "Excel"}</button><button type="button" disabled={Boolean(exporting)} onClick={() => void exportReport("pdf")}>{exporting === "pdf" ? "Preparing..." : "PDF"}</button></div><small>Budget, debts, schedule, transactions, and snapshots.</small>{exportError && <em role="alert">{exportError}</em>}</div>
       </div>
     </div>
     {planAccounts.length && plan.months.length && !plan.stalled ? <>
       <section className="plan-hero"><div><span>Projected debt-free date</span><div className="plan-hero-value"><strong>{monthAfter(plan.months.length - 1)}</strong><small>- {plan.months.length} months from now</small></div></div><div><span>Monthly plan</span><div className="plan-hero-value"><strong>{money.format(plan.monthly)}</strong><small>- {currentMonthPurchaseTotal > 0 ? `Current month ${moneyPrecise.format(plan.months[0]?.requiredMonthly ?? plan.monthly)} includes one-time card purchases` : plan.peakMonthly > plan.monthly + .005 ? `Rises to ${moneyPrecise.format(plan.peakMonthly)} when a saved post-promo minimum begins` : "Minimums + linked card expenses + extra"}</small></div></div><div><span>Estimated interest</span><div className="plan-hero-value"><strong>{money.format(plan.totalInterest)}</strong><small>- Actual fee calibration used when provided</small></div></div></section>
-      <section className="table-card plan-table-card"><div className="table-card-head"><div className="plan-table-summary"><strong>Month-by-month schedule</strong><span>{plan.months.length} rows | {strategy}</span></div><span className="swipe-note">Column headers stay visible while you scroll</span></div><div className="table-scroll plan-scroll"><table className="payoff-table"><caption>Complete payoff plan with account balances after each scheduled payment</caption><thead><tr>{planAccounts.map((account) => <th className="account-plan-head" key={account.id} title="Click the account name to edit it. Drag the lower-right edge to resize this column."><button className="account-plan-edit" type="button" onClick={() => onEditAccount(account)}><span>{account.name}</span><small>Starting debt {moneyPrecise.format(account.balance)}</small></button></th>)}<th>Amount 2 Pay/month</th><th>Milestone</th><th>Interest</th><th>Remaining</th></tr></thead><tbody>{plan.months.map((month) => <tr key={month.month} aria-label={monthAfter(month.month - 1)}>{planAccounts.map((account) => { const expenseItems = linkedCardExpenseItems[account.id] ?? []; const purchaseItems = month.month === 1 ? (linkedCardPurchaseItems[account.id] ?? []) : []; return <td className="account-plan-cell" key={account.id}><strong>{moneyPrecise.format(month.payments[account.id] ?? 0)}</strong><small>{moneyPrecise.format(month.balances[account.id] ?? 0)} left</small>{expenseItems.map((item) => <em key={item.id}>+ {moneyPrecise.format(item.amount)} {item.name}</em>)}{purchaseItems.map((item) => <em key={item.id}>+ {moneyPrecise.format(item.amount)} {item.name} (one-time)</em>)}</td>; })}<td className="number-cell"><strong>{moneyPrecise.format(month.paid)}</strong></td><td>{month.paidOff.length ? <span className="milestone">Paid off: {month.paidOff.join(", ")}</span> : "\u2014"}</td><td className="number-cell">{moneyPrecise.format(month.interest)}</td><td className="number-cell remaining">{moneyPrecise.format(month.remaining)}</td></tr>)}</tbody></table></div></section>
+      <section className="plan-insights">
+        <article className="strategy-recommendation">
+          <div><span>Recommended strategy</span><strong>{strategyLabel(recommendedStrategy)}</strong><p>{projectedSavings > .005 ? `${strategyLabel(recommendedStrategy)} is recommended because it is projected to save ${moneyPrecise.format(projectedSavings)} in interest compared with ${strategyLabel(alternativeStrategy)}.` : "Avalanche is recommended because it prioritizes the highest effective APR; both standard strategies currently project the same interest."}</p></div>
+          <button type="button" className="secondary" onClick={() => onStrategy(recommendedStrategy)}>Use recommendation</button>
+        </article>
+        <article className="strategy-comparison-card">
+          <header><span>Compare strategies</span><strong>Same monthly payment, different order</strong></header>
+          <div className="strategy-table-wrap"><table><caption>Avalanche and snowball payoff comparison</caption><thead><tr><th>Strategy</th><th>Debt-free date</th><th>Total interest</th><th>First debt</th></tr></thead><tbody>{comparison.map((item) => <tr key={item.strategy} className={strategy === item.strategy ? "active" : ""}><td><button type="button" onClick={() => onStrategy(item.strategy)}>{strategyLabel(item.strategy)}</button></td><td>{item.plan.stalled ? "Needs adjustment" : monthAfter(item.plan.months.length - 1)}</td><td>{moneyPrecise.format(item.plan.totalInterest)}</td><td>{item.firstDebt}</td></tr>)}</tbody></table></div>
+        </article>
+      </section>
+      {strategy === "custom" && customAccounts.length > 0 && <section className="custom-order-card">
+        <header><div><span>Custom payoff order</span><strong>Put debts in the order you want extra money applied</strong></div><small>Drag rows on desktop or use the accessible buttons.</small></header>
+        <ol>{customAccounts.map((account, index) => <li key={account.id} draggable onDragStart={(event) => { setDraggedCustomId(account.id); event.dataTransfer.effectAllowed = "move"; }} onDragOver={(event) => event.preventDefault()} onDrop={() => { if (draggedCustomId) reorderCustom(draggedCustomId, account.id); setDraggedCustomId(null); }} onDragEnd={() => setDraggedCustomId(null)} className={draggedCustomId === account.id ? "dragging" : ""}>
+          <span className="drag-handle" aria-hidden="true">::</span><b>{index + 1}</b><div><strong>{account.name}</strong><small>{moneyPrecise.format(account.balance)} ? {account.apr.toFixed(2)}% APR</small></div><div className="custom-order-actions"><button type="button" disabled={index === 0} aria-label={`Move ${account.name} up`} onClick={() => moveCustom(account.id, -1)}>Move up</button><button type="button" disabled={index === customAccounts.length - 1} aria-label={`Move ${account.name} down`} onClick={() => moveCustom(account.id, 1)}>Move down</button></div>
+        </li>)}</ol>
+      </section>}
+      <details className="table-card plan-table-card payoff-schedule">
+        <summary className="table-card-head"><div className="plan-table-summary"><strong>Month-by-month schedule</strong><span>{plan.months.length} months ? {strategyLabel(strategy)}</span></div><span className="schedule-toggle">Open schedule</span></summary>
+        <div className="table-scroll plan-scroll"><table className="payoff-table compact-payoff-table"><caption>Expandable month-by-month payoff schedule</caption><thead><tr><th>Month</th><th>Debt receiving extra payment</th><th>Minimum payments</th><th>Extra payment</th><th>Interest</th><th>Ending balance</th></tr></thead><tbody>{scheduleRows.map(({ month, minimumPayments, extraPayment, extraRecipients }) => <tr key={month.month}><td><strong>{monthAfter(month.month - 1)}</strong><small>Month {month.month}</small></td><td><strong>{extraRecipients.length ? extraRecipients.join(", ") : "Minimums only"}</strong>{month.paidOff.length > 0 && <small className="milestone">Paid off: {month.paidOff.join(", ")}</small>}</td><td className="number-cell">{moneyPrecise.format(minimumPayments)}</td><td className="number-cell">{moneyPrecise.format(extraPayment)}</td><td className="number-cell">{moneyPrecise.format(month.interest)}</td><td className="number-cell remaining">{moneyPrecise.format(month.remaining)}</td></tr>)}</tbody></table></div>
+      </details>
     </> : <section className="large-empty"><span>{"\u2713"}</span><h2>{plan.stalled ? (nonAmortizingNames.length ? "A balance is not amortizing" : "The current payments do not outpace interest") : "Add debt accounts to build your plan"}</h2><p>{plan.stalled ? (nonAmortizingNames.length ? `${nonAmortizingNames.join(", ")} does not shrink after interest and new charges at the modeled payment. Enter the issuer's actual minimum or add extra payment.` : "Increase a minimum payment or add an extra monthly amount to create a finish line.") : "Once your accounts have balances, APRs, and minimums, the complete payoff schedule will appear here."}</p><button className="primary" type="button" onClick={onAccounts}>Review debt accounts</button></section>}
   </div>;
 }

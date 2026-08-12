@@ -49,7 +49,7 @@ export default function HomeDashboardPage({
     </div>
 
     <section className="home-summary" aria-label="Payoff summary">
-      <article className="home-debt-free"><span>Estimated debt-free date</span><strong>{formatMonth(model.debtFreeMonth)}</strong><small>{model.stalled ? "Increase the payment target to create a finish line" : `${model.strategy === "avalanche" ? "Avalanche" : "Snowball"} strategy · ${preciseMoney.format(model.estimatedInterest)} projected interest`}</small></article>
+      <article className="home-debt-free"><span>Estimated debt-free date</span><strong>{formatMonth(model.debtFreeMonth)}</strong><small>{model.stalled ? "Increase the payment target to create a finish line" : `${model.strategy === "avalanche" ? "Avalanche" : model.strategy === "snowball" ? "Snowball" : "Custom"} strategy · ${preciseMoney.format(model.estimatedInterest)} projected interest`}</small></article>
       <article><span>Total remaining debt</span><strong>{preciseMoney.format(model.totalDebt)}</strong><small>{model.activeDebtCount} active {model.activeDebtCount === 1 ? "debt" : "debts"}</small></article>
       <article><span>Amount already paid off</span><strong>{preciseMoney.format(model.amountPaid)}</strong><small>{model.progressLabel}</small></article>
       <article className="home-progress-card"><div><span>Plan progress</span><strong>{model.progressPercent.toFixed(1)}%</strong></div><div className="home-progress-track" role="progressbar" aria-label="Debt payoff progress" aria-valuemin={0} aria-valuemax={100} aria-valuenow={model.progressPercent}><i style={{ width: `${model.progressPercent}%` }}/></div><small>{money.format(model.startingDebt)} starting debt</small></article>

@@ -5,7 +5,7 @@ export const DASHBOARD_DATA_VERSION = 2 as const;
 export type DebtType = "Credit card" | "Personal loan" | "Auto loan" | "Student loan" | "Medical debt" | "Other";
 export type MinimumMode = "auto" | "manual";
 export type PayoffMode = "priority" | "minimum-only";
-export type PayoffStrategy = "avalanche" | "snowball";
+export type PayoffStrategy = "avalanche" | "snowball" | "custom";
 export type CashflowKind = "income" | "expense" | "purchase" | "budget";
 export type PaymentMethod = "debit" | "credit";
 export type TransactionType = "charge" | "payment" | "fee";
@@ -29,6 +29,7 @@ export type DebtAccount = {
   postPromoMinimum: number;
   createdAt: string;
   archivedAt?: string | null;
+  customOrder?: number;
   householdMember?: PlannedAssignment;
   [key: string]: unknown;
 };
@@ -217,7 +218,7 @@ const payoffModes = new Set<PayoffMode>(["priority", "minimum-only"]);
 const cashflowKinds = new Set<CashflowKind>(["income", "expense", "purchase", "budget"]);
 const paymentMethods = new Set<PaymentMethod>(["debit", "credit"]);
 const transactionTypes = new Set<TransactionType>(["charge", "payment", "fee"]);
-const strategies = new Set<PayoffStrategy>(["avalanche", "snowball"]);
+const strategies = new Set<PayoffStrategy>(["avalanche", "snowball", "custom"]);
 
 const plannedAssignments = new Set<PlannedAssignment>(["household", "partner-1", "partner-2"]);
 const capacityMethods = new Set<PayoffCapacityMethod>(["known", "calculated"]);
@@ -419,6 +420,7 @@ function validateAccount(value: unknown, path: string, issues: string[]) {
   requiredNumber(item.postPromoMinimum, `${path}.postPromoMinimum`, issues);
   requiredString(item.createdAt, `${path}.createdAt`, issues);
   if (hasOwn(item, "archivedAt")) nullableString(item.archivedAt, `${path}.archivedAt`, issues);
+  if (hasOwn(item, "customOrder")) requiredNumber(item.customOrder, `${path}.customOrder`, issues, true);
   if (hasOwn(item, "householdMember")) enumValue(item.householdMember, plannedAssignments, path + ".householdMember", issues);
 }
 

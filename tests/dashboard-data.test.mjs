@@ -223,6 +223,12 @@ test("rejects invalid snapshot and nested snapshot account fields", () => {
 });
 
 test("rejects invalid strategies and unsupported wrapper versions", () => {
+  const customStrategy = copy(fixture);
+  customStrategy.strategy = "custom";
+  customStrategy.accounts[0].customOrder = 1;
+  assert.equal(parseDashboardContract(customStrategy).payload.strategy, "custom");
+  assert.equal(parseDashboardContract(customStrategy).payload.accounts[0].customOrder, 1);
+
   const invalidStrategy = copy(fixture);
   invalidStrategy.strategy = "random";
   expectFieldError(invalidStrategy, "payload.strategy");

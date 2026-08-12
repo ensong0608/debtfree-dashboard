@@ -83,6 +83,16 @@ test("preserves snowball ordering, higher-APR tie-breaking, and stable exact tie
   assert.deepEqual(exactTie.months[0].payments, { first: 100, second: 50 });
 });
 
+test("applies extra money in the saved custom payoff order", () => {
+  const ordered = plan([
+    account("first", { balance: 500, apr: 29, customOrder: 2 }),
+    account("second", { balance: 500, apr: 10, customOrder: 0 }),
+    account("third", { balance: 500, apr: 20, customOrder: 1 }),
+  ], 100, "custom");
+
+  assert.deepEqual(ordered.months[0].payments, { first: 50, second: 150, third: 50 });
+});
+
 test("preserves minimum-only debts and leaves unused rollover unavailable to them", () => {
   const result = plan([
     account("priority", { balance: 100 }),

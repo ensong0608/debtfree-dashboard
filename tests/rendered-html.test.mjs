@@ -96,18 +96,25 @@ test("removes disposable starter assets", async () => {
   assert.match(dashboardSource, /extractDebtFreeAccounts/);
   assert.match(dashboardSource, /Avalanche/);
   assert.match(dashboardSource, /Snowball/);
+  assert.match(dashboardSource, /Custom/);
   assert.match(dashboardSource, /CashflowItem/);
   assert.match(dashboardSource, /cashflowItems/);
   assert.match(dashboardSource, /Paid with/);
   assert.match(dashboardSource, /Select the card used for this expense/);
   assert.match(dashboardSource, /linkedCardExpenses/);
   assert.match(dashboardSource, /Minimums \+ linked card expenses \+ extra/);
-  assert.match(dashboardSource, /\+ \{moneyPrecise\.format\(item\.amount\)\} \{item\.name\}/);
+  assert.match(dashboardSource, /linkedExpenseTotals/);
   assert.doesNotMatch(dashboardSource, /Includes \{moneyPrecise\.format\(cardExpense\)\} card expense/);
   assert.doesNotMatch(dashboardSource, /month-sticky|interest-sticky|remaining-sticky|month-plan-head/);
   assert.match(dashboardSource, /plan-table-summary/);
-  assert.match(dashboardSource, /Column headers stay visible while you scroll/);
-  assert.match(dashboardSource, /Amount 2 Pay\/month/);
+  assert.match(dashboardSource, /Recommended strategy/);
+  assert.match(dashboardSource, /Compare strategies/);
+  assert.match(dashboardSource, /Custom payoff order/);
+  assert.match(dashboardSource, /Move up/);
+  assert.match(dashboardSource, /Debt receiving extra payment/);
+  assert.match(dashboardSource, /Minimum payments/);
+  assert.match(dashboardSource, /Extra payment/);
+  assert.match(dashboardSource, /Ending balance/);
   assert.doesNotMatch(dashboardSource, /moneyPrecise\.format\(month\.payments\[account\.id\] \?\? 0\)\} paid/);
   assert.match(dashboardSource, /\/api\/household/);
   assert.match(dashboardSource, /Add member/);
@@ -122,7 +129,7 @@ test("removes disposable starter assets", async () => {
   assert.match(dashboardSource, /minimum-only/);
   assert.match(dashboardSource, /Auto estimate/);
   assert.match(dashboardSource, /Starting debt/);
-  assert.match(dashboardSource, /month\.balances/);
+  assert.match(dashboardSource, /entry\.balances/);
   assert.match(dashboardSource, /projectedMonthlyRate/);
   assert.match(dashboardSource, /Actual interest fee/);
   assert.match(dashboardSource, /planAccounts = accounts\.filter/);
@@ -249,8 +256,8 @@ test("pays linked credit-card one-time purchases in the current payoff month onl
   assert.match(engine, /month === 1 \? \(linkedCardPurchases\[accountId\] \?\? 0\) : 0/);
   assert.match(engine, /plannedMonthly = monthly \+ \(month === 1 \? oneTimePurchaseTotal : 0\)/);
   assert.match(engine, /scheduledPayment = \(minimums\[account\.id\] \?\? 0\) \+ cardChargeForMonth\(account\.id, month\)/);
-  assert.match(client, /month\.month === 1 \? \(linkedCardPurchaseItems\[account\.id\] \?\? \[\]\) : \[\]/);
-  assert.match(client, /\{item\.name\} \(one-time\)/);
+  assert.match(client, /month\.month === 1 \? linkedPurchaseTotals\[account\.id\] \?\? 0 : 0/);
+  assert.match(client, /currentMonthPurchaseTotal/);
 });
 test("uses verified personal email accounts with household admin and viewer roles", async () => {
   const [auth, client, householdRoute, membersRoute, schema, wranglerSource] = await Promise.all([

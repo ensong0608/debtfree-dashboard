@@ -43,6 +43,7 @@ test("shows the selected payoff strategy priority and excludes minimum-only or a
   ];
   assert.deepEqual(payoffPriority(debts, "avalanche").map((item) => item.id), ["high-apr", "small"]);
   assert.deepEqual(payoffPriority(debts, "snowball").map((item) => item.id), ["small", "high-apr"]);
+  assert.deepEqual(payoffPriority([debts[0], debts[1]].map((item, index) => ({ ...item, customOrder: 1 - index })), "custom").map((item) => item.id), ["small", "high-apr"]);
 });
 
 test("surfaces useful promotional-rate warnings", () => {
@@ -70,4 +71,8 @@ test("Phase 4 Debts UI exposes required actions and swaps the desktop table for 
   assert.match(styles, /@media\(max-width:760px\)[\s\S]*\.debt-table-wrap\{display:none\}/);
   assert.match(styles, /\.debt-card-list\{display:grid/);
   assert.match(styles, /\.debt-action\{min-height:46px/);
+  assert.match(styles, /\.debt-table-wrap\{min-height:0;flex:1 1 auto;overflow:scroll/);
+  assert.match(styles, /\.debt-table\{width:1400px;min-width:1400px;table-layout:fixed/);
+  assert.match(styles, /\.debt-table th:nth-child\(8\),\.debt-table td:nth-child\(8\)\{width:150px/);
+  assert.match(styles, /text-overflow:ellipsis;white-space:nowrap/);
 });
