@@ -90,6 +90,8 @@ export type LedgerTransaction = {
   creator?: DebtAuditCreator;
   plannedItemId?: string;
   paymentKind?: PaymentKind;
+  replacesTransactionId?: string;
+  replacedByTransactionId?: string;
   [key: string]: unknown;
 };
 
@@ -599,6 +601,8 @@ function validateTransaction(value: unknown, path: string, issues: string[]) {
   if (hasOwn(item, "creator")) validateCreator(item.creator, path + ".creator", issues);
   if (hasOwn(item, "plannedItemId")) requiredString(item.plannedItemId, path + ".plannedItemId", issues, true);
   if (hasOwn(item, "paymentKind")) enumValue(item.paymentKind, paymentKinds, path + ".paymentKind", issues);
+  if (hasOwn(item, "replacesTransactionId")) requiredString(item.replacesTransactionId, path + ".replacesTransactionId", issues);
+  if (hasOwn(item, "replacedByTransactionId")) requiredString(item.replacedByTransactionId, path + ".replacedByTransactionId", issues);
 }
 
 

@@ -114,6 +114,47 @@ export function createDebtPayment(input: DebtPaymentInput): LedgerTransaction {
   };
 }
 
+
+export type DebtPaymentCorrectionInput = {
+  original: LedgerTransaction;
+  accountWithoutOriginal: DebtAccount;
+  amount: number;
+  date: string;
+  note?: string;
+  paymentKind: PaymentKind;
+  createdAt?: string;
+  id?: string;
+  creator?: DebtAuditCreator;
+};
+
+export function replaceDebtPayment(input: DebtPaymentCorrectionInput) {
+  if (input.original.debtAction !== "payment" || input.original.deletedAt) {
+    throw new DebtPaymentError("Only an active recorded payment can be corrected.");
+  }
+  const createdAt = input.createdAt ?? new Date().toISOString();
+  const replacement = {
+    ...createDebtPayment({
+      account: input.accountWithoutOriginal,
+      amount: input.amount,
+      date: input.date,
+      note: input.note,
+      paymentKind: input.paymentKind,
+      createdAt,
+      id: input.id,
+      payeeId: input.original.payeeId,
+      creator: input.creator,
+    }),
+    replacesTransactionId: input.original.id,
+  };
+  const original = {
+    ...input.original,
+    deletedAt: createdAt,
+    updatedAt: createdAt,
+    replacedByTransactionId: replacement.id,
+  };
+  return { original, replacement };
+}
+
 export type BalanceAdjustmentInput = {
   storedAccount: DebtAccount;
   currentBalance: number;

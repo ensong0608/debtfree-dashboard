@@ -3,7 +3,7 @@ import { readFile } from "node:fs/promises";
 import test from "node:test";
 
 import { createDashboardBackup, createDashboardPayload, createEmptyPlannedPayoff, parseDashboardContract, parseDashboardJson, serializeDashboardBackup } from "../app/dashboard-data.ts";
-import { createBalanceAdjustment, createDebtPayment, DebtBalanceError, DebtPaymentError, setDebtArchived } from "../app/debts-screen.ts";
+import { createBalanceAdjustment, createDebtPayment, replaceDebtPayment, DebtBalanceError, DebtPaymentError, setDebtArchived } from "../app/debts-screen.ts";
 import { buildHomeDashboard } from "../app/home-dashboard.ts";
 import { calculatePlan } from "../app/payoff-engine.ts";
 import { transactionAdjustedAccounts } from "../app/progress-balances.ts";
@@ -42,6 +42,28 @@ test("payment audit metadata is informational and never double-counted", () => {
   const [current] = transactionAdjustedAccounts([debt], [transaction]);
   assert.equal(current.balance, debt.balance - transaction.amount);
   assert.equal(current.balance, 750);
+});
+
+test("correcting an audited payment retains the original and applies one replacement", () => {
+  const debt = account("card");
+  const original = payment(debt, 250, { paymentKind: "minimum", note: "Wrong amount" });
+  const accountWithoutOriginal = transactionAdjustedAccounts([debt], []);
+  const correction = replaceDebtPayment({
+    original,
+    accountWithoutOriginal: accountWithoutOriginal[0],
+    amount: 300,
+    date: "2026-08-13",
+    note: "Corrected amount",
+    paymentKind: "extra",
+    createdAt: "2026-08-13T18:00:00.000Z",
+    id: "replacement",
+    creator,
+  });
+  assert.equal(correction.original.deletedAt, "2026-08-13T18:00:00.000Z");
+  assert.equal(correction.original.replacedByTransactionId, "replacement");
+  assert.equal(correction.replacement.replacesTransactionId, original.id);
+  assert.equal(correction.replacement.paymentKind, "extra");
+  assert.equal(transactionAdjustedAccounts([debt], [correction.original, correction.replacement])[0].balance, 700);
 });
 
 test("payment immediately changes the payoff projection and Home next action", () => {
@@ -112,10 +134,12 @@ test("v2 payload migration and full JSON backup retain Phase 5 history", () => {
     snapshots: [], extra: 0, strategy: "avalanche", planning: createEmptyPlannedPayoff(),
     balanceAdjustments: [{ id: "adjustment", accountId: "card", date: paymentDate, balanceBefore: 975, balanceAfter: 980, difference: 5, createdAt, note: "Statement", creator }],
   });
+  payload.transactions[0].replacesTransactionId = "original-payment";
   const backup = createDashboardBackup(payload, null, createdAt);
   const reparsed = parseDashboardJson(serializeDashboardBackup(backup));
   assert.deepEqual(reparsed.payload.transactions[0].creator, creator);
   assert.equal(reparsed.payload.transactions[0].balanceAfter, 975);
+  assert.equal(reparsed.payload.transactions[0].replacesTransactionId, "original-payment");
   assert.deepEqual(reparsed.payload.balanceAdjustments, payload.balanceAdjustments);
 
   const v2 = structuredClone(backup);
@@ -142,6 +166,9 @@ test("desktop table, mobile stacked cards, explicit actions, and accessible dial
   assert.match(client, /role="dialog" aria-modal="true" aria-labelledby="payment-modal-title" aria-describedby="payment-modal-description"/);
   assert.match(client, /role="dialog" aria-modal="true" aria-labelledby="balance-modal-title" aria-describedby="balance-modal-description"/);
   assert.match(client, /role="alert"/);
+  assert.match(client, /View . correct/);
+  assert.match(client, /Save correction/);
+  assert.match(client, /The original record is never erased/);
   assert.match(client, /aria-label={`Record payment for \${account\.name}`}/);
   assert.match(client, /aria-label={`Update balance for \${account\.name}`}/);
   assert.match(client, /aria-label={`Restore \${account\.name}`}/);
