@@ -25,3 +25,12 @@
 - If the future minimum is not known, the forecast keeps the current minimum and says so instead of silently estimating a higher payment.
 - The True Cost warning now uses the same payoff forecast for its interest, finish date, and monthly-payment figures.
 - Forecasts identify non-amortizing balances and stop presenting a misleading payoff date when payments do not reduce the balance after interest and new charges.
+
+## Phase 6 - Monthly Plan source of truth
+
+- Replaced Monthly Budget with a lightweight Monthly Plan for recurring income, recurring planned spending, one-time adjustments, safety buffer, debt-payment target, and available debt payment.
+- Added explicit Planned, Spent, and Remaining values. Phase 5 payments are never counted as household spending.
+- Detailed spending tracking is optional, disabled for new users, preserved for legacy transaction/payee users, and hides advanced tools without deleting their data.
+- Added minimum, extra, and combined payment classifications so the current month shows paid-so-far and still-planned amounts per debt.
+- Added planned-to-actual transaction links and a characterized first-month payoff correction that prevents matched card spending from being projected twice.
+- Added v4 JSON migration and round-trip coverage without changing payoff ordering or interest formulas.

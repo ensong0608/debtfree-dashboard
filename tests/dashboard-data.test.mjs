@@ -26,6 +26,14 @@ function copy(value) {
   return structuredClone(value);
 }
 
+function withoutPhase6(payload) {
+  const copy = structuredClone(payload);
+  delete copy.monthlyPlan;
+  delete copy.planning;
+  delete copy.balanceAdjustments;
+  Object.values(copy.monthlyBudgets).flat().forEach((item) => delete item.recurring);
+  return copy;
+}
 function expectFieldError(value, path) {
   assert.throws(
     () => parseDashboardContract(value),
@@ -38,8 +46,8 @@ test("imports the anonymized unwrapped legacy v0 shape without loss", () => {
   const contract = parseDashboardContract(fixture);
   assert.equal(contract.format, DASHBOARD_BACKUP_FORMAT);
   assert.equal(contract.version, DASHBOARD_DATA_VERSION);
-  const { planning, balanceAdjustments, ...legacyPayload } = contract.payload;
-  assert.deepEqual(legacyPayload, fixture);
+  const { planning, balanceAdjustments } = contract.payload;
+  assert.deepEqual(withoutPhase6(contract.payload), fixture);
   assert.deepEqual(planning, createEmptyPlannedPayoff());
   assert.deepEqual(balanceAdjustments, []);
 });
@@ -237,11 +245,11 @@ test("rejects invalid strategies and unsupported wrapper versions", () => {
 
   const invalidVersion = {
     format: DASHBOARD_BACKUP_FORMAT,
-    version: 4,
+    version: 5,
     exportedAt: fixedExportedAt,
     payload: fixture,
   };
-  expectFieldError(invalidVersion, "backup.version must be 1, 2, or 3");
+  expectFieldError(invalidVersion, "backup.version must be 1, 2, 3, or 4");
 });
 
 test("rejects invalid planned-data fields with useful paths", () => {
@@ -270,8 +278,8 @@ test("reports multiple useful field errors while leading with the first field", 
 test("validates and migrates household API write payloads with the shared contract", () => {
   const unwrapped = parseHouseholdWriteJson(JSON.stringify({ payload: fixture }));
   assert.equal(unwrapped.version, DASHBOARD_DATA_VERSION);
-  const { planning, balanceAdjustments, ...legacyPayload } = unwrapped.payload;
-  assert.deepEqual(legacyPayload, fixture);
+  const { planning, balanceAdjustments } = unwrapped.payload;
+  assert.deepEqual(withoutPhase6(unwrapped.payload), fixture);
   assert.deepEqual(planning, createEmptyPlannedPayoff());
   assert.deepEqual(balanceAdjustments, []);
 

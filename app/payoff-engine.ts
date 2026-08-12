@@ -96,14 +96,16 @@ export function calculatePlan(
   linkedCardExpenses: LinkedCardExpenses = {},
   linkedCardPurchases: LinkedCardExpenses = {},
   calculationDate: Date = new Date(),
+  actualizedLinkedCardExpenses: LinkedCardExpenses = {},
 ): PayoffPlan {
   const active = accounts.filter((account) => account.balance > 0 || (linkedCardExpenses[account.id] ?? 0) > 0 || (linkedCardPurchases[account.id] ?? 0) > 0);
   const balances = new Map(active.map((account) => [account.id, account.balance]));
   const monthly = active.reduce((sum, account) => sum + effectiveMinimum(account) + (linkedCardExpenses[account.id] ?? 0), 0) + extra;
   const oneTimePurchaseTotal = active.reduce((sum, account) => sum + (linkedCardPurchases[account.id] ?? 0), 0);
   const cardChargeForMonth = (accountId: string, month: number) => (
-    (linkedCardExpenses[accountId] ?? 0)
-    + (month === 1 ? (linkedCardPurchases[accountId] ?? 0) : 0)
+    Math.max(0, (linkedCardExpenses[accountId] ?? 0)
+      + (month === 1 ? (linkedCardPurchases[accountId] ?? 0) : 0)
+      - (month === 1 ? (actualizedLinkedCardExpenses[accountId] ?? 0) : 0))
   );
   const months: PlanMonth[] = [];
   let totalInterest = 0;

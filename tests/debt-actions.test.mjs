@@ -122,7 +122,7 @@ test("v2 payload migration and full JSON backup retain Phase 5 history", () => {
   v2.version = 2;
   delete v2.payload.balanceAdjustments;
   const migrated = parseDashboardContract(v2);
-  assert.equal(migrated.version, 3);
+  assert.equal(migrated.version, 4);
   assert.deepEqual(migrated.payload.balanceAdjustments, []);
 });
 

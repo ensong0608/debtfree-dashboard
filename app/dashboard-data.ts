@@ -1,7 +1,8 @@
 export const DASHBOARD_BACKUP_FORMAT = "debtfree-dashboard-backup" as const;
 export const LEGACY_DASHBOARD_DATA_VERSION = 1 as const;
 export const PLANNING_DASHBOARD_DATA_VERSION = 2 as const;
-export const DASHBOARD_DATA_VERSION = 3 as const;
+export const AUDIT_DASHBOARD_DATA_VERSION = 3 as const;
+export const DASHBOARD_DATA_VERSION = 4 as const;
 
 export type DebtType = "Credit card" | "Personal loan" | "Auto loan" | "Student loan" | "Medical debt" | "Other";
 export type MinimumMode = "auto" | "manual";
@@ -10,6 +11,7 @@ export type PayoffStrategy = "avalanche" | "snowball" | "custom";
 export type CashflowKind = "income" | "expense" | "purchase" | "budget";
 export type PaymentMethod = "debit" | "credit";
 export type TransactionType = "charge" | "payment" | "fee";
+export type PaymentKind = "minimum" | "extra" | "combined";
 export type PlannedAssignment = "household" | "partner-1" | "partner-2";
 export type PayoffCapacityMethod = "known" | "calculated";
 
@@ -57,6 +59,7 @@ export type CashflowItem = {
   paymentMethod: PaymentMethod;
   creditAccountId: string;
   createdAt: string;
+  recurring?: boolean;
   [key: string]: unknown;
 };
 
@@ -85,6 +88,8 @@ export type LedgerTransaction = {
   balanceBefore?: number;
   balanceAfter?: number;
   creator?: DebtAuditCreator;
+  plannedItemId?: string;
+  paymentKind?: PaymentKind;
   [key: string]: unknown;
 };
 
@@ -193,8 +198,24 @@ export type DashboardPayloadV2 = DashboardPayloadV1 & {
   planning: PlannedPayoffData;
 };
 
-export type DashboardPayload = DashboardPayloadV2 & {
+export type DashboardPayloadV3 = DashboardPayloadV2 & {
   balanceAdjustments?: BalanceAdjustment[];
+};
+
+export type MonthlyPlanMonth = {
+  safetyBuffer: number;
+  debtPaymentTarget: number;
+  [key: string]: unknown;
+};
+
+export type MonthlyPlanSettings = {
+  detailedSpendingTracking: boolean;
+  months: Record<string, MonthlyPlanMonth>;
+  [key: string]: unknown;
+};
+
+export type DashboardPayload = DashboardPayloadV3 & {
+  monthlyPlan?: MonthlyPlanSettings;
 };
 
 export type DashboardBackupV1 = {
@@ -210,6 +231,14 @@ export type DashboardBackupV2 = {
   version: typeof PLANNING_DASHBOARD_DATA_VERSION;
   exportedAt: string;
   payload: DashboardPayloadV2;
+  [key: string]: unknown;
+};
+
+export type DashboardBackupV3 = {
+  format: typeof DASHBOARD_BACKUP_FORMAT;
+  version: typeof AUDIT_DASHBOARD_DATA_VERSION;
+  exportedAt: string;
+  payload: DashboardPayloadV3;
   [key: string]: unknown;
 };
 
@@ -259,6 +288,7 @@ const payoffModes = new Set<PayoffMode>(["priority", "minimum-only"]);
 const cashflowKinds = new Set<CashflowKind>(["income", "expense", "purchase", "budget"]);
 const paymentMethods = new Set<PaymentMethod>(["debit", "credit"]);
 const transactionTypes = new Set<TransactionType>(["charge", "payment", "fee"]);
+const paymentKinds = new Set<PaymentKind>(["minimum", "extra", "combined"]);
 const strategies = new Set<PayoffStrategy>(["avalanche", "snowball", "custom"]);
 
 const plannedAssignments = new Set<PlannedAssignment>(["household", "partner-1", "partner-2"]);
@@ -415,6 +445,32 @@ function migratePayloadV2ToV3(value: unknown): unknown {
   };
 }
 
+function migratePayloadV3ToV4(value: unknown): unknown {
+  if (!isRecord(value)) return value;
+  const existing = isRecord(value.monthlyPlan) ? value.monthlyPlan : {};
+  const monthlyBudgets = isRecord(value.monthlyBudgets)
+    ? Object.fromEntries(Object.entries(value.monthlyBudgets).map(([month, items]) => [month, Array.isArray(items) ? items.map((item) => isRecord(item) ? { ...item, recurring: withDefault(item, "recurring", item.kind !== "purchase") } : item) : items]))
+    : value.monthlyBudgets;
+  const meaningfulAdvancedData = (Array.isArray(value.transactions) && value.transactions.length > 0)
+    || (Array.isArray(value.payees) && value.payees.length > 0);
+  const months = isRecord(existing.months) ? Object.fromEntries(Object.entries(existing.months).map(([month, settings]) => {
+    const record = isRecord(settings) ? settings : {};
+    return [month, {
+      ...record,
+      safetyBuffer: withDefault(record, "safetyBuffer", 0),
+      debtPaymentTarget: withDefault(record, "debtPaymentTarget", 0),
+    }];
+  })) : {};
+  return {
+    ...value,
+    monthlyBudgets,
+    monthlyPlan: {
+      ...existing,
+      detailedSpendingTracking: withDefault(existing, "detailedSpendingTracking", meaningfulAdvancedData),
+      months,
+    },
+  };
+}
 function requiredRecord(value: unknown, path: string, issues: string[]): UnknownRecord | null {
   if (!isRecord(value)) {
     issues.push(`${path} must be an object.`);
@@ -510,6 +566,7 @@ function validateCashflow(value: unknown, path: string, issues: string[]) {
   enumValue(item.paymentMethod, paymentMethods, `${path}.paymentMethod`, issues);
   requiredString(item.creditAccountId, `${path}.creditAccountId`, issues, true);
   requiredString(item.createdAt, `${path}.createdAt`, issues);
+  if (hasOwn(item, "recurring")) requiredBoolean(item.recurring, `${path}.recurring`, issues);
 }
 
 function validatePayee(value: unknown, path: string, issues: string[]) {
@@ -540,6 +597,8 @@ function validateTransaction(value: unknown, path: string, issues: string[]) {
   if (hasOwn(item, "balanceBefore")) requiredNumber(item.balanceBefore, path + ".balanceBefore", issues);
   if (hasOwn(item, "balanceAfter")) requiredNumber(item.balanceAfter, path + ".balanceAfter", issues);
   if (hasOwn(item, "creator")) validateCreator(item.creator, path + ".creator", issues);
+  if (hasOwn(item, "plannedItemId")) requiredString(item.plannedItemId, path + ".plannedItemId", issues, true);
+  if (hasOwn(item, "paymentKind")) enumValue(item.paymentKind, paymentKinds, path + ".paymentKind", issues);
 }
 
 
@@ -634,6 +693,20 @@ function validatePlanning(value: unknown, path: string, issues: string[]) {
   }
 }
 
+
+function validateMonthlyPlan(value: unknown, path: string, issues: string[]) {
+  const plan = requiredRecord(value, path, issues);
+  if (!plan) return;
+  requiredBoolean(plan.detailedSpendingTracking, path + ".detailedSpendingTracking", issues);
+  const months = requiredRecord(plan.months, path + ".months", issues);
+  if (months) Object.entries(months).forEach(([month, raw]) => {
+    const settings = requiredRecord(raw, path + ".months[" + JSON.stringify(month) + "]", issues);
+    if (settings) {
+      requiredNumber(settings.safetyBuffer, path + ".months[" + JSON.stringify(month) + "].safetyBuffer", issues);
+      requiredNumber(settings.debtPaymentTarget, path + ".months[" + JSON.stringify(month) + "].debtPaymentTarget", issues);
+    }
+  });
+}
 function validateDashboardPayloadFields(value: unknown, path: string, includePlanning: boolean) {
   const issues: string[] = [];
   const payload = requiredRecord(value, path, issues);
@@ -659,6 +732,7 @@ function validateDashboardPayloadFields(value: unknown, path: string, includePla
     }
   }
   if (payload && includePlanning) validatePlanning(payload.planning, path + ".planning", issues);
+  if (payload && hasOwn(payload, "monthlyPlan")) validateMonthlyPlan(payload.monthlyPlan, path + ".monthlyPlan", issues);
   if (issues.length) throw new DashboardDataError(issues);
   return value as DashboardPayload | DashboardPayloadV1;
 }
@@ -681,8 +755,13 @@ export function migrateV1ToV2(value: DashboardBackupV1): DashboardBackupV2 {
   return { ...value, format: DASHBOARD_BACKUP_FORMAT, version: PLANNING_DASHBOARD_DATA_VERSION, exportedAt: value.exportedAt, payload };
 }
 
-export function migrateV2ToV3(value: DashboardBackupV2): DashboardBackup {
-  const payload = validateDashboardPayload(migratePayloadV2ToV3(value.payload));
+export function migrateV2ToV3(value: DashboardBackupV2): DashboardBackupV3 {
+  const payload = validateDashboardPayloadFields(migratePayloadV2ToV3(value.payload), "payload", true) as DashboardPayloadV3;
+  return { ...value, format: DASHBOARD_BACKUP_FORMAT, version: AUDIT_DASHBOARD_DATA_VERSION, exportedAt: value.exportedAt, payload };
+}
+
+export function migrateV3ToV4(value: DashboardBackupV3): DashboardBackup {
+  const payload = validateDashboardPayload(migratePayloadV3ToV4(value.payload));
   return { ...value, format: DASHBOARD_BACKUP_FORMAT, version: DASHBOARD_DATA_VERSION, exportedAt: value.exportedAt, payload };
 }
 
@@ -693,12 +772,12 @@ function wrapperSignal(value: UnknownRecord) {
 
 export function parseDashboardContract(value: unknown, path = "backup"): DashboardBackup {
   if (!isRecord(value)) throw new DashboardDataError([`${path} must be a JSON object.`]);
-  if (!wrapperSignal(value)) return migrateV2ToV3(migrateV1ToV2(migrateV0ToV1(value)));
+  if (!wrapperSignal(value)) return migrateV3ToV4(migrateV2ToV3(migrateV1ToV2(migrateV0ToV1(value))));
 
   const issues: string[] = [];
   if (value.format !== DASHBOARD_BACKUP_FORMAT) issues.push(`${path}.format must be "${DASHBOARD_BACKUP_FORMAT}".`);
-  if (value.version !== LEGACY_DASHBOARD_DATA_VERSION && value.version !== PLANNING_DASHBOARD_DATA_VERSION && value.version !== DASHBOARD_DATA_VERSION) {
-    issues.push(path + ".version must be 1, 2, or 3; received " + JSON.stringify(value.version) + ".");
+  if (value.version !== LEGACY_DASHBOARD_DATA_VERSION && value.version !== PLANNING_DASHBOARD_DATA_VERSION && value.version !== AUDIT_DASHBOARD_DATA_VERSION && value.version !== DASHBOARD_DATA_VERSION) {
+    issues.push(path + ".version must be 1, 2, 3, or 4; received " + JSON.stringify(value.version) + ".");
   }
   requiredString(value.exportedAt, `${path}.exportedAt`, issues);
   if (!hasOwn(value, "payload")) issues.push(`${path}.payload is required.`);
@@ -706,16 +785,19 @@ export function parseDashboardContract(value: unknown, path = "backup"): Dashboa
   const corePayload = migratePayloadFields(value.payload);
   if (value.version === LEGACY_DASHBOARD_DATA_VERSION) {
     const payload = validateDashboardPayloadV1(corePayload, `${path}.payload`);
-    return migrateV2ToV3(migrateV1ToV2({ ...value, format: DASHBOARD_BACKUP_FORMAT, version: LEGACY_DASHBOARD_DATA_VERSION, exportedAt: value.exportedAt as string, payload } as DashboardBackupV1));
+    return migrateV3ToV4(migrateV2ToV3(migrateV1ToV2({ ...value, format: DASHBOARD_BACKUP_FORMAT, version: LEGACY_DASHBOARD_DATA_VERSION, exportedAt: value.exportedAt as string, payload } as DashboardBackupV1)));
   }
   if (value.version === PLANNING_DASHBOARD_DATA_VERSION) {
     const payload = validateDashboardPayloadFields(migratePayloadV1ToV2(corePayload), path + ".payload", true) as DashboardPayloadV2;
-    return migrateV2ToV3({ ...value, format: DASHBOARD_BACKUP_FORMAT, version: PLANNING_DASHBOARD_DATA_VERSION, exportedAt: value.exportedAt as string, payload } as DashboardBackupV2);
+    return migrateV3ToV4(migrateV2ToV3({ ...value, format: DASHBOARD_BACKUP_FORMAT, version: PLANNING_DASHBOARD_DATA_VERSION, exportedAt: value.exportedAt as string, payload } as DashboardBackupV2));
   }
-  const payload = validateDashboardPayload(migratePayloadV2ToV3(migratePayloadV1ToV2(corePayload)), path + ".payload");
+  if (value.version === AUDIT_DASHBOARD_DATA_VERSION) {
+    const payload = validateDashboardPayloadFields(migratePayloadV2ToV3(migratePayloadV1ToV2(corePayload)), path + ".payload", true) as DashboardPayloadV3;
+    return migrateV3ToV4({ ...value, format: DASHBOARD_BACKUP_FORMAT, version: AUDIT_DASHBOARD_DATA_VERSION, exportedAt: value.exportedAt as string, payload } as DashboardBackupV3);
+  }
+  const payload = validateDashboardPayload(migratePayloadV3ToV4(migratePayloadV2ToV3(migratePayloadV1ToV2(corePayload))), path + ".payload");
   return { ...value, format: DASHBOARD_BACKUP_FORMAT, version: DASHBOARD_DATA_VERSION, exportedAt: value.exportedAt as string, payload } as DashboardBackup;
 }
-
 function jsonError(error: unknown, text: string, path: string) {
   const detail = error instanceof Error ? error.message : "Unknown JSON syntax error";
   const position = /position\s+(\d+)/i.exec(detail);
@@ -735,7 +817,7 @@ export function parseDashboardJson(text: string): DashboardBackup {
   return parseDashboardContract(value);
 }
 
-export function createDashboardPayload(template: DashboardPayload | null | undefined, known: Pick<DashboardPayload, "accounts" | "monthlyBudgets" | "payees" | "transactions" | "snapshots" | "extra" | "strategy" | "planning" | "balanceAdjustments">): DashboardPayload {
+export function createDashboardPayload(template: DashboardPayload | null | undefined, known: Pick<DashboardPayload, "accounts" | "monthlyBudgets" | "payees" | "transactions" | "snapshots" | "extra" | "strategy" | "planning" | "balanceAdjustments" | "monthlyPlan">): DashboardPayload {
   return validateDashboardPayload({ ...(template ?? {}), ...known });
 }
 

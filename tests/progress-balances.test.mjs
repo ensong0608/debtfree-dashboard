@@ -50,7 +50,7 @@ test("Progress uses opening balances for July and active transactions for the cu
 
 test("the dashboard and Progress share the same transaction-adjusted balance source", async () => {
   const source = await readFile(new URL("../app/dashboard-client.tsx", import.meta.url), "utf8");
-  assert.match(source, /transactionAdjustedAccounts\(accounts, transactions\)/);
+  assert.match(source, /transactionAdjustedAccounts\(accounts, transactions, detailedSpendingTracking\)/);
   assert.match(source, /buildProgressBalanceView\(openingAccounts, transactions, snapshots\)/);
   assert.match(source, /openingAccounts=\{accounts\} transactions=\{transactions\}/);
   assert.match(source, /Starting balances \+ charges and fees - payments/);

@@ -1,4 +1,4 @@
-import type { BalanceAdjustment, DebtAccount, DebtAuditCreator, LedgerTransaction, PayoffStrategy } from "./dashboard-data.ts";
+import type { BalanceAdjustment, DebtAccount, DebtAuditCreator, LedgerTransaction, PaymentKind, PayoffStrategy } from "./dashboard-data.ts";
 
 export type DebtStatus = "Payoff priority" | "Minimum only" | "Paid off" | "Archived";
 export type PromoNotice = { label: string; tone: "neutral" | "warning" | "danger" } | null;
@@ -81,6 +81,7 @@ export type DebtPaymentInput = {
   payeeId?: string;
   creator?: DebtAuditCreator;
   action?: "payment" | "mark-paid-off";
+  paymentKind?: PaymentKind;
 };
 
 export function createDebtPayment(input: DebtPaymentInput): LedgerTransaction {
@@ -106,6 +107,7 @@ export function createDebtPayment(input: DebtPaymentInput): LedgerTransaction {
     updatedAt: createdAt,
     deletedAt: null,
     debtAction: input.action ?? "payment",
+    ...(input.paymentKind ? { paymentKind: input.paymentKind } : {}),
     balanceBefore,
     balanceAfter: cents(balanceBefore - amount),
     ...(input.creator ? { creator: input.creator } : {}),

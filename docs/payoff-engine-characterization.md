@@ -21,3 +21,9 @@ Phase 2 extracts the existing payoff projection into `app/payoff-engine.ts` with
 - Tests pass a local `Date` fixed to August 15, 2026. Production omits the parameter and retains `new Date()` as the default.
 - Forecast month keys use the calculation date's local year and month. Promotion boundaries compare `YYYY-MM` strings and are inclusive of the saved end month.
 - Currency display and selected stored balances use the existing `Math.round((value + Number.EPSILON) * 100) / 100` helper. The engine intentionally does not round every intermediate calculation.
+
+## Phase 6 planned-versus-actual correction
+
+Before Phase 6, a linked one-time or recurring card item was added to the first projected payoff-month balance even when a matching actual charge had already been recorded in the ledger. Because the ledger charge was already included in the current balance, the projection could include that purchase twice.
+
+Phase 6 preserves all recurring linked-card behavior for unmatched planned entries. When detailed tracking is enabled and an actual charge explicitly references a planned entry, only the first projected month receives an offset equal to that matched planned amount. Future recurring months are unchanged. The characterized regression proves the old first-month result was exactly one planned purchase higher than the corrected result.

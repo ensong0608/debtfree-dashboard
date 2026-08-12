@@ -62,7 +62,7 @@ export function buildPayoffCsv(report: PayoffReportData) {
     ["Monthly surplus before debt minimums", report.monthlySurplus], ["Debt minimums", report.totalMinimums], ["Available extra", report.availableExtra],
   ].forEach((row) => rows.push(csvRow(row as CellValue[])));
 
-  section("MONTHLY BUDGET BREAKDOWN");
+  section("MONTHLY PLAN BREAKDOWN");
   rows.push(csvRow(["Type", "Name", "Category", "Amount", "Payment method", "Linked debt account"]));
   report.cashflow.forEach((item) => rows.push(csvRow([item.type, item.name, item.category, item.amount, item.paymentMethod, item.linkedAccount])));
   rows.push(csvRow(["TOTAL INCOME", "", "", report.totalIncome]));
@@ -190,7 +190,7 @@ function reportSheets(report: PayoffReportData): SheetSpec[] {
     [styled("Category", 4), styled("Amount", 4), styled("Share of expenses", 4)],
     ...categories.map(([category, amount]) => [styled(category, 13), styled(amount, 5), styled(report.totalExpenses > 0 ? amount / report.totalExpenses * 100 : 0, 6)]), [],
     [styled("REPORT CONTENTS", 3)],
-    [styled("Monthly Budget", 7), styled(`${report.cashflow.length} planning items`, 13)],
+    [styled("Monthly Plan", 7), styled(`${report.cashflow.length} planning items`, 13)],
     [styled("Debt Accounts", 7), styled(`${report.accounts.length} accounts`, 13)],
     [styled("Payoff Schedule", 7), styled(`${report.schedule.length} months`, 13)],
     [styled("Transactions", 7), styled(`${report.transactions.length} ledger entries`, 13)],
@@ -202,7 +202,7 @@ function reportSheets(report: PayoffReportData): SheetSpec[] {
   monthlyRows.push([styled("TOTAL INCOME", 11), "", "", "", "", styled(report.totalIncome, 12)]);
   monthlyRows.push([styled("TOTAL EXPENSES", 11), "", "", "", "", styled(report.totalExpenses, 12)]);
   monthlyRows.push([styled("TOTAL BUDGET", 11), "", "", "", "", styled(report.totalBudget, 12)]);
-  const monthly = tableSheet("Monthly Budget", `${report.budgetMonth} income, recurring expenses, and set-aside budgets`, ["Type", "Name", "Category", "Payment method", "Linked account", "Amount"], monthlyRows, [14, 28, 22, 18, 26, 16]);
+  const monthly = tableSheet("Monthly Plan", `${report.budgetMonth} income, recurring planned spending, and one-time adjustments`, ["Type", "Name", "Category", "Payment method", "Linked account", "Amount"], monthlyRows, [14, 28, 22, 18, 26, 16]);
 
   const accountRows = report.accounts.map((account, index) => [styled(account.name, index % 2 ? 13 : 7), styled(account.type, 13), styled(account.balance, index % 2 ? 5 : 14), styled(account.apr, 6), styled(account.monthlyInterest, 5), styled(account.minimumPayment, 5), styled(account.linkedCardExpenses, 5), styled(account.plannedMonthlyPayment, 5), styled(account.payoffMode, 15), styled(account.creditLimit, 5), styled(account.utilization ?? 0, 6), styled(account.dueDate, 13), styled(account.projectedPayoff, 15)]);
   const accounts = tableSheet("Debt Accounts", "Balances include active ledger entries; payments include linked card expenses", ["Account", "Type", "Balance", "APR", "Monthly interest", "Minimum", "Linked expenses", "Planned payment", "Payoff mode", "Credit limit", "Utilization", "Due date", "Projected payoff"], accountRows, [26, 18, 16, 12, 16, 15, 16, 17, 18, 16, 13, 15, 18], true);

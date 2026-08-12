@@ -178,7 +178,7 @@ test("Phase 3 UI exposes the required Home actions and mobile layout", async () 
   assert.match(client, /Recommended payoff payment/);
   assert.match(client, /onExtra=\{setExtra\}/);
   assert.match(client, /onAction=\{openHomeAction\}/);
-  assert.match(client, /onViewPayments=\{\(\) => setPage\("history"\)\}/);
+  assert.match(client, /onViewPayments=\{\(\) => setPage\(detailedSpendingTracking \? "history" : "monthly"\)\}/);
   assert.match(styles, /Phase 3 action-focused Home/);
   assert.match(styles, /@media\(max-width:600px\)[\s\S]*\.home-summary\{grid-template-columns:minmax\(0,1fr\)/);
   assert.match(styles, /\.next-payment-button\{width:100%;min-height:50px\}/);
@@ -226,10 +226,11 @@ test("empty and non-amortizing plans produce actionable Home states", async () =
 });
 
 test("Phase 4 navigation, advanced access, mobile targets, and headings are explicit", async () => {
-  const [page, client, styles] = await Promise.all([
+  const [page, client, styles, monthly] = await Promise.all([
     readFile(new URL("../app/home-dashboard-page.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/dashboard-client.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/globals.css", import.meta.url), "utf8"),
+    readFile(new URL("../app/monthly-plan-page.tsx", import.meta.url), "utf8"),
   ]);
   const primaryBlock = client.slice(client.indexOf("const NAV_ITEMS"), client.indexOf("const ADVANCED_NAV_ITEMS"));
   const labels = [...primaryBlock.matchAll(/label: "([^"]+)"/g)].map((match) => match[1]);
@@ -240,7 +241,8 @@ test("Phase 4 navigation, advanced access, mobile targets, and headings are expl
   assert.match(client, /const completeOnboarding[\s\S]*?setPage\("home"\)/);
   assert.match(client, /aria-current=\{page === item\.id \? "page" : undefined\}/);
   assert.match(client, /onViewTransactions=\{\(\) => setPage\("history"\)\}/);
-  assert.match(client, />Open transactions</);
+  assert.match(monthly, />Open transactions</);
+  assert.match(client, /item\.id !== "history" \|\| detailedSpendingTracking/);
   assert.match(client, /<h1>Progress<\/h1>/);
   assert.match(client, /progress-projection-card/);
   assert.match(client, />Detailed projections</);
