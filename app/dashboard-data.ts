@@ -1,6 +1,7 @@
 export const DASHBOARD_BACKUP_FORMAT = "debtfree-dashboard-backup" as const;
 export const LEGACY_DASHBOARD_DATA_VERSION = 1 as const;
-export const DASHBOARD_DATA_VERSION = 2 as const;
+export const PLANNING_DASHBOARD_DATA_VERSION = 2 as const;
+export const DASHBOARD_DATA_VERSION = 3 as const;
 
 export type DebtType = "Credit card" | "Personal loan" | "Auto loan" | "Student loan" | "Medical debt" | "Other";
 export type MinimumMode = "auto" | "manual";
@@ -29,9 +30,22 @@ export type DebtAccount = {
   postPromoMinimum: number;
   createdAt: string;
   archivedAt?: string | null;
+  archiveHistory?: DebtArchiveEvent[];
   customOrder?: number;
   householdMember?: PlannedAssignment;
   [key: string]: unknown;
+};
+
+export type DebtAuditCreator = {
+  email?: string;
+  displayName?: string;
+};
+
+export type DebtArchiveEvent = {
+  id: string;
+  action: "archived" | "restored";
+  createdAt: string;
+  creator?: DebtAuditCreator;
 };
 
 export type CashflowItem = {
@@ -67,6 +81,23 @@ export type LedgerTransaction = {
   createdAt: string;
   updatedAt: string;
   deletedAt: string | null;
+  debtAction?: "payment" | "mark-paid-off";
+  balanceBefore?: number;
+  balanceAfter?: number;
+  creator?: DebtAuditCreator;
+  [key: string]: unknown;
+};
+
+export type BalanceAdjustment = {
+  id: string;
+  accountId: string;
+  date: string;
+  balanceBefore: number;
+  balanceAfter: number;
+  difference: number;
+  createdAt: string;
+  note?: string;
+  creator?: DebtAuditCreator;
   [key: string]: unknown;
 };
 
@@ -158,8 +189,12 @@ export type DashboardPayloadV1 = {
   [key: string]: unknown;
 };
 
-export type DashboardPayload = DashboardPayloadV1 & {
+export type DashboardPayloadV2 = DashboardPayloadV1 & {
   planning: PlannedPayoffData;
+};
+
+export type DashboardPayload = DashboardPayloadV2 & {
+  balanceAdjustments?: BalanceAdjustment[];
 };
 
 export type DashboardBackupV1 = {
@@ -172,13 +207,19 @@ export type DashboardBackupV1 = {
 
 export type DashboardBackupV2 = {
   format: typeof DASHBOARD_BACKUP_FORMAT;
+  version: typeof PLANNING_DASHBOARD_DATA_VERSION;
+  exportedAt: string;
+  payload: DashboardPayloadV2;
+  [key: string]: unknown;
+};
+
+export type DashboardBackup = {
+  format: typeof DASHBOARD_BACKUP_FORMAT;
   version: typeof DASHBOARD_DATA_VERSION;
   exportedAt: string;
   payload: DashboardPayload;
   [key: string]: unknown;
 };
-
-export type DashboardBackup = DashboardBackupV2;
 
 type UnknownRecord = Record<string, unknown>;
 
@@ -273,6 +314,10 @@ function migrateTransaction(value: unknown) {
   };
 }
 
+function migrateBalanceAdjustment(value: unknown) {
+  return isRecord(value) ? { ...value } : value;
+}
+
 function migrateSnapshotAccount(value: unknown) {
   return isRecord(value) ? { ...value } : value;
 }
@@ -360,6 +405,16 @@ function migratePayloadV1ToV2(value: unknown): unknown {
   return { ...value, planning: migratePlanning(value.planning) };
 }
 
+function migratePayloadV2ToV3(value: unknown): unknown {
+  if (!isRecord(value)) return value;
+  return {
+    ...value,
+    balanceAdjustments: Array.isArray(value.balanceAdjustments)
+      ? value.balanceAdjustments.map(migrateBalanceAdjustment)
+      : [],
+  };
+}
+
 function requiredRecord(value: unknown, path: string, issues: string[]): UnknownRecord | null {
   if (!isRecord(value)) {
     issues.push(`${path} must be an object.`);
@@ -401,6 +456,22 @@ function enumValue<T extends string>(value: unknown, allowed: Set<T>, path: stri
   if (typeof value !== "string" || !allowed.has(value as T)) issues.push(`${path} must be one of: ${[...allowed].join(", ")}.`);
 }
 
+
+function validateCreator(value: unknown, path: string, issues: string[]) {
+  const creator = requiredRecord(value, path, issues);
+  if (!creator) return;
+  if (hasOwn(creator, "email")) requiredString(creator.email, path + ".email", issues, true);
+  if (hasOwn(creator, "displayName")) requiredString(creator.displayName, path + ".displayName", issues, true);
+}
+
+function validateArchiveEvent(value: unknown, path: string, issues: string[]) {
+  const event = requiredRecord(value, path, issues);
+  if (!event) return;
+  requiredString(event.id, path + ".id", issues);
+  enumValue(event.action, new Set(["archived", "restored"]), path + ".action", issues);
+  requiredString(event.createdAt, path + ".createdAt", issues);
+  if (hasOwn(event, "creator")) validateCreator(event.creator, path + ".creator", issues);
+}
 function validateAccount(value: unknown, path: string, issues: string[]) {
   const item = requiredRecord(value, path, issues);
   if (!item) return;
@@ -422,6 +493,10 @@ function validateAccount(value: unknown, path: string, issues: string[]) {
   if (hasOwn(item, "archivedAt")) nullableString(item.archivedAt, `${path}.archivedAt`, issues);
   if (hasOwn(item, "customOrder")) requiredNumber(item.customOrder, `${path}.customOrder`, issues, true);
   if (hasOwn(item, "householdMember")) enumValue(item.householdMember, plannedAssignments, path + ".householdMember", issues);
+  if (hasOwn(item, "archiveHistory")) {
+    const history = requiredArray(item.archiveHistory, path + ".archiveHistory", issues);
+    history?.forEach((entry, index) => validateArchiveEvent(entry, path + ".archiveHistory[" + index + "]", issues));
+  }
 }
 
 function validateCashflow(value: unknown, path: string, issues: string[]) {
@@ -461,8 +536,26 @@ function validateTransaction(value: unknown, path: string, issues: string[]) {
   requiredString(item.createdAt, `${path}.createdAt`, issues);
   requiredString(item.updatedAt, `${path}.updatedAt`, issues);
   nullableString(item.deletedAt, `${path}.deletedAt`, issues);
+  if (hasOwn(item, "debtAction")) enumValue(item.debtAction, new Set(["payment", "mark-paid-off"]), path + ".debtAction", issues);
+  if (hasOwn(item, "balanceBefore")) requiredNumber(item.balanceBefore, path + ".balanceBefore", issues);
+  if (hasOwn(item, "balanceAfter")) requiredNumber(item.balanceAfter, path + ".balanceAfter", issues);
+  if (hasOwn(item, "creator")) validateCreator(item.creator, path + ".creator", issues);
 }
 
+
+function validateBalanceAdjustment(value: unknown, path: string, issues: string[]) {
+  const item = requiredRecord(value, path, issues);
+  if (!item) return;
+  requiredString(item.id, path + ".id", issues);
+  requiredString(item.accountId, path + ".accountId", issues);
+  requiredString(item.date, path + ".date", issues);
+  requiredNumber(item.balanceBefore, path + ".balanceBefore", issues);
+  requiredNumber(item.balanceAfter, path + ".balanceAfter", issues);
+  if (typeof item.difference !== "number" || !Number.isFinite(item.difference)) issues.push(path + ".difference must be a finite number.");
+  requiredString(item.createdAt, path + ".createdAt", issues);
+  if (hasOwn(item, "note")) requiredString(item.note, path + ".note", issues, true);
+  if (hasOwn(item, "creator")) validateCreator(item.creator, path + ".creator", issues);
+}
 function validateSnapshotAccount(value: unknown, path: string, issues: string[]) {
   const item = requiredRecord(value, path, issues);
   if (!item) return;
@@ -560,6 +653,10 @@ function validateDashboardPayloadFields(value: unknown, path: string, includePla
     snapshots?.forEach((snapshot, index) => validateSnapshot(snapshot, `${path}.snapshots[${index}]`, issues));
     requiredNumber(payload.extra, `${path}.extra`, issues);
     enumValue(payload.strategy, strategies, `${path}.strategy`, issues);
+    if (hasOwn(payload, "balanceAdjustments")) {
+      const adjustments = requiredArray(payload.balanceAdjustments, path + ".balanceAdjustments", issues);
+      adjustments?.forEach((adjustment, index) => validateBalanceAdjustment(adjustment, path + ".balanceAdjustments[" + index + "]", issues));
+    }
   }
   if (payload && includePlanning) validatePlanning(payload.planning, path + ".planning", issues);
   if (issues.length) throw new DashboardDataError(issues);
@@ -579,10 +676,16 @@ export function migrateV0ToV1(value: unknown, exportedAt = new Date().toISOStrin
   return { format: DASHBOARD_BACKUP_FORMAT, version: LEGACY_DASHBOARD_DATA_VERSION, exportedAt, payload };
 }
 
-export function migrateV1ToV2(value: DashboardBackupV1): DashboardBackup {
-  const payload = validateDashboardPayload(migratePayloadV1ToV2(value.payload));
+export function migrateV1ToV2(value: DashboardBackupV1): DashboardBackupV2 {
+  const payload = validateDashboardPayloadFields(migratePayloadV1ToV2(value.payload), "payload", true) as DashboardPayloadV2;
+  return { ...value, format: DASHBOARD_BACKUP_FORMAT, version: PLANNING_DASHBOARD_DATA_VERSION, exportedAt: value.exportedAt, payload };
+}
+
+export function migrateV2ToV3(value: DashboardBackupV2): DashboardBackup {
+  const payload = validateDashboardPayload(migratePayloadV2ToV3(value.payload));
   return { ...value, format: DASHBOARD_BACKUP_FORMAT, version: DASHBOARD_DATA_VERSION, exportedAt: value.exportedAt, payload };
 }
+
 
 function wrapperSignal(value: UnknownRecord) {
   return hasOwn(value, "format") || hasOwn(value, "version") || hasOwn(value, "payload") || hasOwn(value, "exportedAt");
@@ -590,12 +693,12 @@ function wrapperSignal(value: UnknownRecord) {
 
 export function parseDashboardContract(value: unknown, path = "backup"): DashboardBackup {
   if (!isRecord(value)) throw new DashboardDataError([`${path} must be a JSON object.`]);
-  if (!wrapperSignal(value)) return migrateV1ToV2(migrateV0ToV1(value));
+  if (!wrapperSignal(value)) return migrateV2ToV3(migrateV1ToV2(migrateV0ToV1(value)));
 
   const issues: string[] = [];
   if (value.format !== DASHBOARD_BACKUP_FORMAT) issues.push(`${path}.format must be "${DASHBOARD_BACKUP_FORMAT}".`);
-  if (value.version !== LEGACY_DASHBOARD_DATA_VERSION && value.version !== DASHBOARD_DATA_VERSION) {
-    issues.push(`${path}.version must be ${LEGACY_DASHBOARD_DATA_VERSION} or ${DASHBOARD_DATA_VERSION}; received ${JSON.stringify(value.version)}.`);
+  if (value.version !== LEGACY_DASHBOARD_DATA_VERSION && value.version !== PLANNING_DASHBOARD_DATA_VERSION && value.version !== DASHBOARD_DATA_VERSION) {
+    issues.push(path + ".version must be 1, 2, or 3; received " + JSON.stringify(value.version) + ".");
   }
   requiredString(value.exportedAt, `${path}.exportedAt`, issues);
   if (!hasOwn(value, "payload")) issues.push(`${path}.payload is required.`);
@@ -603,9 +706,13 @@ export function parseDashboardContract(value: unknown, path = "backup"): Dashboa
   const corePayload = migratePayloadFields(value.payload);
   if (value.version === LEGACY_DASHBOARD_DATA_VERSION) {
     const payload = validateDashboardPayloadV1(corePayload, `${path}.payload`);
-    return migrateV1ToV2({ ...value, format: DASHBOARD_BACKUP_FORMAT, version: LEGACY_DASHBOARD_DATA_VERSION, exportedAt: value.exportedAt as string, payload } as DashboardBackupV1);
+    return migrateV2ToV3(migrateV1ToV2({ ...value, format: DASHBOARD_BACKUP_FORMAT, version: LEGACY_DASHBOARD_DATA_VERSION, exportedAt: value.exportedAt as string, payload } as DashboardBackupV1));
   }
-  const payload = validateDashboardPayload(migratePayloadV1ToV2(corePayload), `${path}.payload`);
+  if (value.version === PLANNING_DASHBOARD_DATA_VERSION) {
+    const payload = validateDashboardPayloadFields(migratePayloadV1ToV2(corePayload), path + ".payload", true) as DashboardPayloadV2;
+    return migrateV2ToV3({ ...value, format: DASHBOARD_BACKUP_FORMAT, version: PLANNING_DASHBOARD_DATA_VERSION, exportedAt: value.exportedAt as string, payload } as DashboardBackupV2);
+  }
+  const payload = validateDashboardPayload(migratePayloadV2ToV3(migratePayloadV1ToV2(corePayload)), path + ".payload");
   return { ...value, format: DASHBOARD_BACKUP_FORMAT, version: DASHBOARD_DATA_VERSION, exportedAt: value.exportedAt as string, payload } as DashboardBackup;
 }
 
@@ -628,7 +735,7 @@ export function parseDashboardJson(text: string): DashboardBackup {
   return parseDashboardContract(value);
 }
 
-export function createDashboardPayload(template: DashboardPayload | null | undefined, known: Pick<DashboardPayload, "accounts" | "monthlyBudgets" | "payees" | "transactions" | "snapshots" | "extra" | "strategy" | "planning">): DashboardPayload {
+export function createDashboardPayload(template: DashboardPayload | null | undefined, known: Pick<DashboardPayload, "accounts" | "monthlyBudgets" | "payees" | "transactions" | "snapshots" | "extra" | "strategy" | "planning" | "balanceAdjustments">): DashboardPayload {
   return validateDashboardPayload({ ...(template ?? {}), ...known });
 }
 

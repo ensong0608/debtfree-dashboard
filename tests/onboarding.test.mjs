@@ -129,8 +129,9 @@ test("existing users bypass onboarding", () => {
 
 test("legacy import bypasses onboarding without data loss", () => {
   const imported = parseDashboardContract(fixture);
-  const { planning, ...legacyPayload } = imported.payload;
+  const { planning, balanceAdjustments, ...legacyPayload } = imported.payload;
   assert.deepEqual(legacyPayload, fixture);
+  assert.deepEqual(balanceAdjustments, []);
   assert.equal(planning.onboarding.completed, false);
   assert.equal(shouldShowOnboarding(imported.payload), false);
 });

@@ -6,6 +6,7 @@ import {
   DASHBOARD_BACKUP_FORMAT,
   DASHBOARD_DATA_VERSION,
   LEGACY_DASHBOARD_DATA_VERSION,
+  PLANNING_DASHBOARD_DATA_VERSION,
   DashboardDataError,
   createDashboardBackup,
   createEmptyPlannedPayoff,
@@ -37,9 +38,10 @@ test("imports the anonymized unwrapped legacy v0 shape without loss", () => {
   const contract = parseDashboardContract(fixture);
   assert.equal(contract.format, DASHBOARD_BACKUP_FORMAT);
   assert.equal(contract.version, DASHBOARD_DATA_VERSION);
-  const { planning, ...legacyPayload } = contract.payload;
+  const { planning, balanceAdjustments, ...legacyPayload } = contract.payload;
   assert.deepEqual(legacyPayload, fixture);
   assert.deepEqual(planning, createEmptyPlannedPayoff());
+  assert.deepEqual(balanceAdjustments, []);
 });
 
 test("imports the existing wrapped version-1 backup", () => {
@@ -93,7 +95,7 @@ test("migrates wrapped v1 to v2 with explicit planned-data defaults", () => {
   const v1 = migrateV0ToV1(fixture, fixedExportedAt);
   const migrated = migrateV1ToV2(v1);
   assert.equal(v1.version, LEGACY_DASHBOARD_DATA_VERSION);
-  assert.equal(migrated.version, DASHBOARD_DATA_VERSION);
+  assert.equal(migrated.version, PLANNING_DASHBOARD_DATA_VERSION);
   assert.deepEqual(migrated.payload.planning, createEmptyPlannedPayoff());
   const legacyPayload = Object.fromEntries(Object.entries(migrated.payload).filter(([key]) => key !== "planning"));
   assert.deepEqual(legacyPayload, fixture);
@@ -235,11 +237,11 @@ test("rejects invalid strategies and unsupported wrapper versions", () => {
 
   const invalidVersion = {
     format: DASHBOARD_BACKUP_FORMAT,
-    version: 3,
+    version: 4,
     exportedAt: fixedExportedAt,
     payload: fixture,
   };
-  expectFieldError(invalidVersion, "backup.version must be 1 or 2");
+  expectFieldError(invalidVersion, "backup.version must be 1, 2, or 3");
 });
 
 test("rejects invalid planned-data fields with useful paths", () => {
@@ -268,9 +270,10 @@ test("reports multiple useful field errors while leading with the first field", 
 test("validates and migrates household API write payloads with the shared contract", () => {
   const unwrapped = parseHouseholdWriteJson(JSON.stringify({ payload: fixture }));
   assert.equal(unwrapped.version, DASHBOARD_DATA_VERSION);
-  const { planning, ...legacyPayload } = unwrapped.payload;
+  const { planning, balanceAdjustments, ...legacyPayload } = unwrapped.payload;
   assert.deepEqual(legacyPayload, fixture);
   assert.deepEqual(planning, createEmptyPlannedPayoff());
+  assert.deepEqual(balanceAdjustments, []);
 
   const wrapped = migrateV0ToV1(fixture, fixedExportedAt);
   assert.deepEqual(

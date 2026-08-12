@@ -1,4 +1,4 @@
-import type { DebtAccount, PayoffStrategy } from "./dashboard-data.ts";
+import type { BalanceAdjustment, DebtAccount, DebtAuditCreator, LedgerTransaction, PayoffStrategy } from "./dashboard-data.ts";
 
 export type DebtStatus = "Payoff priority" | "Minimum only" | "Paid off" | "Archived";
 export type PromoNotice = { label: string; tone: "neutral" | "warning" | "danger" } | null;
@@ -51,4 +51,105 @@ export function promoNotice(account: DebtAccount, today = new Date()): PromoNoti
   if (account.postPromoApr <= 0) return { label: `Promo ends ${formatted}; add the post-promo APR`, tone: "danger" };
   if (account.promoEndDate < localToday) return { label: `Promo ended ${formatted}; now ${account.postPromoApr.toFixed(2)}% APR`, tone: "warning" };
   return { label: `Promo ends ${formatted}; then ${account.postPromoApr.toFixed(2)}% APR`, tone: "neutral" };
+}
+
+function cents(value: number) {
+  return Math.round((value + Number.EPSILON) * 100) / 100;
+}
+
+export class DebtPaymentError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "DebtPaymentError";
+  }
+}
+
+export type DebtPaymentInput = {
+  account: DebtAccount;
+  amount: number;
+  date: string;
+  note?: string;
+  createdAt?: string;
+  id?: string;
+  payeeId?: string;
+  creator?: DebtAuditCreator;
+  action?: "payment" | "mark-paid-off";
+};
+
+export function createDebtPayment(input: DebtPaymentInput): LedgerTransaction {
+  const balanceBefore = cents(input.account.balance);
+  const amount = cents(input.amount);
+  if (balanceBefore <= 0) throw new DebtPaymentError(input.account.name + " is already paid off.");
+  if (amount <= 0) throw new DebtPaymentError("Enter a payment greater than $0.00.");
+  if (amount > balanceBefore) {
+    throw new DebtPaymentError("Payment cannot exceed the current balance of $" + balanceBefore.toFixed(2) + ".");
+  }
+  const createdAt = input.createdAt ?? new Date().toISOString();
+  return {
+    id: input.id ?? crypto.randomUUID(),
+    date: input.date,
+    accountId: input.account.id,
+    payeeId: input.payeeId ?? "",
+    payeeName: input.account.name,
+    type: "payment",
+    category: "Debt payment",
+    memo: input.note?.trim() ?? "",
+    amount,
+    createdAt,
+    updatedAt: createdAt,
+    deletedAt: null,
+    debtAction: input.action ?? "payment",
+    balanceBefore,
+    balanceAfter: cents(balanceBefore - amount),
+    ...(input.creator ? { creator: input.creator } : {}),
+  };
+}
+
+export type BalanceAdjustmentInput = {
+  storedAccount: DebtAccount;
+  currentBalance: number;
+  nextBalance: number;
+  date: string;
+  note?: string;
+  createdAt?: string;
+  id?: string;
+  creator?: DebtAuditCreator;
+};
+
+export function createBalanceAdjustment(input: BalanceAdjustmentInput) {
+  const balanceBefore = cents(input.currentBalance);
+  const balanceAfter = cents(input.nextBalance);
+  const createdAt = input.createdAt ?? new Date().toISOString();
+  const account = {
+    ...input.storedAccount,
+    balance: openingBalanceForCurrentBalance(input.storedAccount.balance, balanceBefore, balanceAfter),
+  };
+  const adjustment: BalanceAdjustment = {
+    id: input.id ?? crypto.randomUUID(),
+    accountId: input.storedAccount.id,
+    date: input.date,
+    balanceBefore,
+    balanceAfter,
+    difference: cents(balanceAfter - balanceBefore),
+    createdAt,
+    ...(input.note?.trim() ? { note: input.note.trim() } : {}),
+    ...(input.creator ? { creator: input.creator } : {}),
+  };
+  return { account, adjustment };
+}
+
+export function setDebtArchived(account: DebtAccount, archived: boolean, createdAt = new Date().toISOString(), creator?: DebtAuditCreator, id = crypto.randomUUID()) {
+  return {
+    ...account,
+    archivedAt: archived ? createdAt : null,
+    archiveHistory: [
+      ...(account.archiveHistory ?? []),
+      {
+        id,
+        action: archived ? "archived" as const : "restored" as const,
+        createdAt,
+        ...(creator ? { creator } : {}),
+      },
+    ],
+  };
 }
