@@ -1,5 +1,6 @@
 import type { DebtAccount, LedgerTransaction, PayoffSnapshot, PayoffStrategy, PlannedPayoffData } from "./dashboard-data.ts";
 import { effectiveMinimum, forecastMonthKey, round, type PayoffPlan } from "./payoff-engine.ts";
+import { payoffPriority } from "./debts-screen.ts";
 
 export type HomeActionKind = "due" | "promo" | "warning" | "review";
 
@@ -113,15 +114,6 @@ function startingDebt(input: HomeDashboardInput, currentDebt: number) {
   return { amount: round(opening > 0 ? opening : currentDebt), label: "Since these balances were added" };
 }
 
-function payoffPriority(accounts: DebtAccount[], plan: PayoffPlan, strategy: PayoffStrategy) {
-  const firstMonth = plan.months[0];
-  return accounts
-    .filter((account) => account.balance > 0 && account.payoffMode !== "minimum-only")
-    .sort((a, b) => strategy === "avalanche"
-      ? (firstMonth?.aprs[b.id] ?? b.apr) - (firstMonth?.aprs[a.id] ?? a.apr) || a.balance - b.balance || a.name.localeCompare(b.name)
-      : a.balance - b.balance || (firstMonth?.aprs[b.id] ?? b.apr) - (firstMonth?.aprs[a.id] ?? a.apr) || a.name.localeCompare(b.name));
-}
-
 function actualPaymentsForMonth(accounts: DebtAccount[], transactions: LedgerTransaction[], calculationDate: Date) {
   const paymentMonth = currentMonthKey(calculationDate);
   const accountNames = new Map(accounts.map((account) => [account.id, account.name]));
@@ -208,7 +200,7 @@ export function buildHomeDashboard(input: HomeDashboardInput): HomeDashboardMode
   const amountPaid = round(Math.max(0, baseline.amount - totalDebt));
   const progressPercent = baseline.amount > 0 ? Math.min(100, round(amountPaid / baseline.amount * 100)) : 0;
   const firstMonth = input.plan.months[0];
-  const priority = payoffPriority(active, input.plan, input.strategy);
+  const priority = payoffPriority(active, input.strategy, firstMonth?.aprs);
   const actualPayments = actualPaymentsForMonth(input.accounts, input.transactions, calculationDate);
   const payoffOrder = priority.slice(0, 3).map<HomePayoffItem>((account) => ({
     accountId: account.id,

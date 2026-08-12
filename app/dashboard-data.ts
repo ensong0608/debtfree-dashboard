@@ -28,6 +28,7 @@ export type DebtAccount = {
   postPromoApr: number;
   postPromoMinimum: number;
   createdAt: string;
+  archivedAt?: string | null;
   householdMember?: PlannedAssignment;
   [key: string]: unknown;
 };
@@ -417,6 +418,7 @@ function validateAccount(value: unknown, path: string, issues: string[]) {
   requiredNumber(item.postPromoApr, `${path}.postPromoApr`, issues);
   requiredNumber(item.postPromoMinimum, `${path}.postPromoMinimum`, issues);
   requiredString(item.createdAt, `${path}.createdAt`, issues);
+  if (hasOwn(item, "archivedAt")) nullableString(item.archivedAt, `${path}.archivedAt`, issues);
   if (hasOwn(item, "householdMember")) enumValue(item.householdMember, plannedAssignments, path + ".householdMember", issues);
 }
 
