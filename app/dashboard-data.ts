@@ -2,7 +2,8 @@ export const DASHBOARD_BACKUP_FORMAT = "debtfree-dashboard-backup" as const;
 export const LEGACY_DASHBOARD_DATA_VERSION = 1 as const;
 export const PLANNING_DASHBOARD_DATA_VERSION = 2 as const;
 export const AUDIT_DASHBOARD_DATA_VERSION = 3 as const;
-export const DASHBOARD_DATA_VERSION = 4 as const;
+export const MONTHLY_PLAN_DASHBOARD_DATA_VERSION = 4 as const;
+export const DASHBOARD_DATA_VERSION = 5 as const;
 
 export type DebtType = "Credit card" | "Personal loan" | "Auto loan" | "Student loan" | "Medical debt" | "Other";
 export type MinimumMode = "auto" | "manual";
@@ -216,8 +217,12 @@ export type MonthlyPlanSettings = {
   [key: string]: unknown;
 };
 
-export type DashboardPayload = DashboardPayloadV3 & {
+export type DashboardPayloadV4 = DashboardPayloadV3 & {
   monthlyPlan?: MonthlyPlanSettings;
+};
+
+export type DashboardPayload = DashboardPayloadV4 & {
+  customDebtOrder?: string[];
 };
 
 export type DashboardBackupV1 = {
@@ -241,6 +246,14 @@ export type DashboardBackupV3 = {
   version: typeof AUDIT_DASHBOARD_DATA_VERSION;
   exportedAt: string;
   payload: DashboardPayloadV3;
+  [key: string]: unknown;
+};
+
+export type DashboardBackupV4 = {
+  format: typeof DASHBOARD_BACKUP_FORMAT;
+  version: typeof MONTHLY_PLAN_DASHBOARD_DATA_VERSION;
+  exportedAt: string;
+  payload: DashboardPayloadV4;
   [key: string]: unknown;
 };
 
@@ -472,6 +485,30 @@ function migratePayloadV3ToV4(value: unknown): unknown {
       months,
     },
   };
+}
+function migratePayloadV4ToV5(value: unknown): unknown {
+  if (!isRecord(value)) return value;
+  const accounts = Array.isArray(value.accounts) ? value.accounts : [];
+  const accountIds = new Set(accounts.filter(isRecord).map((account) => String(account.id)));
+  const saved = Array.isArray(value.customDebtOrder) ? value.customDebtOrder.filter((id): id is string => typeof id === "string") : [];
+  const seen = new Set<string>();
+  const customDebtOrder = saved.filter((id) => accountIds.has(id) && !seen.has(id) && Boolean(seen.add(id)));
+  const missing = accounts
+    .map((account, index) => ({ account, index }))
+    .filter((entry): entry is { account: UnknownRecord; index: number } => isRecord(entry.account) && typeof entry.account.id === "string" && !seen.has(entry.account.id))
+    .sort((a, b) => {
+      const first = typeof a.account.customOrder === "number" ? a.account.customOrder : Number.MAX_SAFE_INTEGER;
+      const second = typeof b.account.customOrder === "number" ? b.account.customOrder : Number.MAX_SAFE_INTEGER;
+      return first - second || a.index - b.index || String(a.account.id).localeCompare(String(b.account.id));
+    });
+  missing.forEach(({ account }) => {
+    const id = String(account.id);
+    if (!seen.has(id)) {
+      seen.add(id);
+      customDebtOrder.push(id);
+    }
+  });
+  return { ...value, customDebtOrder };
 }
 function requiredRecord(value: unknown, path: string, issues: string[]): UnknownRecord | null {
   if (!isRecord(value)) {
@@ -737,6 +774,13 @@ function validateDashboardPayloadFields(value: unknown, path: string, includePla
   }
   if (payload && includePlanning) validatePlanning(payload.planning, path + ".planning", issues);
   if (payload && hasOwn(payload, "monthlyPlan")) validateMonthlyPlan(payload.monthlyPlan, path + ".monthlyPlan", issues);
+  if (payload && hasOwn(payload, "customDebtOrder")) {
+    const order = requiredArray(payload.customDebtOrder, path + ".customDebtOrder", issues);
+    order?.forEach((id, index) => requiredString(id, path + ".customDebtOrder[" + index + "]", issues));
+    if (order && new Set(order).size !== order.length) {
+      issues.push(path + ".customDebtOrder must not contain duplicate debt ids.");
+    }
+  }
   if (issues.length) throw new DashboardDataError(issues);
   return value as DashboardPayload | DashboardPayloadV1;
 }
@@ -764,8 +808,13 @@ export function migrateV2ToV3(value: DashboardBackupV2): DashboardBackupV3 {
   return { ...value, format: DASHBOARD_BACKUP_FORMAT, version: AUDIT_DASHBOARD_DATA_VERSION, exportedAt: value.exportedAt, payload };
 }
 
-export function migrateV3ToV4(value: DashboardBackupV3): DashboardBackup {
-  const payload = validateDashboardPayload(migratePayloadV3ToV4(value.payload));
+export function migrateV3ToV4(value: DashboardBackupV3): DashboardBackupV4 {
+  const payload = validateDashboardPayloadFields(migratePayloadV3ToV4(value.payload), "payload", true) as DashboardPayloadV4;
+  return { ...value, format: DASHBOARD_BACKUP_FORMAT, version: MONTHLY_PLAN_DASHBOARD_DATA_VERSION, exportedAt: value.exportedAt, payload };
+}
+
+export function migrateV4ToV5(value: DashboardBackupV4): DashboardBackup {
+  const payload = validateDashboardPayload(migratePayloadV4ToV5(value.payload));
   return { ...value, format: DASHBOARD_BACKUP_FORMAT, version: DASHBOARD_DATA_VERSION, exportedAt: value.exportedAt, payload };
 }
 
@@ -776,12 +825,12 @@ function wrapperSignal(value: UnknownRecord) {
 
 export function parseDashboardContract(value: unknown, path = "backup"): DashboardBackup {
   if (!isRecord(value)) throw new DashboardDataError([`${path} must be a JSON object.`]);
-  if (!wrapperSignal(value)) return migrateV3ToV4(migrateV2ToV3(migrateV1ToV2(migrateV0ToV1(value))));
+  if (!wrapperSignal(value)) return migrateV4ToV5(migrateV3ToV4(migrateV2ToV3(migrateV1ToV2(migrateV0ToV1(value)))));
 
   const issues: string[] = [];
   if (value.format !== DASHBOARD_BACKUP_FORMAT) issues.push(`${path}.format must be "${DASHBOARD_BACKUP_FORMAT}".`);
-  if (value.version !== LEGACY_DASHBOARD_DATA_VERSION && value.version !== PLANNING_DASHBOARD_DATA_VERSION && value.version !== AUDIT_DASHBOARD_DATA_VERSION && value.version !== DASHBOARD_DATA_VERSION) {
-    issues.push(path + ".version must be 1, 2, 3, or 4; received " + JSON.stringify(value.version) + ".");
+  if (value.version !== LEGACY_DASHBOARD_DATA_VERSION && value.version !== PLANNING_DASHBOARD_DATA_VERSION && value.version !== AUDIT_DASHBOARD_DATA_VERSION && value.version !== MONTHLY_PLAN_DASHBOARD_DATA_VERSION && value.version !== DASHBOARD_DATA_VERSION) {
+    issues.push(path + ".version must be 1, 2, 3, 4, or 5; received " + JSON.stringify(value.version) + ".");
   }
   requiredString(value.exportedAt, `${path}.exportedAt`, issues);
   if (!hasOwn(value, "payload")) issues.push(`${path}.payload is required.`);
@@ -789,17 +838,21 @@ export function parseDashboardContract(value: unknown, path = "backup"): Dashboa
   const corePayload = migratePayloadFields(value.payload);
   if (value.version === LEGACY_DASHBOARD_DATA_VERSION) {
     const payload = validateDashboardPayloadV1(corePayload, `${path}.payload`);
-    return migrateV3ToV4(migrateV2ToV3(migrateV1ToV2({ ...value, format: DASHBOARD_BACKUP_FORMAT, version: LEGACY_DASHBOARD_DATA_VERSION, exportedAt: value.exportedAt as string, payload } as DashboardBackupV1)));
+    return migrateV4ToV5(migrateV3ToV4(migrateV2ToV3(migrateV1ToV2({ ...value, format: DASHBOARD_BACKUP_FORMAT, version: LEGACY_DASHBOARD_DATA_VERSION, exportedAt: value.exportedAt as string, payload } as DashboardBackupV1))));
   }
   if (value.version === PLANNING_DASHBOARD_DATA_VERSION) {
     const payload = validateDashboardPayloadFields(migratePayloadV1ToV2(corePayload), path + ".payload", true) as DashboardPayloadV2;
-    return migrateV3ToV4(migrateV2ToV3({ ...value, format: DASHBOARD_BACKUP_FORMAT, version: PLANNING_DASHBOARD_DATA_VERSION, exportedAt: value.exportedAt as string, payload } as DashboardBackupV2));
+    return migrateV4ToV5(migrateV3ToV4(migrateV2ToV3({ ...value, format: DASHBOARD_BACKUP_FORMAT, version: PLANNING_DASHBOARD_DATA_VERSION, exportedAt: value.exportedAt as string, payload } as DashboardBackupV2)));
   }
   if (value.version === AUDIT_DASHBOARD_DATA_VERSION) {
     const payload = validateDashboardPayloadFields(migratePayloadV2ToV3(migratePayloadV1ToV2(corePayload)), path + ".payload", true) as DashboardPayloadV3;
-    return migrateV3ToV4({ ...value, format: DASHBOARD_BACKUP_FORMAT, version: AUDIT_DASHBOARD_DATA_VERSION, exportedAt: value.exportedAt as string, payload } as DashboardBackupV3);
+    return migrateV4ToV5(migrateV3ToV4({ ...value, format: DASHBOARD_BACKUP_FORMAT, version: AUDIT_DASHBOARD_DATA_VERSION, exportedAt: value.exportedAt as string, payload } as DashboardBackupV3));
   }
-  const payload = validateDashboardPayload(migratePayloadV3ToV4(migratePayloadV2ToV3(migratePayloadV1ToV2(corePayload))), path + ".payload");
+  const payload = validateDashboardPayload(migratePayloadV4ToV5(migratePayloadV3ToV4(migratePayloadV2ToV3(migratePayloadV1ToV2(corePayload)))), path + ".payload");
+  if (value.version === MONTHLY_PLAN_DASHBOARD_DATA_VERSION) {
+    const payload = validateDashboardPayloadFields(migratePayloadV3ToV4(migratePayloadV2ToV3(migratePayloadV1ToV2(corePayload))), path + ".payload", true) as DashboardPayloadV4;
+    return migrateV4ToV5({ ...value, format: DASHBOARD_BACKUP_FORMAT, version: MONTHLY_PLAN_DASHBOARD_DATA_VERSION, exportedAt: value.exportedAt as string, payload } as DashboardBackupV4);
+  }
   return { ...value, format: DASHBOARD_BACKUP_FORMAT, version: DASHBOARD_DATA_VERSION, exportedAt: value.exportedAt as string, payload } as DashboardBackup;
 }
 function jsonError(error: unknown, text: string, path: string) {
@@ -821,7 +874,7 @@ export function parseDashboardJson(text: string): DashboardBackup {
   return parseDashboardContract(value);
 }
 
-export function createDashboardPayload(template: DashboardPayload | null | undefined, known: Pick<DashboardPayload, "accounts" | "monthlyBudgets" | "payees" | "transactions" | "snapshots" | "extra" | "strategy" | "planning" | "balanceAdjustments" | "monthlyPlan">): DashboardPayload {
+export function createDashboardPayload(template: DashboardPayload | null | undefined, known: Pick<DashboardPayload, "accounts" | "monthlyBudgets" | "payees" | "transactions" | "snapshots" | "extra" | "strategy" | "planning" | "balanceAdjustments" | "monthlyPlan" | "customDebtOrder">): DashboardPayload {
   return validateDashboardPayload({ ...(template ?? {}), ...known });
 }
 

@@ -1,6 +1,6 @@
 export type PayoffReportCashflow = { type: "Income" | "Expense" | "One-time purchase" | "Budget"; name: string; category: string; amount: number; paymentMethod: string; linkedAccount: string };
 export type PayoffReportAccount = { name: string; type: string; balance: number; apr: number; monthlyInterest: number; minimumPayment: number; linkedCardExpenses: number; plannedMonthlyPayment: number; payoffMode: string; creditLimit: number; utilization: number | null; dueDate: string; projectedPayoff: string };
-export type PayoffReportScheduleRow = { month: string; totalPaid: number; interest: number; remaining: number; milestone: string; accounts: { name: string; payment: number; endingBalance: number }[] };
+export type PayoffReportScheduleRow = { month: string; focusDebt: string; minimumPayments: number; extraPayment: number; totalPaid: number; interest: number; remaining: number; milestone: string; accounts: { name: string; payment: number; endingBalance: number }[] };
 export type PayoffReportTransaction = { date: string; merchant: string; account: string; type: string; category: string; memo: string; amount: number; status: string };
 export type PayoffReportSnapshot = { month: string; capturedAt: string; totalBalance: number; monthlyInterest: number; activeAccountCount: number; projectedDebtFree: string; note: string; accounts: { name: string; type: string; balance: number; apr: number }[] };
 export type PayoffReportData = {
@@ -79,10 +79,10 @@ export function buildPayoffCsv(report: PayoffReportData) {
 
   section("PAYOFF SCHEDULE");
   const scheduleAccounts = report.accounts.filter((account) => account.balance > 0).map((account) => account.name);
-  rows.push(csvRow(["Month", ...scheduleAccounts.flatMap((name) => [`${name} payment`, `${name} ending balance`]), "Total paid", "Interest", "Remaining", "Milestone"]));
+  rows.push(csvRow(["Month", ...scheduleAccounts.flatMap((name) => [`${name} payment`, `${name} ending balance`]), "Total paid", "Interest", "Remaining", "Milestone", "Focus debt", "Minimum payments", "Extra payment"]));
   report.schedule.forEach((entry) => {
     const accountMap = new Map(entry.accounts.map((account) => [account.name, account]));
-    rows.push(csvRow([entry.month, ...scheduleAccounts.flatMap((name) => [accountMap.get(name)?.payment ?? 0, accountMap.get(name)?.endingBalance ?? 0]), entry.totalPaid, entry.interest, entry.remaining, entry.milestone]));
+    rows.push(csvRow([entry.month, ...scheduleAccounts.flatMap((name) => [accountMap.get(name)?.payment ?? 0, accountMap.get(name)?.endingBalance ?? 0]), entry.totalPaid, entry.interest, entry.remaining, entry.milestone, entry.focusDebt, entry.minimumPayments, entry.extraPayment]));
   });
 
   section("TRANSACTION LEDGER");
@@ -210,10 +210,10 @@ function reportSheets(report: PayoffReportData): SheetSpec[] {
   const activeNames = report.accounts.filter((account) => account.balance > 0).map((account) => account.name);
   const scheduleRows = report.schedule.map((entry, index) => {
     const accountMap = new Map(entry.accounts.map((account) => [account.name, account]));
-    return [styled(entry.month, index % 2 ? 13 : 7), ...activeNames.flatMap((name) => [styled(accountMap.get(name)?.payment ?? 0, index % 2 ? 5 : 14), styled(accountMap.get(name)?.endingBalance ?? 0, index % 2 ? 5 : 14)]), styled(entry.totalPaid, 5), styled(entry.interest, 5), styled(entry.remaining, 5), styled(entry.milestone, 15)];
+    return [styled(entry.month, index % 2 ? 13 : 7), ...activeNames.flatMap((name) => [styled(accountMap.get(name)?.payment ?? 0, index % 2 ? 5 : 14), styled(accountMap.get(name)?.endingBalance ?? 0, index % 2 ? 5 : 14)]), styled(entry.totalPaid, 5), styled(entry.interest, 5), styled(entry.remaining, 5), styled(entry.milestone, 15), styled(entry.focusDebt, 15), styled(entry.minimumPayments, 5), styled(entry.extraPayment, 5)];
   });
-  const scheduleHeaders = ["Month", ...activeNames.flatMap((name) => [`${name} payment`, `${name} balance`]), "Total paid", "Interest", "Remaining", "Milestone"];
-  const schedule = tableSheet("Payoff Schedule", `Complete ${report.strategy} schedule with monthly payments and ending balances`, scheduleHeaders, scheduleRows, [14, ...activeNames.flatMap(() => [16, 16]), 16, 15, 16, 28], true);
+  const scheduleHeaders = ["Month", ...activeNames.flatMap((name) => [`${name} payment`, `${name} balance`]), "Total paid", "Interest", "Remaining", "Milestone", "Focus debt", "Minimum payments", "Extra payment"];
+  const schedule = tableSheet("Payoff Schedule", `Complete ${report.strategy} schedule with monthly payments and ending balances`, scheduleHeaders, scheduleRows, [14, ...activeNames.flatMap(() => [16, 16]), 16, 15, 16, 28, 24, 17, 16], true);
 
   const transactionRows = report.transactions.map((transaction, index) => [styled(transaction.date, index % 2 ? 13 : 7), styled(transaction.merchant, 15), styled(transaction.account, 15), styled(transaction.type, 13), styled(transaction.category, 13), styled(transaction.memo, 15), styled(transaction.amount, index % 2 ? 5 : 14), styled(transaction.status, 13)]);
   const transactions = tableSheet("Transactions", "Complete ledger, including soft-deleted entries for audit history", ["Date", "Merchant / recipient", "Account", "Type", "Category", "Memo", "Amount", "Status"], transactionRows, [15, 28, 25, 13, 20, 34, 16, 13], true);
@@ -368,7 +368,7 @@ export async function exportPayoffPdf(report: PayoffReportData) {
   doc.addPage();
   let y = pdfTable(doc, autoTable, "Monthly budget breakdown", ["Type", "Name", "Category", "Payment method", "Linked account", "Amount"], report.cashflow.map((item) => [item.type, item.name, item.category, item.paymentMethod, item.linkedAccount, money(item.amount)]));
   y = pdfTable(doc, autoTable, "Debt accounts", ["Account", "Type", "Balance", "APR", "Interest / mo.", "Minimum", "Linked expenses", "Planned payment", "Projected payoff"], report.accounts.map((account) => [account.name, account.type, money(account.balance), percent(account.apr), money(account.monthlyInterest), money(account.minimumPayment), money(account.linkedCardExpenses), money(account.plannedMonthlyPayment), account.projectedPayoff]), y + 10);
-  y = pdfTable(doc, autoTable, "Month-by-month payoff schedule", ["Month", "Total paid", "Interest", "Remaining", "Milestone"], report.schedule.map((entry) => [entry.month, money(entry.totalPaid), money(entry.interest), money(entry.remaining), entry.milestone]), y + 10);
+  y = pdfTable(doc, autoTable, "Month-by-month payoff schedule", ["Month", "Focus debt", "Minimums", "Extra", "Interest", "Total paid", "Ending balance"], report.schedule.map((entry) => [entry.month, entry.focusDebt, money(entry.minimumPayments), money(entry.extraPayment), money(entry.interest), money(entry.totalPaid), money(entry.remaining)]), y + 10);
 
   report.accounts.filter((account) => account.balance > 0).forEach((account) => {
     const rows = report.schedule.map((entry) => ({ entry, detail: entry.accounts.find((item) => item.name === account.name) }))

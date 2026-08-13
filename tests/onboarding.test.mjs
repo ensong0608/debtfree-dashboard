@@ -132,6 +132,7 @@ test("legacy import bypasses onboarding without data loss", () => {
   const { planning, balanceAdjustments } = imported.payload;
   const legacyPayload = structuredClone(imported.payload);
   delete legacyPayload.planning; delete legacyPayload.balanceAdjustments; delete legacyPayload.monthlyPlan;
+  delete legacyPayload.customDebtOrder;
   Object.values(legacyPayload.monthlyBudgets).flat().forEach((item) => delete item.recurring);
   assert.deepEqual(legacyPayload, fixture);
   assert.deepEqual(balanceAdjustments, []);

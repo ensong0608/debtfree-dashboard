@@ -83,6 +83,10 @@ export function forecastMonthlyRate(account: DebtAccount, month: number, calcula
   return projectedMonthlyRate(account);
 }
 
+export function effectiveForecastApr(account: DebtAccount, month: number, calculationDate: Date = new Date()) {
+  return forecastMonthlyRate(account, month, calculationDate) * 1200;
+}
+
 export function individualPayoffMonths(account: DebtAccount, calculationDate: Date = new Date()) {
   if (account.balance <= 0) return 0;
   const result = calculatePlan([account], 0, "avalanche", {}, {}, calculationDate);
@@ -171,8 +175,8 @@ export function calculatePlan(
       .sort((a, b) => strategy === "custom"
         ? (a.customOrder ?? Number.MAX_SAFE_INTEGER) - (b.customOrder ?? Number.MAX_SAFE_INTEGER)
         : strategy === "avalanche"
-          ? forecastApr(b, month, calculationDate) - forecastApr(a, month, calculationDate) || (balances.get(a.id) ?? 0) - (balances.get(b.id) ?? 0)
-          : (balances.get(a.id) ?? 0) - (balances.get(b.id) ?? 0) || forecastApr(b, month, calculationDate) - forecastApr(a, month, calculationDate));
+          ? effectiveForecastApr(b, month, calculationDate) - effectiveForecastApr(a, month, calculationDate) || (balances.get(a.id) ?? 0) - (balances.get(b.id) ?? 0)
+          : (balances.get(a.id) ?? 0) - (balances.get(b.id) ?? 0) || effectiveForecastApr(b, month, calculationDate) - effectiveForecastApr(a, month, calculationDate));
     priority.forEach((account) => {
       const balance = balances.get(account.id) ?? 0;
       const payment = Math.min(balance, available);

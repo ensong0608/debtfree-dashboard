@@ -46,6 +46,16 @@ import { canArchiveDebt, createBalanceAdjustment, createDebtPayment, replaceDebt
 import { buildProgressBalanceView, transactionAdjustedAccounts } from "./progress-balances";
 import { actualizedPlannedIds, copyRecurringPlannedItems } from "./monthly-plan";
 import {
+  DEFAULT_SCHEDULE_PREVIEW_MONTHS,
+  accountsWithCustomDebtOrder,
+  buildPayoffScheduleRows,
+  buildStrategyComparison,
+  mergeVisibleCustomDebtOrder,
+  normalizeCustomDebtOrder,
+  payoffCalculationWarnings,
+  visibleCustomDebtOrder,
+} from "./payoff-plan";
+import {
   createOnboardingPlanning,
   hasEstablishedDashboardData,
   hasOnboardingProgress,
@@ -248,6 +258,7 @@ export default function DashboardClient({ user }: { user: DashboardUser }) {
   const [accountAutoFocus, setAccountAutoFocus] = useState<"name" | "balance">("name");
   const [extra, setExtra] = useState(0);
   const [strategy, setStrategy] = useState<PayoffStrategy>("avalanche");
+  const [customDebtOrder, setCustomDebtOrder] = useState<string[]>([]);
   const [importMessage, setImportMessage] = useState("");
   const [cashflowModalOpen, setCashflowModalOpen] = useState(false);
   const [editingCashflowId, setEditingCashflowId] = useState<string | null>(null);
@@ -280,6 +291,7 @@ export default function DashboardClient({ user }: { user: DashboardUser }) {
     setExtra(payload.extra);
     setStrategy(payload.strategy);
     setPlanning(payload.planning);
+    setCustomDebtOrder(payload.customDebtOrder ?? []);
   }, []);
 
   useEffect(() => {
@@ -344,7 +356,7 @@ export default function DashboardClient({ user }: { user: DashboardUser }) {
   }, [applyDashboardPayload, deviceOnly]);
   useEffect(() => {
     if (!loaded || isViewer) return;
-    const payload = createDashboardPayload(dashboardContract.current?.payload, { accounts, monthlyBudgets, payees, transactions, snapshots, extra, strategy, planning, balanceAdjustments, monthlyPlan });
+    const payload = createDashboardPayload(dashboardContract.current?.payload, { accounts, monthlyBudgets, payees, transactions, snapshots, extra, strategy, planning, balanceAdjustments, monthlyPlan, customDebtOrder });
     if (hasMeaningfulData(payload)) cloudWritesEnabled.current = true;
     if (!cloudWritesEnabled.current) return;
     const contract = createDashboardBackup(payload, dashboardContract.current);
@@ -366,7 +378,7 @@ export default function DashboardClient({ user }: { user: DashboardUser }) {
         .catch(() => setCloudStatus("error"));
     }, 650);
     return () => window.clearTimeout(syncTimer);
-  }, [accounts, balanceAdjustments, deviceOnly, extra, isViewer, loaded, monthlyBudgets, monthlyPlan, payees, planning, snapshots, strategy, transactions]);
+  }, [accounts, balanceAdjustments, customDebtOrder, deviceOnly, extra, isViewer, loaded, monthlyBudgets, monthlyPlan, payees, planning, snapshots, strategy, transactions]);
   useEffect(() => {
     if (!modalOpen && !cashflowModalOpen && !transactionModalOpen && !payeeModalOpen && !paymentRequest && !balanceAccountId && !auditTransactionId) return;
     const close = (event: KeyboardEvent) => { if (event.key === "Escape") { setModalOpen(false); setCashflowModalOpen(false); setTransactionModalOpen(false); setPayeeModalOpen(false); setPaymentRequest(null); setBalanceAccountId(null); setAuditTransactionId(null); } };
@@ -385,6 +397,7 @@ export default function DashboardClient({ user }: { user: DashboardUser }) {
   });
   const calculatedAccounts = useMemo(() => transactionAdjustedAccounts(accounts, transactions, detailedSpendingTracking), [accounts, detailedSpendingTracking, transactions]);
   const totalBalance = useMemo(() => calculatedAccounts.reduce((sum, account) => sum + account.balance, 0), [calculatedAccounts]);
+  const payoffAccounts = useMemo(() => accountsWithCustomDebtOrder(calculatedAccounts, customDebtOrder), [calculatedAccounts, customDebtOrder]);
   const activeCount = useMemo(() => calculatedAccounts.filter((account) => account.balance > 0).length, [calculatedAccounts]);
   const minimums = useMemo(() => calculatedAccounts.reduce((sum, account) => sum + effectiveMinimum(account), 0), [calculatedAccounts]);
   const interest = useMemo(() => calculatedAccounts.reduce((sum, account) => sum + monthlyInterest(account), 0), [calculatedAccounts]);
@@ -409,9 +422,9 @@ export default function DashboardClient({ user }: { user: DashboardUser }) {
     return totals;
   }, {}), [actualizedIds, planningCashflowItems]);
   const availableExtra = useMemo(() => Math.max(0, round(monthlySurplus - minimums)), [minimums, monthlySurplus]);
-  const plan = useMemo(() => calculatePlan(calculatedAccounts, extra, strategy, linkedCardExpenses, linkedCardPurchases, new Date(), actualizedLinkedCardSpending), [actualizedLinkedCardSpending, calculatedAccounts, extra, linkedCardExpenses, linkedCardPurchases, strategy]);
+  const plan = useMemo(() => calculatePlan(payoffAccounts, extra, strategy, linkedCardExpenses, linkedCardPurchases, new Date(), actualizedLinkedCardSpending), [actualizedLinkedCardSpending, extra, linkedCardExpenses, linkedCardPurchases, payoffAccounts, strategy]);
   const homeDashboard = useMemo(() => buildHomeDashboard({
-    accounts: calculatedAccounts,
+    accounts: payoffAccounts,
     openingAccounts: accounts,
     plan,
     extra,
@@ -419,12 +432,12 @@ export default function DashboardClient({ user }: { user: DashboardUser }) {
     planning,
     snapshots,
     transactions,
-  }), [accounts, calculatedAccounts, extra, plan, planning, snapshots, strategy, transactions]);
+  }), [accounts, extra, payoffAccounts, plan, planning, snapshots, strategy, transactions]);
   const paidOffById = useMemo(() => new Map(calculatedAccounts.map((account) => {
     const month = plan.months.find((entry) => entry.paidOff.includes(account.name))?.month;
     return [account.id, month ?? individualPayoffMonths(account)];
   })), [calculatedAccounts, plan.months]);
-  const priorityById = useMemo(() => new Map(payoffPriority(calculatedAccounts, strategy, plan.months[0]?.aprs).map((account, index) => [account.id, index + 1])), [calculatedAccounts, plan.months, strategy]);
+  const priorityById = useMemo(() => new Map(payoffPriority(payoffAccounts, strategy, plan.months[0]?.aprs).map((account, index) => [account.id, index + 1])), [payoffAccounts, plan.months, strategy]);
   const sortedAccounts = useMemo(() => [...calculatedAccounts].sort((a, b) => {
     const values: Record<SortKey, [string | number, string | number]> = {
       name: [a.name.toLowerCase(), b.name.toLowerCase()],
@@ -525,7 +538,11 @@ export default function DashboardClient({ user }: { user: DashboardUser }) {
       postPromoApr: draft.postPromoApr,
       postPromoMinimum: draft.postPromoMinimum,
     }));
-    else setAccounts((current) => [...current, { ...draft, id: crypto.randomUUID(), name: draft.name.trim(), createdAt: new Date().toISOString() }]);
+    else {
+      const account = { ...draft, id: crypto.randomUUID(), name: draft.name.trim(), createdAt: new Date().toISOString() };
+      setAccounts((current) => [...current, account]);
+      setCustomDebtOrder((current) => [...current.filter((id) => id !== account.id), account.id]);
+    }
     setModalOpen(false);
   };
   const removeAccount = () => {
@@ -533,6 +550,7 @@ export default function DashboardClient({ user }: { user: DashboardUser }) {
     const account = accounts.find((item) => item.id === editingId);
     if (confirm("Permanently delete " + (account?.name ?? "this debt account") + "? Payment, adjustment, and snapshot references will remain for audit, but the debt details cannot be restored.")) {
       setAccounts((current) => current.filter((item) => item.id !== editingId));
+      setCustomDebtOrder((current) => current.filter((id) => id !== editingId));
       setModalOpen(false);
       setDebtActionMessage("Debt account permanently deleted. Existing history references were retained.");
     }
@@ -603,7 +621,8 @@ export default function DashboardClient({ user }: { user: DashboardUser }) {
     try {
       const imported = extractDebtFreeAccounts(await file.text());
       const existingNames = new Set(accounts.map((account) => account.name.trim().toLowerCase()));
-      const added = imported.filter((account) => !existingNames.has(account.name.trim().toLowerCase())).length;
+      const newAccounts = imported.filter((account) => !existingNames.has(account.name.trim().toLowerCase()));
+      const added = newAccounts.length;
       const updated = imported.length - added;
       setAccounts((current) => {
         const importedByName = new Map(imported.map((account) => [account.name.trim().toLowerCase(), account]));
@@ -615,6 +634,7 @@ export default function DashboardClient({ user }: { user: DashboardUser }) {
         });
         return [...merged, ...importedByName.values()];
       });
+      setCustomDebtOrder((current) => [...current, ...newAccounts.map((account) => account.id).filter((id) => !current.includes(id))]);
       setImportMessage(`Imported ${imported.length} account${imported.length === 1 ? "" : "s"}: ${added} added${updated ? `, ${updated} updated` : ""}. Add credit limits and due dates when ready.`);
     } catch (error) {
       setImportMessage(`Import failed: ${error instanceof Error ? error.message : "The file could not be read."}`);
@@ -622,7 +642,7 @@ export default function DashboardClient({ user }: { user: DashboardUser }) {
   };
 
   const exportDashboardBackup = () => {
-    const payload = createDashboardPayload(dashboardContract.current?.payload, { accounts, monthlyBudgets, payees, transactions, snapshots, extra, strategy, planning, balanceAdjustments, monthlyPlan });
+    const payload = createDashboardPayload(dashboardContract.current?.payload, { accounts, monthlyBudgets, payees, transactions, snapshots, extra, strategy, planning, balanceAdjustments, monthlyPlan, customDebtOrder });
     const backup = createDashboardBackup(payload, dashboardContract.current);
     dashboardContract.current = backup;
     const url = URL.createObjectURL(new Blob([serializeDashboardBackup(backup, true)], { type: "application/json" }));
@@ -836,6 +856,7 @@ export default function DashboardClient({ user }: { user: DashboardUser }) {
     setPlanning(result.planning);
     setExtra(result.extra);
     setStrategy(result.strategy);
+    setCustomDebtOrder(normalizeCustomDebtOrder(result.accounts));
     setPage("home");
   };
   if (!loaded) return <main className="onboarding-shell onboarding-loading" role="status"><div><span>DF</span><strong>Loading your household.</strong></div></main>;
@@ -870,9 +891,9 @@ export default function DashboardClient({ user }: { user: DashboardUser }) {
         <fieldset className="viewer-readonly-surface" disabled={isViewer}>
         {page === "home" && <HomeDashboardPage model={homeDashboard} onRecordPayment={openRecommendedPayment} onExtra={setExtra} onAction={openHomeAction} onViewPayments={() => setPage(detailedSpendingTracking ? "history" : "monthly")} onViewPlan={() => setPage("plan")} onViewDebts={() => setPage("accounts")} onViewProgress={() => setPage("snapshots")} onViewMonthlyPlan={() => setPage("monthly")}/>}
         {page === "monthly" && <MonthlyPlanPage month={selectedMonth} hasMonth={Object.prototype.hasOwnProperty.call(monthlyBudgets, selectedMonth)} previousHasItems={(monthlyBudgets[shiftMonth(selectedMonth, -1)] ?? []).some((item) => item.recurring ?? item.kind !== "purchase")} items={cashflowItems} accounts={calculatedAccounts} transactions={transactions} settings={selectedPlanSettings} trackingEnabled={detailedSpendingTracking} plannedPayments={plan.months[0]?.payments ?? {}} onMonth={setSelectedMonth} onCopyPrevious={copyPreviousBudget} onStartBlank={startBlankBudget} onAdd={openNewCashflow} onEdit={openEditCashflow} onSettings={updateSelectedPlanSettings} onTracking={setDetailedSpendingTracking} onViewTransactions={() => setPage("history")}/>}
-        {page === "accounts" && <AccountsPage accounts={sortedAccounts} transactions={transactions} balanceAdjustments={balanceAdjustments} actionMessage={debtActionMessage} activeCount={activeCount} totalBalance={totalBalance} minimums={minimums} interest={interest} linkedCardExpenses={linkedCardExpenses} sortKey={sortKey} sortDirection={sortDirection} paidOffById={paidOffById} priorityById={priorityById} strategy={strategy} onSort={changeSort} onAdd={openNew} onEdit={openEdit} onUpdateBalance={openBalanceEdit} onRecordPayment={(account) => openRecommendedPayment(account.id, plan.months[0]?.payments[account.id] ?? effectiveMinimum(account))} onMarkPaidOff={markAccountPaidOff} onArchive={archiveAccount} onRestore={restoreAccount} onToggleMinimum={toggleMinimumMode} onTogglePayoff={togglePayoffMode} onSample={() => setAccounts(SAMPLE_ACCOUNTS)} onImport={importDebtFreeCsv} importMessage={importMessage}/>}
+        {page === "accounts" && <AccountsPage accounts={sortedAccounts} transactions={transactions} balanceAdjustments={balanceAdjustments} actionMessage={debtActionMessage} activeCount={activeCount} totalBalance={totalBalance} minimums={minimums} interest={interest} linkedCardExpenses={linkedCardExpenses} sortKey={sortKey} sortDirection={sortDirection} paidOffById={paidOffById} priorityById={priorityById} strategy={strategy} onSort={changeSort} onAdd={openNew} onEdit={openEdit} onUpdateBalance={openBalanceEdit} onRecordPayment={(account) => openRecommendedPayment(account.id, plan.months[0]?.payments[account.id] ?? effectiveMinimum(account))} onMarkPaidOff={markAccountPaidOff} onArchive={archiveAccount} onRestore={restoreAccount} onToggleMinimum={toggleMinimumMode} onTogglePayoff={togglePayoffMode} onSample={() => { setAccounts(SAMPLE_ACCOUNTS); setCustomDebtOrder(normalizeCustomDebtOrder(SAMPLE_ACCOUNTS)); }} onImport={importDebtFreeCsv} importMessage={importMessage}/>}
         {page === "history" && detailedSpendingTracking && <TransactionsPage accounts={calculatedAccounts} payees={payees} transactions={transactions} onQuickAdd={openNewTransaction} onEdit={openEditTransaction} onAudit={setAuditTransactionId} onDelete={softDeleteTransaction} onRestore={restoreTransaction} onBatchAdd={addBatchTransactions} onManagePayees={() => setPayeeModalOpen(true)}/>}
-        {page === "plan" && <PayoffPlanPage accounts={calculatedAccounts} plan={plan} extra={extra} availableExtra={availableExtra} strategy={strategy} linkedCardExpenseItems={linkedCardExpenseItems} linkedCardPurchaseItems={linkedCardPurchaseItems} monthlyItems={planningCashflowItems} transactions={transactions} snapshots={snapshots} onExtra={setExtra} onStrategy={setStrategy} onCustomOrder={(orderedIds) => { const positions = new Map(orderedIds.map((id, index) => [id, index])); setAccounts((current) => current.map((account) => positions.has(account.id) ? { ...account, customOrder: positions.get(account.id) } : account)); }} onAccounts={() => setPage("accounts")}/>}
+        {page === "plan" && <PayoffPlanPage accounts={payoffAccounts} plan={plan} extra={extra} availableExtra={availableExtra} strategy={strategy} customDebtOrder={customDebtOrder} linkedCardExpenseItems={linkedCardExpenseItems} linkedCardPurchaseItems={linkedCardPurchaseItems} actualizedLinkedCardExpenses={actualizedLinkedCardSpending} monthlyItems={planningCashflowItems} transactions={transactions} snapshots={snapshots} onExtra={setExtra} onStrategy={setStrategy} onCustomOrder={(orderedIds) => setCustomDebtOrder((current) => mergeVisibleCustomDebtOrder(accounts, current, orderedIds))} onAccounts={() => setPage("accounts")}/>}
         {page === "snapshots" && <SnapshotsPage openingAccounts={accounts} transactions={transactions} snapshots={snapshots} currentInterest={interest} plan={plan} strategy={strategy} onCapture={captureSnapshot} onUpdateNote={updateSnapshotNote} onDelete={removeSnapshot} onAddDebt={() => setPage("accounts")} onDetailedProjections={() => setPage("stats")}/>}
         {page === "profile" && <ProfilePage user={user} householdName={householdName} role={householdRole} members={householdMembers} cloudStatus={cloudStatus} deviceOnly={deviceOnly} transferMessage={transferMessage} onExportBackup={exportDashboardBackup} onImportBackup={importDashboardBackup} onInvite={inviteMember} onRemove={removeAdmin}/>}
         {page === "utilization" && <UtilizationPage accounts={calculatedAccounts} onEditAccount={openEdit}/>}
@@ -1182,10 +1203,14 @@ function AccountsPage({
     </details>}
   </div>;
 }
-function PayoffPlanPage({ accounts, plan, extra, availableExtra, strategy, linkedCardExpenseItems, linkedCardPurchaseItems, monthlyItems, transactions, snapshots, onExtra, onStrategy, onCustomOrder, onAccounts }: { accounts: DebtAccount[]; plan: PayoffPlan; extra: number; availableExtra: number; strategy: PayoffStrategy; linkedCardExpenseItems: LinkedCardExpenseItems; linkedCardPurchaseItems: LinkedCardPurchaseItems; monthlyItems: CashflowItem[]; transactions: LedgerTransaction[]; snapshots: PayoffSnapshot[]; onExtra: (value: number) => void; onStrategy: (strategy: PayoffStrategy) => void; onCustomOrder: (orderedIds: string[]) => void; onAccounts: () => void }) {
+function PayoffPlanPage({ accounts, plan, extra, availableExtra, strategy, customDebtOrder, linkedCardExpenseItems, linkedCardPurchaseItems, actualizedLinkedCardExpenses, monthlyItems, transactions, snapshots, onExtra, onStrategy, onCustomOrder, onAccounts }: { accounts: DebtAccount[]; plan: PayoffPlan; extra: number; availableExtra: number; strategy: PayoffStrategy; customDebtOrder: string[]; linkedCardExpenseItems: LinkedCardExpenseItems; linkedCardPurchaseItems: LinkedCardPurchaseItems; actualizedLinkedCardExpenses: LinkedCardExpenses; monthlyItems: CashflowItem[]; transactions: LedgerTransaction[]; snapshots: PayoffSnapshot[]; onExtra: (value: number) => void; onStrategy: (strategy: PayoffStrategy) => void; onCustomOrder: (orderedIds: string[]) => void; onAccounts: () => void }) {
   const [exporting, setExporting] = useState<"csv" | "excel" | "pdf" | null>(null);
   const [exportError, setExportError] = useState("");
   const [draggedCustomId, setDraggedCustomId] = useState<string | null>(null);
+  const [scheduleExpanded, setScheduleExpanded] = useState(false);
+  const [reorderAnnouncement, setReorderAnnouncement] = useState("");
+  const calculationDate = useMemo(() => new Date(), []);
+
   const description = strategy === "avalanche"
     ? "Highest effective APR first - usually the lowest total interest."
     : strategy === "snowball"
@@ -1196,17 +1221,26 @@ function PayoffPlanPage({ accounts, plan, extra, availableExtra, strategy, linke
   const nonAmortizingNames = accounts.filter((account) => plan.nonAmortizingAccountIds.includes(account.id)).map((account) => account.name);
   const linkedExpenseTotals = useMemo(() => Object.fromEntries(Object.entries(linkedCardExpenseItems).map(([id, items]) => [id, round(items.reduce((sum, item) => sum + item.amount, 0))])), [linkedCardExpenseItems]);
   const linkedPurchaseTotals = useMemo(() => Object.fromEntries(Object.entries(linkedCardPurchaseItems).map(([id, items]) => [id, round(items.reduce((sum, item) => sum + item.amount, 0))])), [linkedCardPurchaseItems]);
-  const avalanchePlan = useMemo(() => calculatePlan(accounts, extra, "avalanche", linkedExpenseTotals, linkedPurchaseTotals), [accounts, extra, linkedExpenseTotals, linkedPurchaseTotals]);
-  const snowballPlan = useMemo(() => calculatePlan(accounts, extra, "snowball", linkedExpenseTotals, linkedPurchaseTotals), [accounts, extra, linkedExpenseTotals, linkedPurchaseTotals]);
-  const effectiveAprs = Object.fromEntries(accounts.map((account) => [account.id, plan.months[0]?.aprs[account.id] ?? account.apr]));
-  const comparison = [
-    { strategy: "avalanche" as const, plan: avalanchePlan, firstDebt: payoffPriority(accounts, "avalanche", effectiveAprs)[0]?.name ?? "No priority debt" },
-    { strategy: "snowball" as const, plan: snowballPlan, firstDebt: payoffPriority(accounts, "snowball", effectiveAprs)[0]?.name ?? "No priority debt" },
-  ];
-  const recommendedStrategy: Exclude<PayoffStrategy, "custom"> = avalanchePlan.totalInterest <= snowballPlan.totalInterest ? "avalanche" : "snowball";
-  const alternativeStrategy: Exclude<PayoffStrategy, "custom"> = recommendedStrategy === "avalanche" ? "snowball" : "avalanche";
-  const projectedSavings = Math.abs(avalanchePlan.totalInterest - snowballPlan.totalInterest);
-  const customAccounts = payoffPriority(accounts, "custom", effectiveAprs);
+  const comparisonModel = useMemo(() => buildStrategyComparison(accounts, extra, customDebtOrder, linkedExpenseTotals, linkedPurchaseTotals, calculationDate, actualizedLinkedCardExpenses), [accounts, actualizedLinkedCardExpenses, calculationDate, customDebtOrder, extra, linkedExpenseTotals, linkedPurchaseTotals]);
+  const { comparisons: comparison, recommendedStrategy, alternativeStrategy, projectedSavings } = comparisonModel;
+  const customAccounts = visibleCustomDebtOrder(accounts, customDebtOrder);
+  const scheduleRows = useMemo(() => buildPayoffScheduleRows(accounts, plan, linkedExpenseTotals, linkedPurchaseTotals, actualizedLinkedCardExpenses), [accounts, actualizedLinkedCardExpenses, linkedExpenseTotals, linkedPurchaseTotals, plan]);
+  const displayedScheduleRows = scheduleExpanded ? scheduleRows : scheduleRows.slice(0, DEFAULT_SCHEDULE_PREVIEW_MONTHS);
+  const calculationWarnings = payoffCalculationWarnings(accounts, plan);
+  const calculatedOn = calculationDate.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
+  const priorityMinimumTotal = accounts.filter((account) => !account.archivedAt && account.balance > 0).reduce((sum, account) => sum + effectiveMinimum(account), 0);
+  const linkedExpenseTotal = round(Object.values(linkedExpenseTotals).reduce((sum, amount) => sum + amount, 0));
+  const comparisonDifference = (item: (typeof comparison)[number]) => {
+    if (item.strategy === recommendedStrategy) return "Recommended baseline";
+    const interestPart = item.interestDifference > .005 ? `+${moneyPrecise.format(item.interestDifference)} interest` : "Same interest";
+    const monthPart = item.monthDifference === null ? "payoff incomplete" : item.monthDifference === 0 ? "same payoff month" : `${item.monthDifference > 0 ? "+" : ""}${item.monthDifference} month${Math.abs(item.monthDifference) === 1 ? "" : "s"}`;
+    return `${interestPart}; ${monthPart}`;
+  };
+  const announceCustomOrder = (ids: string[], movedId: string) => {
+    const moved = accounts.find((account) => account.id === movedId);
+    const position = ids.indexOf(movedId) + 1;
+    if (moved && position > 0) setReorderAnnouncement(`${moved.name} moved to position ${position} of ${ids.length}.`);
+  };
   const reorderCustom = (movingId: string, targetId: string) => {
     if (movingId === targetId) return;
     const ids = customAccounts.map((account) => account.id);
@@ -1215,6 +1249,7 @@ function PayoffPlanPage({ accounts, plan, extra, availableExtra, strategy, linke
     if (from < 0 || to < 0) return;
     ids.splice(to, 0, ids.splice(from, 1)[0]);
     onCustomOrder(ids);
+    announceCustomOrder(ids, movingId);
   };
   const moveCustom = (accountId: string, direction: -1 | 1) => {
     const ids = customAccounts.map((account) => account.id);
@@ -1223,22 +1258,8 @@ function PayoffPlanPage({ accounts, plan, extra, availableExtra, strategy, linke
     if (from < 0 || to < 0 || to >= ids.length) return;
     [ids[from], ids[to]] = [ids[to], ids[from]];
     onCustomOrder(ids);
+    announceCustomOrder(ids, accountId);
   };
-  const scheduleRows = plan.months.map((month) => {
-    let minimumPayments = 0;
-    const extraRecipients: string[] = [];
-    let extraPayment = 0;
-    planAccounts.forEach((account) => {
-      const payment = month.payments[account.id] ?? 0;
-      const cardCharges = (linkedExpenseTotals[account.id] ?? 0) + (month.month === 1 ? linkedPurchaseTotals[account.id] ?? 0 : 0);
-      const minimumPayment = month.minimums[account.id] ?? 0;
-      const scheduled = minimumPayment + cardCharges;
-      minimumPayments += Math.min(payment, minimumPayment);
-      extraPayment += Math.max(0, payment - scheduled);
-      if (payment > scheduled + .005) extraRecipients.push(account.name);
-    });
-    return { month, minimumPayments: round(minimumPayments), extraPayment: round(extraPayment), extraRecipients };
-  });
 
   const createReport = (): PayoffReportData => {
     const accountNames = new Map(accounts.map((account) => [account.id, account.name]));
@@ -1292,13 +1313,16 @@ function PayoffPlanPage({ accounts, plan, extra, availableExtra, strategy, linke
           projectedPayoff: account.balance <= 0 ? "Complete" : payoffMonth ? monthAfter(payoffMonth - 1) : "Needs adjustment",
         };
       }),
-      schedule: plan.months.map((entry) => ({
-        month: monthAfter(entry.month - 1),
-        totalPaid: round(entry.paid),
-        interest: round(entry.interest),
-        remaining: round(entry.remaining),
-        milestone: entry.paidOff.length ? `Paid off: ${entry.paidOff.join(", ")}` : "",
-        accounts: planAccounts.map((account) => ({ name: account.name, payment: round(entry.payments[account.id] ?? 0), endingBalance: round(entry.balances[account.id] ?? 0) })),
+      schedule: scheduleRows.map((row) => ({
+        month: monthAfter(row.month.month - 1),
+        focusDebt: row.focusDebt,
+        minimumPayments: row.minimumPayments,
+        extraPayment: row.extraPayment,
+        totalPaid: row.totalPaid,
+        interest: row.interest,
+        remaining: row.endingBalance,
+        milestone: row.month.paidOff.length ? `Paid off: ${row.month.paidOff.join(", ")}` : "",
+        accounts: planAccounts.map((account) => ({ name: account.name, payment: round(row.month.payments[account.id] ?? 0), endingBalance: round(row.month.balances[account.id] ?? 0) })),
       })),
       transactions: [...transactions].sort((a, b) => b.date.localeCompare(a.date)).map((transaction) => ({
         date: transaction.date,
@@ -1356,18 +1380,36 @@ function PayoffPlanPage({ accounts, plan, extra, availableExtra, strategy, linke
         </article>
         <article className="strategy-comparison-card">
           <header><span>Compare strategies</span><strong>Same monthly payment, different order</strong></header>
-          <div className="strategy-table-wrap"><table><caption>Avalanche and snowball payoff comparison</caption><thead><tr><th>Strategy</th><th>Debt-free date</th><th>Total interest</th><th>First debt</th></tr></thead><tbody>{comparison.map((item) => <tr key={item.strategy} className={strategy === item.strategy ? "active" : ""}><td><button type="button" onClick={() => onStrategy(item.strategy)}>{strategyLabel(item.strategy)}</button></td><td>{item.plan.stalled ? "Needs adjustment" : monthAfter(item.plan.months.length - 1)}</td><td>{moneyPrecise.format(item.plan.totalInterest)}</td><td>{item.firstDebt}</td></tr>)}</tbody></table></div>
+          <div className="strategy-table-wrap"><table><caption>Avalanche, snowball, and available custom payoff comparison</caption><thead><tr><th>Strategy</th><th>Debt-free date</th><th>Total interest</th><th>First target debt</th><th>Months to payoff</th><th>Difference from recommendation</th></tr></thead><tbody>{comparison.map((item) => <tr key={item.strategy} className={strategy === item.strategy ? "active" : ""}><td><strong>{strategyLabel(item.strategy)}</strong>{strategy === item.strategy && <small>Saved strategy</small>}</td><td>{item.plan.stalled ? "Needs adjustment" : monthAfter(item.plan.months.length - 1)}</td><td>{moneyPrecise.format(item.plan.totalInterest)}</td><td>{item.firstTarget}</td><td>{item.plan.stalled ? "Not available" : item.plan.months.length}</td><td>{comparisonDifference(item)}</td></tr>)}</tbody></table></div>
         </article>
       </section>
       {strategy === "custom" && customAccounts.length > 0 && <section className="custom-order-card">
         <header><div><span>Custom payoff order</span><strong>Put debts in the order you want extra money applied</strong></div><small>Drag rows on desktop or use the accessible buttons.</small></header>
         <ol>{customAccounts.map((account, index) => <li key={account.id} draggable onDragStart={(event) => { setDraggedCustomId(account.id); event.dataTransfer.effectAllowed = "move"; }} onDragOver={(event) => event.preventDefault()} onDrop={() => { if (draggedCustomId) reorderCustom(draggedCustomId, account.id); setDraggedCustomId(null); }} onDragEnd={() => setDraggedCustomId(null)} className={draggedCustomId === account.id ? "dragging" : ""}>
-          <span className="drag-handle" aria-hidden="true">::</span><b>{index + 1}</b><div><strong>{account.name}</strong><small>{moneyPrecise.format(account.balance)} ? {account.apr.toFixed(2)}% APR</small></div><div className="custom-order-actions"><button type="button" disabled={index === 0} aria-label={`Move ${account.name} up`} onClick={() => moveCustom(account.id, -1)}>Move up</button><button type="button" disabled={index === customAccounts.length - 1} aria-label={`Move ${account.name} down`} onClick={() => moveCustom(account.id, 1)}>Move down</button></div>
+        <p className="sr-only" role="status" aria-live="polite" aria-atomic="true">{reorderAnnouncement}</p>
+          <span className="drag-handle" aria-hidden="true">::</span><b>{index + 1}</b><div><strong>{account.name}</strong><small>{moneyPrecise.format(account.balance)} &middot; {account.apr.toFixed(2)}% APR</small></div><div className="custom-order-actions"><button type="button" disabled={index === 0} aria-label={`Move ${account.name} up`} onClick={() => moveCustom(account.id, -1)}>Move up</button><button type="button" disabled={index === customAccounts.length - 1} aria-label={`Move ${account.name} down`} onClick={() => moveCustom(account.id, 1)}>Move down</button></div>
         </li>)}</ol>
       </section>}
-      <details className="table-card plan-table-card payoff-schedule">
-        <summary className="table-card-head"><div className="plan-table-summary"><strong>Month-by-month schedule</strong><span>{plan.months.length} months ? {strategyLabel(strategy)}</span></div><span className="schedule-toggle">Open schedule</span></summary>
-        <div className="table-scroll plan-scroll"><table className="payoff-table compact-payoff-table"><caption>Expandable month-by-month payoff schedule</caption><thead><tr><th>Month</th><th>Debt receiving extra payment</th><th>Minimum payments</th><th>Extra payment</th><th>Interest</th><th>Ending balance</th></tr></thead><tbody>{scheduleRows.map(({ month, minimumPayments, extraPayment, extraRecipients }) => <tr key={month.month}><td><strong>{monthAfter(month.month - 1)}</strong><small>Month {month.month}</small></td><td><strong>{extraRecipients.length ? extraRecipients.join(", ") : "Minimums only"}</strong>{month.paidOff.length > 0 && <small className="milestone">Paid off: {month.paidOff.join(", ")}</small>}</td><td className="number-cell">{moneyPrecise.format(minimumPayments)}</td><td className="number-cell">{moneyPrecise.format(extraPayment)}</td><td className="number-cell">{moneyPrecise.format(month.interest)}</td><td className="number-cell remaining">{moneyPrecise.format(month.remaining)}</td></tr>)}</tbody></table></div>
+      <section className="table-card plan-table-card payoff-schedule" aria-labelledby="payoff-schedule-title">
+        <header className="table-card-head"><div className="plan-table-summary"><strong id="payoff-schedule-title">Month-by-month schedule</strong><span>{plan.months.length} months &middot; {strategyLabel(strategy)}</span><small>{scheduleExpanded ? "Complete schedule shown." : `First ${Math.min(DEFAULT_SCHEDULE_PREVIEW_MONTHS, scheduleRows.length)} months shown.`}</small></div><button type="button" className="schedule-toggle" aria-expanded={scheduleExpanded} aria-controls="payoff-schedule-table" onClick={() => setScheduleExpanded((current) => !current)}>{scheduleExpanded ? "Show summary" : `Show all ${scheduleRows.length} months`}</button></header>
+        <div className="table-scroll plan-scroll" id="payoff-schedule-table"><table className="payoff-table compact-payoff-table"><caption>{scheduleExpanded ? "Complete month-by-month payoff schedule" : "Initial payoff schedule summary"}</caption><thead><tr><th>Month</th><th>Focus debt</th><th>Minimum payments</th><th>Extra payment</th><th>Interest</th><th>Total paid</th><th>Ending balance</th></tr></thead><tbody>{displayedScheduleRows.map(({ month, focusDebt, minimumPayments, extraPayment, interest, totalPaid, endingBalance }) => <tr key={month.month}><td><strong>{monthAfter(month.month - 1)}</strong><small>Month {month.month}</small></td><td><strong>{focusDebt}</strong>{month.paidOff.length > 0 && <small className="milestone">Paid off: {month.paidOff.join(", ")}</small>}</td><td className="number-cell">{moneyPrecise.format(minimumPayments)}</td><td className="number-cell">{moneyPrecise.format(extraPayment)}</td><td className="number-cell">{moneyPrecise.format(interest)}</td><td className="number-cell">{moneyPrecise.format(totalPaid)}</td><td className="number-cell remaining">{moneyPrecise.format(endingBalance)}</td></tr>)}</tbody></table></div>
+      </section>
+      <details className="calculation-details">
+        <summary>How this plan was calculated</summary>
+        <div className="calculation-details-body">
+          <dl>
+            <div><dt>Selected strategy</dt><dd>{strategyLabel(strategy)}. {description}</dd></div>
+            <div><dt>Monthly payment amount</dt><dd>{moneyPrecise.format(plan.monthly)}: {moneyPrecise.format(priorityMinimumTotal)} in entered or estimated minimums, {moneyPrecise.format(linkedExpenseTotal)} in recurring linked card expenses, and {moneyPrecise.format(extra)} extra.</dd></div>
+            <div><dt>Minimum-payment assumptions</dt><dd>Manual minimums use the amounts entered. Automatic minimums use the larger of $25 or 1% of balance plus monthly interest, capped at the balance.</dd></div>
+            <div><dt>Interest calculation method</dt><dd>Interest is projected monthly from each opening balance using the effective forecast APR, including actual interest-fee calibration when entered, and rounded to cents in the schedule.</dd></div>
+            <div><dt>Payment rollover</dt><dd>After minimums, extra money follows the selected target order. Payments freed by a payoff roll to the next eligible debt; minimum-only debts never receive extra.</dd></div>
+            <div><dt>Promotional-rate assumptions</dt><dd>Saved promotional APRs apply through their ending month, then the saved post-promotion APR and minimum take effect. Avalanche re-ranks using that month&apos;s effective forecast APR.</dd></div>
+            <div><dt>Planned new-purchase assumptions</dt><dd>{currentMonthPurchaseTotal > 0 ? `${moneyPrecise.format(currentMonthPurchaseTotal)} of planned one-time card purchases is added only in the first forecast month.` : "No planned one-time card purchases are added."} Recurring linked card expenses continue monthly, excluding current-month items already recorded.</dd></div>
+            <div><dt>Calculation date</dt><dd>{calculatedOn}</dd></div>
+            <div><dt>Missing-data warnings</dt><dd>{calculationWarnings.length ? <ul>{calculationWarnings.map((warning) => <li key={warning}>{warning}</li>)}</ul> : "No missing calculation data detected."}</dd></div>
+          </dl>
+          <p>Estimate based on the balances, rates, and payments currently entered.</p>
+        </div>
       </details>
     </> : <section className="large-empty"><span>{"\u2713"}</span><h2>{plan.stalled ? (nonAmortizingNames.length ? "A balance is not amortizing" : "The current payments do not outpace interest") : "Add debt accounts to build your plan"}</h2><p>{plan.stalled ? (nonAmortizingNames.length ? `${nonAmortizingNames.join(", ")} does not shrink after interest and new charges at the modeled payment. Enter the issuer's actual minimum or add extra payment.` : "Increase a minimum payment or add an extra monthly amount to create a finish line.") : "Once your accounts have balances, APRs, and minimums, the complete payoff schedule will appear here."}</p><button className="primary" type="button" onClick={onAccounts}>Review debt accounts</button></section>}
   </div>;

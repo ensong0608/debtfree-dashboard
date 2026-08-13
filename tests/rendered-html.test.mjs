@@ -97,7 +97,7 @@ test("removes disposable starter assets", async () => {
   assert.match(dashboardSource, /Compare strategies/);
   assert.match(dashboardSource, /Custom payoff order/);
   assert.match(dashboardSource, /Move up/);
-  assert.match(dashboardSource, /Debt receiving extra payment/);
+  assert.match(dashboardSource, /Focus debt/);
   assert.match(dashboardSource, /Minimum payments/);
   assert.match(dashboardSource, /Extra payment/);
   assert.match(dashboardSource, /Ending balance/);
@@ -115,7 +115,7 @@ test("removes disposable starter assets", async () => {
   assert.match(dashboardSource, /minimum-only/);
   assert.match(dashboardSource, /Auto estimate/);
   assert.match(dashboardSource, /Starting debt/);
-  assert.match(dashboardSource, /entry\.balances/);
+  assert.match(dashboardSource, /row\.month\.balances/);
   assert.match(dashboardSource, /projectedMonthlyRate/);
   assert.match(dashboardSource, /Actual interest fee/);
   assert.match(dashboardSource, /planAccounts = accounts\.filter/);
@@ -232,9 +232,10 @@ test("keeps the direct Cloudflare Worker deployment reproducible", async () => {
 });
 
 test("pays linked credit-card one-time purchases in the current payoff month only", async () => {
-  const [client, engine] = await Promise.all([
+  const [client, engine, payoffPlan] = await Promise.all([
     readFile(new URL("../app/dashboard-client.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/payoff-engine.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/payoff-plan.ts", import.meta.url), "utf8"),
   ]);
   assert.match(client, /item\.kind === "purchase"/);
   assert.match(client, /linkedCardPurchases/);
@@ -242,7 +243,7 @@ test("pays linked credit-card one-time purchases in the current payoff month onl
   assert.match(engine, /Math\.max\(0, \(linkedCardExpenses\[accountId\]/);
   assert.match(engine, /plannedMonthly = monthly \+ \(month === 1 \? oneTimePurchaseTotal : 0\)/);
   assert.match(engine, /scheduledPayment = \(minimums\[account\.id\] \?\? 0\) \+ cardChargeForMonth\(account\.id, month\)/);
-  assert.match(client, /month\.month === 1 \? linkedPurchaseTotals\[account\.id\] \?\? 0 : 0/);
+  assert.match(payoffPlan, /month\.month === 1 \? linkedCardPurchases\[account\.id\] \?\? 0 : 0/);
   assert.match(client, /currentMonthPurchaseTotal/);
 });
 test("uses verified personal email accounts with household admin and viewer roles", async () => {

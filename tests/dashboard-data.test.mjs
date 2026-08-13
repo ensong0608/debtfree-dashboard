@@ -28,6 +28,7 @@ function copy(value) {
 
 function withoutPhase6(payload) {
   const copy = structuredClone(payload);
+  delete copy.customDebtOrder;
   delete copy.monthlyPlan;
   delete copy.planning;
   delete copy.balanceAdjustments;
@@ -245,11 +246,11 @@ test("rejects invalid strategies and unsupported wrapper versions", () => {
 
   const invalidVersion = {
     format: DASHBOARD_BACKUP_FORMAT,
-    version: 5,
+    version: 6,
     exportedAt: fixedExportedAt,
     payload: fixture,
   };
-  expectFieldError(invalidVersion, "backup.version must be 1, 2, 3, or 4");
+  expectFieldError(invalidVersion, "backup.version must be 1, 2, 3, 4, or 5");
 });
 
 test("rejects invalid planned-data fields with useful paths", () => {

@@ -78,7 +78,7 @@ test("Phase 6 JSON round trip retains disabled advanced data and unknown fields"
   const source = payload({ transactions: [transaction("actual", { plannedItemId: "hotel" })], payees: [{ id: "merchant", name: "Merchant", createdAt: "2026-08-01", deletedAt: null }], futureField: { retained: true } });
   const backup = createDashboardBackup(createDashboardPayload(null, source), null, "2026-08-12T12:00:00Z");
   const restored = parseDashboardJson(serializeDashboardBackup(backup));
-  assert.equal(restored.version, 4);
+  assert.equal(restored.version, 5);
   assert.equal(restored.payload.monthlyPlan.detailedSpendingTracking, false);
   assert.equal(restored.payload.transactions[0].plannedItemId, "hotel");
   assert.deepEqual(restored.payload.futureField, { retained: true });
