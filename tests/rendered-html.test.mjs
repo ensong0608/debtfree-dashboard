@@ -68,15 +68,16 @@ test("simplifies monthly planning and copies recurring entries", async () => {
   assert.match(styles, /Phase 6 Monthly Plan/);
 });
 test("removes disposable starter assets", async () => {
-  const [page, client, monthly, payoffEngine, layout, packageJson] = await Promise.all([
+  const [page, client, monthly, payoffEngine, progressReport, layout, packageJson] = await Promise.all([
     readFile(new URL("../app/page.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/dashboard-client.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/monthly-plan-page.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/payoff-engine.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/progress-report-page.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/layout.tsx", import.meta.url), "utf8"),
     readFile(new URL("../package.json", import.meta.url), "utf8"),
   ]);
-  const dashboardSource = page + client + monthly + payoffEngine;
+  const dashboardSource = page + client + monthly + payoffEngine + progressReport;
   assert.match(dashboardSource, /DebtFree Dashboard/);
   assert.match(dashboardSource, /Import DebtFree CSV/);
   assert.match(dashboardSource, /extractDebtFreeAccounts/);

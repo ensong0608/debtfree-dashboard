@@ -15,6 +15,7 @@
     "start": "vinext start",
     "test": "npm run build && node --test tests/*.test.mjs",
     "lint": "eslint . --ignore-pattern dist --ignore-pattern .next --ignore-pattern public/ocr",
+    "typecheck": "tsc --noEmit --incremental false",
     "db:generate": "drizzle-kit generate"
   },
   "dependencies": {

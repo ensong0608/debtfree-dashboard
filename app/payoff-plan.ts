@@ -1,6 +1,6 @@
 import type { DebtAccount, PayoffStrategy } from "./dashboard-data.ts";
 import { payoffPriority } from "./debts-screen.ts";
-import { calculatePlan, effectiveForecastApr, round, type LinkedCardExpenses, type PayoffPlan, type PlanMonth } from "./payoff-engine.ts";
+import { calculatePlan, effectiveForecastApr, forecastMonthKey, round, type LinkedCardExpenses, type PayoffPlan, type PlanMonth } from "./payoff-engine.ts";
 
 export const DEFAULT_SCHEDULE_PREVIEW_MONTHS = 3;
 
@@ -20,6 +20,14 @@ export type PayoffScheduleRow = {
   totalPaid: number;
   interest: number;
   endingBalance: number;
+};
+
+export type PaymentWhatIf = {
+  additionalMonthly: number;
+  totalExtra: number;
+  plan: PayoffPlan;
+  monthsSaved: number | null;
+  interestSaved: number | null;
 };
 
 function deterministicAccountOrder(a: DebtAccount, b: DebtAccount) {
@@ -89,6 +97,31 @@ export function buildStrategyComparison(
   };
 }
 
+export function buildPaymentWhatIf(
+  accounts: DebtAccount[],
+  savedExtra: number,
+  additionalMonthly: number,
+  strategy: PayoffStrategy,
+  customDebtOrder: string[] = [],
+  linkedCardExpenses: LinkedCardExpenses = {},
+  linkedCardPurchases: LinkedCardExpenses = {},
+  calculationDate: Date = new Date(),
+  actualizedLinkedCardExpenses: LinkedCardExpenses = {},
+): PaymentWhatIf {
+  const ordered = strategy === "custom" ? accountsWithCustomDebtOrder(accounts, customDebtOrder) : accounts;
+  const baseline = calculatePlan(ordered, savedExtra, strategy, linkedCardExpenses, linkedCardPurchases, calculationDate, actualizedLinkedCardExpenses);
+  const increase = Math.max(0, round(additionalMonthly));
+  const totalExtra = round(Math.max(0, savedExtra) + increase);
+  const plan = calculatePlan(ordered, totalExtra, strategy, linkedCardExpenses, linkedCardPurchases, calculationDate, actualizedLinkedCardExpenses);
+  return {
+    additionalMonthly: increase,
+    totalExtra,
+    plan,
+    monthsSaved: baseline.stalled || plan.stalled ? null : Math.max(0, baseline.months.length - plan.months.length),
+    interestSaved: baseline.stalled || plan.stalled ? null : round(Math.max(0, baseline.totalInterest - plan.totalInterest)),
+  };
+}
+
 export function buildPayoffScheduleRows(
   accounts: DebtAccount[],
   plan: PayoffPlan,
@@ -125,16 +158,22 @@ export function buildPayoffScheduleRows(
   });
 }
 
-export function payoffCalculationWarnings(accounts: DebtAccount[], plan: PayoffPlan) {
+export function payoffCalculationWarnings(accounts: DebtAccount[], plan: PayoffPlan, calculationDate: Date = new Date()) {
   const warnings: string[] = [];
   const missingMinimums = accounts.filter((account) => !account.archivedAt && account.balance > 0 && account.minimumMode === "manual" && account.minimum <= 0).map((account) => account.name);
   const missingPostPromo = accounts.filter((account) => !account.archivedAt && account.balance > 0 && account.promoEndDate && account.postPromoApr <= 0).map((account) => account.name);
   if (missingMinimums.length) warnings.push(`Missing minimum payment: ${missingMinimums.join(", ")}.`);
-  if (missingPostPromo.length) warnings.push(`Missing post-promotion APR: ${missingPostPromo.join(", ")}.`);
+  if (missingPostPromo.length) warnings.push(`Your payoff projection may be inaccurate because the APR after the promotional period is missing. Add it for: ${missingPostPromo.join(", ")}.`);
   if (plan.promoMinimumFallbackIds.length) {
     const names = accounts.filter((account) => plan.promoMinimumFallbackIds.includes(account.id)).map((account) => account.name);
     warnings.push(`Post-promotion minimum not entered; the current minimum continues for ${names.join(", ")}.`);
   }
   if (plan.stalled) warnings.push("The current payment assumptions do not produce a complete payoff date.");
+  accounts.filter((account) => !account.archivedAt && account.balance > 0 && account.promoEndDate && account.postPromoApr > 0).forEach((account) => {
+    const promoMonth = account.promoEndDate.slice(0, 7);
+    const lastPromoMonth = plan.months.findLast((entry) => forecastMonthKey(entry.month, calculationDate) <= promoMonth);
+    const remaining = lastPromoMonth?.balances[account.id] ?? account.balance;
+    if (remaining > .005) warnings.push(`${account.name} is projected to have ${round(remaining).toFixed(2)} remaining when its promotional APR expires.`);
+  });
   return warnings;
 }

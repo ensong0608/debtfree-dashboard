@@ -43,11 +43,14 @@ import MonthlyPlanPage from "./monthly-plan-page";
 import HomeDashboardPage from "./home-dashboard-page";
 import { buildHomeDashboard, type HomeAction } from "./home-dashboard";
 import { canArchiveDebt, createBalanceAdjustment, createDebtPayment, replaceDebtPayment, DebtBalanceError, DebtPaymentError, debtStatus, payoffPriority, promoNotice, setDebtArchived, splitDebtAccounts } from "./debts-screen";
-import { buildProgressBalanceView, transactionAdjustedAccounts } from "./progress-balances";
+import { transactionAdjustedAccounts } from "./progress-balances";
+import { buildProgressReport } from "./progress-report";
+import ProgressReportPanel from "./progress-report-page";
 import { actualizedPlannedIds, copyRecurringPlannedItems } from "./monthly-plan";
 import {
   DEFAULT_SCHEDULE_PREVIEW_MONTHS,
   accountsWithCustomDebtOrder,
+  buildPaymentWhatIf,
   buildPayoffScheduleRows,
   buildStrategyComparison,
   mergeVisibleCustomDebtOrder,
@@ -423,6 +426,7 @@ export default function DashboardClient({ user }: { user: DashboardUser }) {
   }, {}), [actualizedIds, planningCashflowItems]);
   const availableExtra = useMemo(() => Math.max(0, round(monthlySurplus - minimums)), [minimums, monthlySurplus]);
   const plan = useMemo(() => calculatePlan(payoffAccounts, extra, strategy, linkedCardExpenses, linkedCardPurchases, new Date(), actualizedLinkedCardSpending), [actualizedLinkedCardSpending, extra, linkedCardExpenses, linkedCardPurchases, payoffAccounts, strategy]);
+  const minimumOnlyPlan = useMemo(() => calculatePlan(payoffAccounts, 0, strategy, linkedCardExpenses, linkedCardPurchases, new Date(), actualizedLinkedCardSpending), [actualizedLinkedCardSpending, linkedCardExpenses, linkedCardPurchases, payoffAccounts, strategy]);
   const homeDashboard = useMemo(() => buildHomeDashboard({
     accounts: payoffAccounts,
     openingAccounts: accounts,
@@ -894,7 +898,7 @@ export default function DashboardClient({ user }: { user: DashboardUser }) {
         {page === "accounts" && <AccountsPage accounts={sortedAccounts} transactions={transactions} balanceAdjustments={balanceAdjustments} actionMessage={debtActionMessage} activeCount={activeCount} totalBalance={totalBalance} minimums={minimums} interest={interest} linkedCardExpenses={linkedCardExpenses} sortKey={sortKey} sortDirection={sortDirection} paidOffById={paidOffById} priorityById={priorityById} strategy={strategy} onSort={changeSort} onAdd={openNew} onEdit={openEdit} onUpdateBalance={openBalanceEdit} onRecordPayment={(account) => openRecommendedPayment(account.id, plan.months[0]?.payments[account.id] ?? effectiveMinimum(account))} onMarkPaidOff={markAccountPaidOff} onArchive={archiveAccount} onRestore={restoreAccount} onToggleMinimum={toggleMinimumMode} onTogglePayoff={togglePayoffMode} onSample={() => { setAccounts(SAMPLE_ACCOUNTS); setCustomDebtOrder(normalizeCustomDebtOrder(SAMPLE_ACCOUNTS)); }} onImport={importDebtFreeCsv} importMessage={importMessage}/>}
         {page === "history" && detailedSpendingTracking && <TransactionsPage accounts={calculatedAccounts} payees={payees} transactions={transactions} onQuickAdd={openNewTransaction} onEdit={openEditTransaction} onAudit={setAuditTransactionId} onDelete={softDeleteTransaction} onRestore={restoreTransaction} onBatchAdd={addBatchTransactions} onManagePayees={() => setPayeeModalOpen(true)}/>}
         {page === "plan" && <PayoffPlanPage accounts={payoffAccounts} plan={plan} extra={extra} availableExtra={availableExtra} strategy={strategy} customDebtOrder={customDebtOrder} linkedCardExpenseItems={linkedCardExpenseItems} linkedCardPurchaseItems={linkedCardPurchaseItems} actualizedLinkedCardExpenses={actualizedLinkedCardSpending} monthlyItems={planningCashflowItems} transactions={transactions} snapshots={snapshots} onExtra={setExtra} onStrategy={setStrategy} onCustomOrder={(orderedIds) => setCustomDebtOrder((current) => mergeVisibleCustomDebtOrder(accounts, current, orderedIds))} onAccounts={() => setPage("accounts")}/>}
-        {page === "snapshots" && <SnapshotsPage openingAccounts={accounts} transactions={transactions} snapshots={snapshots} currentInterest={interest} plan={plan} strategy={strategy} onCapture={captureSnapshot} onUpdateNote={updateSnapshotNote} onDelete={removeSnapshot} onAddDebt={() => setPage("accounts")} onDetailedProjections={() => setPage("stats")}/>}
+        {page === "snapshots" && <SnapshotsPage openingAccounts={accounts} transactions={transactions} snapshots={snapshots} currentInterest={interest} plan={plan} minimumOnlyPlan={minimumOnlyPlan} strategy={strategy} detailedSpendingTracking={detailedSpendingTracking} onCapture={captureSnapshot} onUpdateNote={updateSnapshotNote} onDelete={removeSnapshot} onAddDebt={() => setPage("accounts")} onDetailedProjections={() => setPage("stats")}/>}
         {page === "profile" && <ProfilePage user={user} householdName={householdName} role={householdRole} members={householdMembers} cloudStatus={cloudStatus} deviceOnly={deviceOnly} transferMessage={transferMessage} onExportBackup={exportDashboardBackup} onImportBackup={importDashboardBackup} onInvite={inviteMember} onRemove={removeAdmin}/>}
         {page === "utilization" && <UtilizationPage accounts={calculatedAccounts} onEditAccount={openEdit}/>}
         {page === "stats" && <StatsPage accounts={calculatedAccounts} snapshots={snapshots} transactions={transactions} extra={extra} strategy={strategy} linkedCardExpenses={linkedCardExpenses} linkedCardPurchases={linkedCardPurchases}/>}
@@ -978,7 +982,7 @@ function ReceiptScannerModal({ file, accounts, onClose, onAdd }: { file: File; a
       setScan(result);
       setProgress(100);
       setStatus("Ready to review");
-      setDraft({ date: result.date, accountId: accounts[0]?.id ?? "", payeeId: "", payeeName: result.merchant, type: "charge", category: result.category, memo: result.memo, amount: result.total });
+      setDraft({ date: result.date, accountId: accounts[0]?.id ?? "", payeeId: "", payeeName: result.merchant, type: "charge", category: result.category, memo: result.memo, amount: result.total, paymentKind: "combined" });
     }).catch((reason) => {
       if (!cancelled) setError(reason instanceof Error ? reason.message : "The receipt could not be read.");
     });
@@ -1209,6 +1213,8 @@ function PayoffPlanPage({ accounts, plan, extra, availableExtra, strategy, custo
   const [draggedCustomId, setDraggedCustomId] = useState<string | null>(null);
   const [scheduleExpanded, setScheduleExpanded] = useState(false);
   const [reorderAnnouncement, setReorderAnnouncement] = useState("");
+  const [scenarioIncrease, setScenarioIncrease] = useState(100);
+  const [scenarioMessage, setScenarioMessage] = useState("");
   const calculationDate = useMemo(() => new Date(), []);
 
   const description = strategy === "avalanche"
@@ -1221,12 +1227,13 @@ function PayoffPlanPage({ accounts, plan, extra, availableExtra, strategy, custo
   const nonAmortizingNames = accounts.filter((account) => plan.nonAmortizingAccountIds.includes(account.id)).map((account) => account.name);
   const linkedExpenseTotals = useMemo(() => Object.fromEntries(Object.entries(linkedCardExpenseItems).map(([id, items]) => [id, round(items.reduce((sum, item) => sum + item.amount, 0))])), [linkedCardExpenseItems]);
   const linkedPurchaseTotals = useMemo(() => Object.fromEntries(Object.entries(linkedCardPurchaseItems).map(([id, items]) => [id, round(items.reduce((sum, item) => sum + item.amount, 0))])), [linkedCardPurchaseItems]);
+  const whatIf = useMemo(() => buildPaymentWhatIf(accounts, extra, scenarioIncrease, strategy, customDebtOrder, linkedExpenseTotals, linkedPurchaseTotals, calculationDate, actualizedLinkedCardExpenses), [accounts, actualizedLinkedCardExpenses, calculationDate, customDebtOrder, extra, linkedExpenseTotals, linkedPurchaseTotals, scenarioIncrease, strategy]);
   const comparisonModel = useMemo(() => buildStrategyComparison(accounts, extra, customDebtOrder, linkedExpenseTotals, linkedPurchaseTotals, calculationDate, actualizedLinkedCardExpenses), [accounts, actualizedLinkedCardExpenses, calculationDate, customDebtOrder, extra, linkedExpenseTotals, linkedPurchaseTotals]);
   const { comparisons: comparison, recommendedStrategy, alternativeStrategy, projectedSavings } = comparisonModel;
   const customAccounts = visibleCustomDebtOrder(accounts, customDebtOrder);
   const scheduleRows = useMemo(() => buildPayoffScheduleRows(accounts, plan, linkedExpenseTotals, linkedPurchaseTotals, actualizedLinkedCardExpenses), [accounts, actualizedLinkedCardExpenses, linkedExpenseTotals, linkedPurchaseTotals, plan]);
   const displayedScheduleRows = scheduleExpanded ? scheduleRows : scheduleRows.slice(0, DEFAULT_SCHEDULE_PREVIEW_MONTHS);
-  const calculationWarnings = payoffCalculationWarnings(accounts, plan);
+  const calculationWarnings = payoffCalculationWarnings(accounts, plan, calculationDate);
   const calculatedOn = calculationDate.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
   const priorityMinimumTotal = accounts.filter((account) => !account.archivedAt && account.balance > 0).reduce((sum, account) => sum + effectiveMinimum(account), 0);
   const linkedExpenseTotal = round(Object.values(linkedExpenseTotals).reduce((sum, amount) => sum + amount, 0));
@@ -1259,6 +1266,14 @@ function PayoffPlanPage({ accounts, plan, extra, availableExtra, strategy, custo
     [ids[from], ids[to]] = [ids[to], ids[from]];
     onCustomOrder(ids);
     announceCustomOrder(ids, accountId);
+  };
+
+  const applyWhatIf = () => {
+    if (whatIf.additionalMonthly <= 0) return;
+    const applied = whatIf.totalExtra;
+    onExtra(applied);
+    setScenarioIncrease(0);
+    setScenarioMessage(`${moneyPrecise.format(applied)} extra per month is now saved to your payoff plan.`);
   };
 
   const createReport = (): PayoffReportData => {
@@ -1371,6 +1386,12 @@ function PayoffPlanPage({ accounts, plan, extra, availableExtra, strategy, custo
         <div className="export-control"><span>Export full report</span><div><button type="button" disabled={Boolean(exporting)} onClick={() => void exportReport("csv")}>{exporting === "csv" ? "Preparing..." : "CSV"}</button><button type="button" disabled={Boolean(exporting)} onClick={() => void exportReport("excel")}>{exporting === "excel" ? "Preparing..." : "Excel"}</button><button type="button" disabled={Boolean(exporting)} onClick={() => void exportReport("pdf")}>{exporting === "pdf" ? "Preparing..." : "PDF"}</button></div><small>Budget, debts, schedule, transactions, and snapshots.</small>{exportError && <em role="alert">{exportError}</em>}</div>
       </div>
     </div>
+    {planAccounts.length > 0 && <section className="what-if-card" aria-labelledby="what-if-title">
+      <header><div><span>What-if calculator</span><h2 id="what-if-title">What if we paid more each month?</h2><p>Test an increase without changing the saved plan. Apply it only when the result works for your household.</p></div><strong>Saved extra: {moneyPrecise.format(extra)}</strong></header>
+      <div className="what-if-controls"><div className="what-if-presets" aria-label="Additional monthly payment presets">{[50, 100, 250].map((amount) => <button type="button" key={amount} className={scenarioIncrease === amount ? "active" : ""} aria-pressed={scenarioIncrease === amount} onClick={() => { setScenarioIncrease(amount); setScenarioMessage(""); }}>+{moneyPrecise.format(amount)}</button>)}</div><label><span>Custom additional amount</span><div><b>$</b><input type="number" min="0" step="1" inputMode="decimal" value={scenarioIncrease || ""} placeholder="0" onChange={(event) => { setScenarioIncrease(Math.max(0, number(event.target.value))); setScenarioMessage(""); }}/></div></label></div>
+      <div className="what-if-results"><article><span>Debt-free date</span><strong>{whatIf.plan.stalled ? "Needs adjustment" : monthAfter(whatIf.plan.months.length - 1)}</strong><small>{moneyPrecise.format(whatIf.totalExtra)} total extra per month</small></article><article><span>Time saved</span><strong>{whatIf.monthsSaved === null ? "Not available" : `${whatIf.monthsSaved} month${whatIf.monthsSaved === 1 ? "" : "s"}`}</strong><small>Compared with the saved plan</small></article><article><span>Interest saved</span><strong>{whatIf.interestSaved === null ? "Not available" : moneyPrecise.format(whatIf.interestSaved)}</strong><small>Estimate using current balances and rates</small></article><button className="primary" type="button" disabled={scenarioIncrease <= 0} onClick={applyWhatIf}>Apply this amount to my plan</button></div>
+      {scenarioMessage && <p className="what-if-status" role="status">{scenarioMessage}</p>}
+    </section>}
     {planAccounts.length && plan.months.length && !plan.stalled ? <>
       <section className="plan-hero"><div><span>Projected debt-free date</span><div className="plan-hero-value"><strong>{monthAfter(plan.months.length - 1)}</strong><small>- {plan.months.length} months from now</small></div></div><div><span>Monthly plan</span><div className="plan-hero-value"><strong>{money.format(plan.monthly)}</strong><small>- {currentMonthPurchaseTotal > 0 ? `Current month ${moneyPrecise.format(plan.months[0]?.requiredMonthly ?? plan.monthly)} includes one-time card purchases` : plan.peakMonthly > plan.monthly + .005 ? `Rises to ${moneyPrecise.format(plan.peakMonthly)} when a saved post-promo minimum begins` : "Minimums + linked card expenses + extra"}</small></div></div><div><span>Estimated interest</span><div className="plan-hero-value"><strong>{money.format(plan.totalInterest)}</strong><small>- Actual fee calibration used when provided</small></div></div></section>
       <section className="plan-insights">
@@ -1497,20 +1518,17 @@ function ProfilePage({ user, householdName, role, members, cloudStatus, deviceOn
     </section>
   </div>;
 }
-function SnapshotsPage({ openingAccounts, transactions, snapshots, currentInterest, plan, strategy, onCapture, onUpdateNote, onDelete, onAddDebt, onDetailedProjections }: { openingAccounts: DebtAccount[]; transactions: LedgerTransaction[]; snapshots: PayoffSnapshot[]; currentInterest: number; plan: PayoffPlan; strategy: PayoffStrategy; onCapture: (note: string) => void; onUpdateNote: (id: string, note: string) => void; onDelete: (id: string) => void; onAddDebt: () => void; onDetailedProjections: () => void }) {
+function SnapshotsPage({ openingAccounts, transactions, snapshots, currentInterest, plan, minimumOnlyPlan, strategy, detailedSpendingTracking, onCapture, onUpdateNote, onDelete, onAddDebt, onDetailedProjections }: { openingAccounts: DebtAccount[]; transactions: LedgerTransaction[]; snapshots: PayoffSnapshot[]; currentInterest: number; plan: PayoffPlan; minimumOnlyPlan: PayoffPlan; strategy: PayoffStrategy; detailedSpendingTracking: boolean; onCapture: (note: string) => void; onUpdateNote: (id: string, note: string) => void; onDelete: (id: string) => void; onAddDebt: () => void; onDetailedProjections: () => void }) {
   const [captureNote, setCaptureNote] = useState(() => snapshots.find((snapshot) => snapshot.month === currentMonthKey())?.note ?? "");
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const progress = useMemo(() => buildProgressBalanceView(openingAccounts, transactions, snapshots), [openingAccounts, snapshots, transactions]);
+  const report = useMemo(() => buildProgressReport({ openingAccounts, transactions, snapshots, currentPlan: plan, minimumOnlyPlan, detailedSpendingTracking }), [detailedSpendingTracking, minimumOnlyPlan, openingAccounts, plan, snapshots, transactions]);
+  const progress = report.balanceView;
   const accounts = progress.currentAccounts;
   const ordered = progress.snapshots;
   const latest = ordered.at(-1) ?? null;
   const selected = ordered.find((snapshot) => snapshot.id === selectedId) ?? latest;
   const currentTotal = progress.currentTotal;
   const currentMonthSnapshot = snapshots.find((snapshot) => snapshot.month === currentMonthKey());
-  const first = ordered[0] ?? null;
-  const paidSinceFirst = first ? round(progress.startingTotal - currentTotal) : 0;
-  const changedSinceLatest = latest ? round(latest.totalBalance - currentTotal) : 0;
-  const maxBalance = Math.max(currentTotal, progress.startingTotal, ...ordered.map((snapshot) => snapshot.totalBalance), 1);
   const selectedIndex = selected ? ordered.findIndex((snapshot) => snapshot.id === selected.id) : -1;
   const previous = selectedIndex > 0 ? ordered[selectedIndex - 1] : null;
   const previousBalances = new Map(previous?.accounts.map((account) => [account.accountId, account.balance]) ?? []);
@@ -1524,8 +1542,7 @@ function SnapshotsPage({ openingAccounts, transactions, snapshots, currentIntere
     {!accounts.length ? <section className="large-empty"><span>Progress</span><h2>Progress starts with your first debt</h2><p>A debt gives the payoff engine a starting balance and lets monthly snapshots show what changed over time.</p><button className="primary" type="button" onClick={onAddDebt}>Add first debt</button></section> : <>
       <section className="snapshot-capture-card"><div><span>{currentMonthSnapshot ? "This month is already saved" : "Ready for this month"}</span><strong>{moneyPrecise.format(currentTotal)}</strong><small>{accounts.filter((account) => account.balance > 0).length} active accounts | {moneyPrecise.format(currentInterest)} estimated monthly interest</small></div><label><span>Monthly note</span><textarea value={captureNote} maxLength={240} placeholder="Optional: what changed this month?" onChange={(event) => setCaptureNote(event.target.value)}/></label><button className="primary" type="button" onClick={capture}>{currentMonthSnapshot ? "Refresh snapshot" : "Capture balances"}</button></section>
       {snapshots.length ? <>
-        <section className="snapshot-metrics"><article><span>Current debt</span><strong>{moneyPrecise.format(currentTotal)}</strong><small>Starting balances + charges and fees - payments</small></article><article className={paidSinceFirst >= 0 ? "good" : "warning"}><span>Change since start</span><strong>{paidSinceFirst >= 0 ? "-" : "+"}{moneyPrecise.format(Math.abs(paidSinceFirst))}</strong><small>{progress.baselineMonth ? `Since ${monthLabel(progress.baselineMonth)}` : "Opening account balances"}</small></article><article className={changedSinceLatest >= 0 ? "good" : "warning"}><span>Since last snapshot</span><strong>{changedSinceLatest >= 0 ? "-" : "+"}{moneyPrecise.format(Math.abs(changedSinceLatest))}</strong><small>{latest ? `Compared with ${monthLabel(latest.month)}` : "No comparison yet"}</small></article><article><span>Starting debt</span><strong>{moneyPrecise.format(progress.startingTotal)}</strong><small>{progress.baselineMonth ? `${monthLabel(progress.baselineMonth)} opening balance` : "Opening account balances"}</small></article></section>
-        <section className="snapshot-chart-card"><div className="snapshot-card-head"><div><span>Balance trend</span><strong>Debt remaining by snapshot</strong></div><small>Shorter bars mean less debt</small></div><div className="snapshot-chart" aria-label="Debt balance by payoff snapshot">{ordered.map((snapshot) => <button type="button" key={snapshot.id} className={selected?.id === snapshot.id ? "selected" : ""} onClick={() => setSelectedId(snapshot.id)} aria-label={`${monthLabel(snapshot.month)} balance ${moneyPrecise.format(snapshot.totalBalance)}`}><span className="snapshot-bar-value">{money.format(snapshot.totalBalance)}</span><i style={{ height: `${Math.max(8, snapshot.totalBalance / maxBalance * 100)}%` }}/><b>{monthLabel(snapshot.month)}</b></button>)}<div className="snapshot-now"><span>{money.format(currentTotal)}</span><i style={{ height: `${Math.max(8, currentTotal / maxBalance * 100)}%` }}/><b>Now</b></div></div></section>
+        <ProgressReportPanel report={report}/>
         <section className="snapshot-workspace">
           <article className="snapshot-history-card"><div className="snapshot-card-head"><div><span>Snapshot history</span><strong>{snapshots.length} saved {snapshots.length === 1 ? "month" : "months"}</strong></div></div><div className="snapshot-history-list">{[...ordered].reverse().map((snapshot, reverseIndex, reversed) => { const older = reversed[reverseIndex + 1]; const change = older ? round(older.totalBalance - snapshot.totalBalance) : null; return <button type="button" key={snapshot.id} className={selected?.id === snapshot.id ? "active" : ""} onClick={() => setSelectedId(snapshot.id)}><div><strong>{monthLabel(snapshot.month)}</strong><small>Captured {formatCaptured(snapshot.capturedAt)}</small></div><div><strong>{moneyPrecise.format(snapshot.totalBalance)}</strong><small className={change === null ? "" : change >= 0 ? "improved" : "increased"}>{change === null ? "Starting point" : change >= 0 ? `${moneyPrecise.format(change)} paid down` : `${moneyPrecise.format(Math.abs(change))} increase`}</small></div><span>&gt;</span></button>; })}</div></article>
           {selected && <article className="snapshot-detail-card"><div className="snapshot-detail-head"><div><span>Selected snapshot</span><h2>{monthLabel(selected.month)}</h2><p>{moneyPrecise.format(selected.totalBalance)} across {selected.activeAccountCount} active accounts</p></div><button className="snapshot-delete" type="button" onClick={() => onDelete(selected.id)}>Delete</button></div><div className="snapshot-detail-stats"><div><span>Monthly interest</span><strong>{moneyPrecise.format(selected.monthlyInterest)}</strong></div><div><span>Projected debt-free</span><strong>{selected.projectedDebtFreeMonth ?? "Needs adjustment"}</strong></div></div><div className="snapshot-account-list">{[...selected.accounts].sort((a, b) => b.balance - a.balance).map((account) => { const prior = previousBalances.get(account.accountId); const change = prior === undefined ? null : round(prior - account.balance); return <div key={account.accountId}><span>{account.name.slice(0, 2).toUpperCase()}</span><div><strong>{account.name}</strong><small>{account.type} | {account.apr.toFixed(2)}% APR</small></div><div><strong>{moneyPrecise.format(account.balance)}</strong><small className={change === null ? "" : change >= 0 ? "improved" : "increased"}>{change === null ? (previous ? "New since prior snapshot" : "Starting balance") : change >= 0 ? `${moneyPrecise.format(change)} lower` : `${moneyPrecise.format(Math.abs(change))} higher`}</small></div></div>; })}</div><SnapshotNoteEditor key={selected.id} snapshot={selected} onSave={onUpdateNote}/></article>}

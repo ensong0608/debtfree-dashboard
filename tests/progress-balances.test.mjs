@@ -49,12 +49,18 @@ test("Progress uses opening balances for July and active transactions for the cu
 });
 
 test("the dashboard and Progress share the same transaction-adjusted balance source", async () => {
-  const source = await readFile(new URL("../app/dashboard-client.tsx", import.meta.url), "utf8");
+  const [source, reportSource, panelSource] = await Promise.all([
+    readFile(new URL("../app/dashboard-client.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/progress-report.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/progress-report-page.tsx", import.meta.url), "utf8"),
+  ]);
   assert.match(source, /transactionAdjustedAccounts\(accounts, transactions, detailedSpendingTracking\)/);
-  assert.match(source, /buildProgressBalanceView\(openingAccounts, transactions, snapshots\)/);
+  assert.match(source, /buildProgressReport\(\{ openingAccounts, transactions, snapshots/);
+  assert.match(reportSource, /buildProgressBalanceView\([\s\S]*openingAccounts,[\s\S]*activeTransactions,[\s\S]*snapshots,[\s\S]*detailedSpendingTracking/);
   assert.match(source, /openingAccounts=\{accounts\} transactions=\{transactions\}/);
-  assert.match(source, /Starting balances \+ charges and fees - payments/);
-  assert.match(source, /<span>Starting debt<\/span>/);
+  assert.match(source, /<ProgressReportPanel report=\{report\}/);
+  assert.match(panelSource, /Transaction-adjusted balance/);
+  assert.match(panelSource, /<span>Starting debt<\/span>/);
 });
 
 test("transaction-adjusted balances never go below zero", () => {

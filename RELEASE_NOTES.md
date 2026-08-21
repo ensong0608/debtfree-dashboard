@@ -1,5 +1,12 @@
 # DebtFree Dashboard release notes
 
+## 2026-08-21 - Phase 1-10 completion audit
+
+- Added isolated $50, $100, $250, and custom monthly payment what-if scenarios with explicit apply behavior.
+- Expanded Progress with the complete Phase 9 metric set, actual-versus-projected chart, and milestone states.
+- Added a warning when a promotional balance is projected to remain after its promotional APR expires.
+- Added regression coverage and a standalone TypeScript validation command for the completed Phase 1-10 workflow.
+
 ## 2026-08-11 - Action-focused Home dashboard
 
 - Home now leads with the next recommended payment, debt-free date, remaining debt, progress, and monthly target.

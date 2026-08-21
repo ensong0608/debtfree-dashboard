@@ -179,7 +179,7 @@ function upcomingActions(accounts: DebtAccount[], snapshots: PayoffSnapshot[], c
     id: "missing-promo-apr",
     kind: "warning",
     title: "A post-promotional APR is missing",
-    detail: "Your payoff projection may be inaccurate after the promotional period ends.",
+    detail: "Your payoff projection may be inaccurate because the APR after the promotional period is missing.",
     destination: "debt",
     accountId: missingPromoApr[0].id,
   });
