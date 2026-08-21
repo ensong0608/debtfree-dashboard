@@ -43,3 +43,37 @@ export function buildProgressBalanceView(openingAccounts: DebtAccount[], transac
     snapshots: correctedSnapshots,
   };
 }
+
+export function createPayoffSnapshot(input: {
+  existing?: PayoffSnapshot | null;
+  accounts: DebtAccount[];
+  month: string;
+  capturedAt: string;
+  totalBalance: number;
+  monthlyInterest: number;
+  activeAccountCount: number;
+  projectedDebtFreeMonth: string | null;
+  note: string;
+  id?: string;
+}): PayoffSnapshot {
+  const existing = input.existing ?? null;
+  return {
+    ...(existing ?? {}),
+    id: existing?.id ?? input.id ?? `snapshot-${input.capturedAt}`,
+    month: input.month,
+    capturedAt: input.capturedAt,
+    totalBalance: input.totalBalance,
+    monthlyInterest: input.monthlyInterest,
+    activeAccountCount: input.activeAccountCount,
+    projectedDebtFreeMonth: input.projectedDebtFreeMonth,
+    note: input.note.trim(),
+    accounts: input.accounts.map((account) => ({
+      ...(existing?.accounts.find((saved) => saved.accountId === account.id) ?? {}),
+      accountId: account.id,
+      name: account.name,
+      type: account.type,
+      balance: account.balance,
+      apr: account.apr,
+    })),
+  };
+}

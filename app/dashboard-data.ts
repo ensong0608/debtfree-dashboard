@@ -16,7 +16,14 @@ export type PaymentKind = "minimum" | "extra" | "combined";
 export type PlannedAssignment = "household" | "partner-1" | "partner-2";
 export type PayoffCapacityMethod = "known" | "calculated";
 
-export type DebtAccount = {
+export type OwnershipMetadata = {
+  householdId?: string;
+  memberId?: string;
+  createdBy?: string;
+  updatedBy?: string;
+};
+
+export type DebtAccount = OwnershipMetadata & {
   id: string;
   name: string;
   type: DebtType;
@@ -51,7 +58,7 @@ export type DebtArchiveEvent = {
   creator?: DebtAuditCreator;
 };
 
-export type CashflowItem = {
+export type CashflowItem = OwnershipMetadata & {
   id: string;
   name: string;
   kind: CashflowKind;
@@ -64,7 +71,7 @@ export type CashflowItem = {
   [key: string]: unknown;
 };
 
-export type Payee = {
+export type Payee = OwnershipMetadata & {
   id: string;
   name: string;
   createdAt: string;
@@ -72,7 +79,7 @@ export type Payee = {
   [key: string]: unknown;
 };
 
-export type LedgerTransaction = {
+export type LedgerTransaction = OwnershipMetadata & {
   id: string;
   date: string;
   accountId: string;
@@ -96,7 +103,7 @@ export type LedgerTransaction = {
   [key: string]: unknown;
 };
 
-export type BalanceAdjustment = {
+export type BalanceAdjustment = OwnershipMetadata & {
   id: string;
   accountId: string;
   date: string;
@@ -118,7 +125,7 @@ export type SnapshotAccount = {
   [key: string]: unknown;
 };
 
-export type PayoffSnapshot = {
+export type PayoffSnapshot = OwnershipMetadata & {
   id: string;
   month: string;
   capturedAt: string;
@@ -131,7 +138,7 @@ export type PayoffSnapshot = {
   [key: string]: unknown;
 };
 
-export type PlannedIncomeSource = {
+export type PlannedIncomeSource = OwnershipMetadata & {
   id: string;
   name: string;
   monthlyTakeHome: number;
@@ -139,7 +146,7 @@ export type PlannedIncomeSource = {
   [key: string]: unknown;
 };
 
-export type PlannedDebt = {
+export type PlannedDebt = OwnershipMetadata & {
   id: string;
   name: string;
   balance: number;

@@ -32,25 +32,29 @@ test("renders the DebtFree Dashboard shell and optional detail tools", async () 
   assert.doesNotMatch(layout + source, /codex-preview|Building your site|react-loading-skeleton/i);
 });
 test("supports complete JSON backup transfer between dashboard origins", async () => {
-  const [client, styles, contract] = await Promise.all([
+  const [client, styles, contract, repository, safety] = await Promise.all([
     readFile(new URL("../app/dashboard-client.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/globals.css", import.meta.url), "utf8"),
     readFile(new URL("../app/dashboard-data.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/data-repository.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/data-safety-panel.tsx", import.meta.url), "utf8"),
   ]);
   assert.match(contract, /debtfree-dashboard-backup/);
-  assert.match(client, /Export full backup/);
-  assert.match(client, /Import full backup/);
+  assert.match(safety, /Export full backup/);
+  assert.match(safety, /Import full backup/);
   assert.match(client, /monthlyBudgets, payees, transactions, snapshots, extra, strategy/);
-  assert.match(client, /parseDashboardJson\(await file\.text\(\)\)/);
-  assert.match(client, /localStorage\.setItem\(STORAGE_KEY, serialized\)/);
-  assert.match(client, /Replace the data currently on this device/);
+  assert.match(repository, /interface DataRepository/);
+  assert.match(client, /repository\.importData\(await file\.text\(\)\)/);
+  assert.match(client, /resolveDashboardImport\(currentContract, incoming, mode\)/);
+  assert.match(safety, /Replace current data/);
+  assert.match(safety, /Merge with current data/);
   assert.match(client, /Local device storage only/);
   assert.match(client, /deviceOnly \? "Saved on device"/);
   assert.match(client, /profile-grid device-only-profile/);
   assert.doesNotMatch(client, /function DataTransferPanel/);
   assert.match(styles, /data-transfer-card/);
   assert.match(styles, /data-transfer-actions/);
-  assert.match(client, /role=\{transferMessage\.startsWith\("Import failed"\) \? "alert" : "status"\}/);
+  assert.match(safety, /role=\{message\.startsWith\("Import failed"\)/);
   assert.match(styles, /overflow-wrap:anywhere/);
   assert.match(styles, /profile-grid\.device-only-profile/);
 });

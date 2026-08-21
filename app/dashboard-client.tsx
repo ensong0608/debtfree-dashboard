@@ -8,8 +8,6 @@ import {
   createDashboardPayload,
   dashboardDataErrorMessage,
   parseDashboardContract,
-  parseDashboardJson,
-  serializeDashboardBackup,
   type CashflowItem,
   type BalanceAdjustment,
   type CashflowKind,
@@ -26,6 +24,9 @@ import {
   type PayoffStrategy,
   type TransactionType,
 } from "./dashboard-data";
+import { createBrowserDataRepository } from "./data-repository";
+import DataSafetyPanel from "./data-safety-panel";
+import { resolveDashboardImport, type ImportMode } from "./data-transfer";
 import { exportPayoffCsv, exportPayoffExcel, exportPayoffPdf, type PayoffReportData } from "./payoff-export";
 import {
   calculatePlan,
@@ -43,7 +44,7 @@ import MonthlyPlanPage from "./monthly-plan-page";
 import HomeDashboardPage from "./home-dashboard-page";
 import { buildHomeDashboard, type HomeAction } from "./home-dashboard";
 import { canArchiveDebt, createBalanceAdjustment, createDebtPayment, replaceDebtPayment, DebtBalanceError, DebtPaymentError, debtStatus, payoffPriority, promoNotice, setDebtArchived, splitDebtAccounts } from "./debts-screen";
-import { transactionAdjustedAccounts } from "./progress-balances";
+import { createPayoffSnapshot, transactionAdjustedAccounts } from "./progress-balances";
 import { buildProgressReport } from "./progress-report";
 import ProgressReportPanel from "./progress-report-page";
 import { actualizedPlannedIds, copyRecurringPlannedItems } from "./monthly-plan";
@@ -88,8 +89,6 @@ function hasMeaningfulData(payload: DashboardPayload) {
   return hasEstablishedDashboardData(payload) || payload.planning.onboarding.completed || hasOnboardingProgress(payload.planning);
 }
 
-const STORAGE_KEY = "debtfree-dashboard-prototype-v1";
-const STORAGE_BACKUP_KEY = "debtfree-dashboard-prototype-v1-backup";
 const NAVIGATION_COLLAPSED_KEY = "debtfree-dashboard-navigation-collapsed";
 const EMPTY_DRAFT: AccountDraft = { name: "", type: "Credit card", balance: 0, apr: 0, interestFee: 0, minimum: 0, minimumMode: "auto", payoffMode: "priority", creditLimit: 0, dueDate: "", promoEndDate: "", postPromoApr: 0, postPromoMinimum: 0 };
 const EMPTY_CASHFLOW_DRAFT: CashflowDraft = { name: "", kind: "expense", category: "Housing", amount: 0, paymentMethod: "debit", creditAccountId: "", recurring: true };
@@ -237,6 +236,7 @@ const ADVANCED_NAV_ITEMS: { id: PageId; label: string; icon: string }[] = [
 const ALL_NAV_ITEMS = [...NAV_ITEMS, ...ADVANCED_NAV_ITEMS];
 
 export default function DashboardClient({ user }: { user: DashboardUser }) {
+  const repository = useMemo(() => createBrowserDataRepository(hasMeaningfulData), []);
   const cloudWritesEnabled = useRef(false);
   const dashboardContract = useRef<DashboardBackup | null>(null);
   const [page, setPage] = useState<PageId>("home");
@@ -307,16 +307,10 @@ export default function DashboardClient({ user }: { user: DashboardUser }) {
     const load = async () => {
       let localContract: DashboardBackup | null = null;
       try {
-        const saved = localStorage.getItem(STORAGE_KEY);
-        const backup = localStorage.getItem(STORAGE_BACKUP_KEY);
-        const primaryContract = saved ? parseDashboardContract(JSON.parse(saved), "Saved dashboard") : null;
-        const backupContract = backup ? parseDashboardContract(JSON.parse(backup), "Saved dashboard backup") : null;
-        if (primaryContract && hasMeaningfulData(primaryContract.payload)) localContract = primaryContract;
-        else if (backupContract && hasMeaningfulData(backupContract.payload)) {
-          localContract = backupContract;
-          setImportMessage("Recovered your most recent device backup.");
-        } else localContract = primaryContract;
-      } catch { /* Keep going so a damaged local draft cannot block cloud data. */ }
+        const localLoad = await repository.loadHousehold();
+        localContract = localLoad.contract;
+        if (localLoad.recoveredFromBackup) setImportMessage("Recovered your most recent device backup.");
+      } catch { /* Keep going so unavailable device storage cannot block cloud data. */ }
       if (deviceOnly) {
         if (localContract) applyDashboardPayload(localContract);
         setHouseholdName("This device");
@@ -356,7 +350,7 @@ export default function DashboardClient({ user }: { user: DashboardUser }) {
     };
     void load();
     return () => { cancelled = true; };
-  }, [applyDashboardPayload, deviceOnly]);
+  }, [applyDashboardPayload, deviceOnly, repository]);
   useEffect(() => {
     if (!loaded || isViewer) return;
     const payload = createDashboardPayload(dashboardContract.current?.payload, { accounts, monthlyBudgets, payees, transactions, snapshots, extra, strategy, planning, balanceAdjustments, monthlyPlan, customDebtOrder });
@@ -364,15 +358,7 @@ export default function DashboardClient({ user }: { user: DashboardUser }) {
     if (!cloudWritesEnabled.current) return;
     const contract = createDashboardBackup(payload, dashboardContract.current);
     dashboardContract.current = contract;
-    const serialized = serializeDashboardBackup(contract);
-    try {
-      const previous = localStorage.getItem(STORAGE_KEY);
-      if (previous && previous !== serialized) {
-        const previousContract = parseDashboardContract(JSON.parse(previous), "Saved dashboard");
-        if (hasMeaningfulData(previousContract.payload)) localStorage.setItem(STORAGE_BACKUP_KEY, previous);
-      }
-    } catch { /* A damaged old draft should not block the current safe save. */ }
-    localStorage.setItem(STORAGE_KEY, serialized);
+    void repository.saveHousehold(contract).catch(() => setCloudStatus("error"));
     if (deviceOnly) return;
     const syncTimer = window.setTimeout(() => {
       setCloudStatus("saving");
@@ -381,7 +367,7 @@ export default function DashboardClient({ user }: { user: DashboardUser }) {
         .catch(() => setCloudStatus("error"));
     }, 650);
     return () => window.clearTimeout(syncTimer);
-  }, [accounts, balanceAdjustments, customDebtOrder, deviceOnly, extra, isViewer, loaded, monthlyBudgets, monthlyPlan, payees, planning, snapshots, strategy, transactions]);
+  }, [accounts, balanceAdjustments, customDebtOrder, deviceOnly, extra, isViewer, loaded, monthlyBudgets, monthlyPlan, payees, planning, repository, snapshots, strategy, transactions]);
   useEffect(() => {
     if (!modalOpen && !cashflowModalOpen && !transactionModalOpen && !payeeModalOpen && !paymentRequest && !balanceAccountId && !auditTransactionId) return;
     const close = (event: KeyboardEvent) => { if (event.key === "Escape") { setModalOpen(false); setCashflowModalOpen(false); setTransactionModalOpen(false); setPayeeModalOpen(false); setPaymentRequest(null); setBalanceAccountId(null); setAuditTransactionId(null); } };
@@ -645,11 +631,11 @@ export default function DashboardClient({ user }: { user: DashboardUser }) {
     }
   };
 
-  const exportDashboardBackup = () => {
+  const exportDashboardBackup = async () => {
     const payload = createDashboardPayload(dashboardContract.current?.payload, { accounts, monthlyBudgets, payees, transactions, snapshots, extra, strategy, planning, balanceAdjustments, monthlyPlan, customDebtOrder });
     const backup = createDashboardBackup(payload, dashboardContract.current);
     dashboardContract.current = backup;
-    const url = URL.createObjectURL(new Blob([serializeDashboardBackup(backup, true)], { type: "application/json" }));
+    const url = URL.createObjectURL(new Blob([await repository.exportData(backup)], { type: "application/json" }));
     const link = document.createElement("a");
     link.href = url;
     link.download = `debtfree-dashboard-full-backup-${dateInputValue()}.json`;
@@ -660,31 +646,48 @@ export default function DashboardClient({ user }: { user: DashboardUser }) {
     setTransferMessage("Full backup downloaded. Keep this JSON file private because it contains your financial data.");
   };
 
-  const importDashboardBackup = async (file: File) => {
+  const importDashboardBackup = async (file: File, mode: ImportMode) => {
     setTransferMessage("");
     try {
-      const contract = parseDashboardJson(await file.text());
-      const { payload } = contract;
-      if (!hasMeaningfulData(payload)) throw new Error("The backup does not contain dashboard data.");
-      const current = createDashboardPayload(dashboardContract.current?.payload, { accounts, monthlyBudgets, payees, transactions, snapshots, extra, strategy, planning, balanceAdjustments, monthlyPlan });
-      if (hasMeaningfulData(current) && !window.confirm("Replace the data currently on this device with the selected full backup?")) {
-        setTransferMessage("Import canceled. Your current dashboard was not changed.");
-        return;
-      }
-      const serialized = serializeDashboardBackup(contract);
-      try {
-        const previous = localStorage.getItem(STORAGE_KEY);
-        if (previous && previous !== serialized) {
-          const previousContract = parseDashboardContract(JSON.parse(previous), "Saved dashboard");
-          if (hasMeaningfulData(previousContract.payload)) localStorage.setItem(STORAGE_BACKUP_KEY, previous);
-        }
-      } catch { /* A damaged previous draft should not block a verified backup import. */ }
-      localStorage.setItem(STORAGE_KEY, serialized);
+      const incoming = await repository.importData(await file.text());
+      if (!hasMeaningfulData(incoming.payload)) throw new Error("The backup does not contain dashboard data.");
+      const currentPayload = createDashboardPayload(dashboardContract.current?.payload, { accounts, monthlyBudgets, payees, transactions, snapshots, extra, strategy, planning, balanceAdjustments, monthlyPlan, customDebtOrder });
+      const currentContract = createDashboardBackup(currentPayload, dashboardContract.current);
+      const contract = resolveDashboardImport(currentContract, incoming, mode);
+      await repository.saveHousehold(contract);
       cloudWritesEnabled.current = true;
       applyDashboardPayload(contract);
-      setTransferMessage(`Full backup imported: ${payload.accounts.length} accounts, ${payload.transactions.length} transactions, and ${Object.keys(payload.monthlyBudgets).length} plan months restored.`);
+      const { payload } = contract;
+      setTransferMessage(`Full backup ${mode === "merge" ? "merged" : "restored"}: ${payload.accounts.length} debts, ${payload.transactions.length} transactions, ${payload.snapshots.length} snapshots, and ${Object.keys(payload.monthlyBudgets).length} plan months.`);
     } catch (error) {
       setTransferMessage(`Import failed: ${dashboardDataErrorMessage(error)}`);
+    }
+  };
+
+  const resetDashboardData = async () => {
+    setTransferMessage("");
+    try {
+      const payload = createDashboardPayload(null, {
+        accounts: [],
+        monthlyBudgets: {},
+        payees: [],
+        transactions: [],
+        snapshots: [],
+        extra: 0,
+        strategy: "avalanche",
+        planning: createOnboardingPlanning(),
+        balanceAdjustments: [],
+        monthlyPlan: { detailedSpendingTracking: false, months: {} },
+        customDebtOrder: [],
+      });
+      const contract = createDashboardBackup(payload);
+      await repository.resetHousehold();
+      cloudWritesEnabled.current = true;
+      applyDashboardPayload(contract);
+      setSelectedMonth(currentMonthKey());
+      setTransferMessage("Dashboard data reset. Account access was kept.");
+    } catch (error) {
+      setTransferMessage(`Reset failed: ${dashboardDataErrorMessage(error)}`);
     }
   };
 
@@ -823,21 +826,18 @@ export default function DashboardClient({ user }: { user: DashboardUser }) {
     const projectedDebtFreeMonth = plan.months.length && !plan.stalled ? monthAfter(plan.months.length - 1) : null;
     setSnapshots((current) => {
       const existing = current.find((snapshot) => snapshot.month === month);
-      const next: PayoffSnapshot = {
-        ...(existing ?? {}),
-        id: existing?.id ?? `snapshot-${Date.now()}-${Math.random()}`,
+      const next = createPayoffSnapshot({
+        existing,
+        accounts: calculatedAccounts,
         month,
         capturedAt: now,
         totalBalance,
         monthlyInterest: interest,
         activeAccountCount: activeCount,
         projectedDebtFreeMonth,
-        note: note.trim(),
-        accounts: calculatedAccounts.map((account) => ({
-          ...(existing?.accounts.find((saved) => saved.accountId === account.id) ?? {}),
-          accountId: account.id, name: account.name, type: account.type, balance: account.balance, apr: account.apr,
-        })),
-      };
+        note,
+        id: `snapshot-${Date.now()}-${Math.random()}`,
+      });
       return existing ? current.map((snapshot) => snapshot.id === existing.id ? next : snapshot) : [...current, next];
     });
   };
@@ -869,7 +869,7 @@ export default function DashboardClient({ user }: { user: DashboardUser }) {
       planning={planning}
       importMessage={transferMessage}
       onPlanningChange={setPlanning}
-      onImport={importDashboardBackup}
+      onImport={(file) => importDashboardBackup(file, "replace")}
       onComplete={completeOnboarding}
     />;
   }
@@ -899,7 +899,7 @@ export default function DashboardClient({ user }: { user: DashboardUser }) {
         {page === "history" && detailedSpendingTracking && <TransactionsPage accounts={calculatedAccounts} payees={payees} transactions={transactions} onQuickAdd={openNewTransaction} onEdit={openEditTransaction} onAudit={setAuditTransactionId} onDelete={softDeleteTransaction} onRestore={restoreTransaction} onBatchAdd={addBatchTransactions} onManagePayees={() => setPayeeModalOpen(true)}/>}
         {page === "plan" && <PayoffPlanPage accounts={payoffAccounts} plan={plan} extra={extra} availableExtra={availableExtra} strategy={strategy} customDebtOrder={customDebtOrder} linkedCardExpenseItems={linkedCardExpenseItems} linkedCardPurchaseItems={linkedCardPurchaseItems} actualizedLinkedCardExpenses={actualizedLinkedCardSpending} monthlyItems={planningCashflowItems} transactions={transactions} snapshots={snapshots} onExtra={setExtra} onStrategy={setStrategy} onCustomOrder={(orderedIds) => setCustomDebtOrder((current) => mergeVisibleCustomDebtOrder(accounts, current, orderedIds))} onAccounts={() => setPage("accounts")}/>}
         {page === "snapshots" && <SnapshotsPage openingAccounts={accounts} transactions={transactions} snapshots={snapshots} currentInterest={interest} plan={plan} minimumOnlyPlan={minimumOnlyPlan} strategy={strategy} detailedSpendingTracking={detailedSpendingTracking} onCapture={captureSnapshot} onUpdateNote={updateSnapshotNote} onDelete={removeSnapshot} onAddDebt={() => setPage("accounts")} onDetailedProjections={() => setPage("stats")}/>}
-        {page === "profile" && <ProfilePage user={user} householdName={householdName} role={householdRole} members={householdMembers} cloudStatus={cloudStatus} deviceOnly={deviceOnly} transferMessage={transferMessage} onExportBackup={exportDashboardBackup} onImportBackup={importDashboardBackup} onInvite={inviteMember} onRemove={removeAdmin}/>}
+        {page === "profile" && <ProfilePage user={user} householdName={householdName} role={householdRole} members={householdMembers} cloudStatus={cloudStatus} deviceOnly={deviceOnly} transferMessage={transferMessage} onExportBackup={exportDashboardBackup} onImportBackup={importDashboardBackup} onReset={resetDashboardData} onInvite={inviteMember} onRemove={removeAdmin}/>}
         {page === "utilization" && <UtilizationPage accounts={calculatedAccounts} onEditAccount={openEdit}/>}
         {page === "stats" && <StatsPage accounts={calculatedAccounts} snapshots={snapshots} transactions={transactions} extra={extra} strategy={strategy} linkedCardExpenses={linkedCardExpenses} linkedCardPurchases={linkedCardPurchases}/>}
         </fieldset>
@@ -1435,7 +1435,7 @@ function PayoffPlanPage({ accounts, plan, extra, availableExtra, strategy, custo
     </> : <section className="large-empty"><span>{"\u2713"}</span><h2>{plan.stalled ? (nonAmortizingNames.length ? "A balance is not amortizing" : "The current payments do not outpace interest") : "Add debt accounts to build your plan"}</h2><p>{plan.stalled ? (nonAmortizingNames.length ? `${nonAmortizingNames.join(", ")} does not shrink after interest and new charges at the modeled payment. Enter the issuer's actual minimum or add extra payment.` : "Increase a minimum payment or add an extra monthly amount to create a finish line.") : "Once your accounts have balances, APRs, and minimums, the complete payoff schedule will appear here."}</p><button className="primary" type="button" onClick={onAccounts}>Review debt accounts</button></section>}
   </div>;
 }
-function ProfilePage({ user, householdName, role, members, cloudStatus, deviceOnly, transferMessage, onExportBackup, onImportBackup, onInvite, onRemove }: { user: DashboardUser; householdName: string; role: HouseholdRole; members: HouseholdMember[]; cloudStatus: CloudStatus; deviceOnly: boolean; transferMessage: string; onExportBackup: () => void; onImportBackup: (file: File) => Promise<void>; onInvite: (email: string, role: Exclude<HouseholdRole, "owner">) => Promise<void>; onRemove: (email: string) => Promise<void> }) {
+function ProfilePage({ user, householdName, role, members, cloudStatus, deviceOnly, transferMessage, onExportBackup, onImportBackup, onReset, onInvite, onRemove }: { user: DashboardUser; householdName: string; role: HouseholdRole; members: HouseholdMember[]; cloudStatus: CloudStatus; deviceOnly: boolean; transferMessage: string; onExportBackup: () => Promise<void>; onImportBackup: (file: File, mode: ImportMode) => Promise<void>; onReset: () => Promise<void>; onInvite: (email: string, role: Exclude<HouseholdRole, "owner">) => Promise<void>; onRemove: (email: string) => Promise<void> }) {
   const [email, setEmail] = useState("");
   const [accessRole, setAccessRole] = useState<Exclude<HouseholdRole, "owner">>("admin");
   const [message, setMessage] = useState("");
@@ -1495,26 +1495,7 @@ function ProfilePage({ user, householdName, role, members, cloudStatus, deviceOn
         {message && <p className="share-message">{message}</p>}
         <div className="member-list">{members.map((member) => <div className="member-row" key={member.email}><div><strong>{member.display_name || member.email}</strong><small>{member.display_name ? member.email : member.status === "invited" ? "Waiting for first sign-in" : "Household member"}</small></div><span className={member.status}>{member.role}</span>{role === "owner" && member.role !== "owner" ? <button type="button" disabled={working} onClick={() => remove(member.email)}>Remove</button> : <i/>}</div>)}</div>
       </article>}
-      <section className="data-transfer-card">
-        <div>
-          <span className="eyebrow">Full data transfer</span>
-          <h2>Backup or restore the complete dashboard</h2>
-          <p>Use one private JSON file to move debts, monthly plans, one-time adjustments, payees, transactions, payoff settings, and snapshots between dashboard addresses.</p>
-          <small>{deviceOnly ? "Imported data is stored only in this browser on this device." : role === "viewer" ? "Viewers cannot replace household data." : "Imported data is saved to this device and your connected household."}</small>
-        </div>
-        <div className="data-transfer-actions">
-          <button className="secondary" type="button" onClick={onExportBackup}>Export full backup</button>
-          {role !== "viewer" && <label className="primary import-file">
-            <input type="file" accept=".json,application/json" onChange={(event) => {
-              const input = event.currentTarget;
-              const file = input.files?.[0];
-              if (file) void onImportBackup(file).finally(() => { input.value = ""; });
-            }}/>
-            <span>Import full backup</span>
-          </label>}
-        </div>
-        {transferMessage && <p role={transferMessage.startsWith("Import failed") ? "alert" : "status"} className={transferMessage.startsWith("Import failed") ? "transfer-message error" : "transfer-message"}>{transferMessage}</p>}
-      </section>
+      <DataSafetyPanel deviceOnly={deviceOnly} isViewer={role === "viewer"} transferMessage={transferMessage} onExport={onExportBackup} onImport={onImportBackup} onReset={onReset}/>
     </section>
   </div>;
 }

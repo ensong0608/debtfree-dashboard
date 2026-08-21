@@ -1,5 +1,12 @@
 # DebtFree Dashboard release notes
 
+## 2026-08-21 - Full Phase 1-16 completion
+
+- Routed device household persistence through a tested repository abstraction and added optional ownership metadata for future shared entries.
+- Added import previews with debt, month, transaction, snapshot, and source-version counts plus explicit Replace or Merge behavior.
+- Added visible backup guidance, automatic backup recovery coverage, and a typed RESET confirmation that preserves account access.
+- Extracted deterministic snapshot creation and completed the Phase 11-16 regression audit for calculation transparency, mobile accessibility, design hierarchy, and memoized payoff calculations.
+
 ## 2026-08-21 - Phase 1-10 completion audit
 
 - Added isolated $50, $100, $250, and custom monthly payment what-if scenarios with explicit apply behavior.
