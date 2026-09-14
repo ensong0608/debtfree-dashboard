@@ -20,3 +20,6 @@ Dates use the browser's local calendar. Due days repeat monthly and clamp to the
 
 ## Dependency review
 The September repair updates the runtime and all critical/high findings from the initial npm audit. Four moderate package entries remain in the development-only drizzle-kit / esbuild-kit / esbuild chain; the vulnerable development-server behavior is not used by the deployed Worker. Do not expose those development servers. npm's suggested forced downgrade is not a compatible maintenance fix. Recheck npm audit on each release and update this assessment when upstream removes the deprecated chain.
+
+## Already-paid monthly records
+MonthlyPlanMonth.settlements is additive version-6 metadata for paid spending and minimum acknowledgments. It is kept outside the debt ledger: reporting adapters must never be passed to balance calculation or saved as transactions. Debit/checking records do not maintain a bank-account balance. Included card expenses and minimums assume the current debt balances already reflect those movements. Users enter these in Monthly Plan, and can undo them there without changing balances. Exports preserve them. They are not copied into a new month. Do not duplicate a paid record with a matching ordinary transaction; undo the paid record first if replacing it with a ledger entry.

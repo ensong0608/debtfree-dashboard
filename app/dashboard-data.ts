@@ -214,7 +214,10 @@ export type DashboardPayloadV3 = DashboardPayloadV2 & {
   balanceAdjustments?: BalanceAdjustment[];
 };
 
+export type PlanSettlement = { id: string; targetId: string; name: string; kind: "spending" | "minimum"; amount: number; date: string; createdAt: string; source: "debit" | "included" };
+
 export type MonthlyPlanMonth = {
+  settlements?: PlanSettlement[];
   payments?: Record<string, number>;
   minimums?: Record<string, number>;
   safetyBuffer: number;
@@ -761,6 +764,16 @@ function validateMonthlyPlan(value: unknown, path: string, issues: string[]) {
   if (months) Object.entries(months).forEach(([month, raw]) => {
     const settings = requiredRecord(raw, path + ".months[" + JSON.stringify(month) + "]", issues);
     if (settings) {
+      if (settings.settlements !== undefined) requiredArray(settings.settlements, path + ".settlements", issues)?.forEach((raw, i) => {
+        const entry = requiredRecord(raw, path + ".settlements[" + i + "]", issues);
+        if (!entry) return;
+        for (const key of ["id", "targetId", "name", "date", "createdAt"]) requiredString(entry[key], path + ".settlements." + key, issues);
+        requiredNumber(entry.amount, path + ".settlements.amount", issues);
+        if (!["spending", "minimum"].includes(String(entry.kind))) issues.push(path + ".settlements.kind is invalid.");
+        if (!["debit", "included"].includes(String(entry.source))) issues.push(path + ".settlements.source is invalid.");
+        if (entry.kind === "minimum" && entry.source !== "included") issues.push("Previously paid minimums must already be included in balances.");
+        if (typeof entry.date === "string" && entry.date.slice(0,7) !== month) issues.push("Settlement date must belong to its plan month.");
+      });
       requiredNumber(settings.safetyBuffer, path + ".months[" + JSON.stringify(month) + "].safetyBuffer", issues);
       requiredNumber(settings.debtPaymentTarget, path + ".months[" + JSON.stringify(month) + "].debtPaymentTarget", issues);
     }
@@ -794,6 +807,7 @@ function validateIdentifiersAndDates(payload: UnknownRecord, path: string, issue
   if (isRecord(payload.planning)) for (const key of ["incomeSources", "debts"]) collection(payload.planning[key], path + ".planning." + key);
   if (isRecord(payload.monthlyPlan) && isRecord(payload.monthlyPlan.months)) for (const [month, settings] of Object.entries(payload.monthlyPlan.months)) {
     calendarDate(month, path + ".monthlyPlan.months key", true);
+    if (isRecord(settings)) collection(settings.settlements, path + ".monthlyPlan.months." + month + ".settlements");
     if (isRecord(settings)) for (const key of ["payments", "minimums"]) if (settings[key] !== undefined) {
       const values = requiredRecord(settings[key], path + ".monthlyPlan.months." + month + "." + key, issues);
       if (values) for (const [id, amount] of Object.entries(values)) requiredNumber(amount, key + "." + id, issues);

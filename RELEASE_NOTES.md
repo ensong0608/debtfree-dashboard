@@ -1,5 +1,10 @@
 # DebtFree Dashboard release notes
 
+## 2026-09-14 - Already-paid monthly records
+
+Monthly Plan now records debit/checking expenses, card expenses already included in current balances, and minimums already paid without changing debt balances. Records include amount, payment date, source and creation time, survive backups and reloads, and can be undone. Minimum acknowledgments reduce this month’s remaining obligations and forecast budget. Card expense acknowledgments prevent duplicate projected spending. Records apply only to their saved month and are not copied with recurring entries. Use the ordinary debt payment/charge flow only for new movements not already reflected in the current balances.
+
+
 ## 2026-09-14 - Reliability audit repairs
 
 Revision-checked household saves, durable pending edits and recovery checkpoints protect household data. Corrected balances, payment-aware forecasts, stable commitment rollover, immutable snapshots and onboarding-seeded monthly plans align the main screens. Imports validate IDs and dates, CSV text is formula-safe, and browser/API/security tests extend the release gate. See docs/PHASE_ACCEPTANCE.md for canonical numbering and docs/OPERATIONS.md for recovery and model limits.

@@ -160,3 +160,24 @@ test("large household calculation stays within an interactive budget", () => {
   assert.ok(plan.months.length > 0 && !plan.stalled);
   assert.ok(performance.now() - started < 2000, "100-account forecast should complete within two seconds");
 });
+
+test("already-paid records update spending and minimums without mutating the ledger or balances", async () => {
+ const { settlementReports } = await import("../app/plan-settlements.ts");
+ const { calculateMonthlyPlan, spentForPlannedItem } = await import("../app/monthly-plan.ts");
+ const backup = fixture(); const original = JSON.stringify(backup.payload.transactions);
+ const entries = [{id:"s1",targetId:"rent",name:"Rent",kind:"spending",amount:500,date:"2026-09-14",createdAt:"2026-09-14T12:00:00Z",source:"debit"},{id:"s2",targetId:"a",name:"Card",kind:"minimum",amount:100,date:"2026-09-14",createdAt:"2026-09-14T12:00:00Z",source:"included"}];
+ backup.payload.monthlyPlan.months["2026-09"] = {safetyBuffer:0,debtPaymentTarget:100,settlements:entries};
+ const restored = parseDashboardContract(JSON.parse(serializeDashboardBackup(backup)));
+ const reports = settlementReports(restored.payload.monthlyPlan.months["2026-09"].settlements);
+ assert.equal(calculateMonthlyPlan([],[],"2026-09",{safetyBuffer:0,debtPaymentTarget:100,settlements:entries},true).spent,500);
+ assert.equal(spentForPlannedItem("rent",reports,"2026-09",true),500);
+ assert.equal(spentForPlannedItem("rent",reports,"2026-10",true),0);
+ const plan=calculatePlan([account()],0,"avalanche",{},{},new Date(2026,8,14),{},paymentContext(reports,"2026-09",100));
+ assert.equal(plan.months[0].payments.a ?? 0,0);
+ assert.equal(plan.months[1].payments.a,100);
+ assert.equal(debtPaymentProgress([account()],{a:100},reports,"2026-09",{a:100})[0].remaining,0);
+ assert.equal(JSON.stringify(restored.payload.transactions),original);
+ assert.deepEqual(transactionAdjustedAccounts(restored.payload.accounts,restored.payload.transactions),transactionAdjustedAccounts(backup.payload.accounts,backup.payload.transactions));
+ const invalid=structuredClone(backup);invalid.payload.monthlyPlan.months["2026-09"].settlements[0].date="2026-10-01";
+ assert.throws(()=>parseDashboardContract(invalid),/Settlement date/);
+});

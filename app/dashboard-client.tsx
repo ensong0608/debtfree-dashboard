@@ -1,4 +1,5 @@
 "use client";
+import { settlementReports } from "./plan-settlements";
 /* eslint-disable @next/next/no-img-element */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -411,13 +412,14 @@ export default function DashboardClient({ user }: { user: DashboardUser }) {
     return items;
   }, {}), [planningCashflowItems]);
   const linkedCardPurchases = useMemo(() => Object.fromEntries(Object.entries(linkedCardPurchaseItems).map(([accountId, items]) => [accountId, round(items.reduce((sum, item) => sum + item.amount, 0))])), [linkedCardPurchaseItems]);
+  const monthlyReports = useMemo(() => [...transactions, ...settlementReports(monthlyPlan.months[currentMonthKey()]?.settlements)], [transactions, monthlyPlan.months]);
   const actualizedLinkedCardSpending = useMemo(() => planningCashflowItems.reduce<LinkedCardExpenses>((totals, item) => {
-    if (item.paymentMethod === "credit" && item.creditAccountId) totals[item.creditAccountId] = round((totals[item.creditAccountId] ?? 0) + Math.min(item.amount, spentForPlannedItem(item.id, transactions, currentMonthKey(), true)));
+    if (item.paymentMethod === "credit" && item.creditAccountId) totals[item.creditAccountId] = round((totals[item.creditAccountId] ?? 0) + Math.min(item.amount, spentForPlannedItem(item.id, monthlyReports, currentMonthKey(), true)));
     return totals;
-  }, {}), [planningCashflowItems, transactions]);
+  }, {}), [planningCashflowItems, monthlyReports]);
   const commitment = monthlyPlan.monthlyCommitment ?? initialCommitment(calculatedAccounts, extra, planningCashflowItems);
   const effectiveExtra = Math.max(0, round(commitment - minimums - Object.values(linkedCardExpenses).reduce((sum, n) => sum + n, 0)));
-  const currentPaymentContext = useMemo(() => ({ ...paymentContext(transactions, currentMonthKey(), commitment), minimumTargets: monthlyPlan.months[currentMonthKey()]?.minimums }), [transactions, commitment, monthlyPlan.months]);
+  const currentPaymentContext = useMemo(() => ({ ...paymentContext(monthlyReports, currentMonthKey(), commitment), minimumTargets: monthlyPlan.months[currentMonthKey()]?.minimums }), [monthlyReports, commitment, monthlyPlan.months]);
   const updateExtra = (value: number) => {
     setExtra(value);
     setMonthlyPlan((current) => ({ ...current, monthlyCommitment: round(minimums + Object.values(linkedCardExpenses).reduce((sum, n) => sum + n, 0) + value) }));
@@ -433,8 +435,8 @@ export default function DashboardClient({ user }: { user: DashboardUser }) {
     strategy,
     planning,
     snapshots,
-    transactions,
-  }), [accounts, effectiveExtra, payoffAccounts, plan, planning, snapshots, strategy, transactions]);
+    transactions: monthlyReports,
+  }), [accounts, effectiveExtra, payoffAccounts, plan, planning, snapshots, strategy, monthlyReports]);
   const monthlyTargets = useMemo(() => {
     const first = plan.months[0];
     const payments = { ...first?.payments };

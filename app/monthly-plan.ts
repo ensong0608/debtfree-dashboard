@@ -1,3 +1,4 @@
+import { settlementReports } from "./plan-settlements.ts";
 import type { CashflowItem, DebtAccount, LedgerTransaction, MonthlyPlanMonth } from "./dashboard-data.ts";
 import { effectiveMinimum, round } from "./payoff-engine.ts";
 
@@ -33,7 +34,7 @@ export function actualHouseholdSpending(transactions: LedgerTransaction[], month
 export function calculateMonthlyPlan(items: CashflowItem[], transactions: LedgerTransaction[], month: string, settings: MonthlyPlanMonth, trackingEnabled: boolean): MonthlyPlanTotals {
   const plannedIncome = round(items.filter(isPlannedIncome).reduce((sum, item) => sum + item.amount, 0));
   const essentialPlannedExpenses = plannedSpending(items);
-  const spent = actualHouseholdSpending(transactions, month, trackingEnabled);
+  const spent = actualHouseholdSpending([...transactions, ...settlementReports(settings.settlements)], month, trackingEnabled);
   return {
     plannedIncome,
     plannedSpending: essentialPlannedExpenses,
