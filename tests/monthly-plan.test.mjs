@@ -16,10 +16,10 @@ function transaction(id, overrides = {}) { return { id, date: "2026-08-12", acco
 function payload(overrides = {}) { return { accounts: [account], monthlyBudgets: { "2026-08": [income, expense, linked] }, payees: [], transactions: [], snapshots: [], extra: 0, strategy: "avalanche", planning: createEmptyPlannedPayoff(), balanceAdjustments: [], monthlyPlan: { detailedSpendingTracking: false, months: { "2026-08": { safetyBuffer: 200, debtPaymentTarget: 800 } } }, ...overrides }; }
 
 test("planned entries do not change current debt balances", () => assert.equal(transactionAdjustedAccounts([account], [], false)[0].balance, 2000));
-test("actual charges change balances exactly once only when detailed tracking is enabled", () => {
+test("posted charges affect balances regardless of tracking visibility", () => {
   const charge = transaction("charge", { plannedItemId: "hotel" });
   assert.equal(transactionAdjustedAccounts([account], [charge], true)[0].balance, 2300);
-  assert.equal(transactionAdjustedAccounts([account], [charge], false)[0].balance, 2000);
+  assert.equal(transactionAdjustedAccounts([account], [charge], false)[0].balance, 2300);
 });
 test("recorded Phase 5 payments change balances exactly once even when tracking is disabled", () => {
   const payment = createDebtPayment({ account, amount: 1100, date: "2026-08-11", paymentKind: "extra", createdAt: "2026-08-11T12:00:00Z" });
@@ -78,7 +78,7 @@ test("Phase 6 JSON round trip retains disabled advanced data and unknown fields"
   const source = payload({ transactions: [transaction("actual", { plannedItemId: "hotel" })], payees: [{ id: "merchant", name: "Merchant", createdAt: "2026-08-01", deletedAt: null }], futureField: { retained: true } });
   const backup = createDashboardBackup(createDashboardPayload(null, source), null, "2026-08-12T12:00:00Z");
   const restored = parseDashboardJson(serializeDashboardBackup(backup));
-  assert.equal(restored.version, 5);
+  assert.equal(restored.version, 6);
   assert.equal(restored.payload.monthlyPlan.detailedSpendingTracking, false);
   assert.equal(restored.payload.transactions[0].plannedItemId, "hotel");
   assert.deepEqual(restored.payload.futureField, { retained: true });

@@ -1,6 +1,6 @@
 @import "tailwindcss";
 
-:root { --navy:#132238; --navy-2:#1b304d; --blue:#1677ff; --blue-soft:#edf5ff; --ink:#17243a; --muted:#6f7c8f; --line:#dfe5ec; --paper:#f3f6fa; --white:#fff; --green:#0d8b63; --green-soft:#e9f8f2; --red:#c13a32; --violet:#6a5de7; --shadow:0 10px 32px rgba(24,42,70,.07); }
+:root { --navy:#132238; --navy-2:#1b304d; --blue:#0862d6; --blue-soft:#edf5ff; --ink:#17243a; --muted:#59677a; --line:#dfe5ec; --paper:#f3f6fa; --white:#fff; --green:#0d8b63; --green-soft:#e9f8f2; --red:#c13a32; --violet:#6a5de7; --shadow:0 10px 32px rgba(24,42,70,.07); }
 * { box-sizing:border-box; }
 html, body { height:100%; }
 body { margin:0; overflow:hidden; background:var(--paper); color:var(--ink); font-family:Inter,ui-sans-serif,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; -webkit-font-smoothing:antialiased; }
@@ -26,7 +26,7 @@ button:disabled { cursor:not-allowed; opacity:.5; }
 .nav-item.active em { background:rgba(37,133,255,.24); color:#bcd8ff; }
 .sidebar-foot { margin-top:auto; padding:13px 11px 2px; border-top:1px solid rgba(255,255,255,.09); }
 .sidebar-foot span,.sidebar-foot strong { display:block; }
-.sidebar-foot span { color:#7287a3; font-size:8px; text-transform:uppercase; letter-spacing:.08em; }
+.sidebar-foot span { color:#91a7c2; font-size:8px; text-transform:uppercase; letter-spacing:.08em; }
 .sidebar-foot strong { margin-top:4px; color:#aec0d5; font-size:10px; }
 .main-area { min-width:0; min-height:0; display:grid; grid-template-rows:64px minmax(0,1fr); overflow:hidden; }
 .topbar { display:flex; align-items:center; justify-content:space-between; gap:18px; padding:0 28px; border-bottom:1px solid var(--line); background:white; }
@@ -792,7 +792,7 @@ textarea:focus-visible{outline:3px solid rgba(22,119,255,.22);outline-offset:2px
 
 /* Phase 3 action-focused Home */
 .secondary-navigation{margin-top:16px;padding-top:14px;border-top:1px solid rgba(255,255,255,.09)}
-.secondary-navigation summary{min-height:36px;display:flex;align-items:center;padding:0 10px;color:#7188a5;font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.08em;cursor:pointer;list-style:none}
+.secondary-navigation summary{min-height:36px;display:flex;align-items:center;padding:0 10px;color:#91a7c2;font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.08em;cursor:pointer;list-style:none}
 .secondary-navigation summary::-webkit-details-marker{display:none}
 .secondary-navigation summary:after{margin-left:auto;content:"+";font-size:14px}
 .secondary-navigation[open] summary:after{content:"-"}

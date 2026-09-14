@@ -40,7 +40,7 @@ export function payoffPriority(
 
 export function openingBalanceForCurrentBalance(openingBalance: number, currentBalance: number, nextCurrentBalance: number) {
   const ledgerMovement = currentBalance - openingBalance;
-  const reconciled = Math.max(0, nextCurrentBalance - ledgerMovement);
+  const reconciled = nextCurrentBalance - ledgerMovement;
   return Math.round((reconciled + Number.EPSILON) * 100) / 100;
 }
 
@@ -178,7 +178,8 @@ export function createBalanceAdjustment(input: BalanceAdjustmentInput) {
   const createdAt = input.createdAt ?? new Date().toISOString();
   const account = {
     ...input.storedAccount,
-    balance: openingBalanceForCurrentBalance(input.storedAccount.balance, balanceBefore, balanceAfter),
+    baselineBalance: input.storedAccount.baselineBalance ?? input.storedAccount.balance,
+    balanceOffset: cents((input.storedAccount.balanceOffset ?? 0) + balanceAfter - balanceBefore),
   };
   const adjustment: BalanceAdjustment = {
     id: input.id ?? crypto.randomUUID(),

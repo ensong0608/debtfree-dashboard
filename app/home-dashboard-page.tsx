@@ -22,9 +22,10 @@ function ActionIcon({ action }: { action: HomeAction }) {
 
 function paymentAction(model: HomeDashboardModel) {
   const focus = model.nextPayment;
+  if (!model.activeDebtCount && model.startingDebt > 0) return { title: "You are debt-free", detail: "All recorded debt balances are paid off. Review your progress and keep a backup." };
   if (!model.activeDebtCount) return { title: "Add first debt", detail: "Add a balance, APR, and minimum payment to build your payoff plan." };
   if (model.stalled) return { title: "Increase your monthly payment", detail: "Your current target is not reducing every balance." };
-  if (!focus) return { title: "Review your payoff plan", detail: "Complete the payment details needed to model the next month." };
+  if (!focus) return { title: "This month’s payments are covered", detail: "Your next payment cycle remains in the payoff schedule." };
   return {
     title: `Pay ${preciseMoney.format(focus.payment)} to ${focus.name}`,
     detail: focus.dueDate ? `Due by ${formatDate(focus.dueDate)}` : "Due date missing - add it for calendar guidance.",
@@ -86,7 +87,7 @@ export default function HomeDashboardPage({
           </div>
           <p>Paying the recommended amount keeps your current projection on track. Record the amount you actually paid.</p>
           <button className="primary next-payment-button" type="button" onClick={() => onRecordPayment(focus.accountId, focus.payment)}>Record payment</button>
-        </> : <div className="home-empty-action"><h2>{model.activeDebtCount ? "Adjust your payment plan" : "No debts in your plan yet"}</h2><p>{model.activeDebtCount ? "The engine cannot model a first payment with the current minimums and monthly target. Review those values to create an actionable recommendation." : "Debts power the payoff date, monthly target, and next-payment recommendation. Add the first balance you want to eliminate."}</p><button className="primary" type="button" onClick={model.activeDebtCount ? onViewPlan : onViewDebts}>{model.activeDebtCount ? "Review payoff plan" : "Add first debt"}</button></div>}
+        </> : <div className="home-empty-action"><h2>{model.activeDebtCount ? (model.stalled ? "Adjust your payment plan" : "This month’s payments are covered") : model.startingDebt > 0 ? "You are debt-free" : "No debts in your plan yet"}</h2><p>{model.activeDebtCount ? (model.stalled ? "Review your payment amount and minimums to create a workable plan." : "No further payment is currently projected for this month. Review next month in your payoff plan.") : "Debts power the payoff date, monthly target, and next-payment recommendation. Add the first balance you want to eliminate."}</p><button className="primary" type="button" onClick={model.activeDebtCount ? onViewPlan : onViewDebts}>{model.activeDebtCount ? "Review payoff plan" : "Add first debt"}</button></div>}
       </article>
 
       <article className="payoff-preview-card">

@@ -18,9 +18,12 @@ export type PlanMonth = {
   nonAmortizingAccountIds: string[];
 };
 
+export type PlanContext = { monthlyCommitment?: number; paid?: Record<string, number>; minimumPaid?: Record<string, number>; minimumTargets?: Record<string, number> };
+
 export type LinkedCardExpenses = Record<string, number>;
 
 export type PayoffPlan = {
+  paymentsAlreadyApplied?: boolean;
   months: PlanMonth[];
   totalInterest: number;
   monthly: number;
@@ -62,7 +65,12 @@ export function hasPromoTerms(account: DebtAccount) {
 }
 
 export function promoIsActive(account: DebtAccount, month: number, calculationDate: Date = new Date()) {
-  return hasPromoTerms(account) && forecastMonthKey(month, calculationDate) <= account.promoEndDate.slice(0, 7);
+  const date = new Date(calculationDate);
+  const day = date.getDate();
+  date.setDate(1); date.setMonth(date.getMonth() + month - 1);
+  date.setDate(Math.min(day, new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate()));
+  const dateKey = date.getFullYear() + "-" + String(date.getMonth() + 1).padStart(2, "0") + "-" + String(date.getDate()).padStart(2, "0");
+  return hasPromoTerms(account) && dateKey <= account.promoEndDate;
 }
 
 export function forecastApr(account: DebtAccount, month: number, calculationDate: Date = new Date()) {
@@ -101,10 +109,12 @@ export function calculatePlan(
   linkedCardPurchases: LinkedCardExpenses = {},
   calculationDate: Date = new Date(),
   actualizedLinkedCardExpenses: LinkedCardExpenses = {},
+  context: PlanContext = {},
 ): PayoffPlan {
   const active = accounts.filter((account) => account.balance > 0 || (linkedCardExpenses[account.id] ?? 0) > 0 || (linkedCardPurchases[account.id] ?? 0) > 0);
   const balances = new Map(active.map((account) => [account.id, account.balance]));
-  const monthly = active.reduce((sum, account) => sum + effectiveMinimum(account) + (linkedCardExpenses[account.id] ?? 0), 0) + extra;
+  const monthly = context.monthlyCommitment ?? active.reduce((sum, account) => sum + effectiveMinimum(account) + (linkedCardExpenses[account.id] ?? 0), 0) + extra;
+  const paidThisMonth = Object.values(context.paid ?? {}).reduce((sum, value) => sum + value, 0);
   const oneTimePurchaseTotal = active.reduce((sum, account) => sum + (linkedCardPurchases[account.id] ?? 0), 0);
   const cardChargeForMonth = (accountId: string, month: number) => (
     Math.max(0, (linkedCardExpenses[accountId] ?? 0)
@@ -149,11 +159,11 @@ export function calculatePlan(
     active.forEach((account) => {
       const balance = balances.get(account.id) ?? 0;
       if (balance <= 0) return;
-      const minimum = forecastMinimum(account, balance, month, calculationDate);
+      const minimum = Math.max(0, (month === 1 ? context.minimumTargets?.[account.id] ?? forecastMinimum(account, balance, month, calculationDate) : forecastMinimum(account, balance, month, calculationDate)) - (month === 1 ? context.minimumPaid?.[account.id] ?? 0 : 0));
       minimums[account.id] = minimum;
       requiredMinimumTotal += minimum + cardChargeForMonth(account.id, month);
     });
-    const plannedMonthly = monthly + (month === 1 ? oneTimePurchaseTotal : 0);
+    const plannedMonthly = Math.max(0, monthly + (month === 1 ? oneTimePurchaseTotal - paidThisMonth : 0));
     const requiredMonthly = Math.max(plannedMonthly, round(requiredMinimumTotal));
     const minimumIncrease = round(Math.max(0, requiredMonthly - monthly));
     peakMonthly = Math.max(peakMonthly, requiredMonthly);
@@ -210,13 +220,13 @@ export function calculatePlan(
       paidOff,
       nonAmortizingAccountIds,
     });
-    if (remaining <= PAYOFF_BALANCE_EPSILON) return { months, totalInterest, monthly, peakMonthly, stalled: false, nonAmortizingAccountIds: [], promoMinimumFallbackIds };
+    if (remaining <= PAYOFF_BALANCE_EPSILON) return { paymentsAlreadyApplied: Boolean(context.paid), months, totalInterest, monthly, peakMonthly, stalled: false, nonAmortizingAccountIds: [], promoMinimumFallbackIds };
     const previousRemaining = [...before.values()].reduce((sum, balance) => sum + balance, 0);
     const hasPendingPromoChange = active.some((account) => promoIsActive(account, month, calculationDate));
-    if (!paidOff.length && remaining >= previousRemaining - PAYOFF_BALANCE_EPSILON && !hasPendingPromoChange) {
-      return { months, totalInterest, monthly, peakMonthly, stalled: true, nonAmortizingAccountIds, promoMinimumFallbackIds };
+    if (!(month === 1 && paidThisMonth > 0) && !paidOff.length && remaining >= previousRemaining - PAYOFF_BALANCE_EPSILON && !hasPendingPromoChange) {
+      return { paymentsAlreadyApplied: Boolean(context.paid), months, totalInterest, monthly, peakMonthly, stalled: true, nonAmortizingAccountIds, promoMinimumFallbackIds };
     }
   }
   const nonAmortizingAccountIds = active.filter((account) => (balances.get(account.id) ?? 0) > PAYOFF_BALANCE_EPSILON).map((account) => account.id);
-  return { months, totalInterest, monthly, peakMonthly, stalled: true, nonAmortizingAccountIds, promoMinimumFallbackIds };
+  return { paymentsAlreadyApplied: Boolean(context.paid), months, totalInterest, monthly, peakMonthly, stalled: true, nonAmortizingAccountIds, promoMinimumFallbackIds };
 }

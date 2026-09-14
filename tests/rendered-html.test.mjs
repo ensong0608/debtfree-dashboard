@@ -246,7 +246,7 @@ test("pays linked credit-card one-time purchases in the current payoff month onl
   assert.match(client, /linkedCardPurchases/);
   assert.match(engine, /actualizedLinkedCardExpenses/);
   assert.match(engine, /Math\.max\(0, \(linkedCardExpenses\[accountId\]/);
-  assert.match(engine, /plannedMonthly = monthly \+ \(month === 1 \? oneTimePurchaseTotal : 0\)/);
+  assert.match(engine, /oneTimePurchaseTotal - paidThisMonth/);
   assert.match(engine, /scheduledPayment = \(minimums\[account\.id\] \?\? 0\) \+ cardChargeForMonth\(account\.id, month\)/);
   assert.match(payoffPlan, /month\.month === 1 \? linkedCardPurchases\[account\.id\] \?\? 0 : 0/);
   assert.match(client, /currentMonthPurchaseTotal/);
@@ -255,17 +255,17 @@ test("uses verified personal email accounts with household admin and viewer role
   const [auth, client, householdRoute, membersRoute, schema, wranglerSource] = await Promise.all([
     readFile(new URL("../app/cloudflare-auth.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/dashboard-client.tsx", import.meta.url), "utf8"),
-    readFile(new URL("../app/api/household/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/household-api.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/api/household/members/route.ts", import.meta.url), "utf8"),
     readFile(new URL("../db/schema.ts", import.meta.url), "utf8"),
     readFile(new URL("../wrangler.jsonc", import.meta.url), "utf8"),
   ]);
   const wrangler = JSON.parse(wranglerSource);
   assert.match(auth, /cf-access-jwt-assertion/);
-  assert.match(auth, /jwtVerify/);
+  assert.match(auth, /verifyAccessIdentity/);
   assert.match(auth, /CF_ACCESS_TEAM_DOMAIN/);
   assert.match(auth, /CF_ACCESS_AUD/);
-  assert.match(auth, /payload\.email/);
+  assert.match(auth, /verifyAccessIdentity/);
   assert.doesNotMatch(auth, /oai-authenticated-user-email/);
   assert.match(client, /HouseholdRole = "owner" \| "admin" \| "viewer"/);
   assert.match(client, /Viewer access/);

@@ -7,8 +7,10 @@ import {
   type PlannedIncomeSource,
   type PlannedPayoffData,
   type PayoffStrategy,
+  type CashflowItem,
+  type MonthlyPlanSettings,
 } from "./dashboard-data.ts";
-import { calculatePlan, effectiveMinimum, round, type PayoffPlan } from "./payoff-engine.ts";
+import { calculatePlan, effectiveForecastApr, effectiveMinimum, round, type PayoffPlan } from "./payoff-engine.ts";
 
 export const ONBOARDING_STEP_COUNT = 5;
 export const RECOMMENDED_ONBOARDING_STRATEGY: PayoffStrategy = "avalanche";
@@ -139,7 +141,7 @@ export function buildOnboardingPlan(
   const essentialExpenses = totalPlannedExpenses(planning.essentialExpenses);
   const firstTarget = [...accounts]
     .filter((account) => account.balance > 0 && account.payoffMode !== "minimum-only")
-    .sort((a, b) => b.apr - a.apr || a.balance - b.balance)[0]?.name ?? null;
+    .sort((a, b) => effectiveForecastApr(b, 1, calculationDate) - effectiveForecastApr(a, 1, calculationDate) || a.balance - b.balance)[0]?.name ?? null;
   return {
     accounts,
     planning: {
@@ -199,4 +201,14 @@ export function hasOnboardingProgress(planning: PlannedPayoffData) {
 
 export function shouldShowOnboarding(payload: DashboardPayload) {
   return !payload.planning.onboarding.completed && !hasEstablishedDashboardData(payload);
+}
+
+export function seedMonthlyPlan(result: GeneratedOnboardingPlan, month: string, existing: Record<string, CashflowItem[]>, settings: MonthlyPlanSettings) {
+  const createdAt = result.planning.onboarding.completedAt ?? new Date().toISOString();
+  const income: CashflowItem[] = result.planning.incomeSources.map((source) => ({ id: `setup-income-${source.id}`, name: source.name, kind: "income", category: "Salary", amount: source.monthlyTakeHome, paymentMethod: "debit", creditAccountId: "", recurring: true, createdAt }));
+  const expenses: CashflowItem[] = Object.entries(result.planning.essentialExpenses).filter(([key, value]) => key !== "safetyBuffer" && typeof value === "number" && value > 0).map(([key, value]) => ({ id: `setup-expense-${key}`, name: key.replace(/([A-Z])/g, " $1").replace(/^./, (c) => c.toUpperCase()), kind: "expense", category: key, amount: value as number, paymentMethod: "debit", creditAccountId: "", recurring: true, createdAt }));
+  return {
+    monthlyBudgets: Object.prototype.hasOwnProperty.call(existing, month) ? existing : { ...existing, [month]: [...income, ...expenses] },
+    monthlyPlan: { ...settings, monthlyCommitment: result.plan.monthly, months: { ...settings.months, [month]: settings.months[month] ?? { safetyBuffer: result.planning.essentialExpenses.safetyBuffer, debtPaymentTarget: result.plan.monthly } } },
+  };
 }

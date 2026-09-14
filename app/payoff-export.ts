@@ -29,7 +29,8 @@ function downloadBlob(blob: Blob, filename: string) {
   window.setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 function csvCell(value: CellValue) {
-  const text = value === null ? "" : String(value);
+  const raw = value === null ? "" : String(value);
+  const text = typeof value === "string" && /^[\s]*[=+@\-]/.test(raw) ? "'" + raw : raw;
   return /[",\r\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
 }
 const csvRow = (values: CellValue[]) => values.map(csvCell).join(",");

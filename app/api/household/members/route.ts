@@ -1,3 +1,4 @@
+import { readBoundedBody } from "@/app/request-safety";
 import { householdContext, listMembers, normalizeEmail, type HouseholdRole } from "../store";
 
 export const dynamic = "force-dynamic";
@@ -9,7 +10,8 @@ export async function POST(request: Request) {
   const context = await householdContext();
   if (!context) return Response.json({ error: "Sign in required" }, { status: 401 });
   if (context.member.role !== "owner") return Response.json({ error: "Only the household owner can add members" }, { status: 403 });
-  const body = await request.json().catch(() => null) as { email?: string; role?: HouseholdRole } | null;
+  const body = await readBoundedBody(request, 8192).then(JSON.parse).catch(() => null) as { email?: string; role?: HouseholdRole } | null;
+  if (typeof body?.email !== "string") return Response.json({ error: "Enter a valid email address" }, { status: 400 });
   const email = normalizeEmail(body?.email ?? "");
   const role = body?.role ?? "admin";
   if (!emailPattern.test(email)) return Response.json({ error: "Enter a valid email address" }, { status: 400 });

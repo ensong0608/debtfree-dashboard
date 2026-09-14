@@ -80,7 +80,7 @@ function currentMonthKey(date: Date) {
   return localDateKey(date).slice(0, 7);
 }
 
-function nextMonthlyDate(value: string, calculationDate: Date) {
+function nextMonthlyDate(value: string, calculationDate: Date, unpaid = false) {
   const parts = value.split("-").map(Number);
   if (parts.length !== 3 || parts.some((part) => !Number.isFinite(part))) return null;
   const day = Math.max(1, Math.min(31, parts[2]));
@@ -91,7 +91,7 @@ function nextMonthlyDate(value: string, calculationDate: Date) {
     return new Date(year, month, Math.min(day, lastDay), 12);
   };
   let next = occurrence();
-  if (localDateKey(next) < localDateKey(calculationDate)) {
+  if (!unpaid && localDateKey(next) < localDateKey(calculationDate)) {
     month += 1;
     if (month > 11) { month = 0; year += 1; }
     next = occurrence();
@@ -105,13 +105,16 @@ function projectedPayoffMonth(plan: PayoffPlan, accountId: string, calculationDa
 }
 
 function startingDebt(input: HomeDashboardInput, currentDebt: number) {
+  const firstSaved = [...input.snapshots].sort((a, b) => a.month.localeCompare(b.month))[0];
+  if (firstSaved) return { amount: round(firstSaved.totalBalance), label: "Since your first saved snapshot" };
+  if (input.openingAccounts.some(a => a.baselineBalance !== undefined)) return { amount: round(input.openingAccounts.reduce((sum,a) => sum + (a.baselineBalance ?? a.balance),0)), label: "Since these balances were added" };
   const planned = input.planning.onboarding.completed
     ? input.planning.debts.reduce((sum, debt) => sum + debt.balance, 0)
     : 0;
   if (planned > 0) return { amount: round(planned), label: "Since your payoff plan began" };
   const firstSnapshot = [...input.snapshots].sort((a, b) => a.month.localeCompare(b.month))[0];
   if (firstSnapshot?.totalBalance > 0) return { amount: round(firstSnapshot.totalBalance), label: "Since your first saved snapshot" };
-  const opening = input.openingAccounts.reduce((sum, account) => sum + account.balance, 0);
+  const opening = input.openingAccounts.reduce((sum, account) => sum + (account.baselineBalance ?? account.balance), 0);
   return { amount: round(opening > 0 ? opening : currentDebt), label: "Since these balances were added" };
 }
 
@@ -131,24 +134,24 @@ function actualPaymentsForMonth(accounts: DebtAccount[], transactions: LedgerTra
   return { paymentMonth, payments, total: round(payments.reduce((sum, payment) => sum + payment.amount, 0)) };
 }
 
-function upcomingActions(accounts: DebtAccount[], snapshots: PayoffSnapshot[], calculationDate: Date) {
+function upcomingActions(accounts: DebtAccount[], snapshots: PayoffSnapshot[], calculationDate: Date, paidMinimums: Record<string, number>) {
   const actions: HomeAction[] = [];
   const currentMonth = currentMonthKey(calculationDate);
   const dueDates = accounts
-    .filter((account) => account.balance > 0 && account.dueDate)
-    .map((account) => ({ account, date: nextMonthlyDate(account.dueDate, calculationDate) }))
+    .filter((account) => account.balance > 0 && account.dueDate && (paidMinimums[account.id] ?? 0) < effectiveMinimum(account))
+    .map((account) => ({ account, date: nextMonthlyDate(account.dueDate, calculationDate, true) }))
     .filter((entry): entry is { account: DebtAccount; date: string } => Boolean(entry.date))
     .sort((a, b) => a.date.localeCompare(b.date))
     .slice(0, 2);
   dueDates.forEach(({ account, date }) => actions.push({
     id: `due-${account.id}`,
     kind: "due",
-    title: `${account.name} payment is coming up`,
-    detail: `${effectiveMinimum(account).toFixed(2)} minimum payment`,
+    title: `${account.name} payment ${date < localDateKey(calculationDate) ? "is overdue" : "is coming up"}`,
+    detail: `${Math.max(0, effectiveMinimum(account) - (paidMinimums[account.id] ?? 0)).toFixed(2)} minimum remaining`,
     date,
     destination: "payment",
     accountId: account.id,
-    amount: effectiveMinimum(account),
+    amount: Math.max(0, effectiveMinimum(account) - (paidMinimums[account.id] ?? 0)),
   }));
 
   accounts
@@ -211,9 +214,11 @@ export function buildHomeDashboard(input: HomeDashboardInput): HomeDashboardMode
     payment: round(firstMonth?.payments[account.id] ?? effectiveMinimum(account)),
     projectedPayoffMonth: projectedPayoffMonth(input.plan, account.id, calculationDate),
   }));
-  const focus = firstMonth ? priority[0] : undefined;
-  const minimum = focus ? round(firstMonth?.minimums[focus.id] ?? effectiveMinimum(focus)) : 0;
-  const payment = focus ? round(firstMonth?.payments[focus.id] ?? minimum) : 0;
+  const paid = Object.fromEntries(active.map((a) => [a.id, actualPayments.payments.filter((t) => t.accountId === a.id).reduce((sum, t) => sum + t.amount, 0)]));
+  const pendingPayment = (a: DebtAccount) => Math.max(0, (firstMonth?.payments[a.id] ?? 0) - (input.plan.paymentsAlreadyApplied ? 0 : paid[a.id] ?? 0));
+  const focus = firstMonth ? [...priority, ...active.filter((a) => a.payoffMode === "minimum-only")].find((a) => pendingPayment(a) > .005) : undefined;
+  const minimum = focus ? round(Math.max(0, (firstMonth?.minimums[focus.id] ?? effectiveMinimum(focus)) - (input.plan.paymentsAlreadyApplied ? 0 : paid[focus.id] ?? 0))) : 0;
+  const payment = focus ? round(pendingPayment(focus)) : 0;
   const nextPayment = focus ? {
     ...payoffOrder.find((item) => item.accountId === focus.id) ?? {
       accountId: focus.id,
@@ -226,7 +231,7 @@ export function buildHomeDashboard(input: HomeDashboardInput): HomeDashboardMode
     payment,
     minimum,
     aboveMinimum: round(Math.max(0, payment - minimum)),
-    dueDate: nextMonthlyDate(focus.dueDate, calculationDate),
+    dueDate: nextMonthlyDate(focus.dueDate, calculationDate, minimum > 0),
   } satisfies HomePayment : null;
 
   return {
@@ -245,7 +250,7 @@ export function buildHomeDashboard(input: HomeDashboardInput): HomeDashboardMode
     strategy: input.strategy,
     nextPayment,
     payoffOrder,
-    actions: upcomingActions(active, input.snapshots, calculationDate),
+    actions: upcomingActions(active, input.snapshots, calculationDate, Object.fromEntries(active.map((a) => [a.id, input.transactions.filter((t) => !t.deletedAt && t.type === "payment" && t.paymentKind !== "extra" && t.accountId === a.id && t.date.slice(0, 7) === currentMonthKey(calculationDate)).reduce((sum, t) => sum + t.amount, 0)]))),
     paymentMonth: actualPayments.paymentMonth,
     actualPaymentTotal: actualPayments.total,
     actualPayments: actualPayments.payments,

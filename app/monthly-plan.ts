@@ -38,7 +38,7 @@ export function calculateMonthlyPlan(items: CashflowItem[], transactions: Ledger
     plannedIncome,
     plannedSpending: essentialPlannedExpenses,
     spent,
-    remaining: round(Math.max(0, essentialPlannedExpenses - spent)),
+    remaining: round(essentialPlannedExpenses - spent),
     safetyBuffer: round(settings.safetyBuffer),
     debtPaymentTarget: round(settings.debtPaymentTarget),
     availableDebtPayment: round(Math.max(0, plannedIncome - essentialPlannedExpenses - settings.safetyBuffer)),
@@ -82,9 +82,12 @@ function inferredPaymentKind(transaction: LedgerTransaction) {
   return null;
 }
 
-export function debtPaymentProgress(accounts: DebtAccount[], plannedPayments: Record<string, number>, transactions: LedgerTransaction[], month: string): DebtPaymentProgress[] {
-  return accounts.filter((account) => !account.archivedAt && account.balance > 0).map((account) => {
-    const minimumTarget = round(Math.min(account.balance, effectiveMinimum(account)));
+export function debtPaymentProgress(accounts: DebtAccount[], plannedPayments: Record<string, number>, transactions: LedgerTransaction[], month: string, plannedMinimums: Record<string, number> = {}): DebtPaymentProgress[] {
+  const paidIds = new Set(transactions.filter((t) => !t.deletedAt && t.type === "payment" && t.date.slice(0, 7) === month).map((t) => t.accountId));
+  const known = new Set(accounts.map((a) => a.id));
+  const retained = [...accounts, ...[...paidIds].filter((id) => !known.has(id)).map((id) => ({ id, name: transactions.find((t) => t.accountId === id)?.payeeName || "Removed debt", balance: 0, minimum: 0, minimumMode: "manual", apr: 0 } as DebtAccount))];
+  return retained.filter((account) => (!account.archivedAt && account.balance > 0) || paidIds.has(account.id)).map((account) => {
+    const minimumTarget = round(plannedMinimums[account.id] ?? Math.min(account.balance, effectiveMinimum(account)));
     const target = round(Math.max(minimumTarget, plannedPayments[account.id] ?? minimumTarget));
     const extraTarget = round(Math.max(0, target - minimumTarget));
     let minimumPaid = 0, extraPaid = 0, unclassified = 0;

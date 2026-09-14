@@ -74,7 +74,7 @@ test("Phase 13 import preview reports every required count before replace or mer
   }), null, "2026-08-21T00:00:00.000Z");
   const preview = previewDashboardImport(serializeDashboardBackup(backup));
   assert.deepEqual({ debts: preview.debtCount, months: preview.monthlyRecordCount, transactions: preview.transactionCount, snapshots: preview.snapshotCount, version: preview.sourceVersion }, {
-    debts: 2, months: 3, transactions: 1, snapshots: 1, version: 5,
+    debts: 2, months: 3, transactions: 1, snapshots: 1, version: 6,
   });
 });
 

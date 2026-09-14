@@ -15,6 +15,7 @@ export type DashboardImportPreview = {
   monthlyRecordCount: number;
   transactionCount: number;
   snapshotCount: number;
+  warnings: string[];
 };
 
 function mergeById<T extends { id: string }>(current: T[], incoming: T[]) {
@@ -44,6 +45,7 @@ export function previewDashboardImport(text: string): DashboardImportPreview {
     monthlyRecordCount: months.size,
     transactionCount: contract.payload.transactions.length,
     snapshotCount: contract.payload.snapshots.length,
+    warnings: importReferenceWarnings(contract.payload),
   };
 }
 
@@ -79,4 +81,15 @@ export function resolveDashboardImport(
   if (mode === "replace") return incoming;
   const payload = mergeDashboardPayload(current.payload, incoming.payload);
   return createDashboardBackup(payload, { ...current, ...incoming }, exportedAt);
+}
+
+/** Historical records are retained even when their original account was removed. */
+export function importReferenceWarnings(payload: DashboardPayload) {
+  const accounts = new Set(payload.accounts.map(a => a.id));
+  const warnings: string[] = [];
+  const missing = new Set([...payload.transactions, ...(payload.balanceAdjustments ?? [])].filter(t => !accounts.has(t.accountId)).map(t => t.accountId));
+  if (missing.size) warnings.push(missing.size + " removed or missing debt references are retained in history. Review them after import; no records will be discarded.");
+  const planned = new Set(Object.values(payload.monthlyBudgets).flat().map(item => item.id));
+  if (payload.transactions.some(t => t.plannedItemId && !planned.has(t.plannedItemId))) warnings.push("Some transactions refer to removed planned items. Their posted amounts are preserved.");
+  return warnings;
 }

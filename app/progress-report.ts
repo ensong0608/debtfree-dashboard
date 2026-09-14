@@ -101,7 +101,7 @@ export function buildProgressReport(input: ProgressReportInput) {
   const progressPercent = startingDebt > 0 ? round(Math.min(100, principalEliminated / startingDebt * 100)) : 0;
   const history = balanceView.snapshots.map((snapshot) => ({ month: snapshot.month, total: snapshot.totalBalance }));
   const previousSnapshot = [...balanceView.snapshots].reverse().find((snapshot) => snapshot.month < currentMonth) ?? null;
-  const currentMonthTransactions = activeTransactions.filter((transaction) => transaction.date.slice(0, 7) === currentMonth && (input.detailedSpendingTracking !== false || transaction.type === "payment"));
+  const currentMonthTransactions = activeTransactions.filter((transaction) => transaction.date.slice(0, 7) === currentMonth);
   const ledgerChangeThisMonth = round(currentMonthTransactions.reduce((sum, transaction) => sum + (transaction.type === "payment" ? transaction.amount : -transaction.amount), 0));
   const changeThisMonth = previousSnapshot ? round(previousSnapshot.totalBalance - currentDebt) : ledgerChangeThisMonth;
   const estimatedInterestPaid = round(activeTransactions.filter((transaction) => transaction.type === "fee").reduce((sum, transaction) => sum + transaction.amount, 0));

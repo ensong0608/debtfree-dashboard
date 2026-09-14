@@ -1,5 +1,9 @@
 # DebtFree Dashboard release notes
 
+## 2026-09-14 - Reliability audit repairs
+
+Revision-checked household saves, durable pending edits and recovery checkpoints protect household data. Corrected balances, payment-aware forecasts, stable commitment rollover, immutable snapshots and onboarding-seeded monthly plans align the main screens. Imports validate IDs and dates, CSV text is formula-safe, and browser/API/security tests extend the release gate. See docs/PHASE_ACCEPTANCE.md for canonical numbering and docs/OPERATIONS.md for recovery and model limits.
+
 ## 2026-08-21 - Full Phase 1-16 completion
 
 - Routed device household persistence through a tested repository abstraction and added optional ownership metadata for future shared entries.

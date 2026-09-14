@@ -183,7 +183,7 @@ export default function OnboardingFlow({ planning, importMessage, onPlanningChan
       </form>}
 
       {step === 4 && <form className="onboarding-step" onSubmit={nextStep} noValidate>
-        <header><span className="onboarding-eyebrow">Payment capacity</span><h1 id="onboarding-title">Monthly debt-payment capacity</h1><p>Choose the quickest path. Your amount includes all minimum payments; we convert only the amount above minimums into engine extra payment.</p></header>
+        <header><span className="onboarding-eyebrow">Payment capacity</span><h1 id="onboarding-title">Monthly debt-payment capacity</h1><p>Choose the quickest path. Your amount includes all minimum payments; we convert only the amount above minimums into extra payment.</p></header>
         <div className="capacity-paths" role="group" aria-label="Choose how to set monthly debt-payment capacity">
           <button type="button" className={planning.capacity.method === "known" ? "active" : ""} aria-pressed={planning.capacity.method === "known"} onClick={() => chooseCapacityMethod("known")}><strong>I know the amount</strong><span>Enter one total monthly debt payment.</span></button>
           <button type="button" className={planning.capacity.method === "calculated" ? "active" : ""} aria-pressed={planning.capacity.method === "calculated"} onClick={() => chooseCapacityMethod("calculated")}><strong>Help me calculate</strong><span>Use income, essentials, and a safety buffer.</span></button>
@@ -198,7 +198,7 @@ export default function OnboardingFlow({ planning, importMessage, onPlanningChan
       </form>}
 
       {step === 5 && generated && <div className="onboarding-step onboarding-result">
-        <header><span className="onboarding-eyebrow">Plan generated</span><h1 id="onboarding-title">Your payoff plan is ready</h1><p>The result below comes directly from the existing payoff engine. You can adjust every advanced setting after setup.</p></header>
+        <header><span className="onboarding-eyebrow">Plan generated</span><h1 id="onboarding-title">Your payoff plan is ready</h1><p>The result below comes directly from the payoff calculation. You can adjust every advanced setting after setup.</p></header>
         <div className="onboarding-result-grid">
           <div><span>Total debt</span><strong>{preciseCurrency.format(generated.totals.debt)}</strong></div>
           <div><span>Total monthly payment</span><strong>{preciseCurrency.format(generated.plan.monthly)}</strong></div>

@@ -1,5 +1,6 @@
 import { env } from "cloudflare:workers";
-import { createRemoteJWKSet, jwtVerify } from "jose";
+import { createRemoteJWKSet } from "jose";
+import { verifyAccessIdentity } from "./verify-access.ts";
 import { headers } from "next/headers";
 
 export type DashboardUser = {
@@ -20,14 +21,7 @@ export async function getAuthenticatedUser(): Promise<DashboardUser | null> {
 
   try {
     accessJwks ??= createRemoteJWKSet(new URL(env.CF_ACCESS_TEAM_DOMAIN + "/cdn-cgi/access/certs"));
-    const { payload } = await jwtVerify(accessToken, accessJwks, {
-      issuer: env.CF_ACCESS_TEAM_DOMAIN,
-      audience: env.CF_ACCESS_AUD,
-    });
-    const verifiedEmail = typeof payload.email === "string" ? payload.email.trim().toLowerCase() : "";
-    const forwardedEmail = (requestHeaders.get(ACCESS_EMAIL_HEADER) ?? "").trim().toLowerCase();
-    if (!verifiedEmail || (forwardedEmail && forwardedEmail !== verifiedEmail)) return null;
-    return { displayName: verifiedEmail.split("@")[0] || verifiedEmail, email: verifiedEmail, fullName: null };
+    return await verifyAccessIdentity(accessToken, accessJwks, env.CF_ACCESS_TEAM_DOMAIN, env.CF_ACCESS_AUD, requestHeaders.get(ACCESS_EMAIL_HEADER));
   } catch {
     return null;
   }

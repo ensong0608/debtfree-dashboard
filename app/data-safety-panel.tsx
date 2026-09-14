@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { dashboardDataErrorMessage } from "./dashboard-data";
 import { previewDashboardImport, type DashboardImportPreview, type ImportMode } from "./data-transfer";
 
@@ -13,6 +13,7 @@ export default function DataSafetyPanel(props: {
   onExport: () => Promise<void>;
   onImport: (file: File, mode: ImportMode) => Promise<void>;
   onReset: () => Promise<void>;
+  onRecover: () => Promise<void>;
 }) {
   const [pendingImport, setPendingImport] = useState<PendingImport | null>(null);
   const [importMode, setImportMode] = useState<ImportMode>("replace");
@@ -20,6 +21,11 @@ export default function DataSafetyPanel(props: {
   const [working, setWorking] = useState(false);
   const [resetOpen, setResetOpen] = useState(false);
   const [resetText, setResetText] = useState("");
+
+  useEffect(() => {
+    const close = (event: KeyboardEvent) => { if (event.key === "Escape" && !working) { setPendingImport(null); setResetOpen(false); } };
+    window.addEventListener("keydown", close); return () => window.removeEventListener("keydown", close);
+  }, [working]);
 
   const prepareImport = async (file: File) => {
     setLocalMessage("");
@@ -69,6 +75,7 @@ export default function DataSafetyPanel(props: {
     </aside>
     <div className="data-transfer-actions">
       <button className="secondary" type="button" onClick={() => void props.onExport()}>Export full backup</button>
+      {!props.isViewer && <button className="secondary" onClick={() => void props.onRecover()}>Restore recovery checkpoint</button>}
       {!props.isViewer && <label className="primary import-file">
         <input type="file" accept=".json,application/json" onChange={(event) => {
           const input = event.currentTarget;
@@ -88,6 +95,7 @@ export default function DataSafetyPanel(props: {
         <div><dt>Snapshots</dt><dd>{pendingImport.snapshotCount}</dd></div>
         <div><dt>Import version</dt><dd>{pendingImport.sourceVersion}</dd></div>
       </dl>
+      {pendingImport.warnings.map(warning => <p role="note" key={warning}>{warning}</p>)}
       <fieldset><legend>Import method</legend>
         <label><input type="radio" name="import-mode" value="replace" checked={importMode === "replace"} onChange={() => setImportMode("replace")}/><span><strong>Replace current data</strong><small>Uses the selected backup as the complete dashboard. Your current data is automatically backed up first.</small></span></label>
         <label><input type="radio" name="import-mode" value="merge" checked={importMode === "merge"} onChange={() => setImportMode("merge")}/><span><strong>Merge with current data</strong><small>Keeps current records, adds new IDs, and updates matching IDs with imported values.</small></span></label>

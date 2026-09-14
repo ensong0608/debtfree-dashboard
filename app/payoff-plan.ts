@@ -1,6 +1,6 @@
 import type { DebtAccount, PayoffStrategy } from "./dashboard-data.ts";
 import { payoffPriority } from "./debts-screen.ts";
-import { calculatePlan, effectiveForecastApr, forecastMonthKey, round, type LinkedCardExpenses, type PayoffPlan, type PlanMonth } from "./payoff-engine.ts";
+import { calculatePlan, effectiveForecastApr, forecastMonthKey, round, type LinkedCardExpenses, type PayoffPlan, type PlanMonth, type PlanContext } from "./payoff-engine.ts";
 
 export const DEFAULT_SCHEDULE_PREVIEW_MONTHS = 3;
 
@@ -67,12 +67,13 @@ export function buildStrategyComparison(
   linkedCardPurchases: LinkedCardExpenses = {},
   calculationDate: Date = new Date(),
   actualizedLinkedCardExpenses: LinkedCardExpenses = {},
+  context: PlanContext = {},
 ) {
   const orderedAccounts = accountsWithCustomDebtOrder(accounts, customDebtOrder);
   const strategies: PayoffStrategy[] = ["avalanche", "snowball"];
   if (customDebtOrder.length > 0) strategies.push("custom");
   const results = strategies.map((strategy) => {
-    const plan = calculatePlan(orderedAccounts, extra, strategy, linkedCardExpenses, linkedCardPurchases, calculationDate, actualizedLinkedCardExpenses);
+    const plan = calculatePlan(orderedAccounts, extra, strategy, linkedCardExpenses, linkedCardPurchases, calculationDate, actualizedLinkedCardExpenses, context);
     const effectiveAprs = Object.fromEntries(orderedAccounts.map((account) => [account.id, effectiveForecastApr(account, 1, calculationDate)]));
     return {
       strategy,
@@ -82,7 +83,7 @@ export function buildStrategyComparison(
   });
   const avalanche = results.find((item) => item.strategy === "avalanche")!;
   const snowball = results.find((item) => item.strategy === "snowball")!;
-  const recommended = avalanche.plan.totalInterest <= snowball.plan.totalInterest ? avalanche : snowball;
+  const recommended = avalanche.plan.stalled !== snowball.plan.stalled ? (avalanche.plan.stalled ? snowball : avalanche) : avalanche.plan.totalInterest <= snowball.plan.totalInterest ? avalanche : snowball;
   const comparisons: StrategyComparison[] = results.map((item) => ({
     ...item,
     interestDifference: round(item.plan.totalInterest - recommended.plan.totalInterest),
@@ -107,12 +108,13 @@ export function buildPaymentWhatIf(
   linkedCardPurchases: LinkedCardExpenses = {},
   calculationDate: Date = new Date(),
   actualizedLinkedCardExpenses: LinkedCardExpenses = {},
+  context: PlanContext = {},
 ): PaymentWhatIf {
   const ordered = strategy === "custom" ? accountsWithCustomDebtOrder(accounts, customDebtOrder) : accounts;
-  const baseline = calculatePlan(ordered, savedExtra, strategy, linkedCardExpenses, linkedCardPurchases, calculationDate, actualizedLinkedCardExpenses);
+  const baseline = calculatePlan(ordered, savedExtra, strategy, linkedCardExpenses, linkedCardPurchases, calculationDate, actualizedLinkedCardExpenses, context);
   const increase = Math.max(0, round(additionalMonthly));
   const totalExtra = round(Math.max(0, savedExtra) + increase);
-  const plan = calculatePlan(ordered, totalExtra, strategy, linkedCardExpenses, linkedCardPurchases, calculationDate, actualizedLinkedCardExpenses);
+  const plan = calculatePlan(ordered, totalExtra, strategy, linkedCardExpenses, linkedCardPurchases, calculationDate, actualizedLinkedCardExpenses, { ...context, monthlyCommitment: context.monthlyCommitment === undefined ? undefined : context.monthlyCommitment + increase });
   return {
     additionalMonthly: increase,
     totalExtra,

@@ -3,7 +3,7 @@ export const LEGACY_DASHBOARD_DATA_VERSION = 1 as const;
 export const PLANNING_DASHBOARD_DATA_VERSION = 2 as const;
 export const AUDIT_DASHBOARD_DATA_VERSION = 3 as const;
 export const MONTHLY_PLAN_DASHBOARD_DATA_VERSION = 4 as const;
-export const DASHBOARD_DATA_VERSION = 5 as const;
+export const DASHBOARD_DATA_VERSION = 6 as const;
 
 export type DebtType = "Credit card" | "Personal loan" | "Auto loan" | "Student loan" | "Medical debt" | "Other";
 export type MinimumMode = "auto" | "manual";
@@ -28,6 +28,8 @@ export type DebtAccount = OwnershipMetadata & {
   name: string;
   type: DebtType;
   balance: number;
+  balanceOffset?: number;
+  baselineBalance?: number;
   apr: number;
   interestFee: number;
   minimum: number;
@@ -213,12 +215,15 @@ export type DashboardPayloadV3 = DashboardPayloadV2 & {
 };
 
 export type MonthlyPlanMonth = {
+  payments?: Record<string, number>;
+  minimums?: Record<string, number>;
   safetyBuffer: number;
   debtPaymentTarget: number;
   [key: string]: unknown;
 };
 
 export type MonthlyPlanSettings = {
+  monthlyCommitment?: number;
   detailedSpendingTracking: boolean;
   months: Record<string, MonthlyPlanMonth>;
   [key: string]: unknown;
@@ -581,6 +586,8 @@ function validateAccount(value: unknown, path: string, issues: string[]) {
   requiredString(item.name, `${path}.name`, issues);
   enumValue(item.type, debtTypes, `${path}.type`, issues);
   requiredNumber(item.balance, `${path}.balance`, issues);
+  if (item.balanceOffset !== undefined && (typeof item.balanceOffset !== "number" || !Number.isFinite(item.balanceOffset))) issues.push(`${path}.balanceOffset must be finite.`);
+  if (item.baselineBalance !== undefined) requiredNumber(item.baselineBalance, `${path}.baselineBalance`, issues);
   requiredNumber(item.apr, `${path}.apr`, issues);
   requiredNumber(item.interestFee, `${path}.interestFee`, issues);
   requiredNumber(item.minimum, `${path}.minimum`, issues);
@@ -692,7 +699,7 @@ function validatePlannedIncome(value: unknown, path: string, issues: string[]) {
   const item = requiredRecord(value, path, issues);
   if (!item) return;
   requiredString(item.id, path + ".id", issues);
-  requiredString(item.name, path + ".name", issues);
+  requiredString(item.name, path + ".name", issues, true);
   requiredNumber(item.monthlyTakeHome, path + ".monthlyTakeHome", issues);
   enumValue(item.assignment, plannedAssignments, path + ".assignment", issues);
 }
@@ -701,7 +708,7 @@ function validatePlannedDebt(value: unknown, path: string, issues: string[]) {
   const item = requiredRecord(value, path, issues);
   if (!item) return;
   requiredString(item.id, path + ".id", issues);
-  requiredString(item.name, path + ".name", issues);
+  requiredString(item.name, path + ".name", issues, true);
   requiredNumber(item.balance, path + ".balance", issues);
   requiredNumber(item.apr, path + ".apr", issues);
   requiredNumber(item.minimum, path + ".minimum", issues);
@@ -729,6 +736,9 @@ function validatePlanning(value: unknown, path: string, issues: string[]) {
   incomeSources?.forEach((income, index) => validatePlannedIncome(income, path + ".incomeSources[" + index + "]", issues));
   const debts = requiredArray(planning.debts, path + ".debts", issues);
   debts?.forEach((debt, index) => validatePlannedDebt(debt, path + ".debts[" + index + "]", issues));
+  if (onboarding?.completed === true) {
+    for (const [kind, items] of [["incomeSources", incomeSources], ["debts", debts]] as const) items?.forEach((item, index) => { if (isRecord(item)) requiredString(item.name, path + "." + kind + "[" + index + "].name", issues); });
+  }
   const expenses = requiredRecord(planning.essentialExpenses, path + ".essentialExpenses", issues);
   if (expenses) {
     ["housing", "utilities", "food", "transportation", "insurance", "subscriptions", "otherObligations", "safetyBuffer"]
@@ -746,6 +756,7 @@ function validateMonthlyPlan(value: unknown, path: string, issues: string[]) {
   const plan = requiredRecord(value, path, issues);
   if (!plan) return;
   requiredBoolean(plan.detailedSpendingTracking, path + ".detailedSpendingTracking", issues);
+  if (plan.monthlyCommitment !== undefined) requiredNumber(plan.monthlyCommitment, path + ".monthlyCommitment", issues);
   const months = requiredRecord(plan.months, path + ".months", issues);
   if (months) Object.entries(months).forEach(([month, raw]) => {
     const settings = requiredRecord(raw, path + ".months[" + JSON.stringify(month) + "]", issues);
@@ -755,6 +766,41 @@ function validateMonthlyPlan(value: unknown, path: string, issues: string[]) {
     }
   });
 }
+
+function validateIdentifiersAndDates(payload: UnknownRecord, path: string, issues: string[]) {
+  const calendarDate = (value: unknown, field: string, monthOnly = false) => {
+    if (value === "" || value === null || value === undefined || typeof value !== "string") return;
+    const text = monthOnly ? value + "-01" : value;
+    const valid = /^\d{4}-\d{2}-\d{2}$/.test(text) && Number.isFinite(Date.parse(text)) && new Date(text).toISOString().slice(0, 10) === text;
+    if (!valid) issues.push(field + " must be a valid " + (monthOnly ? "YYYY-MM month." : "YYYY-MM-DD date."));
+  };
+  const collection = (items: unknown, field: string) => {
+    if (!Array.isArray(items)) return;
+    const ids = new Set<string>();
+    items.forEach((item, i) => {
+      if (!isRecord(item)) return;
+      if (typeof item.id === "string") {
+        if (ids.has(item.id)) issues.push(field + "[" + i + "].id duplicates " + item.id + ".");
+        ids.add(item.id);
+      }
+      for (const key of ["date", "dueDate", "promoEndDate"]) calendarDate(item[key], field + "[" + i + "]." + key);
+      calendarDate(item.month, field + "[" + i + "].month", true);
+    });
+  };
+  for (const key of ["accounts", "transactions", "payees", "snapshots", "balanceAdjustments"]) collection(payload[key], path + "." + key);
+  if (isRecord(payload.monthlyBudgets)) for (const [month, items] of Object.entries(payload.monthlyBudgets)) {
+    calendarDate(month, path + ".monthlyBudgets key", true); collection(items, path + ".monthlyBudgets." + month);
+  }
+  if (isRecord(payload.planning)) for (const key of ["incomeSources", "debts"]) collection(payload.planning[key], path + ".planning." + key);
+  if (isRecord(payload.monthlyPlan) && isRecord(payload.monthlyPlan.months)) for (const [month, settings] of Object.entries(payload.monthlyPlan.months)) {
+    calendarDate(month, path + ".monthlyPlan.months key", true);
+    if (isRecord(settings)) for (const key of ["payments", "minimums"]) if (settings[key] !== undefined) {
+      const values = requiredRecord(settings[key], path + ".monthlyPlan.months." + month + "." + key, issues);
+      if (values) for (const [id, amount] of Object.entries(values)) requiredNumber(amount, key + "." + id, issues);
+    }
+  }
+}
+
 function validateDashboardPayloadFields(value: unknown, path: string, includePlanning: boolean) {
   const issues: string[] = [];
   const payload = requiredRecord(value, path, issues);
@@ -779,6 +825,7 @@ function validateDashboardPayloadFields(value: unknown, path: string, includePla
       adjustments?.forEach((adjustment, index) => validateBalanceAdjustment(adjustment, path + ".balanceAdjustments[" + index + "]", issues));
     }
   }
+  if (payload) validateIdentifiersAndDates(payload, path, issues);
   if (payload && includePlanning) validatePlanning(payload.planning, path + ".planning", issues);
   if (payload && hasOwn(payload, "monthlyPlan")) validateMonthlyPlan(payload.monthlyPlan, path + ".monthlyPlan", issues);
   if (payload && hasOwn(payload, "customDebtOrder")) {
@@ -836,8 +883,8 @@ export function parseDashboardContract(value: unknown, path = "backup"): Dashboa
 
   const issues: string[] = [];
   if (value.format !== DASHBOARD_BACKUP_FORMAT) issues.push(`${path}.format must be "${DASHBOARD_BACKUP_FORMAT}".`);
-  if (value.version !== LEGACY_DASHBOARD_DATA_VERSION && value.version !== PLANNING_DASHBOARD_DATA_VERSION && value.version !== AUDIT_DASHBOARD_DATA_VERSION && value.version !== MONTHLY_PLAN_DASHBOARD_DATA_VERSION && value.version !== DASHBOARD_DATA_VERSION) {
-    issues.push(path + ".version must be 1, 2, 3, 4, or 5; received " + JSON.stringify(value.version) + ".");
+  if (value.version !== LEGACY_DASHBOARD_DATA_VERSION && value.version !== PLANNING_DASHBOARD_DATA_VERSION && value.version !== AUDIT_DASHBOARD_DATA_VERSION && value.version !== MONTHLY_PLAN_DASHBOARD_DATA_VERSION && value.version !== 5 && value.version !== DASHBOARD_DATA_VERSION) {
+    issues.push(path + ".version must be 1, 2, 3, 4, 5, or 6; received " + JSON.stringify(value.version) + ".");
   }
   requiredString(value.exportedAt, `${path}.exportedAt`, issues);
   if (!hasOwn(value, "payload")) issues.push(`${path}.payload is required.`);

@@ -246,11 +246,11 @@ test("rejects invalid strategies and unsupported wrapper versions", () => {
 
   const invalidVersion = {
     format: DASHBOARD_BACKUP_FORMAT,
-    version: 6,
+    version: 99,
     exportedAt: fixedExportedAt,
     payload: fixture,
   };
-  expectFieldError(invalidVersion, "backup.version must be 1, 2, 3, 4, or 5");
+  expectFieldError(invalidVersion, "backup.version must be 1, 2, 3, 4, 5, or 6");
 });
 
 test("rejects invalid planned-data fields with useful paths", () => {

@@ -176,7 +176,7 @@ test("Phase 3 UI exposes the required Home actions and mobile layout", async () 
   assert.match(client, /<details className="secondary-navigation">/);
   assert.match(client, /setPage\("home"\)/);
   assert.match(client, /Recommended payoff payment/);
-  assert.match(client, /onExtra=\{setExtra\}/);
+  assert.match(client, /onExtra=\{updateExtra\}/);
   assert.match(client, /onAction=\{openHomeAction\}/);
   assert.match(client, /onViewPayments=\{\(\) => setPage\(detailedSpendingTracking \? "history" : "monthly"\)\}/);
   assert.match(styles, /Phase 3 action-focused Home/);

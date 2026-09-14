@@ -25,7 +25,7 @@ function snapshot(month, totalBalance) {
   };
 }
 
-test("Progress uses opening balances for July and active transactions for the current balance", () => {
+test("Progress preserves saved historical balances and uses active transactions for current balances", () => {
   const accounts = [account("card-a", 1000), account("card-b", 500)];
   const transactions = [
     transaction("payment-a"),
@@ -39,11 +39,11 @@ test("Progress uses opening balances for July and active transactions for the cu
   const view = buildProgressBalanceView(accounts, transactions, [august, july]);
 
   assert.equal(view.baselineMonth, "2026-07");
-  assert.equal(view.startingTotal, 1500);
+  assert.equal(view.startingTotal, 9999);
   assert.equal(view.currentTotal, 1350);
   assert.deepEqual(view.currentAccounts.map((item) => item.balance), [900, 450]);
-  assert.equal(view.snapshots[0].totalBalance, 1500);
-  assert.deepEqual(view.snapshots[0].accounts.map((item) => item.balance), [1000, 500]);
+  assert.equal(view.snapshots[0].totalBalance, 9999);
+  assert.deepEqual(view.snapshots[0].accounts.map((item) => item.balance), [9999]);
   assert.equal(view.snapshots[1].totalBalance, 1400);
   assert.equal(july.totalBalance, 9999);
 });

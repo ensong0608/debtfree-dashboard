@@ -7,7 +7,6 @@ import {
   createDashboardBackup,
   createDashboardPayload,
   dashboardDataErrorMessage,
-  parseDashboardContract,
   type CashflowItem,
   type BalanceAdjustment,
   type CashflowKind,
@@ -25,6 +24,10 @@ import {
   type TransactionType,
 } from "./dashboard-data";
 import { createBrowserDataRepository } from "./data-repository";
+import { initialCommitment, paymentContext } from "./payment-context";
+import { seedMonthlyPlan } from "./onboarding-plan";
+import { HouseholdSync, type SyncStatus } from "./household-sync";
+import { useDialogFocus } from "./use-dialog-focus";
 import DataSafetyPanel from "./data-safety-panel";
 import { resolveDashboardImport, type ImportMode } from "./data-transfer";
 import { exportPayoffCsv, exportPayoffExcel, exportPayoffPdf, type PayoffReportData } from "./payoff-export";
@@ -38,6 +41,7 @@ import {
   round,
   type LinkedCardExpenses,
   type PayoffPlan,
+  type PlanContext,
 } from "./payoff-engine";
 import OnboardingFlow from "./onboarding-flow";
 import MonthlyPlanPage from "./monthly-plan-page";
@@ -47,7 +51,7 @@ import { canArchiveDebt, createBalanceAdjustment, createDebtPayment, replaceDebt
 import { createPayoffSnapshot, transactionAdjustedAccounts } from "./progress-balances";
 import { buildProgressReport } from "./progress-report";
 import ProgressReportPanel from "./progress-report-page";
-import { actualizedPlannedIds, copyRecurringPlannedItems } from "./monthly-plan";
+import { spentForPlannedItem, copyRecurringPlannedItems } from "./monthly-plan";
 import {
   DEFAULT_SCHEDULE_PREVIEW_MONTHS,
   accountsWithCustomDebtOrder,
@@ -77,10 +81,9 @@ type CashflowDraft = Pick<CashflowItem, "name" | "kind" | "category" | "amount" 
 type TransactionDraft = Pick<LedgerTransaction, "date" | "accountId" | "payeeId" | "payeeName" | "type" | "category" | "memo" | "amount" | "plannedItemId"> & { paymentKind: PaymentKind };
 type LinkedCardExpenseItems = Record<string, CashflowItem[]>;
 type LinkedCardPurchaseItems = Record<string, CashflowItem[]>;
-type CloudStatus = "connecting" | "saving" | "synced" | "error";
+type CloudStatus = SyncStatus;
 type HouseholdRole = "owner" | "admin" | "viewer";
 type HouseholdMember = { email: string; display_name: string | null; role: HouseholdRole; status: "active" | "invited" };
-type HouseholdResponse = { householdName: string; role: HouseholdRole; payload: unknown; revision: number; members: HouseholdMember[] };
 
 type PaymentRequest = { accountId: string; suggestedAmount: number };
 type PaymentDraft = { amount: number; date: string; note: string; paymentKind: PaymentKind };
@@ -237,7 +240,11 @@ const ALL_NAV_ITEMS = [...NAV_ITEMS, ...ADVANCED_NAV_ITEMS];
 
 export default function DashboardClient({ user }: { user: DashboardUser }) {
   const repository = useMemo(() => createBrowserDataRepository(hasMeaningfulData), []);
+  useDialogFocus();
   const cloudWritesEnabled = useRef(false);
+  const sync = useRef<HouseholdSync | null>(null);
+  const [canEditCloud, setCanEditCloud] = useState(false);
+  const [localError, setLocalError] = useState("");
   const dashboardContract = useRef<DashboardBackup | null>(null);
   const [page, setPage] = useState<PageId>("home");
   const [accounts, setAccounts] = useState<DebtAccount[]>([]);
@@ -278,15 +285,15 @@ export default function DashboardClient({ user }: { user: DashboardUser }) {
   const [navigationCollapsed, setNavigationCollapsed] = useState(false);
   const [transferMessage, setTransferMessage] = useState("");
   const deviceOnly = user.email === "Local device storage only";
-  const isViewer = !deviceOnly && householdRole === "viewer";
+  const isViewer = !deviceOnly && (!canEditCloud || householdRole === "viewer");
   const auditCreator = deviceOnly ? undefined : { email: user.email, displayName: user.displayName };
 
   const applyDashboardPayload = useCallback((contract: DashboardBackup) => {
     dashboardContract.current = contract;
     const { payload } = contract;
-    setAccounts(payload.accounts);
+    setAccounts(payload.accounts.map((a) => ({ ...a, baselineBalance: a.baselineBalance ?? payload.planning?.debts.find(d => d.id === a.id)?.balance ?? a.balance })));
     setMonthlyBudgets(payload.monthlyBudgets);
-    setMonthlyPlan(payload.monthlyPlan ?? { detailedSpendingTracking: false, months: {} });
+    setMonthlyPlan({ ...(payload.monthlyPlan ?? { detailedSpendingTracking: false, months: {} }), monthlyCommitment: initialCommitment(transactionAdjustedAccounts(payload.accounts, payload.transactions), payload.extra, payload.monthlyBudgets[currentMonthKey()] ?? [], payload.monthlyPlan) });
     setPayees(payload.payees);
     setTransactions(payload.transactions);
     setSnapshots(payload.snapshots);
@@ -306,67 +313,66 @@ export default function DashboardClient({ user }: { user: DashboardUser }) {
     let cancelled = false;
     const load = async () => {
       let localContract: DashboardBackup | null = null;
-      try {
-        const localLoad = await repository.loadHousehold();
-        localContract = localLoad.contract;
-        if (localLoad.recoveredFromBackup) setImportMessage("Recovered your most recent device backup.");
-      } catch { /* Keep going so unavailable device storage cannot block cloud data. */ }
+      try { localContract = (await repository.loadHousehold()).contract; }
+      catch { setLocalError("Device storage is unavailable. Export a backup before closing this page."); }
       if (deviceOnly) {
         if (localContract) applyDashboardPayload(localContract);
-        setHouseholdName("This device");
-        setCloudStatus("synced");
-        setLoaded(true);
-        return;
+        setCloudStatus("synced"); setLoaded(true); return;
       }
       try {
-        const response = await fetch("/api/household", { cache: "no-store" });
-        const data = await response.json() as HouseholdResponse & { error?: string };
-        if (!response.ok) throw new Error(data.error ?? "Cloud storage is unavailable");
+        const tabKey = "debtfree-outbox-tab";
+        let tabId = sessionStorage.getItem(tabKey);
+        if (!tabId) { tabId = crypto.randomUUID(); sessionStorage.setItem(tabKey, tabId); }
+        const controller = new HouseholdSync({ storage: localStorage, key: "debtfree-outbox:" + user.email + ":" + tabId, status: setCloudStatus });
+        sync.current = controller;
+        const { remote, contract } = await controller.load();
         if (cancelled) return;
-        setHouseholdName(data.householdName);
-        setHouseholdRole(data.role);
-        setHouseholdMembers(data.members);
-        const canWrite = data.role !== "viewer";
-        const cloudContract = data.payload ? parseDashboardContract(data.payload, "Household dashboard") : null;
-        const localHasData = localContract ? hasMeaningfulData(localContract.payload) : false;
-        const cloudHasData = cloudContract ? hasMeaningfulData(cloudContract.payload) : false;
-        if (cloudHasData && cloudContract) {
-          cloudWritesEnabled.current = canWrite;
-          applyDashboardPayload(cloudContract);
-        } else if (localHasData && localContract && canWrite) {
-          cloudWritesEnabled.current = true;
-          applyDashboardPayload(localContract);
-          const upload = await fetch("/api/household", { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify({ payload: localContract }) });
-          if (!upload.ok) throw new Error("Your existing device data could not be copied to the household yet");
-        } else if (cloudContract) {
-          applyDashboardPayload(cloudContract);
+        setHouseholdName(remote.householdName); setHouseholdRole(remote.role); setHouseholdMembers(remote.members);
+        setCanEditCloud(remote.role !== "viewer");
+        if (contract) applyDashboardPayload(contract);
+        else if (remote.payload === null && remote.revision === 0 && remote.role === "owner" && localContract && hasMeaningfulData(localContract.payload)) {
+          applyDashboardPayload(localContract); controller.stage(localContract);
         }
-        setCloudStatus("synced");
+        cloudWritesEnabled.current = true;
+        void controller.flush();
       } catch {
-        if (!cancelled) setCloudStatus("error");
-      } finally {
-        if (!cancelled) setLoaded(true);
-      }
+        if (!cancelled) {
+          if (sync.current?.pending) applyDashboardPayload(sync.current.pending.contract);
+          setCloudStatus("error"); setCanEditCloud(false);
+        }
+      } finally { if (!cancelled) setLoaded(true); }
     };
     void load();
-    return () => { cancelled = true; };
-  }, [applyDashboardPayload, deviceOnly, repository]);
+    return () => { cancelled = true; sync.current?.dispose(); };
+  }, [applyDashboardPayload, deviceOnly, repository, user.email]);
+
+  const refreshHousehold = useCallback(async () => {
+    if (!sync.current) { window.location.reload(); return; }
+    try {
+      const { remote, contract } = await sync.current.load();
+      setHouseholdRole(remote.role); setHouseholdMembers(remote.members); setCanEditCloud(remote.role !== "viewer");
+      if (contract) applyDashboardPayload(contract);
+      await sync.current.flush();
+    } catch { setCloudStatus("error"); }
+  }, [applyDashboardPayload]);
+  useEffect(() => {
+    if (deviceOnly) return;
+    const refresh = () => { if (!sync.current?.pending && document.visibilityState === "visible") void refreshHousehold(); };
+    const online = () => { void refreshHousehold(); };
+    window.addEventListener("online", online);
+    window.addEventListener("focus", refresh);
+    const timer = window.setInterval(refresh, 30000);
+    return () => { clearInterval(timer); window.removeEventListener("online", online); window.removeEventListener("focus", refresh); };
+  }, [deviceOnly, refreshHousehold]);
+
   useEffect(() => {
     if (!loaded || isViewer) return;
     const payload = createDashboardPayload(dashboardContract.current?.payload, { accounts, monthlyBudgets, payees, transactions, snapshots, extra, strategy, planning, balanceAdjustments, monthlyPlan, customDebtOrder });
-    if (hasMeaningfulData(payload)) cloudWritesEnabled.current = true;
-    if (!cloudWritesEnabled.current) return;
+    if (!hasMeaningfulData(payload) && !cloudWritesEnabled.current) return;
     const contract = createDashboardBackup(payload, dashboardContract.current);
     dashboardContract.current = contract;
-    void repository.saveHousehold(contract).catch(() => setCloudStatus("error"));
-    if (deviceOnly) return;
-    const syncTimer = window.setTimeout(() => {
-      setCloudStatus("saving");
-      void fetch("/api/household", { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify({ payload: contract }) })
-        .then((response) => { if (!response.ok) throw new Error("Sync failed"); setCloudStatus("synced"); })
-        .catch(() => setCloudStatus("error"));
-    }, 650);
-    return () => window.clearTimeout(syncTimer);
+    if (!deviceOnly) void Promise.resolve().then(() => sync.current?.stage(contract)).catch(() => setLocalError("Pending changes could not be saved on this device. Export a backup now."));
+    void repository.saveHousehold(contract).catch(() => setLocalError("Device backup could not be saved. Export a backup before closing this page."));
   }, [accounts, balanceAdjustments, customDebtOrder, deviceOnly, extra, isViewer, loaded, monthlyBudgets, monthlyPlan, payees, planning, repository, snapshots, strategy, transactions]);
   useEffect(() => {
     if (!modalOpen && !cashflowModalOpen && !transactionModalOpen && !payeeModalOpen && !paymentRequest && !balanceAccountId && !auditTransactionId) return;
@@ -405,26 +411,47 @@ export default function DashboardClient({ user }: { user: DashboardUser }) {
     return items;
   }, {}), [planningCashflowItems]);
   const linkedCardPurchases = useMemo(() => Object.fromEntries(Object.entries(linkedCardPurchaseItems).map(([accountId, items]) => [accountId, round(items.reduce((sum, item) => sum + item.amount, 0))])), [linkedCardPurchaseItems]);
-  const actualizedIds = useMemo(() => actualizedPlannedIds(transactions, currentMonthKey(), detailedSpendingTracking), [detailedSpendingTracking, transactions]);
   const actualizedLinkedCardSpending = useMemo(() => planningCashflowItems.reduce<LinkedCardExpenses>((totals, item) => {
-    if (item.paymentMethod === "credit" && item.creditAccountId && actualizedIds.has(item.id)) totals[item.creditAccountId] = round((totals[item.creditAccountId] ?? 0) + item.amount);
+    if (item.paymentMethod === "credit" && item.creditAccountId) totals[item.creditAccountId] = round((totals[item.creditAccountId] ?? 0) + Math.min(item.amount, spentForPlannedItem(item.id, transactions, currentMonthKey(), true)));
     return totals;
-  }, {}), [actualizedIds, planningCashflowItems]);
+  }, {}), [planningCashflowItems, transactions]);
+  const commitment = monthlyPlan.monthlyCommitment ?? initialCommitment(calculatedAccounts, extra, planningCashflowItems);
+  const effectiveExtra = Math.max(0, round(commitment - minimums - Object.values(linkedCardExpenses).reduce((sum, n) => sum + n, 0)));
+  const currentPaymentContext = useMemo(() => ({ ...paymentContext(transactions, currentMonthKey(), commitment), minimumTargets: monthlyPlan.months[currentMonthKey()]?.minimums }), [transactions, commitment, monthlyPlan.months]);
+  const updateExtra = (value: number) => {
+    setExtra(value);
+    setMonthlyPlan((current) => ({ ...current, monthlyCommitment: round(minimums + Object.values(linkedCardExpenses).reduce((sum, n) => sum + n, 0) + value) }));
+  };
   const availableExtra = useMemo(() => Math.max(0, round(monthlySurplus - minimums)), [minimums, monthlySurplus]);
-  const plan = useMemo(() => calculatePlan(payoffAccounts, extra, strategy, linkedCardExpenses, linkedCardPurchases, new Date(), actualizedLinkedCardSpending), [actualizedLinkedCardSpending, extra, linkedCardExpenses, linkedCardPurchases, payoffAccounts, strategy]);
+  const plan = useMemo(() => calculatePlan(payoffAccounts, effectiveExtra, strategy, linkedCardExpenses, linkedCardPurchases, new Date(), actualizedLinkedCardSpending, currentPaymentContext), [actualizedLinkedCardSpending, currentPaymentContext, effectiveExtra, linkedCardExpenses, linkedCardPurchases, payoffAccounts, strategy]);
   const minimumOnlyPlan = useMemo(() => calculatePlan(payoffAccounts, 0, strategy, linkedCardExpenses, linkedCardPurchases, new Date(), actualizedLinkedCardSpending), [actualizedLinkedCardSpending, linkedCardExpenses, linkedCardPurchases, payoffAccounts, strategy]);
   const homeDashboard = useMemo(() => buildHomeDashboard({
     accounts: payoffAccounts,
     openingAccounts: accounts,
     plan,
-    extra,
+    extra: effectiveExtra,
     strategy,
     planning,
     snapshots,
     transactions,
-  }), [accounts, extra, payoffAccounts, plan, planning, snapshots, strategy, transactions]);
+  }), [accounts, effectiveExtra, payoffAccounts, plan, planning, snapshots, strategy, transactions]);
+  const monthlyTargets = useMemo(() => {
+    const first = plan.months[0];
+    const payments = { ...first?.payments };
+    const minimums = { ...first?.minimums };
+    for (const [id, paid] of Object.entries(currentPaymentContext.paid ?? {})) payments[id] = round((payments[id] ?? 0) + paid);
+    for (const [id, paid] of Object.entries(currentPaymentContext.minimumPaid ?? {})) minimums[id] = currentPaymentContext.minimumTargets?.[id] ?? Math.min((accounts.find(a => a.id === id) ? effectiveMinimum(accounts.find(a => a.id === id)!) : 0), round((minimums[id] ?? 0) + paid));
+    return { payments, minimums };
+  }, [plan, currentPaymentContext, accounts]);
+  useEffect(() => {
+    if (!loaded || isViewer || !accounts.length) return;
+    const month = currentMonthKey();
+    if (monthlyPlan.months[month]?.payments) return;
+    const timer = window.setTimeout(() => setMonthlyPlan((current) => ({ ...current, months: { ...current.months, [month]: { ...(current.months[month] ?? { safetyBuffer: 0, debtPaymentTarget: commitment }), ...monthlyTargets } } })), 0);
+    return () => clearTimeout(timer);
+  }, [accounts.length, commitment, isViewer, loaded, monthlyPlan.months, monthlyTargets]);
   const paidOffById = useMemo(() => new Map(calculatedAccounts.map((account) => {
-    const month = plan.months.find((entry) => entry.paidOff.includes(account.name))?.month;
+    const month = plan.months.find((entry) => (entry.balances[account.id] ?? Infinity) <= .005)?.month;
     return [account.id, month ?? individualPayoffMonths(account)];
   })), [calculatedAccounts, plan.months]);
   const priorityById = useMemo(() => new Map(payoffPriority(payoffAccounts, strategy, plan.months[0]?.aprs).map((account, index) => [account.id, index + 1])), [payoffAccounts, plan.months, strategy]);
@@ -529,7 +556,7 @@ export default function DashboardClient({ user }: { user: DashboardUser }) {
       postPromoMinimum: draft.postPromoMinimum,
     }));
     else {
-      const account = { ...draft, id: crypto.randomUUID(), name: draft.name.trim(), createdAt: new Date().toISOString() };
+      const account = { ...draft, baselineBalance: draft.balance, id: crypto.randomUUID(), name: draft.name.trim(), createdAt: new Date().toISOString() };
       setAccounts((current) => [...current, account]);
       setCustomDebtOrder((current) => [...current.filter((id) => id !== account.id), account.id]);
     }
@@ -654,6 +681,7 @@ export default function DashboardClient({ user }: { user: DashboardUser }) {
       const currentPayload = createDashboardPayload(dashboardContract.current?.payload, { accounts, monthlyBudgets, payees, transactions, snapshots, extra, strategy, planning, balanceAdjustments, monthlyPlan, customDebtOrder });
       const currentContract = createDashboardBackup(currentPayload, dashboardContract.current);
       const contract = resolveDashboardImport(currentContract, incoming, mode);
+      await repository.checkpoint(currentContract);
       await repository.saveHousehold(contract);
       cloudWritesEnabled.current = true;
       applyDashboardPayload(contract);
@@ -858,6 +886,9 @@ export default function DashboardClient({ user }: { user: DashboardUser }) {
     cloudWritesEnabled.current = true;
     setAccounts(result.accounts);
     setPlanning(result.planning);
+    const seeded = seedMonthlyPlan(result, currentMonthKey(), monthlyBudgets, monthlyPlan);
+    setMonthlyBudgets(seeded.monthlyBudgets);
+    setMonthlyPlan(seeded.monthlyPlan);
     setExtra(result.extra);
     setStrategy(result.strategy);
     setCustomDebtOrder(normalizeCustomDebtOrder(result.accounts));
@@ -891,17 +922,19 @@ export default function DashboardClient({ user }: { user: DashboardUser }) {
         </div>
       </header>
       <div className="page-body">
+        {localError && <section role="alert" className="viewer-notice">{localError}<button onClick={() => void exportDashboardBackup()}>Export backup</button></section>}
+        {!deviceOnly && (cloudStatus === "error" || cloudStatus === "conflict") && <section role="alert" className="viewer-notice"><strong>{cloudStatus === "conflict" ? "Another session changed this household. Your changes are retained." : "Cloud access or saving is unavailable. Pending changes are retained."}</strong><button onClick={() => void refreshHousehold()}>Retry connection</button><button onClick={() => void exportDashboardBackup()}>Export my changes</button>{cloudStatus === "conflict" && <button onClick={() => { void (async () => { if (!confirm("Load the latest household data? Your current changes will be kept as a recovery checkpoint.")) return; try { if (dashboardContract.current) await repository.checkpoint(dashboardContract.current); const loaded = await sync.current?.useCloud(); if (loaded?.contract) applyDashboardPayload(loaded.contract); } catch { setLocalError("Could not load the household. Export your changes before continuing."); } })(); }}>Load latest household</button>}</section>}
         {isViewer && <section className="viewer-notice" role="status"><strong>Viewer access</strong><span>You can review this household dashboard, but only the owner and admins can make changes.</span></section>}
         <fieldset className="viewer-readonly-surface" disabled={isViewer}>
-        {page === "home" && <HomeDashboardPage model={homeDashboard} onRecordPayment={openRecommendedPayment} onExtra={setExtra} onAction={openHomeAction} onViewPayments={() => setPage(detailedSpendingTracking ? "history" : "monthly")} onViewPlan={() => setPage("plan")} onViewDebts={() => setPage("accounts")} onViewProgress={() => setPage("snapshots")} onViewMonthlyPlan={() => setPage("monthly")}/>}
-        {page === "monthly" && <MonthlyPlanPage month={selectedMonth} hasMonth={Object.prototype.hasOwnProperty.call(monthlyBudgets, selectedMonth)} previousHasItems={(monthlyBudgets[shiftMonth(selectedMonth, -1)] ?? []).some((item) => item.recurring ?? item.kind !== "purchase")} items={cashflowItems} accounts={calculatedAccounts} transactions={transactions} settings={selectedPlanSettings} trackingEnabled={detailedSpendingTracking} plannedPayments={plan.months[0]?.payments ?? {}} onMonth={setSelectedMonth} onCopyPrevious={copyPreviousBudget} onStartBlank={startBlankBudget} onAdd={openNewCashflow} onEdit={openEditCashflow} onSettings={updateSelectedPlanSettings} onTracking={setDetailedSpendingTracking} onViewTransactions={() => setPage("history")}/>}
+        {page === "home" && <HomeDashboardPage model={homeDashboard} onRecordPayment={openRecommendedPayment} onExtra={updateExtra} onAction={openHomeAction} onViewPayments={() => setPage(detailedSpendingTracking ? "history" : "monthly")} onViewPlan={() => setPage("plan")} onViewDebts={() => setPage("accounts")} onViewProgress={() => setPage("snapshots")} onViewMonthlyPlan={() => setPage("monthly")}/>}
+        {page === "monthly" && <MonthlyPlanPage month={selectedMonth} hasMonth={Object.prototype.hasOwnProperty.call(monthlyBudgets, selectedMonth)} previousHasItems={(monthlyBudgets[shiftMonth(selectedMonth, -1)] ?? []).some((item) => item.recurring ?? item.kind !== "purchase")} items={cashflowItems} accounts={calculatedAccounts} transactions={transactions} settings={selectedPlanSettings} trackingEnabled={detailedSpendingTracking} plannedMinimums={selectedPlanSettings.minimums ?? (selectedMonth === currentMonthKey() ? monthlyTargets.minimums : {})} plannedPayments={selectedMonth === currentMonthKey() ? monthlyTargets.payments : selectedPlanSettings.payments ?? {}} onMonth={setSelectedMonth} onCopyPrevious={copyPreviousBudget} onStartBlank={startBlankBudget} onAdd={openNewCashflow} onEdit={openEditCashflow} onSettings={updateSelectedPlanSettings} onTracking={setDetailedSpendingTracking} onViewTransactions={() => setPage("history")}/>}
         {page === "accounts" && <AccountsPage accounts={sortedAccounts} transactions={transactions} balanceAdjustments={balanceAdjustments} actionMessage={debtActionMessage} activeCount={activeCount} totalBalance={totalBalance} minimums={minimums} interest={interest} linkedCardExpenses={linkedCardExpenses} sortKey={sortKey} sortDirection={sortDirection} paidOffById={paidOffById} priorityById={priorityById} strategy={strategy} onSort={changeSort} onAdd={openNew} onEdit={openEdit} onUpdateBalance={openBalanceEdit} onRecordPayment={(account) => openRecommendedPayment(account.id, plan.months[0]?.payments[account.id] ?? effectiveMinimum(account))} onMarkPaidOff={markAccountPaidOff} onArchive={archiveAccount} onRestore={restoreAccount} onToggleMinimum={toggleMinimumMode} onTogglePayoff={togglePayoffMode} onSample={() => { setAccounts(SAMPLE_ACCOUNTS); setCustomDebtOrder(normalizeCustomDebtOrder(SAMPLE_ACCOUNTS)); }} onImport={importDebtFreeCsv} importMessage={importMessage}/>}
         {page === "history" && detailedSpendingTracking && <TransactionsPage accounts={calculatedAccounts} payees={payees} transactions={transactions} onQuickAdd={openNewTransaction} onEdit={openEditTransaction} onAudit={setAuditTransactionId} onDelete={softDeleteTransaction} onRestore={restoreTransaction} onBatchAdd={addBatchTransactions} onManagePayees={() => setPayeeModalOpen(true)}/>}
-        {page === "plan" && <PayoffPlanPage accounts={payoffAccounts} plan={plan} extra={extra} availableExtra={availableExtra} strategy={strategy} customDebtOrder={customDebtOrder} linkedCardExpenseItems={linkedCardExpenseItems} linkedCardPurchaseItems={linkedCardPurchaseItems} actualizedLinkedCardExpenses={actualizedLinkedCardSpending} monthlyItems={planningCashflowItems} transactions={transactions} snapshots={snapshots} onExtra={setExtra} onStrategy={setStrategy} onCustomOrder={(orderedIds) => setCustomDebtOrder((current) => mergeVisibleCustomDebtOrder(accounts, current, orderedIds))} onAccounts={() => setPage("accounts")}/>}
+        {page === "plan" && <PayoffPlanPage accounts={payoffAccounts} plan={plan} extra={effectiveExtra} availableExtra={availableExtra} strategy={strategy} customDebtOrder={customDebtOrder} linkedCardExpenseItems={linkedCardExpenseItems} linkedCardPurchaseItems={linkedCardPurchaseItems} actualizedLinkedCardExpenses={actualizedLinkedCardSpending} paymentContext={currentPaymentContext} monthlyItems={planningCashflowItems} transactions={transactions} snapshots={snapshots} onExtra={updateExtra} onStrategy={setStrategy} onCustomOrder={(orderedIds) => setCustomDebtOrder((current) => mergeVisibleCustomDebtOrder(accounts, current, orderedIds))} onAccounts={() => setPage("accounts")}/>}
         {page === "snapshots" && <SnapshotsPage openingAccounts={accounts} transactions={transactions} snapshots={snapshots} currentInterest={interest} plan={plan} minimumOnlyPlan={minimumOnlyPlan} strategy={strategy} detailedSpendingTracking={detailedSpendingTracking} onCapture={captureSnapshot} onUpdateNote={updateSnapshotNote} onDelete={removeSnapshot} onAddDebt={() => setPage("accounts")} onDetailedProjections={() => setPage("stats")}/>}
-        {page === "profile" && <ProfilePage user={user} householdName={householdName} role={householdRole} members={householdMembers} cloudStatus={cloudStatus} deviceOnly={deviceOnly} transferMessage={transferMessage} onExportBackup={exportDashboardBackup} onImportBackup={importDashboardBackup} onReset={resetDashboardData} onInvite={inviteMember} onRemove={removeAdmin}/>}
+        {page === "profile" && <ProfilePage user={user} householdName={householdName} role={householdRole} members={householdMembers} cloudStatus={cloudStatus} deviceOnly={deviceOnly} transferMessage={transferMessage} onExportBackup={exportDashboardBackup} onImportBackup={importDashboardBackup} onReset={resetDashboardData} onRecover={async () => { try { const checkpoint = await repository.loadCheckpoint(); if (!checkpoint) { setTransferMessage("No recovery checkpoint is available."); return; } if (!confirm("Restore the saved recovery checkpoint? Current data will be saved as the automatic backup.")) return; await repository.saveHousehold(checkpoint); applyDashboardPayload(checkpoint); } catch (error) { setTransferMessage(dashboardDataErrorMessage(error)); } }} onInvite={inviteMember} onRemove={removeAdmin}/>}
         {page === "utilization" && <UtilizationPage accounts={calculatedAccounts} onEditAccount={openEdit}/>}
-        {page === "stats" && <StatsPage accounts={calculatedAccounts} snapshots={snapshots} transactions={transactions} extra={extra} strategy={strategy} linkedCardExpenses={linkedCardExpenses} linkedCardPurchases={linkedCardPurchases}/>}
+        {page === "stats" && <StatsPage accounts={calculatedAccounts} snapshots={snapshots} transactions={transactions} extra={effectiveExtra} strategy={strategy} linkedCardExpenses={linkedCardExpenses} linkedCardPurchases={linkedCardPurchases}/>}
         </fieldset>
       </div>
     </main>
@@ -1207,7 +1240,7 @@ function AccountsPage({
     </details>}
   </div>;
 }
-function PayoffPlanPage({ accounts, plan, extra, availableExtra, strategy, customDebtOrder, linkedCardExpenseItems, linkedCardPurchaseItems, actualizedLinkedCardExpenses, monthlyItems, transactions, snapshots, onExtra, onStrategy, onCustomOrder, onAccounts }: { accounts: DebtAccount[]; plan: PayoffPlan; extra: number; availableExtra: number; strategy: PayoffStrategy; customDebtOrder: string[]; linkedCardExpenseItems: LinkedCardExpenseItems; linkedCardPurchaseItems: LinkedCardPurchaseItems; actualizedLinkedCardExpenses: LinkedCardExpenses; monthlyItems: CashflowItem[]; transactions: LedgerTransaction[]; snapshots: PayoffSnapshot[]; onExtra: (value: number) => void; onStrategy: (strategy: PayoffStrategy) => void; onCustomOrder: (orderedIds: string[]) => void; onAccounts: () => void }) {
+function PayoffPlanPage({ paymentContext: context, accounts, plan, extra, availableExtra, strategy, customDebtOrder, linkedCardExpenseItems, linkedCardPurchaseItems, actualizedLinkedCardExpenses, monthlyItems, transactions, snapshots, onExtra, onStrategy, onCustomOrder, onAccounts }: { paymentContext: PlanContext; accounts: DebtAccount[]; plan: PayoffPlan; extra: number; availableExtra: number; strategy: PayoffStrategy; customDebtOrder: string[]; linkedCardExpenseItems: LinkedCardExpenseItems; linkedCardPurchaseItems: LinkedCardPurchaseItems; actualizedLinkedCardExpenses: LinkedCardExpenses; monthlyItems: CashflowItem[]; transactions: LedgerTransaction[]; snapshots: PayoffSnapshot[]; onExtra: (value: number) => void; onStrategy: (strategy: PayoffStrategy) => void; onCustomOrder: (orderedIds: string[]) => void; onAccounts: () => void }) {
   const [exporting, setExporting] = useState<"csv" | "excel" | "pdf" | null>(null);
   const [exportError, setExportError] = useState("");
   const [draggedCustomId, setDraggedCustomId] = useState<string | null>(null);
@@ -1227,8 +1260,8 @@ function PayoffPlanPage({ accounts, plan, extra, availableExtra, strategy, custo
   const nonAmortizingNames = accounts.filter((account) => plan.nonAmortizingAccountIds.includes(account.id)).map((account) => account.name);
   const linkedExpenseTotals = useMemo(() => Object.fromEntries(Object.entries(linkedCardExpenseItems).map(([id, items]) => [id, round(items.reduce((sum, item) => sum + item.amount, 0))])), [linkedCardExpenseItems]);
   const linkedPurchaseTotals = useMemo(() => Object.fromEntries(Object.entries(linkedCardPurchaseItems).map(([id, items]) => [id, round(items.reduce((sum, item) => sum + item.amount, 0))])), [linkedCardPurchaseItems]);
-  const whatIf = useMemo(() => buildPaymentWhatIf(accounts, extra, scenarioIncrease, strategy, customDebtOrder, linkedExpenseTotals, linkedPurchaseTotals, calculationDate, actualizedLinkedCardExpenses), [accounts, actualizedLinkedCardExpenses, calculationDate, customDebtOrder, extra, linkedExpenseTotals, linkedPurchaseTotals, scenarioIncrease, strategy]);
-  const comparisonModel = useMemo(() => buildStrategyComparison(accounts, extra, customDebtOrder, linkedExpenseTotals, linkedPurchaseTotals, calculationDate, actualizedLinkedCardExpenses), [accounts, actualizedLinkedCardExpenses, calculationDate, customDebtOrder, extra, linkedExpenseTotals, linkedPurchaseTotals]);
+  const whatIf = useMemo(() => buildPaymentWhatIf(accounts, extra, scenarioIncrease, strategy, customDebtOrder, linkedExpenseTotals, linkedPurchaseTotals, calculationDate, actualizedLinkedCardExpenses, context), [accounts, actualizedLinkedCardExpenses, calculationDate, context, customDebtOrder, extra, linkedExpenseTotals, linkedPurchaseTotals, scenarioIncrease, strategy]);
+  const comparisonModel = useMemo(() => buildStrategyComparison(accounts, extra, customDebtOrder, linkedExpenseTotals, linkedPurchaseTotals, calculationDate, actualizedLinkedCardExpenses, context), [accounts, actualizedLinkedCardExpenses, calculationDate, context, customDebtOrder, extra, linkedExpenseTotals, linkedPurchaseTotals]);
   const { comparisons: comparison, recommendedStrategy, alternativeStrategy, projectedSavings } = comparisonModel;
   const customAccounts = visibleCustomDebtOrder(accounts, customDebtOrder);
   const scheduleRows = useMemo(() => buildPayoffScheduleRows(accounts, plan, linkedExpenseTotals, linkedPurchaseTotals, actualizedLinkedCardExpenses), [accounts, actualizedLinkedCardExpenses, linkedExpenseTotals, linkedPurchaseTotals, plan]);
@@ -1424,7 +1457,7 @@ function PayoffPlanPage({ accounts, plan, extra, availableExtra, strategy, custo
             <div><dt>Minimum-payment assumptions</dt><dd>Manual minimums use the amounts entered. Automatic minimums use the larger of $25 or 1% of balance plus monthly interest, capped at the balance.</dd></div>
             <div><dt>Interest calculation method</dt><dd>Interest is projected monthly from each opening balance using the effective forecast APR, including actual interest-fee calibration when entered, and rounded to cents in the schedule.</dd></div>
             <div><dt>Payment rollover</dt><dd>After minimums, extra money follows the selected target order. Payments freed by a payoff roll to the next eligible debt; minimum-only debts never receive extra.</dd></div>
-            <div><dt>Promotional-rate assumptions</dt><dd>Saved promotional APRs apply through their ending month, then the saved post-promotion APR and minimum take effect. Avalanche re-ranks using that month&apos;s effective forecast APR.</dd></div>
+            <div><dt>Promotional-rate assumptions</dt><dd>Promotional APRs apply through the saved expiration date. Each projected month uses today&apos;s day of the month (clamped to month end) to select the rate and minimum. Interest is estimated monthly, without daily proration. Avalanche re-ranks using that month&apos;s effective forecast APR.</dd></div>
             <div><dt>Planned new-purchase assumptions</dt><dd>{currentMonthPurchaseTotal > 0 ? `${moneyPrecise.format(currentMonthPurchaseTotal)} of planned one-time card purchases is added only in the first forecast month.` : "No planned one-time card purchases are added."} Recurring linked card expenses continue monthly, excluding current-month items already recorded.</dd></div>
             <div><dt>Calculation date</dt><dd>{calculatedOn}</dd></div>
             <div><dt>Missing-data warnings</dt><dd>{calculationWarnings.length ? <ul>{calculationWarnings.map((warning) => <li key={warning}>{warning}</li>)}</ul> : "No missing calculation data detected."}</dd></div>
@@ -1435,7 +1468,7 @@ function PayoffPlanPage({ accounts, plan, extra, availableExtra, strategy, custo
     </> : <section className="large-empty"><span>{"\u2713"}</span><h2>{plan.stalled ? (nonAmortizingNames.length ? "A balance is not amortizing" : "The current payments do not outpace interest") : "Add debt accounts to build your plan"}</h2><p>{plan.stalled ? (nonAmortizingNames.length ? `${nonAmortizingNames.join(", ")} does not shrink after interest and new charges at the modeled payment. Enter the issuer's actual minimum or add extra payment.` : "Increase a minimum payment or add an extra monthly amount to create a finish line.") : "Once your accounts have balances, APRs, and minimums, the complete payoff schedule will appear here."}</p><button className="primary" type="button" onClick={onAccounts}>Review debt accounts</button></section>}
   </div>;
 }
-function ProfilePage({ user, householdName, role, members, cloudStatus, deviceOnly, transferMessage, onExportBackup, onImportBackup, onReset, onInvite, onRemove }: { user: DashboardUser; householdName: string; role: HouseholdRole; members: HouseholdMember[]; cloudStatus: CloudStatus; deviceOnly: boolean; transferMessage: string; onExportBackup: () => Promise<void>; onImportBackup: (file: File, mode: ImportMode) => Promise<void>; onReset: () => Promise<void>; onInvite: (email: string, role: Exclude<HouseholdRole, "owner">) => Promise<void>; onRemove: (email: string) => Promise<void> }) {
+function ProfilePage({ user, householdName, role, members, cloudStatus, deviceOnly, transferMessage, onExportBackup, onImportBackup, onReset, onRecover, onInvite, onRemove }: { user: DashboardUser; householdName: string; role: HouseholdRole; members: HouseholdMember[]; cloudStatus: CloudStatus; deviceOnly: boolean; transferMessage: string; onExportBackup: () => Promise<void>; onImportBackup: (file: File, mode: ImportMode) => Promise<void>; onReset: () => Promise<void>; onRecover: () => Promise<void>; onInvite: (email: string, role: Exclude<HouseholdRole, "owner">) => Promise<void>; onRemove: (email: string) => Promise<void> }) {
   const [email, setEmail] = useState("");
   const [accessRole, setAccessRole] = useState<Exclude<HouseholdRole, "owner">>("admin");
   const [message, setMessage] = useState("");
@@ -1484,7 +1517,7 @@ function ProfilePage({ user, householdName, role, members, cloudStatus, deviceOn
         </div>
         <div className="account-cloud-state">
           <i className={cloudStatus}/>
-          <span>{deviceOnly ? "Saved in this browser on this device" : role === "viewer" ? "Read-only household access" : cloudStatus === "synced" ? "Household cloud sync is active" : cloudStatus === "error" ? "Cloud unavailable; device backup is safe" : "Syncing household changes"}</span>
+          <span>{deviceOnly ? "Saved in this browser on this device" : role === "viewer" ? "Read-only household access" : cloudStatus === "synced" ? "Household cloud sync is active" : cloudStatus === "error" || cloudStatus === "conflict" ? "Cloud changes need attention" : "Syncing household changes"}</span>
         </div>
         {!deviceOnly && <a className="secondary account-link" href="/cdn-cgi/access/logout">Sign out</a>}
         {deviceOnly && message && <p className="share-message">{message}</p>}
@@ -1495,7 +1528,7 @@ function ProfilePage({ user, householdName, role, members, cloudStatus, deviceOn
         {message && <p className="share-message">{message}</p>}
         <div className="member-list">{members.map((member) => <div className="member-row" key={member.email}><div><strong>{member.display_name || member.email}</strong><small>{member.display_name ? member.email : member.status === "invited" ? "Waiting for first sign-in" : "Household member"}</small></div><span className={member.status}>{member.role}</span>{role === "owner" && member.role !== "owner" ? <button type="button" disabled={working} onClick={() => remove(member.email)}>Remove</button> : <i/>}</div>)}</div>
       </article>}
-      <DataSafetyPanel deviceOnly={deviceOnly} isViewer={role === "viewer"} transferMessage={transferMessage} onExport={onExportBackup} onImport={onImportBackup} onReset={onReset}/>
+      <DataSafetyPanel deviceOnly={deviceOnly} isViewer={role === "viewer"} transferMessage={transferMessage} onExport={onExportBackup} onImport={onImportBackup} onReset={onReset} onRecover={onRecover}/>
     </section>
   </div>;
 }
