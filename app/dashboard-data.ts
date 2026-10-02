@@ -115,6 +115,7 @@ export type BalanceAdjustment = OwnershipMetadata & {
   createdAt: string;
   note?: string;
   creator?: DebtAuditCreator;
+  confirmedPayment?: { confirmedAt: string; creator?: DebtAuditCreator };
   [key: string]: unknown;
 };
 
@@ -672,6 +673,14 @@ function validateBalanceAdjustment(value: unknown, path: string, issues: string[
   requiredString(item.createdAt, path + ".createdAt", issues);
   if (hasOwn(item, "note")) requiredString(item.note, path + ".note", issues, true);
   if (hasOwn(item, "creator")) validateCreator(item.creator, path + ".creator", issues);
+  if (hasOwn(item, "confirmedPayment")) {
+    const confirmation = requiredRecord(item.confirmedPayment, path + ".confirmedPayment", issues);
+    if (confirmation) {
+      requiredString(confirmation.confirmedAt, path + ".confirmedPayment.confirmedAt", issues);
+      if (hasOwn(confirmation, "creator")) validateCreator(confirmation.creator, path + ".confirmedPayment.creator", issues);
+      if (!(typeof item.difference === "number" && item.difference < 0)) issues.push(path + ".confirmedPayment requires a balance decrease.");
+    }
+  }
 }
 function validateSnapshotAccount(value: unknown, path: string, issues: string[]) {
   const item = requiredRecord(value, path, issues);

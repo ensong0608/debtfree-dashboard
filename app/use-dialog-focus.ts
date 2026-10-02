@@ -4,6 +4,10 @@ import { useEffect } from "react";
 /** Keep keyboard focus in the topmost custom dialog and restore its trigger. */
 export function useDialogFocus() {
   useEffect(() => {
+    const viewport = window.visualViewport;
+    const resize = () => document.documentElement.style.setProperty("--dialog-viewport-height", `${viewport?.height ?? window.innerHeight}px`);
+    resize();
+    viewport?.addEventListener("resize", resize);
     let current: HTMLElement | null = null;
     let returnTo: HTMLElement | null = null;
     let lastOutside = document.activeElement instanceof HTMLElement ? document.activeElement : null;
@@ -34,6 +38,6 @@ export function useDialogFocus() {
     observer.observe(document.body, { childList: true, subtree: true });
     document.addEventListener("keydown", keydown);
     document.addEventListener("focusin", focusin);
-    return () => { observer.disconnect(); document.removeEventListener("keydown", keydown); document.removeEventListener("focusin", focusin); };
+    return () => { observer.disconnect(); document.removeEventListener("keydown", keydown); document.removeEventListener("focusin", focusin); viewport?.removeEventListener("resize", resize); document.documentElement.style.removeProperty("--dialog-viewport-height"); };
   }, []);
 }

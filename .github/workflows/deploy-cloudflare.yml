@@ -1,7 +1,7 @@
 name: Deploy Cloudflare dashboard
 on:
   push:
-    branches: [codex/supabase-google-login]
+    branches: [codex/supabase-google-login, codex/mobile-payments-budget]
     paths: [.github/workflows/deploy-cloudflare.yml]
   workflow_dispatch:
 permissions:
@@ -42,7 +42,8 @@ jobs:
           if (!workers.some(w => w.id === 'debtfree-dashboard')) throw new Error('Production Worker is missing');
           const db = await api('/d1/database/3f2dd9d5-77de-4945-8e13-f6c1af454de1');
           if (db.name !== 'debtfree-dashboard-prod') throw new Error('Production D1 mismatch');
-          await api('/workers/scripts/debtfree-dashboard/deployments');
+          const deploymentState = await api('/workers/scripts/debtfree-dashboard/deployments');
+          console.log('Current production deployment IDs: ' + deploymentState.deployments.map(d => d.id).join(', '));
           console.log('Confirmed existing production Worker and D1. No database migration is needed.');
           NODE
       - name: Configure production authentication

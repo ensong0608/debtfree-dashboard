@@ -1166,3 +1166,76 @@ textarea:focus-visible{outline:3px solid rgba(22,119,255,.22);outline-offset:2px
 @media(max-width:700px){.import-preview dl{grid-template-columns:repeat(2,minmax(0,1fr))}.import-preview fieldset{grid-template-columns:1fr}.import-preview-actions,.reset-confirmation>div,.reset-data-row{align-items:stretch;flex-direction:column}.import-preview-actions button,.reset-confirmation button,.reset-data-row button{width:100%}}
 
 .planned-entry-row{border-bottom:1px solid var(--line)}.planned-entry-row>button:first-child{width:100%}.paid-entry-action{margin:0 15px 12px;font-size:12px}
+
+/* Balance-first household navigation and Payments. Existing Budget details stay intact. */
+.simple-total{margin:0 0 20px;padding:16px 0}
+.simple-total>span{display:block;color:var(--muted);font-size:14px}
+.simple-total>strong{display:block;margin-top:5px;font-size:32px;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
+.simple-total>p{max-width:650px;font-size:14px;color:var(--muted);line-height:1.5}
+.balance-first-cards,.payment-activity{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr));gap:16px;margin-bottom:20px;align-items:start}
+.balance-first-cards>article,.payment-activity>article{min-width:0;padding:18px;border:1px solid var(--line);border-radius:15px;background:white}
+.balance-first-cards h2,.payment-activity h2{margin:0 0 8px;font-size:18px;line-height:1.4;overflow-wrap:anywhere}
+.simple-balance{display:block;font-size:28px;font-variant-numeric:tabular-nums}
+.balance-first-cards p,.payment-activity p{font-size:14px;color:var(--muted);line-height:1.5;overflow-wrap:anywhere}
+.balance-first-cards>article>.primary{width:100%;min-height:48px;font-size:16px;margin:10px 0}
+.balance-first-cards summary,.detailed-debts>summary,.more-advanced>summary,.payment-activity summary,.payment-options>summary{display:list-item;cursor:pointer;min-height:48px;padding:13px 0;font-size:15px;font-weight:650}
+.simple-account-actions{display:flex;gap:8px;flex-wrap:wrap}
+.simple-account-actions button{min-height:48px;font-size:14px}
+.detailed-debts>summary{margin-bottom:14px}
+.payments-filters{display:grid;grid-template-columns:1fr 1fr;gap:14px;max-width:650px}
+.payments-filters label,.payment-debt-picker{display:grid;gap:8px;min-width:0;font-size:14px;font-weight:600}
+.payments-filters input,.payments-filters select,.payment-debt-picker select{width:100%;min-width:0;max-width:100%;min-height:48px;padding:10px;border:1px solid var(--line);border-radius:10px;background:white;font-size:16px}
+.payment-debt-picker{margin-bottom:16px}
+.activity-heading{display:flex;align-items:start;justify-content:space-between;gap:10px;margin-bottom:10px}
+.activity-heading>span{font-size:14px;color:var(--muted)}
+.activity-heading>strong{font-size:20px;font-variant-numeric:tabular-nums;white-space:nowrap}
+.payment-activity button{min-height:48px;font-size:14px}
+.payment-confirmation .primary{width:100%}
+.simple-empty{padding:20px;border:1px solid var(--line);border-radius:15px;background:white}
+.more-links{max-width:650px;border:1px solid var(--line);border-radius:15px;background:white;padding:0 16px;margin-bottom:18px}
+.more-links button{width:100%;display:flex;justify-content:space-between;align-items:center;min-height:58px;border:0;border-bottom:1px solid var(--line);background:white;text-align:left;font-size:16px}
+.more-links button:last-child{border-bottom:0}
+.more-advanced p{font-size:14px;line-height:1.5}
+.screen-title p{font-size:14px}
+.save-state{font-size:12px}
+.debt-action-modal h2{overflow-wrap:anywhere}
+.debt-action-modal footer>span{font-size:13px;line-height:1.5}
+@media(max-width:820px){
+ .sidebar>nav{grid-template-columns:repeat(4,minmax(0,1fr));width:100%;overflow:visible;gap:4px}
+ .sidebar{padding:6px 8px max(8px,env(safe-area-inset-bottom));display:block}
+ .sidebar .nav-item{min-width:0;min-height:56px}
+ .sidebar .nav-item span{max-width:none;font-size:13px;white-space:nowrap}
+ .sidebar .nav-item i{height:22px;width:24px;font-size:16px}
+ .dashboard-collapsed .sidebar{display:block}
+ .dashboard-collapsed .sidebar>nav{grid-template-columns:repeat(4,minmax(0,1fr))}
+ .avatar{width:44px;height:44px;font-size:13px}
+ .save-state{display:flex;max-width:126px;font-size:11px;padding:5px;white-space:normal;line-height:1.25}
+ .topbar{gap:8px}
+ .mobile-product{font-size:14px}
+ .mobile-product+strong{font-size:12px}
+ .screen-title{align-items:flex-start;gap:14px}
+ .screen-title p{font-size:14px}
+ .payments-screen .primary,.more-screen button,.debts-screen>.screen-title button{min-height:48px;font-size:15px}
+ .balance-first-cards,.payment-activity{grid-template-columns:minmax(0,1fr)}
+ .balance-first-cards>article{padding:16px}
+ .screen input,.screen select,.modal input,.modal select{font-size:16px!important}
+ .screen button,.screen summary{touch-action:manipulation}
+ .debt-action-modal{max-height:calc(var(--dialog-viewport-height,100dvh) - 12px)}
+ .debt-action-modal header{padding:16px}
+ .debt-action-modal header>div>p{font-size:14px;line-height:1.5}
+ .debt-action-modal .debt-action-form{padding:16px}
+ .debt-action-modal footer button{min-height:48px;font-size:15px}
+ .debt-action-modal footer{padding-bottom:max(12px,env(safe-area-inset-bottom))}
+ .debt-action-modal .field>span,.debt-action-modal .form-grid label>span{font-size:14px}
+ .monthly-plan-items strong,.monthly-plan-items dd{font-size:15px}
+ .monthly-plan-items small,.monthly-plan-items dt{font-size:13px}
+ .monthly-plan-items button,.monthly-plan-screen .primary,.monthly-plan-screen .secondary,.cashflow-quick-actions button{min-height:48px;font-size:14px}
+ .monthly-plan-screen .field-help,.monthly-plan-screen p{font-size:14px}
+}
+@media(max-width:430px){
+ .payments-screen .screen-title{align-items:stretch;flex-direction:column}
+ .payments-screen .screen-title>.primary{width:100%}
+ .activity-heading{flex-direction:column;gap:4px}
+ .payments-filters{grid-template-columns:minmax(0,1fr)}
+}
+.budget-optional>summary{display:list-item;cursor:pointer;min-height:48px;padding:14px 0;font-size:15px;font-weight:650}
