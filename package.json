@@ -10,7 +10,7 @@
     "build": "vinext build",
     "deploy": "npm run deploy:cloudflare",
     "deploy:check": "npm run build && wrangler deploy --dry-run --config dist/server/wrangler.json",
-    "deploy:cloudflare": "npm run build && wrangler deploy --config dist/server/wrangler.json",
+    "deploy:cloudflare": "npm run build && wrangler deploy --config dist/server/wrangler.json --keep-vars",
     "db:migrate:cloudflare": "wrangler d1 migrations apply debtfree-dashboard-prod --remote --config wrangler.jsonc",
     "start": "vinext start",
     "test": "npm run build && node --test tests/*.test.mjs",
@@ -21,6 +21,8 @@
     "validate": "npm run lint && npm run typecheck && npm test && npm run test:browser && npm run deploy:check"
   },
   "dependencies": {
+    "@supabase/ssr": "^0.12.7",
+    "@supabase/supabase-js": "^2.117.2",
     "drizzle-orm": "0.45.2",
     "fflate": "^0.8.3",
     "jose": "^6.2.8",
