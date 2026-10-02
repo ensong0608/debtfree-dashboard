@@ -45,7 +45,21 @@ jobs:
           await api('/workers/scripts/debtfree-dashboard/deployments');
           console.log('Confirmed existing production Worker and D1. No database migration is needed.');
           NODE
-      - name: Publish exact validated commit
+      - name: Configure production authentication
+        run: |
+          node --input-type=module <<'NODE'
+          import fs from 'node:fs';
+          const config = JSON.parse(fs.readFileSync('wrangler.jsonc', 'utf8'));
+          Object.assign(config.vars, {
+            AUTH_PROVIDER: 'supabase',
+            SUPABASE_URL: 'https://acpderotiyoecmwwyfsu.supabase.co',
+            SUPABASE_PUBLISHABLE_KEY: 'sb_publishable_QP7A5zZPic3K-L9Bf-oUaA_cNkdtCCy',
+            APP_ORIGIN: 'https://debtfree-dashboard.ensong0608.workers.dev',
+          });
+          fs.writeFileSync('wrangler.jsonc', JSON.stringify(config, null, 2) + '\n');
+          NODE
+      - run: npm run deploy:check
+      - name: Publish validated source with production settings
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
