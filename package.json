@@ -10,7 +10,7 @@
     "build": "vinext build",
     "deploy": "npm run deploy:cloudflare",
     "deploy:check": "npm run build && wrangler deploy --dry-run --config dist/server/wrangler.json",
-    "deploy:cloudflare": "npm run build && wrangler deploy --config dist/server/wrangler.json",
+    "deploy:cloudflare": "npm run build && wrangler deploy --config dist/server/wrangler.json --keep-vars",
     "db:migrate:cloudflare": "wrangler d1 migrations apply debtfree-dashboard-prod --remote --config wrangler.jsonc",
     "start": "vinext start",
     "test": "npm run build && node --test tests/*.test.mjs",
