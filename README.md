@@ -16,6 +16,8 @@ The production Worker configuration is stored in wrangler.jsonc. Structured hous
 
 ## Personal-email authentication
 
+An optional Google login integration is prepared behind `AUTH_PROVIDER=supabase`. See [Google login setup](docs/GOOGLE_LOGIN_SETUP.md) for provider prerequisites, persistent-session behavior, and the staged production cutover. Until configured, the existing Cloudflare Access authentication below remains active.
+
 The production Worker is protected by Cloudflare Access using one-time PIN email authentication.
 
 - app/cloudflare-auth.ts validates the Cf-Access-Jwt-Assertion JWT against the configured team JWKS and audience before trusting the email identity.

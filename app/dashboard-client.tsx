@@ -1521,7 +1521,7 @@ function ProfilePage({ user, householdName, role, members, cloudStatus, deviceOn
           <i className={cloudStatus}/>
           <span>{deviceOnly ? "Saved in this browser on this device" : role === "viewer" ? "Read-only household access" : cloudStatus === "synced" ? "Household cloud sync is active" : cloudStatus === "error" || cloudStatus === "conflict" ? "Cloud changes need attention" : "Syncing household changes"}</span>
         </div>
-        {!deviceOnly && <a className="secondary account-link" href="/cdn-cgi/access/logout">Sign out</a>}
+        {!deviceOnly && <form action="/auth/logout" method="post"><button type="submit" className="secondary account-link">Sign out</button></form>}
         {deviceOnly && message && <p className="share-message">{message}</p>}
       </article>
       {!deviceOnly && <article className="roles-card household-card">

@@ -1,5 +1,6 @@
 import { env } from "cloudflare:workers";
-import { getAuthenticatedUser } from "@/app/cloudflare-auth";
+import { getAuthenticatedUser } from "@/app/auth";
+import { authConfiguration } from "@/app/auth-config";
 
 export type HouseholdRole = "owner" | "admin" | "viewer";
 export type HouseholdMemberRecord = {
@@ -41,6 +42,8 @@ export async function getOrCreateMember(email: string, displayName: string) {
 
   const existingHousehold = await db.prepare("SELECT id FROM households LIMIT 1").first<{ id: string }>();
   if (existingHousehold) return null;
+  const auth = authConfiguration();
+  if (auth.enabled && email !== auth.ownerEmail) return null;
 
   const householdId = crypto.randomUUID();
   const householdName = displayName && displayName !== email ? displayName + "'s household" : "My household";
