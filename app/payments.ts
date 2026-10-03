@@ -33,3 +33,10 @@ export function confirmedPaymentTotal(transactions: LedgerTransaction[], adjustm
 export function parseMoneyInput(value: string) {
   return /^\d+(\.\d{1,2})?$/.test(value.trim()) ? round(Number(value.trim())) : NaN;
 }
+
+/** Retain the audit entry; the existing ledger excludes deleted movements. */
+export function setRecordedPaymentDeleted(transaction: LedgerTransaction, deleted: boolean, now = new Date().toISOString()): LedgerTransaction {
+  if (transaction.type !== "payment" || transaction.replacedByTransactionId) throw new Error("Only an unreplaced payment can be deleted or restored.");
+  if (Boolean(transaction.deletedAt) === deleted) return transaction;
+  return { ...transaction, deletedAt: deleted ? now : null, updatedAt: now };
+}

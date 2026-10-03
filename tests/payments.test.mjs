@@ -51,3 +51,24 @@ test("money fields distinguish explicit zero from empty or invalid text",()=>{
  assert.throws(()=>createDebtPayment({account:debt,amount:NaN,date:"2026-10-02"}),/valid payment amount/);
  assert.throws(()=>createDebtPayment({account:debt,amount:100,date:"2026-02-30"}),/valid payment date/);
 });
+
+test("deleting a duplicate reverses only its movement and survives backup restore", async()=>{
+ const { setRecordedPaymentDeleted } = await import("../app/payments.ts");
+ const first=createDebtPayment({account:debt,amount:100,date:"2026-10-02",id:"first",createdAt:timestamp});
+ const second=createDebtPayment({account:{...debt,balance:900},amount:100,date:"2026-10-02",id:"second",createdAt:timestamp});
+ const adjusted=createBalanceAdjustment({storedAccount:debt,currentBalance:800,nextBalance:750,date:"2026-10-03",id:"later-balance",createdAt:timestamp});
+ const deleted=setRecordedPaymentDeleted(second,true,timestamp);
+ assert.equal(transactionAdjustedAccounts([adjusted.account],[first,deleted])[0].balance,850);
+ assert.equal(confirmedPaymentTotal([first,deleted],[adjusted.adjustment],"2026-10"),100);
+ assert.equal(setRecordedPaymentDeleted(deleted,true),deleted);
+ assert.equal(first.deletedAt,null);
+ const payload=createDashboardPayload(null,{accounts:[adjusted.account],monthlyBudgets:{},payees:[],transactions:[first,deleted],snapshots:[],extra:0,strategy:"avalanche",planning:createEmptyPlannedPayoff(),balanceAdjustments:[adjusted.adjustment]});
+ const restored=parseDashboardJson(serializeDashboardBackup(createDashboardBackup(payload))).payload;
+ assert.equal(restored.transactions[1].deletedAt,timestamp);
+ assert.deepEqual(restored.balanceAdjustments,[adjusted.adjustment]);
+ const revived=setRecordedPaymentDeleted(restored.transactions[1],false,timestamp);
+ assert.equal(transactionAdjustedAccounts(restored.accounts,[first,revived])[0].balance,750);
+ assert.equal(confirmedPaymentTotal([first,revived],[],"2026-10"),200);
+ assert.throws(()=>setRecordedPaymentDeleted({...first,type:"charge"},true),/unreplaced payment/);
+ assert.throws(()=>setRecordedPaymentDeleted({...first,replacedByTransactionId:"replacement"},false),/unreplaced payment/);
+});

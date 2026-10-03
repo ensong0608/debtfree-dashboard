@@ -201,3 +201,68 @@ test("paid expense and minimum records preserve balances, survive reload, and ca
  await page.getByRole("button",{name:"Undo paid record for Paid rent",exact:true}).click();
  await expect(page.getByRole("button",{name:"Edit Paid rent",exact:true})).toContainText("$0.00");
 });
+
+test("duplicate payments can be deleted, cancelled, and restored from Payments", async ({page}) => {
+ const fixture=JSON.parse(readFileSync(path.resolve("tests/fixtures/legacy-v0.json"),"utf8"));fixture.transactions=[];
+ await page.goto("/");
+ await page.locator('input[type="file"]').setInputFiles({name:"delete-fixture.json",mimeType:"application/json",buffer:Buffer.from(JSON.stringify(fixture))});
+ await page.getByRole("button",{name:"Payments",exact:true}).click();
+ for(let i=0;i<2;i++){
+  await page.getByRole("button",{name:"Record payment",exact:true}).click();
+  const dialog=page.getByRole("dialog");
+  await dialog.getByLabel("Payment debt",{exact:true}).selectOption("account-card-1");
+  await dialog.getByLabel("Payment amount",{exact:true}).fill("100");
+  await dialog.getByRole("button",{name:"Confirm payment",exact:true}).click();
+ }
+ await expect(page.locator(".simple-total>strong")).toHaveText("$200.00");
+ const deleteButton=page.getByRole("button",{name:"Delete payment of $100.00 for Sample Rewards Card",exact:true}).first();
+ await deleteButton.click();
+ await expect(page.getByRole("dialog")).toContainText("$2,350.75");
+ await page.getByRole("dialog").getByRole("button",{name:"Cancel",exact:true}).click();
+ await expect(page.locator(".simple-total>strong")).toHaveText("$200.00");
+ await deleteButton.click();
+ await page.getByRole("dialog").getByRole("button",{name:"Confirm delete",exact:true}).click();
+ await expect(page.locator(".simple-total>strong")).toHaveText("$100.00");
+ await expect(page.locator(".payment-activity>article")).toHaveCount(1);
+ await expect(page.getByRole("button",{name:"Refresh dashboard",exact:true})).toBeEnabled();
+ await page.getByRole("button",{name:"Refresh dashboard",exact:true}).click();
+ const card=page.locator(".balance-first-cards>article").filter({hasText:"Sample Rewards Card"});
+ await expect(card.locator(".simple-balance")).toHaveText("$2,350.75");
+ await page.getByRole("button",{name:"Payments",exact:true}).click();
+ await page.getByText("Deleted payments (1)",{exact:true}).click();
+ await page.getByRole("button",{name:"Restore payment of $100.00 for Sample Rewards Card",exact:true}).click();
+ await expect(page.getByRole("dialog")).toContainText("$2,250.75");
+ await page.getByRole("dialog").getByRole("button",{name:"Confirm restore",exact:true}).click();
+ await expect(page.locator(".simple-total>strong")).toHaveText("$200.00");
+ await expect(page.locator(".payment-activity>article")).toHaveCount(2);
+ await page.getByRole("button",{name:"Debts",exact:true}).click();
+ await expect(card.locator(".simple-balance")).toHaveText("$2,250.75");
+});
+
+test("payment amount stays readable with a phone keyboard viewport", async ({page},testInfo)=>{
+ const fixture=JSON.parse(readFileSync(path.resolve("tests/fixtures/legacy-v0.json"),"utf8"));fixture.transactions=[];
+ fixture.accounts[0].name="Family rewards card for groceries and household expenses";
+ await page.goto("/");
+ await page.locator('input[type="file"]').setInputFiles({name:"keyboard-fixture.json",mimeType:"application/json",buffer:Buffer.from(JSON.stringify(fixture))});
+ await page.getByRole("button",{name:"Payments",exact:true}).click();
+ for(const width of [360,390,430]){
+  await page.setViewportSize({width,height:844});
+  await page.getByRole("button",{name:"Record payment",exact:true}).click();
+  const dialog=page.getByRole("dialog");
+  const amount=dialog.getByLabel("Payment amount",{exact:true});
+  await amount.fill("123.45");
+  // Android browsers can shrink visualViewport while keeping the layout viewport tall.
+  await page.evaluate(()=>{Object.defineProperty(window.visualViewport!,"height",{configurable:true,value:330});Object.defineProperty(window.visualViewport!,"offsetTop",{configurable:true,value:20});window.visualViewport!.dispatchEvent(new Event("resize"));});
+  await expect.poll(()=>amount.evaluate(el=>{const rect=el.getBoundingClientRect();return rect.top>=20 && rect.bottom<=350;})).toBe(true);
+  expect(await amount.evaluate(el=>parseFloat(getComputedStyle(el).fontSize))).toBeGreaterThanOrEqual(24);
+  await expect(amount).toHaveValue("123.45");
+  const confirm=dialog.getByRole("button",{name:"Confirm payment",exact:true});
+  await confirm.scrollIntoViewIfNeeded();
+  const box=await confirm.boundingBox();expect(box!.y).toBeGreaterThanOrEqual(20);expect(box!.y+box!.height).toBeLessThanOrEqual(350);
+  await amount.focus();
+  await amount.evaluate(el=>el.scrollIntoView({block:"nearest"}));
+  if(width===390 && testInfo.project.name==="phone")await page.screenshot({path:"outputs/payment-keyboard-fixed-390.png"});
+  await dialog.getByRole("button",{name:"Close payment form",exact:true}).click();
+  await page.evaluate(()=>{delete (window.visualViewport as unknown as Record<string,unknown>).height;delete (window.visualViewport as unknown as Record<string,unknown>).offsetTop;window.visualViewport!.dispatchEvent(new Event("resize"));});
+ }
+});

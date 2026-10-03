@@ -2,7 +2,7 @@ name: Deploy Cloudflare dashboard
 on:
   push:
     branches: [codex/supabase-google-login, codex/mobile-payments-budget]
-    paths: [.github/workflows/deploy-cloudflare.yml]
+    paths: [.github/workflows/deploy-cloudflare.yml, "app/**", "tests/**"]
   workflow_dispatch:
 permissions:
   contents: read

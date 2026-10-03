@@ -5,9 +5,18 @@ import { useEffect } from "react";
 export function useDialogFocus() {
   useEffect(() => {
     const viewport = window.visualViewport;
-    const resize = () => document.documentElement.style.setProperty("--dialog-viewport-height", `${viewport?.height ?? window.innerHeight}px`);
+    const revealField = () => {
+      const active = document.activeElement;
+      if (active instanceof HTMLElement && active.matches("input, select, textarea") && active.closest('[role="dialog"]')) active.scrollIntoView({ block: "nearest" });
+    };
+    const resize = () => {
+      document.documentElement.style.setProperty("--dialog-viewport-height", `${viewport?.height ?? window.innerHeight}px`);
+      document.documentElement.style.setProperty("--dialog-viewport-top", `${viewport?.offsetTop ?? 0}px`);
+      requestAnimationFrame(revealField);
+    };
     resize();
     viewport?.addEventListener("resize", resize);
+    viewport?.addEventListener("scroll", resize);
     let current: HTMLElement | null = null;
     let returnTo: HTMLElement | null = null;
     let lastOutside = document.activeElement instanceof HTMLElement ? document.activeElement : null;
@@ -38,6 +47,6 @@ export function useDialogFocus() {
     observer.observe(document.body, { childList: true, subtree: true });
     document.addEventListener("keydown", keydown);
     document.addEventListener("focusin", focusin);
-    return () => { observer.disconnect(); document.removeEventListener("keydown", keydown); document.removeEventListener("focusin", focusin); viewport?.removeEventListener("resize", resize); document.documentElement.style.removeProperty("--dialog-viewport-height"); };
+    return () => { observer.disconnect(); document.removeEventListener("keydown", keydown); document.removeEventListener("focusin", focusin); viewport?.removeEventListener("resize", resize); viewport?.removeEventListener("scroll", resize); document.documentElement.style.removeProperty("--dialog-viewport-top"); document.documentElement.style.removeProperty("--dialog-viewport-height"); };
   }, []);
 }
