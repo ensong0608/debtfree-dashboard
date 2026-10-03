@@ -87,6 +87,10 @@ export type DebtPaymentInput = {
 export function createDebtPayment(input: DebtPaymentInput): LedgerTransaction {
   const balanceBefore = cents(input.account.balance);
   const amount = cents(input.amount);
+  if (!Number.isFinite(amount)) throw new DebtPaymentError("Enter a valid payment amount.");
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(input.date) || !Number.isFinite(Date.parse(input.date + "T12:00:00Z")) || new Date(input.date + "T12:00:00Z").toISOString().slice(0, 10) !== input.date) {
+    throw new DebtPaymentError("Enter a valid payment date.");
+  }
   if (balanceBefore <= 0) throw new DebtPaymentError(input.account.name + " is already paid off.");
   if (amount <= 0) throw new DebtPaymentError("Enter a payment greater than $0.00.");
   if (amount > balanceBefore) {

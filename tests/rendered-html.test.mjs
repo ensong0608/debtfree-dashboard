@@ -49,7 +49,7 @@ test("supports complete JSON backup transfer between dashboard origins", async (
   assert.match(safety, /Replace current data/);
   assert.match(safety, /Merge with current data/);
   assert.match(client, /Local device storage only/);
-  assert.match(client, /deviceOnly \? "Saved on device"/);
+  assert.match(client, /deviceSaveStatus === "synced" \? "Saved on device"/);
   assert.match(client, /profile-grid device-only-profile/);
   assert.doesNotMatch(client, /function DataTransferPanel/);
   assert.match(styles, /data-transfer-card/);
