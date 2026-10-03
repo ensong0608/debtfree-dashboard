@@ -50,7 +50,9 @@ import PaymentsPage from "./payments-page";
 import { confirmAdjustmentPayment, parseMoneyInput, setRecordedPaymentDeleted } from "./payments";
 import HomeDashboardPage from "./home-dashboard-page";
 import { buildHomeDashboard, type HomeAction } from "./home-dashboard";
-import { canArchiveDebt, createBalanceAdjustment, createDebtPayment, replaceDebtPayment, DebtBalanceError, DebtPaymentError, debtStatus, payoffPriority, promoNotice, setDebtArchived, splitDebtAccounts } from "./debts-screen";
+import CostcoInterestSettings from "./costco-interest-settings";
+import { accrueCostcoInterest, COSTCO_ESTIMATED_APR, householdDate, reconcileInterest, validDate } from "./interest-accrual";
+import { canArchiveDebt, createBalanceAdjustment, createDebtPayment, replaceDebtPayment, DebtPaymentError, debtStatus, payoffPriority, promoNotice, setDebtArchived, splitDebtAccounts } from "./debts-screen";
 import { createPayoffSnapshot, transactionAdjustedAccounts } from "./progress-balances";
 import { buildProgressReport } from "./progress-report";
 import ProgressReportPanel from "./progress-report-page";
@@ -79,7 +81,7 @@ type PageId = "payments" | "more" | "home" | "accounts" | "history" | "plan" | "
 type SortKey = "name" | "balance" | "creditLimit" | "apr" | "minimum" | "monthlyInterest" | "status" | "dueDate" | "payoff";
 type SortDirection = "asc" | "desc";
 
-type AccountDraft = Pick<DebtAccount, "name" | "type" | "balance" | "apr" | "interestFee" | "minimum" | "minimumMode" | "payoffMode" | "creditLimit" | "dueDate" | "promoEndDate" | "postPromoApr" | "postPromoMinimum">;
+type AccountDraft = Pick<DebtAccount, "interestAutomation" | "name" | "type" | "balance" | "apr" | "interestFee" | "minimum" | "minimumMode" | "payoffMode" | "creditLimit" | "dueDate" | "promoEndDate" | "postPromoApr" | "postPromoMinimum">;
 type CashflowDraft = Pick<CashflowItem, "name" | "kind" | "category" | "amount" | "paymentMethod" | "creditAccountId" | "recurring">;
 type TransactionDraft = Pick<LedgerTransaction, "date" | "accountId" | "payeeId" | "payeeName" | "type" | "category" | "memo" | "amount" | "plannedItemId"> & { paymentKind: PaymentKind };
 type LinkedCardExpenseItems = Record<string, CashflowItem[]>;
@@ -396,6 +398,15 @@ export default function DashboardClient({ user }: { user: DashboardUser }) {
     return () => window.removeEventListener("keydown", close);
   }, [auditTransactionId, balanceAccountId, cashflowModalOpen, modalOpen, payeeModalOpen, paymentRequest, transactionModalOpen]);
 
+  useEffect(() => {
+    if (!loaded || isViewer || cloudStatus !== "synced" || modalOpen || paymentRequest || balanceAccountId || transactionModalOpen) return;
+    let cancelled = false;
+    const check = () => { if (!cancelled && document.visibilityState === "visible") setTransactions(current => accrueCostcoInterest(accounts, current)); };
+    void Promise.resolve().then(check);
+    const timer = window.setInterval(check, 60000);
+    return () => { cancelled = true; window.clearInterval(timer); };
+  }, [accounts, balanceAccountId, cloudStatus, isViewer, loaded, modalOpen, paymentRequest, transactionModalOpen]);
+
   const cashflowItems = useMemo(() => monthlyBudgets[selectedMonth] ?? [], [monthlyBudgets, selectedMonth]);
   const planningCashflowItems = useMemo(() => monthlyBudgets[currentMonthKey()] ?? [], [monthlyBudgets]);
   const detailedSpendingTracking = monthlyPlan.detailedSpendingTracking;
@@ -540,7 +551,7 @@ export default function DashboardClient({ user }: { user: DashboardUser }) {
     setAccountAutoFocus("name");
     const stored = accounts.find((item) => item.id === account.id) ?? account;
     setEditingId(stored.id);
-    setDraft({ name: stored.name, type: stored.type, balance: account.balance, apr: stored.apr, interestFee: stored.interestFee, minimum: stored.minimum, minimumMode: stored.minimumMode, payoffMode: stored.payoffMode, creditLimit: stored.creditLimit, dueDate: stored.dueDate, promoEndDate: stored.promoEndDate, postPromoApr: stored.postPromoApr, postPromoMinimum: stored.postPromoMinimum });
+    setDraft({ name: stored.name, type: stored.type, balance: account.balance, apr: stored.apr, interestFee: stored.interestFee, minimum: stored.minimum, minimumMode: stored.minimumMode, payoffMode: stored.payoffMode, creditLimit: stored.creditLimit, dueDate: stored.dueDate, promoEndDate: stored.promoEndDate, postPromoApr: stored.postPromoApr, postPromoMinimum: stored.postPromoMinimum, ...(stored.interestAutomation ? { interestAutomation: stored.interestAutomation } : {}) });
     setModalOpen(true);
   };
   const openBalanceEdit = (account: DebtAccount) => {
@@ -557,12 +568,14 @@ export default function DashboardClient({ user }: { user: DashboardUser }) {
   };
   const saveAccount = () => {
     if (!draft.name.trim()) return;
+    if (draft.interestAutomation && (!validDate(draft.interestAutomation.coveredThrough) || !draft.interestAutomation.coveredThrough.endsWith("-02") || draft.interestAutomation.coveredThrough > householdDate())) return;
     if (editingId) setAccounts((current) => current.map((account) => account.id !== editingId ? account : {
       ...account,
       name: draft.name.trim(),
       type: draft.type,
       apr: draft.apr,
       interestFee: draft.interestFee,
+      ...(draft.interestAutomation ? { interestAutomation: draft.interestAutomation } : {}),
       minimum: draft.minimum,
       minimumMode: draft.minimumMode,
       payoffMode: draft.payoffMode,
@@ -634,15 +647,20 @@ export default function DashboardClient({ user }: { user: DashboardUser }) {
       return;
     }
     try {
-      const result = createBalanceAdjustment({ storedAccount, currentBalance: currentAccount.balance, nextBalance: draft.balance, date: draft.date, note: draft.note, creator: auditCreator });
+      const checked = reconcileInterest(storedAccount, transactions, draft.date);
+      const result = currentAccount.balance === draft.balance && checked.account.interestAutomation?.enabled
+        ? { account: checked.account, adjustment: null }
+        : createBalanceAdjustment({ storedAccount: checked.account, currentBalance: currentAccount.balance, nextBalance: draft.balance, date: draft.date, note: draft.note, creator: auditCreator });
+      setTransactions(checked.transactions);
       if (!deviceOnly) setCloudStatus("saving");
       setAccounts((current) => current.map((item) => item.id === result.account.id ? result.account : item));
-      setBalanceAdjustments((current) => [...current, result.adjustment]);
+      if (result.adjustment) setBalanceAdjustments((current) => [...current, result.adjustment!]);
       setBalanceAccountId(null);
+      if (!result.adjustment) { setDebtActionMessage("Lender balance confirmed. Interest through this date is covered and will not be added again."); return; }
       const direction = result.adjustment.difference >= 0 ? "increased" : "decreased";
       setDebtActionMessage(currentAccount.name + " balance " + direction + " by " + moneyPrecise.format(Math.abs(result.adjustment.difference)) + ", from " + moneyPrecise.format(result.adjustment.balanceBefore) + " to " + moneyPrecise.format(result.adjustment.balanceAfter) + ". The difference is in Payments as an adjustment.");
     } catch (error) {
-      if (error instanceof DebtBalanceError) setDebtActionMessage(error.message);
+      if (error instanceof Error) setDebtActionMessage(error.message);
     }
   };
   const confirmBalancePayment = (id: string) => {
@@ -799,6 +817,7 @@ export default function DashboardClient({ user }: { user: DashboardUser }) {
     setPage("snapshots");
   };
   const openEditTransaction = (transaction: LedgerTransaction) => {
+    if (transaction.interestEstimate) return; // Reconcile automatic interest via the lender balance.
     setEditingTransactionId(transaction.id);
     setTransactionDraft({ date: transaction.date, accountId: transaction.accountId, payeeId: transaction.payeeId, payeeName: transaction.payeeName, type: transaction.type, category: transaction.category, memo: transaction.memo, amount: transaction.amount, plannedItemId: transaction.plannedItemId ?? "", paymentKind: transaction.paymentKind ?? "combined" });
     setTransactionModalOpen(true);
@@ -1037,7 +1056,7 @@ function TransactionsPage({ accounts, payees, transactions, onQuickAdd, onEdit, 
       <section className="balance-strip" aria-label="Calculated account balances">{accounts.map((account) => <div key={account.id}><span>{account.name}</span><strong>{moneyPrecise.format(account.balance)}</strong><small>Calculated balance</small></div>)}</section>
       {batchOpen && <section className="batch-card"><div className="batch-head"><div><span>Batch entry</span><strong>Add several transactions at once</strong></div><button type="button" onClick={() => setBatchOpen(false)}>Close</button></div><div className="batch-scroll"><table className="batch-table"><thead><tr><th>Date</th><th>Account</th><th>Type</th><th>Merchant / recipient</th><th>Amount</th><th>Memo</th></tr></thead><tbody>{batchRows.map((row, index) => <tr key={index}><td><input aria-label={`Row ${index + 1} date`} type="date" value={row.date} onChange={(event) => updateBatch(index, { date: event.target.value })}/></td><td><select aria-label={`Row ${index + 1} account`} value={row.accountId} onChange={(event) => updateBatch(index, { accountId: event.target.value })}><option value="">Select</option>{accounts.map((account) => <option key={account.id} value={account.id}>{account.name}</option>)}</select></td><td><select aria-label={`Row ${index + 1} type`} value={row.type} onChange={(event) => { const type = event.target.value as TransactionType; updateBatch(index, { type, category: type === "payment" ? "Debt payment" : type === "fee" ? "Interest & fees" : "Other" }); }}><option value="charge">Charge</option><option value="fee">Fee</option></select></td><td><input aria-label={`Row ${index + 1} merchant or recipient`} list="batch-payees" value={row.payeeName} placeholder="Who received it?" onChange={(event) => updateBatch(index, { payeeName: event.target.value })}/></td><td><div className="batch-amount"><span>$</span><input aria-label={`Row ${index + 1} amount`} type="number" min="0" step=".01" value={row.amount || ""} placeholder="0.00" onChange={(event) => updateBatch(index, { amount: number(event.target.value) })}/></div></td><td><input aria-label={`Row ${index + 1} memo`} value={row.memo} placeholder="Optional" onChange={(event) => updateBatch(index, { memo: event.target.value })}/></td></tr>)}</tbody></table><datalist id="batch-payees">{payees.filter((payee) => !payee.deletedAt).map((payee) => <option key={payee.id} value={payee.name}/>)}</datalist></div><div className="batch-footer"><button className="secondary" type="button" onClick={() => setBatchRows((current) => [...current, emptyTransactionDraft(accounts)])}>+ Add row</button><button className="primary" type="button" disabled={!batchRows.some((row) => row.accountId && row.payeeName.trim() && row.amount > 0)} onClick={submitBatch}>Save batch</button></div></section>}
       <section className="ledger-card"><div className="ledger-toolbar"><label className="ledger-search"><span>Search</span><input value={search} placeholder="Merchant, recipient, memo, category, or account" onChange={(event) => { setSearch(event.target.value); setPageNumber(1); }}/></label><label><span>Account</span><select value={accountFilter} onChange={(event) => { setAccountFilter(event.target.value); setPageNumber(1); }}><option value="all">All accounts</option>{accounts.map((account) => <option key={account.id} value={account.id}>{account.name}</option>)}</select></label><label><span>Type</span><select value={typeFilter} onChange={(event) => { setTypeFilter(event.target.value as "all" | TransactionType); setPageNumber(1); }}><option value="all">All types</option><option value="charge">Charges</option><option value="payment">Payments</option><option value="fee">Fees</option></select></label><label><span>Status</span><select value={statusFilter} onChange={(event) => { setStatusFilter(event.target.value as "active" | "deleted" | "all"); setPageNumber(1); }}><option value="active">Active</option><option value="deleted">Deleted</option><option value="all">All</option></select></label></div>
-        {visible.length ? <div className="ledger-table-scroll"><table className="ledger-table"><caption>Searchable transaction ledger</caption><thead><tr><th>Date</th><th>Merchant / recipient</th><th>Account</th><th>Type</th><th>Category / memo</th><th>Amount</th><th>Action</th></tr></thead><tbody>{visible.map((transaction) => <tr key={transaction.id} className={transaction.deletedAt ? "deleted-row" : ""}><td>{formatTransactionDate(transaction.date)}</td><td><strong>{transaction.payeeName}</strong>{transaction.deletedAt && <small>Deleted</small>}</td><td>{accountNames.get(transaction.accountId) ?? "Removed account"}</td><td><span className={`transaction-type ${transaction.type}`}>{transaction.type}</span></td><td><strong>{transaction.type === "payment" ? paymentKindLabel(transaction.paymentKind) : transaction.category}</strong>{transaction.type === "payment" && <small>Debt payment</small>}{transaction.memo && <small>{transaction.memo}</small>}{transaction.balanceBefore !== undefined && transaction.balanceAfter !== undefined && <small className="audit-balances">Balance {moneyPrecise.format(transaction.balanceBefore)} to {moneyPrecise.format(transaction.balanceAfter)}</small>}</td><td className={`ledger-amount ${transaction.type}`}>{transaction.type === "payment" ? "-" : "+"}{moneyPrecise.format(transaction.amount)}</td><td>{transaction.deletedAt ? transaction.replacedByTransactionId ? <span className="audit-lock">Replaced</span> : <button className="restore-action" type="button" onClick={() => onRestore(transaction.id)}>Restore</button> : transaction.debtAction === "payment" ? <button className="audit-action" type="button" onClick={() => onAudit(transaction.id)} aria-label={"View or correct payment for " + transaction.payeeName}>View / correct</button> : transaction.debtAction ? <span className="audit-lock">Audit record</span> : <div className="row-actions"><button type="button" onClick={() => onEdit(transaction)}>Edit</button><button type="button" onClick={() => onDelete(transaction.id)}>Delete</button></div>}</td></tr>)}</tbody></table></div> : <div className="ledger-empty"><strong>No matching transactions</strong><p>{transactions.length ? "Try changing the search or filters." : "Use Quick add or Batch entry to record your first transaction."}</p></div>}
+        {visible.length ? <div className="ledger-table-scroll"><table className="ledger-table"><caption>Searchable transaction ledger</caption><thead><tr><th>Date</th><th>Merchant / recipient</th><th>Account</th><th>Type</th><th>Category / memo</th><th>Amount</th><th>Action</th></tr></thead><tbody>{visible.map((transaction) => <tr key={transaction.id} className={transaction.deletedAt ? "deleted-row" : ""}><td>{formatTransactionDate(transaction.date)}</td><td><strong>{transaction.payeeName}</strong>{transaction.deletedAt && <small>Deleted</small>}</td><td>{accountNames.get(transaction.accountId) ?? "Removed account"}</td><td><span className={`transaction-type ${transaction.type}`}>{transaction.type}</span></td><td><strong>{transaction.type === "payment" ? paymentKindLabel(transaction.paymentKind) : transaction.category}</strong>{transaction.type === "payment" && <small>Debt payment</small>}{transaction.memo && <small>{transaction.memo}</small>}{transaction.balanceBefore !== undefined && transaction.balanceAfter !== undefined && <small className="audit-balances">Balance {moneyPrecise.format(transaction.balanceBefore)} to {moneyPrecise.format(transaction.balanceAfter)}</small>}</td><td className={`ledger-amount ${transaction.type}`}>{transaction.type === "payment" ? "-" : "+"}{moneyPrecise.format(transaction.amount)}</td><td>{transaction.deletedAt ? transaction.replacedByTransactionId ? <span className="audit-lock">Replaced</span> : <button className="restore-action" type="button" onClick={() => onRestore(transaction.id)}>Restore</button> : transaction.debtAction === "payment" ? <button className="audit-action" type="button" onClick={() => onAudit(transaction.id)} aria-label={"View or correct payment for " + transaction.payeeName}>View / correct</button> : transaction.interestEstimate ? <span className="audit-lock">Reconcile in Debts</span> : transaction.debtAction ? <span className="audit-lock">Audit record</span> : <div className="row-actions"><button type="button" onClick={() => onEdit(transaction)}>Edit</button><button type="button" onClick={() => onDelete(transaction.id)}>Delete</button></div>}</td></tr>)}</tbody></table></div> : <div className="ledger-empty"><strong>No matching transactions</strong><p>{transactions.length ? "Try changing the search or filters." : "Use Quick add or Batch entry to record your first transaction."}</p></div>}
         <div className="ledger-pagination"><span>{filtered.length ? `${(currentPage - 1) * pageSize + 1}-${Math.min(currentPage * pageSize, filtered.length)} of ${filtered.length}` : "0 transactions"}</span><div><button type="button" disabled={currentPage === 1} onClick={() => setPageNumber((page) => Math.max(1, page - 1))}>Previous</button><strong>Page {currentPage} of {pageCount}</strong><button type="button" disabled={currentPage === pageCount} onClick={() => setPageNumber((page) => Math.min(pageCount, page + 1))}>Next</button></div></div>
       </section>
     </>}
@@ -1231,7 +1250,7 @@ function AccountsPage({
     <section className="simple-total"><span>Total current balance</span><strong>{moneyPrecise.format(totalBalance)}</strong></section>
     <section className="balance-first-cards" aria-label="Current debts">{current.map(account => {
       const lastUpdate = balanceAdjustments.filter(a => a.accountId === account.id).sort((a,b) => b.createdAt.localeCompare(a.createdAt))[0];
-      return <article key={account.id}><h2>{account.name}</h2><strong className="simple-balance">{moneyPrecise.format(account.balance)}</strong><p>{lastUpdate ? "Balance checked " + formatDate(lastUpdate.date) : "No lender balance check recorded"}</p><p>Minimum {moneyPrecise.format(effectiveMinimum(account))}{account.dueDate ? " · Due " + formatDate(account.dueDate) : ""}</p><button className="primary" type="button" aria-label={`Update balance for ${account.name}`} onClick={() => onUpdateBalance(account)}>Update balance</button><details><summary>Account details</summary><p>{account.type} · APR {account.apr.toFixed(2)}%</p><p>Minimum and due date are references, not payment confirmations.</p><div className="simple-account-actions"><button className="secondary" type="button" aria-label={`Record payment for ${account.name}`} disabled={account.balance <= 0} onClick={() => onRecordPayment(account)}>Record payment</button><button className="secondary" type="button" onClick={() => onEdit(account)}>Edit debt details</button>{account.balance <= 0 && <button className="secondary" type="button" aria-label={`Archive ${account.name}`} onClick={() => onArchive(account.id)}>Archive</button>}</div></details></article>;
+      return <article key={account.id}><h2>{account.name}</h2><strong className="simple-balance">{moneyPrecise.format(account.balance)}</strong><p>{lastUpdate ? "Balance checked " + formatDate(lastUpdate.date) : "No lender balance check recorded"}</p>{account.interestAutomation?.enabled && <p>Monthly interest estimate on · Closing day 2</p>}<p>Minimum {moneyPrecise.format(effectiveMinimum(account))}{account.dueDate ? " · Due " + formatDate(account.dueDate) : ""}</p><button className="primary" type="button" aria-label={`Update balance for ${account.name}`} onClick={() => onUpdateBalance(account)}>Update balance</button><details><summary>Account details</summary><p>{account.type} · APR {account.apr.toFixed(2)}%</p><p>Minimum and due date are references, not payment confirmations.</p><div className="simple-account-actions"><button className="secondary" type="button" aria-label={`Record payment for ${account.name}`} disabled={account.balance <= 0} onClick={() => onRecordPayment(account)}>Record payment</button><button className="secondary" type="button" onClick={() => onEdit(account)}>Edit debt details</button>{account.balance <= 0 && <button className="secondary" type="button" aria-label={`Archive ${account.name}`} onClick={() => onArchive(account.id)}>Archive</button>}</div></details></article>;
     })}</section>
     <details className="detailed-debts" open={current.length === 0}><summary>Detailed debt view & import</summary>
     <section className="metrics">
@@ -1771,10 +1790,10 @@ function BalanceUpdateModal({ account, error, onClose, onSave }: { account: Debt
   const parsedBalance = parseMoneyInput(balanceText);
   const difference = round(parsedBalance - account.balance);
   const invalidBalance = !Number.isFinite(parsedBalance);
-  const changed = !invalidBalance && Math.abs(difference) >= 0.005;
+  const changed = !invalidBalance && (Math.abs(difference) >= 0.005 || Boolean(account.interestAutomation?.enabled));
   return <div className="modal-backdrop" onMouseDown={(event) => { if (event.currentTarget === event.target) onClose(); }}>
     <section className="modal debt-action-modal" role="dialog" aria-modal="true" aria-labelledby="balance-modal-title" aria-describedby="balance-modal-description">
-      <header><div><span>Balance reconciliation</span><h2 id="balance-modal-title">Update {account.name} balance</h2><p id="balance-modal-description">Enter the balance shown by your lender. The difference appears in Payments as a balance adjustment; it is not automatically counted as a payment.</p></div><button type="button" onClick={onClose} aria-label="Close balance update form">&times;</button></header>
+      <header><div><span>Balance reconciliation</span><h2 id="balance-modal-title">Update {account.name} balance</h2><p id="balance-modal-description">Enter the balance shown by your lender. The difference appears in Payments as a balance adjustment; it is not automatically counted as a payment. {account.interestAutomation?.enabled && "This replaces estimated interest already included in the balance. Interest through the effective date will not be added again."}</p></div><button type="button" onClick={onClose} aria-label="Close balance update form">&times;</button></header>
       <div className="debt-action-form">
         <div className="balance-change-preview" aria-live="polite"><div><span>Previous balance</span><strong>{moneyPrecise.format(account.balance)}</strong></div><i aria-hidden="true">&rarr;</i><div><span>New balance</span><strong>{invalidBalance ? "—" : moneyPrecise.format(parsedBalance)}</strong></div></div>
         {invalidBalance && <p className="form-error" role="alert">Enter a balance of $0.00 or more, with up to two decimal places. Blank does not mean zero.</p>}{error && <p className="form-error" role="alert">{error}</p>}
@@ -1789,16 +1808,20 @@ function BalanceUpdateModal({ account, error, onClose, onSave }: { account: Debt
 function AccountModal({ draft, editing, autoFocusField, onChange, onClose, onSave, onRemove }: { draft: AccountDraft; editing: boolean; autoFocusField: "name" | "balance"; onChange: (draft: AccountDraft) => void; onClose: () => void; onSave: () => void; onRemove: () => void }) {
   const autoMinimum = estimatedMinimum(draft.balance, draft.apr);
   const isCreditCard = draft.type === "Credit card";
+  const isCostco = /costco/i.test(draft.name) || Boolean(draft.interestAutomation);
+  const invalidInterestDate = draft.interestAutomation && (!validDate(draft.interestAutomation.coveredThrough) || !draft.interestAutomation.coveredThrough.endsWith("-02") || draft.interestAutomation.coveredThrough > householdDate());
   return <div className="modal-backdrop" onMouseDown={(event) => { if (event.currentTarget === event.target) onClose(); }}>
-    <section className="modal" role="dialog" aria-modal="true" aria-labelledby="account-modal-title">
+    <section className="modal debt-action-modal" role="dialog" aria-modal="true" aria-labelledby="account-modal-title">
       <header><div><span>{editing ? "Edit debt details" : "New debt account"}</span><h2 id="account-modal-title">{editing ? draft.name || "Account details" : "Add a debt account"}</h2><p>{editing ? "Update lender terms here. Use Update balance on the debt list for an auditable reconciliation." : "Enter the starting balance and current lender details."}</p></div><button type="button" onClick={onClose} aria-label="Close account form">&times;</button></header>
-      <div className="form-grid">
+      <div className="debt-action-form"><div className="form-grid">
         <label className="wide"><span>Name</span><input autoFocus={autoFocusField === "name"} value={draft.name} placeholder="Example: Everyday Rewards" onChange={(event) => onChange({ ...draft, name: event.target.value })}/></label>
         <label><span>Debt type</span><select value={draft.type} onChange={(event) => onChange({ ...draft, type: event.target.value as DebtType })}>{DEBT_TYPES.map((type) => <option key={type}>{type}</option>)}</select></label>
         {!editing && <Field label="Starting balance" prefix="$" value={draft.balance} placeholder="0" autoFocus={autoFocusField === "balance"} onChange={(balance) => onChange({ ...draft, balance })}/>}
-        <Field label={isCreditCard ? "Current APR" : "APR"} suffix="%" value={draft.apr} placeholder="0.00" step=".01" onChange={(apr) => onChange({ ...draft, apr })}/>
-        <div><Field label="Actual interest fee" prefix="$" value={draft.interestFee} placeholder="Optional" step=".01" onChange={(interestFee) => onChange({ ...draft, interestFee })}/><small className="field-help">Leave blank to estimate from balance x APR / 12.</small></div>
+        <Field label={draft.interestAutomation?.enabled ? "Estimated blended APR" : isCreditCard ? "Current APR" : "APR"} disabled={draft.interestAutomation?.enabled} suffix="%" value={draft.apr} placeholder="0.00" step=".01" onChange={(apr) => onChange({ ...draft, apr })}/>
+        <div><Field label="Actual interest fee" disabled={draft.interestAutomation?.enabled} prefix="$" value={draft.interestFee} placeholder="Optional" step=".01" onChange={(interestFee) => onChange({ ...draft, interestFee })}/><small className="field-help">Leave blank to estimate from balance x APR / 12.</small></div>
         <div className="minimum-editor"><div><span>Minimum payment</span><button type="button" className={draft.minimumMode === "auto" ? "mode active" : "mode"} onClick={() => onChange({ ...draft, minimumMode: draft.minimumMode === "auto" ? "manual" : "auto" })}>{draft.minimumMode === "auto" ? "Auto estimate" : "Use auto"}</button></div><Field prefix="$" value={draft.minimumMode === "auto" ? autoMinimum : draft.minimum} placeholder="0" disabled={draft.minimumMode === "auto"} onChange={(minimum) => onChange({ ...draft, minimum })}/><small>{draft.minimumMode === "auto" ? "1% of balance + monthly interest, with a $25 floor." : "Using your lender amount."}</small></div>
+        {isCostco && <CostcoInterestSettings value={draft.interestAutomation} onChange={interestAutomation => onChange({ ...draft, interestAutomation, ...(interestAutomation.enabled ? { apr: COSTCO_ESTIMATED_APR, interestFee: 0 } : {}) })}/>}
+        {invalidInterestDate && <p className="form-error wide" role="alert">Choose an existing closing date on day 2, no later than today.</p>}
         {isCreditCard && <div className="wide promo-editor">
           <div><span>0% promotional period</span><small>Optional. These terms drive the payoff forecast after the promotion ends.</small></div>
           <div className="promo-fields">
@@ -1810,8 +1833,8 @@ function AccountModal({ draft, editing, autoFocusField, onChange, onClose, onSav
         </div>}
         <Field label="Credit limit" prefix="$" value={draft.creditLimit} placeholder="Optional" onChange={(creditLimit) => onChange({ ...draft, creditLimit })}/>
         <label><span>Next due date</span><input type="date" value={draft.dueDate} onChange={(event) => onChange({ ...draft, dueDate: event.target.value })}/></label>
-      </div>
-      <footer>{editing ? <details className="advanced-danger"><summary>Advanced destructive action</summary><p>Permanently deleting removes the debt details. Existing payments, adjustments, and snapshots remain referenced for audit.</p><button className="danger" type="button" onClick={onRemove}>Permanently delete debt account</button></details> : <span/>}<div><button className="secondary" type="button" onClick={onClose}>Cancel</button><button className="primary" type="button" disabled={!draft.name.trim()} onClick={onSave}>{editing ? "Save details" : "Add debt"}</button></div></footer>
+      </div></div>
+      <footer>{editing ? <details className="advanced-danger"><summary>Advanced destructive action</summary><p>Permanently deleting removes the debt details. Existing payments, adjustments, and snapshots remain referenced for audit.</p><button className="danger" type="button" onClick={onRemove}>Permanently delete debt account</button></details> : <span/>}<div><button className="secondary" type="button" onClick={onClose}>Cancel</button><button className="primary" type="button" disabled={!draft.name.trim() || Boolean(invalidInterestDate)} onClick={onSave}>{editing ? "Save details" : "Add debt"}</button></div></footer>
     </section>
   </div>;
 }

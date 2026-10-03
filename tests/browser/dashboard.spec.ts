@@ -266,3 +266,58 @@ test("payment amount stays readable with a phone keyboard viewport", async ({pag
   await page.evaluate(()=>{delete (window.visualViewport as unknown as Record<string,unknown>).height;delete (window.visualViewport as unknown as Record<string,unknown>).offsetTop;window.visualViewport!.dispatchEvent(new Event("resize"));});
  }
 });
+
+test("Costco interest starts next cycle, survives refresh, and reconciles without a duplicate", async ({ page }) => {
+  await page.clock.install({ time: new Date("2026-10-03T20:00:00Z") });
+  const fixture = JSON.parse(readFileSync(path.resolve("tests/fixtures/legacy-v0.json"), "utf8"));
+  fixture.accounts[0].name = "Costco"; fixture.accounts[0].balance = 10075.60; fixture.accounts[0].apr = 23.74; fixture.transactions = [];
+  await page.goto("/");
+  await page.locator('input[type="file"]').setInputFiles({ name: "costco-test.json", mimeType: "application/json", buffer: Buffer.from(JSON.stringify(fixture)) });
+  const card = page.locator(".balance-first-cards>article").filter({ hasText: "Costco" });
+  await expect(card.locator(".simple-balance")).toHaveText("$10,075.60");
+  await card.getByText("Account details", { exact: true }).click();
+  await card.getByRole("button", { name: "Edit debt details" }).click();
+  const dialog = page.getByRole("dialog");
+  await dialog.getByLabel("Automatically add estimated interest").check();
+  const close = dialog.getByLabel("Latest closing date already included in my balance");
+  await close.fill("2026-10-01");
+  await expect(dialog.getByRole("button", { name: "Save details", exact: true })).toBeDisabled();
+  await close.fill("2026-10-02");
+  await expect(dialog.getByLabel(/^Estimated blended APR/)).toBeDisabled();
+  const original = page.viewportSize()!;
+  for (const width of [360,390,430]) {
+    await page.setViewportSize({ width, height:844 });
+    await dialog.getByLabel("Automatically add estimated interest").scrollIntoViewIfNeeded();
+    expect(await dialog.evaluate(el => el.scrollWidth <= el.clientWidth + 1)).toBe(true);
+  }
+  await page.setViewportSize(original);
+  await dialog.getByRole("button", { name: "Save details", exact: true }).click();
+  await expect(card).toContainText("Monthly interest estimate on");
+  await expect(card.locator(".simple-balance")).toHaveText("$10,075.60");
+  await page.getByRole("button", { name: "Payments", exact: true }).click();
+  await expect(page.locator(".payment-activity>article")).toHaveCount(0);
+  await page.clock.setFixedTime(new Date("2026-11-03T20:00:00Z"));
+  await page.reload();
+  const blend=(3040*18.99+7438.18*22.99)/(3040+7438.18);
+  const fee=Math.round(10075.60*blend/100*31/365*100)/100;
+  const formatted = new Intl.NumberFormat("en-US", {style:"currency",currency:"USD"}).format(10075.60+fee);
+  await expect(card.locator(".simple-balance")).toHaveText(formatted);
+  await page.reload();
+  await expect(card.locator(".simple-balance")).toHaveText(formatted);
+  await page.getByRole("button", { name: "Payments", exact: true }).click();
+  const activity=page.locator(".payment-activity>article").filter({hasText:"Estimated interest"});
+  await expect(activity).toHaveCount(1);
+  await expect(activity.getByRole("button", {name:/Delete payment/})).toHaveCount(0);
+  await expect(page.locator(".simple-total>strong")).toHaveText("$0.00");
+  await page.getByRole("button", { name: "Debts", exact: true }).click();
+  await card.getByRole("button", {name:"Update balance for Costco",exact:true}).click();
+  await dialog.getByLabel("New current balance").fill("10260.00");
+  await dialog.getByLabel("Effective date").fill("2026-11-03");
+  await dialog.getByRole("button", {name:"Confirm balance update"}).click();
+  await expect(card.locator(".simple-balance")).toHaveText("$10,260.00");
+  await page.reload();
+  await expect(card.locator(".simple-balance")).toHaveText("$10,260.00");
+  await page.getByRole("button", { name: "Payments", exact: true }).click();
+  await expect(activity).toHaveCount(1);
+  await expect(activity).toContainText("Estimate reconciled to lender balance");
+});

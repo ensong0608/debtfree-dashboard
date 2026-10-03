@@ -1266,3 +1266,9 @@ textarea:focus-visible{outline:3px solid rgba(22,119,255,.22);outline-offset:2px
 .refresh-dashboard{width:44px;height:44px;flex:0 0 auto;display:grid;place-items:center;border:1px solid var(--line);border-radius:10px;background:white;color:var(--ink);font-size:26px;touch-action:manipulation}
 .refresh-dashboard:disabled{opacity:.45;cursor:wait}
 @media(max-width:430px){.top-actions{gap:5px}.save-state{max-width:100px}.topbar>div:first-child{min-width:0;flex:1}.mobile-product{max-width:100%}}
+
+.costco-interest-settings { margin: 0; padding: 16px; border: 1px solid #ccd7e2; border-radius: 12px; min-width: 0; }
+.costco-interest-settings legend { font-weight: 700; padding: 0 6px; }
+.costco-interest-settings p { font-size: 14px; line-height: 1.5; margin: 10px 0; }
+.costco-interest-settings .interest-toggle { display: flex; align-items: center; gap: 12px; min-height: 48px; }
+.costco-interest-settings .interest-toggle input { width: 24px; height: 24px; flex-shrink: 0; }

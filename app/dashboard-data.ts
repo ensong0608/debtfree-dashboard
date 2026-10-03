@@ -1,3 +1,4 @@
+import { validDate, type InterestAutomation, type InterestEstimate } from "./interest-accrual.ts";
 export const DASHBOARD_BACKUP_FORMAT = "debtfree-dashboard-backup" as const;
 export const LEGACY_DASHBOARD_DATA_VERSION = 1 as const;
 export const PLANNING_DASHBOARD_DATA_VERSION = 2 as const;
@@ -32,6 +33,7 @@ export type DebtAccount = OwnershipMetadata & {
   baselineBalance?: number;
   apr: number;
   interestFee: number;
+  interestAutomation?: InterestAutomation;
   minimum: number;
   minimumMode: MinimumMode;
   payoffMode: PayoffMode;
@@ -101,6 +103,7 @@ export type LedgerTransaction = OwnershipMetadata & {
   plannedItemId?: string;
   paymentKind?: PaymentKind;
   replacesTransactionId?: string;
+  interestEstimate?: InterestEstimate;
   replacedByTransactionId?: string;
   [key: string]: unknown;
 };
@@ -594,6 +597,14 @@ function validateAccount(value: unknown, path: string, issues: string[]) {
   if (item.baselineBalance !== undefined) requiredNumber(item.baselineBalance, `${path}.baselineBalance`, issues);
   requiredNumber(item.apr, `${path}.apr`, issues);
   requiredNumber(item.interestFee, `${path}.interestFee`, issues);
+  if (hasOwn(item, "interestAutomation")) {
+    const config = requiredRecord(item.interestAutomation, path + ".interestAutomation", issues);
+    if (config) {
+      requiredBoolean(config.enabled, path + ".interestAutomation.enabled", issues);
+      if (typeof config.coveredThrough !== "string" || !validDate(config.coveredThrough) || !config.coveredThrough.endsWith("-02")) issues.push(path + ".interestAutomation.coveredThrough must be a valid Costco closing date (day 02).");
+      if (typeof config.estimatedApr !== "number" || !Number.isFinite(config.estimatedApr) || config.estimatedApr <= 0 || config.estimatedApr > 100) issues.push(path + ".interestAutomation.estimatedApr must be greater than 0 and at most 100.");
+    }
+  }
   requiredNumber(item.minimum, `${path}.minimum`, issues);
   enumValue(item.minimumMode, minimumModes, `${path}.minimumMode`, issues);
   enumValue(item.payoffMode, payoffModes, `${path}.payoffMode`, issues);
@@ -644,6 +655,16 @@ function validateTransaction(value: unknown, path: string, issues: string[]) {
   requiredString(item.payeeId, `${path}.payeeId`, issues, true);
   requiredString(item.payeeName, `${path}.payeeName`, issues, true);
   enumValue(item.type, transactionTypes, `${path}.type`, issues);
+  if (hasOwn(item, "interestEstimate")) {
+    const estimate = requiredRecord(item.interestEstimate, path + ".interestEstimate", issues);
+    if (estimate) {
+      for (const key of ["cycle", "periodStart"]) if (typeof estimate[key] !== "string" || !validDate(estimate[key] as string)) issues.push(path + ".interestEstimate." + key + " must be a valid date.");
+      requiredNumber(estimate.days, path + ".interestEstimate.days", issues, true);
+      requiredNumber(estimate.estimatedApr, path + ".interestEstimate.estimatedApr", issues);
+      if (item.type !== "fee" || item.date !== estimate.cycle || typeof estimate.cycle !== "string" || !estimate.cycle.endsWith("-02") || item.id !== "interest:" + item.accountId + ":" + estimate.cycle.slice(0, 7)) issues.push(path + ".interestEstimate requires a unique monthly interest fee.");
+      if (hasOwn(estimate, "reconciledAt")) requiredString(estimate.reconciledAt, path + ".interestEstimate.reconciledAt", issues);
+    }
+  }
   requiredString(item.category, `${path}.category`, issues);
   requiredString(item.memo, `${path}.memo`, issues, true);
   requiredNumber(item.amount, `${path}.amount`, issues);
