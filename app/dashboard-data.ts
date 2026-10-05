@@ -92,6 +92,7 @@ export type LedgerTransaction = OwnershipMetadata & {
   type: TransactionType;
   category: string;
   memo: string;
+  title?: string;
   amount: number;
   createdAt: string;
   updatedAt: string;
@@ -117,6 +118,7 @@ export type BalanceAdjustment = OwnershipMetadata & {
   difference: number;
   createdAt: string;
   note?: string;
+  title?: string;
   creator?: DebtAuditCreator;
   confirmedPayment?: { confirmedAt: string; creator?: DebtAuditCreator };
   deletedAt?: string | null;
@@ -670,6 +672,7 @@ function validateTransaction(value: unknown, path: string, issues: string[]) {
   requiredString(item.category, `${path}.category`, issues);
   requiredString(item.memo, `${path}.memo`, issues, true);
   requiredNumber(item.amount, `${path}.amount`, issues);
+  if (hasOwn(item, "title")) requiredString(item.title, path + ".title", issues, true);
   requiredString(item.createdAt, `${path}.createdAt`, issues);
   requiredString(item.updatedAt, `${path}.updatedAt`, issues);
   nullableString(item.deletedAt, `${path}.deletedAt`, issues);
@@ -696,6 +699,7 @@ function validateBalanceAdjustment(value: unknown, path: string, issues: string[
   requiredString(item.createdAt, path + ".createdAt", issues);
   if (hasOwn(item, "deletedAt")) nullableString(item.deletedAt, path + ".deletedAt", issues);
   if (hasOwn(item, "updatedAt")) requiredString(item.updatedAt, path + ".updatedAt", issues);
+  if (hasOwn(item, "title")) requiredString(item.title, path + ".title", issues, true);
   if (hasOwn(item, "note")) requiredString(item.note, path + ".note", issues, true);
   if (hasOwn(item, "creator")) validateCreator(item.creator, path + ".creator", issues);
   if (hasOwn(item, "confirmedPayment")) {

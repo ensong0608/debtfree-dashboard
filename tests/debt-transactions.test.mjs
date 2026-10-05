@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { changeDebtEntry } from "../app/debt-transactions.ts";
+import { changeDebtEntry, signedEntryDraft, parseSignedAmount } from "../app/debt-transactions.ts";
 import { transactionAdjustedAccounts } from "../app/progress-balances.ts";
 import { confirmedPaymentTotal, paymentActivity } from "../app/payments.ts";
 import { accrueCostcoInterest } from "../app/interest-accrual.ts";
@@ -68,4 +68,32 @@ test("changing interest to a purchase updates its classification without adding 
  state=change(state,{action:"save",id:"transaction:interest",draft:draft("purchase",30)});
  assert.equal(balance(state),1030);assert.equal(state.transactions[0].category,"Purchases");
  assert.equal(paymentActivity(state.transactions,[])[0].kind,"purchase");
+});
+
+test("signed input names activity, preserves magnitude backups, and applies edits once",()=>{
+ assert.equal(parseSignedAmount("+66.96"),66.96);assert.equal(parseSignedAmount("-500.00"),-500);assert.equal(parseSignedAmount("−500"),-500);
+ for(const text of ["","-","+","1e3","--20","1.234","$50"])assert.ok(Number.isNaN(parseSignedAmount(text)));
+ const input={accountId:"card",title:"SFC Henderson grocery run",amount:"+66.96",date:"2026-10-05",note:"Groceries"};
+ let state=change(initial(),{action:"save",draft:signedEntryDraft(undefined,input)},"grocery");
+ assert.equal(balance(state),1066.96);assert.equal(state.transactions[0].title,input.title);assert.equal(state.transactions[0].amount,66.96);
+ state=change(state,{action:"save",id:"transaction:grocery",draft:signedEntryDraft(state.transactions[0],{...input,amount:"-50",title:"Card payment"})});
+ assert.equal(balance(state),950);assert.equal(confirmedPaymentTotal(state.transactions,[],"2026-10"),50);assert.equal(state.transactions[0].revisions[0].title,input.title);
+ const payload=createDashboardPayload(null,{...state,balanceAdjustments:state.adjustments,monthlyBudgets:{},payees:[],snapshots:[],extra:0,strategy:"avalanche",planning:createEmptyPlannedPayoff()});
+ const restored=parseDashboardJson(JSON.stringify(createDashboardBackup(payload))).payload;
+ assert.equal(restored.transactions[0].title,"Card payment");assert.equal(restored.transactions[0].amount,50);
+ assert.throws(()=>change(initial(),{action:"save",draft:signedEntryDraft(undefined,{...input,title:" "})}),/title/);
+});
+test("signed lender adjustment changes offset only and negative sign confirms payment once",()=>{
+ let state=change(initial(),{action:"save",draft:draft("adjustment",66.96)},"adjust");
+ const input={accountId:"card",title:"SFC Henderson grocery run",amount:"+66.96",date:"2026-10-05",note:""};
+ state=change(state,{action:"save",id:"adjustment:adjust",draft:signedEntryDraft(state.adjustments[0],input)});
+ assert.equal(balance(state),1066.96);assert.equal(state.transactions.length,0);
+ state=change(state,{action:"save",id:"adjustment:adjust",draft:signedEntryDraft(state.adjustments[0],{...input,amount:"-50"})});
+ assert.equal(balance(state),950);assert.equal(state.transactions.length,0);assert.equal(confirmedPaymentTotal([],state.adjustments,"2026-10"),50);
+ state=change(state,{action:"save",id:"adjustment:adjust",draft:signedEntryDraft(state.adjustments[0],{...input,amount:"-50"})});
+ assert.equal(balance(state),950);assert.equal(confirmedPaymentTotal([],state.adjustments,"2026-10"),50);
+ state=change(state,{action:"save",id:"adjustment:adjust",draft:signedEntryDraft(state.adjustments[0],{...input,amount:"+20"})});
+ assert.equal(balance(state),1020);assert.equal(confirmedPaymentTotal([],state.adjustments,"2026-10"),0);
+ const payload=createDashboardPayload(null,{...state,balanceAdjustments:state.adjustments,monthlyBudgets:{},payees:[],snapshots:[],extra:0,strategy:"avalanche",planning:createEmptyPlannedPayoff()});
+ assert.equal(parseDashboardJson(JSON.stringify(createDashboardBackup(payload))).payload.balanceAdjustments[0].title,input.title);
 });

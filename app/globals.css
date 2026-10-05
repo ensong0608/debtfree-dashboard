@@ -1282,3 +1282,78 @@ textarea:focus-visible{outline:3px solid rgba(22,119,255,.22);outline-offset:2px
 .debt-action-modal .debt-money-field .field-input input{font-size:24px!important;min-height:64px;min-width:0;width:100%;padding:12px}
 .debt-money-field .field-input{display:flex;align-items:center;gap:8px}
 .debt-money-field .field-input>span{padding-left:12px;font-size:22px}
+
+/* Named transactions and the signed-amount composer. */
+.transaction-compose{max-width:620px;border:1px solid #d6e2ee;box-shadow:0 24px 80px #102b4b38}
+.transaction-compose>header{background:linear-gradient(135deg,#edf5ff,#f3f9f7);border-bottom:1px solid #dce7f0;padding:24px}
+.transaction-compose .compose-eyebrow{font-size:11px;letter-spacing:.14em;color:#27699d;font-weight:800}
+.transaction-compose>header h2{font-size:28px;line-height:1.2;margin:7px 0 0}
+.transaction-compose .compose-fields{display:flex;flex-direction:column;gap:20px;padding:24px}
+.transaction-compose .compose-field{display:flex;flex-direction:column;gap:9px;min-width:0;margin:0}
+.transaction-compose .compose-field>span{font-size:14px;font-weight:700;color:#3b4a60}
+.transaction-compose .compose-field>input,.transaction-compose .compose-field>select,.transaction-compose .compose-field>textarea{display:block;box-sizing:border-box;width:100%;max-width:100%;min-width:0;min-height:52px;border:1px solid #ccd9e6;background:#fff;color:#182b43;border-radius:12px;padding:13px 14px;font:inherit;font-size:16px;line-height:1.4;box-shadow:0 2px 4px #16365705}
+.transaction-compose .compose-field>select{padding-right:32px}
+.transaction-compose .compose-field>textarea{resize:vertical;min-height:80px}
+.transaction-compose input:focus,.transaction-compose select:focus,.transaction-compose textarea:focus{outline:3px solid #cee6ff;outline-offset:2px;border-color:#4288c9}
+.transaction-compose .compose-row{display:grid;grid-template-columns:minmax(0,1.4fr) minmax(0,1fr);gap:16px}
+.transaction-compose .signed-money-input{display:flex;align-items:center;gap:12px;padding:10px 16px;border:1px solid #e5cba7;border-radius:14px;background:#fffbf5}
+.transaction-compose .signed-money-input>span{font-size:26px;font-weight:600;color:#886d49}
+.transaction-compose .signed-money-input>input{min-width:0;width:100%;border:0;box-shadow:none;background:transparent;padding:10px 0;font-size:32px!important;font-weight:750;line-height:1.3;min-height:58px;color:#9a4a10;border-radius:6px}
+.transaction-compose .signed-money.is-payment .signed-money-input{border-color:#b2d9cd;background:#f2fbf7}
+.transaction-compose .signed-money.is-payment input{color:#087f66}
+.transaction-compose .signed-amount-controls{display:flex;align-items:center;gap:12px;margin-top:-10px}
+.transaction-compose .signed-amount-controls>[role=group]{display:flex;gap:6px;flex-shrink:0}
+.transaction-compose .signed-amount-controls button{width:48px;height:44px;border:1px solid #cedce9;border-radius:10px;background:white;color:#284963;font-size:23px}
+.transaction-compose .signed-amount-controls button[aria-pressed=true]{background:#173c62;color:white;border-color:#173c62}
+.transaction-compose .signed-amount-controls>span{font-size:13px;color:#576c82;line-height:1.4}
+.transaction-compose .compose-notes summary{cursor:pointer;color:#365874;font-weight:600;min-height:28px}
+.transaction-compose .compose-notes summary>span{font-weight:400;color:#65758a;font-size:12px;margin-left:5px}
+.transaction-compose .compose-notes textarea{margin-top:10px}
+.transaction-compose .compose-preview{border:1px solid #dbe6ef;border-radius:14px;background:#f6f9fc;padding:16px}
+.transaction-compose .compose-preview>span{display:block;font-size:12px;color:#536d85;margin-bottom:10px;overflow-wrap:anywhere}
+.transaction-compose .compose-preview .balance-change-preview{border:0;background:transparent;padding:0;gap:10px;margin:0}
+.transaction-compose .compose-context{font-size:12px;color:#586c83;line-height:1.5;margin:0}
+.transaction-compose .compose-context p{margin-top:8px}
+.transaction-compose .compose-validation:empty{display:none}
+.transaction-compose .compose-validation{color:#ad3434;font-size:13px;line-height:1.4;margin:0}
+.transaction-compose .sr-only{position:absolute;width:1px;height:1px;padding:0;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+.transactions-screen .screen-title{background:linear-gradient(120deg,#edf5ff,#f1f8f5);border:1px solid #dbe6ef;border-radius:18px;padding:22px}
+.transactions-screen .simple-total{border-radius:16px;padding:20px;background:#edf7f3;border:1px solid #cee4da}
+.transactions-screen .simple-total>strong{color:#08785c}
+.transactions-screen .payment-activity>article{border-radius:18px;border:1px solid #dce6ef;padding:20px;box-shadow:0 4px 18px #25476407;background:#fff}
+.transaction-card-top{display:flex;align-items:flex-start;gap:12px;min-width:0}
+.transaction-direction{width:40px;height:40px;border-radius:12px;background:#fff2e4;color:#ab5e19;display:grid;place-items:center;flex:0 0 auto}
+.transaction-direction.is-payment{background:#e7f5ed;color:#168369}
+.transaction-direction svg{width:20px;height:20px}
+.transaction-card-name{min-width:0;flex:1}
+.transactions-screen .transaction-card-name h2{font-size:17px;line-height:1.4;margin:0;overflow-wrap:anywhere}
+.transactions-screen .transaction-card-name p{font-size:13px;color:#5c6f85;margin:4px 0 0;overflow-wrap:anywhere}
+.transaction-signed-total{font-size:19px;line-height:1.4;font-variant-numeric:tabular-nums;white-space:nowrap;color:#a55017}
+.transaction-signed-total.is-payment{color:#087f66}
+.transaction-card-meta{display:flex;flex-wrap:wrap;align-items:center;gap:10px;font-size:12px;color:#627287;margin-top:14px}
+.transaction-card-meta>span+span{background:#f1f5f9;padding:4px 8px;border-radius:7px;color:#617589}
+.transactions-screen .transaction-entry-actions button{min-height:44px;padding:9px 14px;font-size:13px}
+@media(max-width:600px){
+ .transaction-compose>header{padding:18px 20px}
+ .transaction-compose>header h2{font-size:24px}
+ .transaction-compose .compose-fields{padding:20px;gap:18px}
+ .transaction-compose .compose-row{grid-template-columns:minmax(0,1fr)}
+ .transaction-compose .signed-money-input>input{font-size:30px!important}
+ .transactions-screen .screen-title{padding:18px}
+ .transactions-screen .payment-activity>article{padding:16px}
+ .transaction-card-top{flex-wrap:wrap;gap:10px}
+ .transaction-card-name{flex-basis:calc(100% - 52px)}
+ .transaction-signed-total{margin-left:50px;font-size:23px}
+}
+
+.transaction-compose .compose-notes summary,.transaction-compose .compose-context summary{min-height:44px;display:flex;align-items:center;gap:6px;cursor:pointer}
+
+.transaction-compose form>footer{padding:16px 24px;border-top:1px solid #dce7f0;background:#f8fbff}
+.transaction-compose form>footer>div{display:grid;grid-template-columns:1fr 1.5fr;gap:12px;width:100%}
+.transaction-compose form>footer button{width:100%;min-height:52px;font-size:16px;border-radius:12px}
+.transactions-screen .payments-filters{grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:12px;margin:18px 0}
+.transactions-screen .payments-filters input,.transactions-screen .payments-filters select{min-width:0;width:100%}
+.transactions-screen .simple-total>details{margin-top:8px;font-size:12px;color:#4d6e65}
+.transactions-screen .simple-total>details>summary{cursor:pointer}
+.transactions-screen .simple-total>details p{font-size:12px;line-height:1.5;margin:8px 0 0}
+@media(max-width:600px){.transaction-compose form>footer{padding:14px 20px}.transactions-screen .simple-total{padding:16px}.transactions-screen .simple-total>strong{font-size:30px}}

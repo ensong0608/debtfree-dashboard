@@ -364,11 +364,15 @@ test("Transactions can add, edit, remove and restore purchases and balance adjus
   await page.getByRole("button",{name:"Transactions",exact:true}).click();
   const dialog=page.getByRole("dialog");
   await page.getByRole("button",{name:"Add transaction",exact:true}).click();
-  await dialog.getByLabel("Transaction debt",{exact:true}).selectOption("account-card-1");
-  await dialog.getByLabel("Transaction type",{exact:true}).selectOption("purchase");
-  await dialog.getByLabel("Transaction amount",{exact:true}).fill("125.50");
+  await dialog.getByLabel("Card used",{exact:true}).selectOption("account-card-1");
+  await dialog.getByLabel("What’s it for?",{exact:true}).fill("SFC Henderson grocery run");
+  await expect(dialog.getByLabel("Transaction type",{exact:true})).toHaveCount(0);
+  await expect(dialog.getByLabel("Adjustment direction",{exact:true})).toHaveCount(0);
+  await dialog.getByLabel("Transaction amount",{exact:true}).fill("+66.96");
+  await dialog.locator(".compose-notes>summary").click();
   await dialog.getByLabel("Transaction notes",{exact:true}).fill("Groceries");
-  await expect(dialog).toContainText("$2,576.25");
+  if(testInfo.project.name === "desktop") expect((await new AxeBuilder({page}).include(".transaction-compose").withTags(["wcag2a","wcag2aa"]).analyze()).violations).toEqual([]);
+  await expect(dialog).toContainText("$2,517.71");
   if(testInfo.project.name === "phone") {
     for(const width of [360,390,430]) {
       await page.setViewportSize({width,height:844});
@@ -381,9 +385,12 @@ test("Transactions can add, edit, remove and restore purchases and balance adjus
       await page.evaluate(()=>{delete (window.visualViewport as unknown as Record<string,unknown>).height;window.visualViewport!.dispatchEvent(new Event("resize"));});
     }
   }
+  if(testInfo.project.name === "phone") { await dialog.evaluate(el=>{el.scrollTop=0;}); await page.screenshot({path:"outputs/signed-transaction-form-430.png"}); }
   await dialog.getByRole("button",{name:"Save transaction",exact:true}).click();
   let entry=page.locator(".payment-activity>article").filter({hasText:"Purchase"});
-  await expect(entry).toContainText("$125.50");
+  await expect(entry).toContainText("+$66.96");
+  await expect(entry.getByRole("heading",{name:"SFC Henderson grocery run"})).toBeVisible();
+  if(testInfo.project.name === "phone") { await entry.scrollIntoViewIfNeeded(); await page.screenshot({path:"outputs/named-transaction-card-430.png"}); }
   await expect(page.locator(".simple-total>strong")).toHaveText("$0.00");
   await entry.getByRole("button",{name:"Edit transaction",exact:true}).click();
   await dialog.getByLabel("Transaction amount",{exact:true}).fill("100");
@@ -397,18 +404,19 @@ test("Transactions can add, edit, remove and restore purchases and balance adjus
   await expect(dialog).toContainText("$2,550.75");
   await dialog.getByRole("button",{name:"Confirm restore",exact:true}).click();
   await page.getByRole("button",{name:"Add transaction",exact:true}).click();
-  await dialog.getByLabel("Transaction debt",{exact:true}).selectOption("account-card-1");
-  await dialog.getByLabel("Transaction type",{exact:true}).selectOption("adjustment");
-  await dialog.getByLabel("Adjustment direction",{exact:true}).selectOption("decrease");
+  await dialog.getByLabel("Card used",{exact:true}).selectOption("account-card-1");
+  await dialog.getByLabel("What’s it for?",{exact:true}).fill("Monthly card payment");
   await dialog.getByLabel("Transaction amount",{exact:true}).fill("50");
+  await dialog.getByRole("button",{name:"Use negative amount",exact:true}).click();
+  await expect(dialog.getByLabel("Transaction amount",{exact:true})).toHaveValue("-50");
   await expect(dialog).toContainText("$2,500.75");
   await dialog.getByRole("button",{name:"Save transaction",exact:true}).click();
-  entry=page.locator(".payment-activity>article").filter({hasText:"Balance adjustment"});
+  entry=page.locator(".payment-activity>article").filter({hasText:"Monthly card payment"});
   await entry.getByRole("button",{name:"Edit transaction",exact:true}).click();
-  await dialog.getByLabel("Transaction amount",{exact:true}).fill("75");
+  await dialog.getByLabel("Transaction amount",{exact:true}).fill("-75");
   await expect(dialog).toContainText("$2,475.75");
   await dialog.getByRole("button",{name:"Save transaction",exact:true}).click();
-  await entry.getByRole("button",{name:/Delete transaction of/}).click();
+  await entry.getByRole("button",{name:/Delete payment of/}).click();
   await expect(dialog).toContainText("$2,550.75");
   await dialog.getByRole("button",{name:"Confirm delete",exact:true}).click();
   await page.reload();
@@ -417,4 +425,24 @@ test("Transactions can add, edit, remove and restore purchases and balance adjus
   await page.getByRole("button",{name:"Transactions",exact:true}).click();
   await expect(page.locator(".payment-activity>article")).toHaveCount(1);
   expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1)).toBe(true);
+});
+
+
+test("a named lender adjustment uses its signed amount without another ledger deduction",async({page})=>{
+ const fixture=JSON.parse(readFileSync(path.resolve("tests/fixtures/legacy-v0.json"),"utf8"));fixture.transactions=[];
+ await page.goto("/");await page.locator('input[type="file"]').setInputFiles({name:"signed-adjustment.json",mimeType:"application/json",buffer:Buffer.from(JSON.stringify(fixture))});
+ const card=page.locator(".balance-first-cards>article").filter({hasText:"Sample Rewards Card"});
+ await card.getByRole("button",{name:"Update balance for Sample Rewards Card",exact:true}).click();
+ const dialog=page.getByRole("dialog");await dialog.getByLabel("New current balance").fill("2517.71");await dialog.getByRole("button",{name:"Confirm balance update"}).click();
+ await page.getByRole("button",{name:"Transactions",exact:true}).click();
+ const entry=page.locator(".payment-activity>article");await entry.getByRole("button",{name:"Edit transaction",exact:true}).click();
+ await expect(dialog.getByLabel("Transaction amount",{exact:true})).toHaveValue("+66.96");
+ await dialog.getByLabel("What’s it for?",{exact:true}).fill("SFC Henderson grocery run");
+ await expect(dialog).toContainText("$2,517.71");await dialog.getByRole("button",{name:"Save transaction",exact:true}).click();
+ await expect(entry.getByRole("heading",{name:"SFC Henderson grocery run"})).toBeVisible();
+ await entry.getByRole("button",{name:"Edit transaction",exact:true}).click();await dialog.getByLabel("Transaction amount",{exact:true}).fill("-50");
+ await expect(dialog).toContainText("$2,400.75");await dialog.getByRole("button",{name:"Save transaction",exact:true}).click();
+ await expect(page.locator(".simple-total>strong")).toHaveText("$50.00");
+ await page.reload();await expect(card.locator(".simple-balance")).toHaveText("$2,400.75");
+ await page.getByRole("button",{name:"Transactions",exact:true}).click();await expect(page.locator(".payment-activity>article")).toHaveCount(1);await expect(page.locator(".simple-total>strong")).toHaveText("$50.00");
 });

@@ -13,13 +13,14 @@ export function paymentActivity(transactions: LedgerTransaction[], adjustments: 
     ...transactions.filter(t => !t.deletedAt && t.type === "payment").map(t => ({
       id: "transaction:" + t.id, accountId: t.accountId, date: t.date, createdAt: t.createdAt,
       amount: t.amount, difference: -t.amount, kind: "payment" as const,
-      source: "Recorded payment", note: t.memo, creator: t.creator,
+      title: t.title || "Payment", source: "Recorded payment", note: t.memo, creator: t.creator,
       before: t.balanceBefore, after: t.balanceAfter, adjustment: null,
     })),
     ...transactions.filter(t => t.type !== "payment" && !t.deletedAt).map(t => ({
       id: "transaction:" + t.id, accountId: t.accountId, date: t.date, createdAt: t.createdAt,
       amount: t.amount, difference: t.amount,
       kind: t.interestEstimate || t.category === "Interest" ? "interest" as const : t.type === "charge" ? "purchase" as const : "fee" as const,
+      title: t.title || (t.interestEstimate ? "Estimated interest" : t.type === "charge" ? (t.payeeName || "Card purchase") : t.category === "Interest" ? "Interest" : "Fee"),
       source: t.interestEstimate ? (t.interestEstimate.reconciledAt ? "Estimate reconciled to lender balance" : "Automatic interest estimate · Not counted as a payment") : t.type === "charge" ? "Card purchase" : "Interest or fee",
       note: t.memo, creator: t.creator, before: t.balanceBefore, after: t.balanceAfter, adjustment: null,
     })),
@@ -27,6 +28,7 @@ export function paymentActivity(transactions: LedgerTransaction[], adjustments: 
       id: "adjustment:" + a.id, accountId: a.accountId, date: a.date, createdAt: a.createdAt,
       amount: Math.abs(a.difference), difference: a.difference,
       kind: a.confirmedPayment ? "payment" as const : "adjustment" as const,
+      title: a.title || (a.confirmedPayment ? "Payment" : "Balance update"),
       source: a.confirmedPayment ? "Confirmed from balance update" : "Balance updated",
       note: a.note ?? "", creator: a.creator, before: a.balanceBefore, after: a.balanceAfter, adjustment: a,
     })),
