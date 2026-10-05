@@ -981,9 +981,9 @@ textarea:focus-visible{outline:3px solid rgba(22,119,255,.22);outline-offset:2px
 }
 @media(max-width:390px){.debt-card>header{display:grid}.debt-card>header>.status-toggle{justify-self:start}.debt-actions{grid-template-columns:1fr}.debt-action{min-height:48px}}
 
-/* Debts viewport sizing and Phase 5 payoff planning */
+/* Desktop debt content uses the page scroller; payoff tables retain their own scroll areas. */
 @media(min-width:821px){
-  .debts-screen{height:calc(100dvh - 72px);min-height:0;display:flex;flex-direction:column;overflow:hidden;padding-top:14px;padding-bottom:14px}
+  .debts-screen{padding-top:14px;padding-bottom:28px}
   .debts-screen>.screen-title{flex:0 0 auto;align-items:center;gap:16px;margin-bottom:9px}
   .debts-screen>.screen-title h1{margin:3px 0 2px;font-size:34px}
   .debts-screen>.screen-title p{font-size:12px;line-height:1.35}

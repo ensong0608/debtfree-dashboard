@@ -321,3 +321,37 @@ test("Costco interest starts next cycle, survives refresh, and reconciles withou
   await expect(activity).toHaveCount(1);
   await expect(activity).toContainText("Estimate reconciled to lender balance");
 });
+
+test("Debts can scroll to Wells Fargo on a desktop with many accounts", async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== "desktop", "Desktop wheel and keyboard regression");
+  const fixture = JSON.parse(readFileSync(path.resolve("tests/fixtures/legacy-v0.json"), "utf8"));
+  fixture.transactions = [];
+  fixture.accounts = Array.from({length:19},(_,index)=>({...fixture.accounts[0],id:"scroll-card-"+index,name:index===18?"Wells Fargo":"Card "+String(index+1).padStart(2,"0"),interestFee:0}));
+  await page.goto("/");
+  await page.locator('input[type="file"]').setInputFiles({name:"scroll-fixture.json",mimeType:"application/json",buffer:Buffer.from(JSON.stringify(fixture))});
+  const content = page.getByRole("region", {name:"Dashboard content"});
+  const last = page.locator(".balance-first-cards>article").filter({hasText:"Wells Fargo"});
+  await expect(last).toHaveCount(1);
+  for (const viewport of [{width:1440,height:900},{width:1366,height:768},{width:1093,height:614}]) {
+    await page.setViewportSize(viewport);
+    const metrics = await content.evaluate(el=>({height:el.clientHeight,scrollHeight:el.scrollHeight,bottom:el.getBoundingClientRect().bottom,viewport:innerHeight,overflow:getComputedStyle(el).overflowY}));
+    console.log("Desktop debt scrolling",viewport,metrics);
+    expect(metrics.bottom).toBeLessThanOrEqual(viewport.height+1);
+    expect(metrics.height).toBeGreaterThan(200);
+    expect(metrics.scrollHeight).toBeGreaterThan(metrics.height);
+    await content.evaluate(el=>{el.scrollTop=0;});
+    const bounds=await content.boundingBox();
+    await page.mouse.move(bounds!.x+bounds!.width/2,bounds!.y+Math.min(100,bounds!.height/2));
+    await page.mouse.wheel(0,2000);
+    await expect.poll(()=>content.evaluate(el=>el.scrollTop)).toBeGreaterThan(0);
+    await content.focus();
+    await page.keyboard.press("Control+End");
+    await expect.poll(()=>content.evaluate(el=>Math.abs(el.scrollHeight-el.clientHeight-el.scrollTop))).toBeLessThan(2);
+    const button=last.getByRole("button",{name:"Update balance for Wells Fargo",exact:true});
+    const visible=await button.evaluate(el=>{const box=el.getBoundingClientRect();return box.top>=0&&box.bottom<=innerHeight;});
+    expect(visible).toBe(true);
+    await button.click();
+    await expect(page.getByRole("dialog",{name:"Update Wells Fargo balance"})).toBeVisible();
+    await page.getByRole("button",{name:"Cancel",exact:true}).click();
+  }
+});
