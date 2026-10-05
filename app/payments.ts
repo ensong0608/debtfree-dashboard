@@ -16,13 +16,14 @@ export function paymentActivity(transactions: LedgerTransaction[], adjustments: 
       source: "Recorded payment", note: t.memo, creator: t.creator,
       before: t.balanceBefore, after: t.balanceAfter, adjustment: null,
     })),
-    ...transactions.filter(t => t.interestEstimate && !t.deletedAt).map(t => ({
+    ...transactions.filter(t => t.type !== "payment" && !t.deletedAt).map(t => ({
       id: "transaction:" + t.id, accountId: t.accountId, date: t.date, createdAt: t.createdAt,
-      amount: t.amount, difference: t.amount, kind: "interest" as const,
-      source: t.interestEstimate?.reconciledAt ? "Estimate reconciled to lender balance" : "Automatic interest estimate · Not counted as a payment",
+      amount: t.amount, difference: t.amount,
+      kind: t.interestEstimate || t.category === "Interest" ? "interest" as const : t.type === "charge" ? "purchase" as const : "fee" as const,
+      source: t.interestEstimate ? (t.interestEstimate.reconciledAt ? "Estimate reconciled to lender balance" : "Automatic interest estimate · Not counted as a payment") : t.type === "charge" ? "Card purchase" : "Interest or fee",
       note: t.memo, creator: t.creator, before: t.balanceBefore, after: t.balanceAfter, adjustment: null,
     })),
-    ...adjustments.map(a => ({
+    ...adjustments.filter(a => !a.deletedAt).map(a => ({
       id: "adjustment:" + a.id, accountId: a.accountId, date: a.date, createdAt: a.createdAt,
       amount: Math.abs(a.difference), difference: a.difference,
       kind: a.confirmedPayment ? "payment" as const : "adjustment" as const,

@@ -119,6 +119,8 @@ export type BalanceAdjustment = OwnershipMetadata & {
   note?: string;
   creator?: DebtAuditCreator;
   confirmedPayment?: { confirmedAt: string; creator?: DebtAuditCreator };
+  deletedAt?: string | null;
+  updatedAt?: string;
   [key: string]: unknown;
 };
 
@@ -692,6 +694,8 @@ function validateBalanceAdjustment(value: unknown, path: string, issues: string[
   requiredNumber(item.balanceAfter, path + ".balanceAfter", issues);
   if (typeof item.difference !== "number" || !Number.isFinite(item.difference)) issues.push(path + ".difference must be a finite number.");
   requiredString(item.createdAt, path + ".createdAt", issues);
+  if (hasOwn(item, "deletedAt")) nullableString(item.deletedAt, path + ".deletedAt", issues);
+  if (hasOwn(item, "updatedAt")) requiredString(item.updatedAt, path + ".updatedAt", issues);
   if (hasOwn(item, "note")) requiredString(item.note, path + ".note", issues, true);
   if (hasOwn(item, "creator")) validateCreator(item.creator, path + ".creator", issues);
   if (hasOwn(item, "confirmedPayment")) {

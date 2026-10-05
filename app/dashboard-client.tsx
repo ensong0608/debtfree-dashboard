@@ -47,7 +47,8 @@ import {
 import OnboardingFlow from "./onboarding-flow";
 import MonthlyPlanPage from "./monthly-plan-page";
 import PaymentsPage from "./payments-page";
-import { confirmAdjustmentPayment, parseMoneyInput, setRecordedPaymentDeleted } from "./payments";
+import { changeDebtEntry, type EntryCommand } from "./debt-transactions";
+import { confirmAdjustmentPayment, parseMoneyInput } from "./payments";
 import HomeDashboardPage from "./home-dashboard-page";
 import { buildHomeDashboard, type HomeAction } from "./home-dashboard";
 import CostcoInterestSettings from "./costco-interest-settings";
@@ -230,7 +231,7 @@ function strategyLabel(strategy: PayoffStrategy) {
 
 const NAV_ITEMS: { id: PageId; label: string; icon: string }[] = [
   { id: "accounts", label: "Debts", icon: "▤" },
-  { id: "payments", label: "Payments", icon: "$" },
+  { id: "payments", label: "Transactions", icon: "↻" },
   { id: "monthly", label: "Budget", icon: "▦" },
   { id: "more", label: "More", icon: "···" },
 ];
@@ -241,7 +242,7 @@ const MORE_NAV_ITEMS: { id: PageId; label: string; icon: string }[] = [
   { id: "home", label: "Home", icon: "⌂" },
 ];
 const ADVANCED_NAV_ITEMS: { id: PageId; label: string; icon: string }[] = [
-  { id: "history", label: "Transactions", icon: "↻" },
+  { id: "history", label: "Detailed ledger", icon: "↻" },
   { id: "utilization", label: "Credit Utilization", icon: "◔" },
   { id: "stats", label: "Stats & Projections", icon: "↗" },
 ];
@@ -282,6 +283,7 @@ export default function DashboardClient({ user }: { user: DashboardUser }) {
   const [cashflowModalOpen, setCashflowModalOpen] = useState(false);
   const [editingCashflowId, setEditingCashflowId] = useState<string | null>(null);
   const [cashflowDraft, setCashflowDraft] = useState<CashflowDraft>(EMPTY_CASHFLOW_DRAFT);
+  const [debtEntryOpen, setDebtEntryOpen] = useState(false);
   const [transactionModalOpen, setTransactionModalOpen] = useState(false);
   const [editingTransactionId, setEditingTransactionId] = useState<string | null>(null);
   const [auditTransactionId, setAuditTransactionId] = useState<string | null>(null);
@@ -399,13 +401,13 @@ export default function DashboardClient({ user }: { user: DashboardUser }) {
   }, [auditTransactionId, balanceAccountId, cashflowModalOpen, modalOpen, payeeModalOpen, paymentRequest, transactionModalOpen]);
 
   useEffect(() => {
-    if (!loaded || isViewer || cloudStatus !== "synced" || modalOpen || paymentRequest || balanceAccountId || transactionModalOpen) return;
+    if (!loaded || isViewer || cloudStatus !== "synced" || modalOpen || paymentRequest || balanceAccountId || debtEntryOpen || transactionModalOpen) return;
     let cancelled = false;
     const check = () => { if (!cancelled && document.visibilityState === "visible") setTransactions(current => accrueCostcoInterest(accounts, current)); };
     void Promise.resolve().then(check);
     const timer = window.setInterval(check, 60000);
     return () => { cancelled = true; window.clearInterval(timer); };
-  }, [accounts, balanceAccountId, cloudStatus, isViewer, loaded, modalOpen, paymentRequest, transactionModalOpen]);
+  }, [accounts, balanceAccountId, debtEntryOpen, cloudStatus, isViewer, loaded, modalOpen, paymentRequest, transactionModalOpen]);
 
   const cashflowItems = useMemo(() => monthlyBudgets[selectedMonth] ?? [], [monthlyBudgets, selectedMonth]);
   const planningCashflowItems = useMemo(() => monthlyBudgets[currentMonthKey()] ?? [], [monthlyBudgets]);
@@ -658,19 +660,19 @@ export default function DashboardClient({ user }: { user: DashboardUser }) {
       setBalanceAccountId(null);
       if (!result.adjustment) { setDebtActionMessage("Lender balance confirmed. Interest through this date is covered and will not be added again."); return; }
       const direction = result.adjustment.difference >= 0 ? "increased" : "decreased";
-      setDebtActionMessage(currentAccount.name + " balance " + direction + " by " + moneyPrecise.format(Math.abs(result.adjustment.difference)) + ", from " + moneyPrecise.format(result.adjustment.balanceBefore) + " to " + moneyPrecise.format(result.adjustment.balanceAfter) + ". The difference is in Payments as an adjustment.");
+      setDebtActionMessage(currentAccount.name + " balance " + direction + " by " + moneyPrecise.format(Math.abs(result.adjustment.difference)) + ", from " + moneyPrecise.format(result.adjustment.balanceBefore) + " to " + moneyPrecise.format(result.adjustment.balanceAfter) + ". The difference is in Transactions as an adjustment.");
     } catch (error) {
       if (error instanceof Error) setDebtActionMessage(error.message);
     }
   };
   const confirmBalancePayment = (id: string) => {
-    if (isViewer || !balanceAdjustments.some(item => item.id === id && item.difference < 0 && !item.confirmedPayment)) return;
+    if (isViewer || !balanceAdjustments.some(item => item.id === id && item.difference < 0 && !item.deletedAt && !item.confirmedPayment)) return;
     setBalanceAdjustments(current => current.map(item => item.id === id ? confirmAdjustmentPayment(item, auditCreator) : item));
     if (!deviceOnly) setCloudStatus("saving");
     setDebtActionMessage("Payment identified from the balance update. The debt balance did not decrease again.");
   };
   const undoBalancePayment = (id: string) => {
-    if (isViewer || !balanceAdjustments.some(item => item.id === id && item.confirmedPayment)) return;
+    if (isViewer || !balanceAdjustments.some(item => item.id === id && !item.deletedAt && item.confirmedPayment)) return;
     setBalanceAdjustments(current => current.map(item => {
       if (item.id !== id) return item;
       const copy = { ...item }; delete copy.confirmedPayment; return copy;
@@ -678,12 +680,18 @@ export default function DashboardClient({ user }: { user: DashboardUser }) {
     if (!deviceOnly) setCloudStatus("saving");
     setDebtActionMessage("Entry kept as a balance adjustment. Balance unchanged.");
   };
-  const changeRecordedPayment = (id: string, deleted: boolean) => {
-    const entry = transactions.find(item => item.id === id);
-    if (isViewer || !entry || entry.type !== "payment" || entry.replacedByTransactionId || Boolean(entry.deletedAt) === deleted) return;
-    setTransactions(current => current.map(item => item.id === id ? setRecordedPaymentDeleted(item, deleted) : item));
-    if (!deviceOnly) setCloudStatus("saving");
-    setDebtActionMessage(deleted ? "Payment deleted and its balance reduction reversed. You can restore it from Deleted payments." : "Payment restored and its balance reduction applied once.");
+  const changeTransactionEntry = (command: EntryCommand, expected: string): string | null => {
+    if (isViewer) return "Your household access is read-only.";
+    const state = { accounts, transactions, adjustments: balanceAdjustments };
+    if (JSON.stringify(state) !== expected) return "The household changed while this form was open. Close and reopen it to review the latest balances.";
+    try {
+      const next = changeDebtEntry(state, command, auditCreator);
+      createDashboardPayload(dashboardContract.current?.payload, { accounts: next.accounts, transactions: next.transactions, balanceAdjustments: next.adjustments, monthlyBudgets, payees, snapshots, extra, strategy, planning, monthlyPlan, customDebtOrder });
+      setAccounts(next.accounts); setTransactions(next.transactions); setBalanceAdjustments(next.adjustments);
+      if (!deviceOnly) setCloudStatus("saving");
+      setDebtActionMessage(command.action === "save" ? "Transaction saved. Its balance change was applied once." : command.action === "delete" ? "Transaction deleted and its balance change reversed. You can restore it from Deleted transactions." : "Transaction restored. Its balance change was applied once.");
+      return null;
+    } catch (error) { return error instanceof Error ? error.message : "Could not save this transaction."; }
   };
   const markAccountPaidOff = (id: string) => {
     const account = calculatedAccounts.find((item) => item.id === id);
@@ -984,7 +992,7 @@ export default function DashboardClient({ user }: { user: DashboardUser }) {
         <div className="top-actions">
           <span className={`save-state ${deviceOnly ? deviceSaveStatus : cloudStatus}`} role="status"><i/> {deviceOnly ? deviceSaveStatus === "synced" ? "Saved on device" : deviceSaveStatus === "error" ? "Device save failed" : "Saving on device" : cloudStatus === "synced" ? "Household saved" : cloudStatus === "conflict" ? "Save conflict" : cloudStatus === "error" ? "Cloud save unavailable" : "Saving"}</span>
           <button className={navigationCollapsed ? "dashboard-toggle mobile-dashboard-toggle is-collapsed" : "dashboard-toggle mobile-dashboard-toggle"} type="button" onClick={toggleDashboardNavigation} aria-label={navigationCollapsed ? "Expand dashboard navigation" : "Collapse dashboard navigation"} aria-controls="dashboard-navigation" aria-expanded={!navigationCollapsed}><i aria-hidden="true"><b/></i></button>
-          <button className="refresh-dashboard" type="button" aria-label="Refresh dashboard" title="Refresh after changes finish saving" disabled={Boolean(localError) || (!isViewer && deviceSaveStatus !== "synced") || (!deviceOnly && cloudStatus !== "synced") || modalOpen || cashflowModalOpen || transactionModalOpen || paymentRequest !== null || balanceAccountId !== null || auditTransactionId !== null} onClick={() => { if (!sync.current?.pending && !localError) window.location.reload(); }}>↻</button>
+          <button className="refresh-dashboard" type="button" aria-label="Refresh dashboard" title="Refresh after changes finish saving" disabled={Boolean(localError) || (!isViewer && deviceSaveStatus !== "synced") || (!deviceOnly && cloudStatus !== "synced") || modalOpen || cashflowModalOpen || transactionModalOpen || paymentRequest !== null || balanceAccountId !== null || auditTransactionId !== null || debtEntryOpen} onClick={() => { if (!sync.current?.pending && !localError) window.location.reload(); }}>↻</button>
           <button className="avatar" type="button" onClick={() => setPage("profile")} aria-label="Open My Account">{user.displayName.slice(0,2).toUpperCase()}</button>
         </div>
       </header>
@@ -993,7 +1001,7 @@ export default function DashboardClient({ user }: { user: DashboardUser }) {
         {!deviceOnly && (cloudStatus === "error" || cloudStatus === "conflict") && <section role="alert" className="viewer-notice"><strong>{cloudStatus === "conflict" ? "Another session changed this household. Your changes are retained." : "Cloud access or saving is unavailable. Pending changes are retained."}</strong><button onClick={() => void refreshHousehold()}>Retry connection</button><button onClick={() => void exportDashboardBackup()}>Export my changes</button>{cloudStatus === "conflict" && <button onClick={() => { void (async () => { if (!confirm("Load the latest household data? Your current changes will be kept as a recovery checkpoint.")) return; try { if (dashboardContract.current) await repository.checkpoint(dashboardContract.current); const loaded = await sync.current?.useCloud(); if (loaded?.contract) applyDashboardPayload(loaded.contract); } catch { setLocalError("Could not load the household. Export your changes before continuing."); } })(); }}>Load latest household</button>}</section>}
         {isViewer && <section className="viewer-notice" role="status"><strong>Viewer access</strong><span>You can review this household dashboard, but only the owner and admins can make changes.</span></section>}
         {page === "more" && <div className="screen more-screen"><div className="screen-title"><div><h1>More</h1><p>Optional tools, settings, and backups.</p></div></div><section className="more-links" aria-label="More tools">{MORE_NAV_ITEMS.map(item => <button key={item.id} type="button" onClick={() => setPage(item.id)}>{item.label}<span aria-hidden="true">›</span></button>)}<button type="button" onClick={() => setPage("profile")}>Import & export backups<span aria-hidden="true">›</span></button></section><details className="more-advanced"><summary>Advanced tools</summary><div className="more-links">{ADVANCED_NAV_ITEMS.filter(item => item.id !== "history" || detailedSpendingTracking).map(item => <button key={item.id} type="button" onClick={() => setPage(item.id)}>{item.label}<span aria-hidden="true">›</span></button>)}</div>{!detailedSpendingTracking && <p>Enable detailed spending tracking in Budget to access transaction entry. Existing records are retained.</p>}</details></div>}
-        {page === "payments" && <PaymentsPage readOnly={isViewer} accounts={calculatedAccounts} transactions={transactions} adjustments={balanceAdjustments} message={debtActionMessage} onRecord={() => { const account = calculatedAccounts.find(a => !a.archivedAt && a.balance > 0); if (account) openRecommendedPayment(account.id, 0); }} onConfirm={confirmBalancePayment} onUndoConfirmation={undoBalancePayment} onDelete={id => changeRecordedPayment(id, true)} onRestore={id => changeRecordedPayment(id, false)}/>}
+        {page === "payments" && <PaymentsPage readOnly={isViewer} accounts={calculatedAccounts} transactions={transactions} adjustments={balanceAdjustments} message={debtActionMessage} onRecord={() => { const account = calculatedAccounts.find(a => !a.archivedAt && a.balance > 0); if (account) openRecommendedPayment(account.id, 0); }} onConfirm={confirmBalancePayment} onUndoConfirmation={undoBalancePayment} storedAccounts={accounts} onChange={changeTransactionEntry} onDialog={setDebtEntryOpen}/>}
         <fieldset className="viewer-readonly-surface" disabled={isViewer}>
 
         {page === "home" && <HomeDashboardPage model={homeDashboard} onRecordPayment={openRecommendedPayment} onExtra={updateExtra} onAction={openHomeAction} onViewPayments={() => setPage("payments")} onViewPlan={() => setPage("plan")} onViewDebts={() => setPage("accounts")} onViewProgress={() => setPage("snapshots")} onViewMonthlyPlan={() => setPage("monthly")}/>}
@@ -1050,7 +1058,7 @@ function TransactionsPage({ accounts, payees, transactions, onQuickAdd, onEdit, 
   const formatTransactionDate = (value: string) => { const [year, month, day] = value.split("-").map(Number); return new Date(year, month - 1, day).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }); };
 
   return <div className="screen ledger-screen">
-    <div className="screen-title"><div><span className="eyebrow">Core transaction ledger</span><h1>Transactions</h1><p>Record charges, fees, and payments. Every active entry is included in the calculated account balances below.</p></div><div className="screen-actions ledger-actions"><button className="secondary" type="button" onClick={onManagePayees}>Merchants &amp; recipients</button><button className="secondary" type="button" disabled={!accounts.length} onClick={() => { setBatchRows(makeRows()); setBatchOpen((open) => !open); }}>Batch entry</button><label className={accounts.length ? "primary receipt-file-button" : "primary receipt-file-button disabled"}><input type="file" accept="image/*" capture="environment" disabled={!accounts.length} onChange={(event) => { const input = event.currentTarget; const file = input.files?.[0]; if (file) setReceiptFile(file); input.value = ""; }}/><span>Scan receipt</span></label><button className="secondary" type="button" disabled={!accounts.length} onClick={onQuickAdd}>+ Quick add</button></div></div>
+    <div className="screen-title"><div><span className="eyebrow">Core transaction ledger</span><h1>Detailed ledger</h1><p>Record charges, fees, and payments. Every active entry is included in the calculated account balances below.</p></div><div className="screen-actions ledger-actions"><button className="secondary" type="button" onClick={onManagePayees}>Merchants &amp; recipients</button><button className="secondary" type="button" disabled={!accounts.length} onClick={() => { setBatchRows(makeRows()); setBatchOpen((open) => !open); }}>Batch entry</button><label className={accounts.length ? "primary receipt-file-button" : "primary receipt-file-button disabled"}><input type="file" accept="image/*" capture="environment" disabled={!accounts.length} onChange={(event) => { const input = event.currentTarget; const file = input.files?.[0]; if (file) setReceiptFile(file); input.value = ""; }}/><span>Scan receipt</span></label><button className="secondary" type="button" disabled={!accounts.length} onClick={onQuickAdd}>+ Quick add</button></div></div>
     {!accounts.length ? <section className="large-empty"><span>Ledger</span><h2>Add a debt account first</h2><p>Transactions need an account so DebtFree can calculate how each charge, fee, or payment changes its balance.</p></section> : <>
       <section className="ledger-metrics"><article><span>Calculated debt</span><strong>{moneyPrecise.format(accounts.reduce((sum, account) => sum + account.balance, 0))}</strong><small>Opening balances plus active ledger entries</small></article><article><span>Charges & fees</span><strong className="charge">{moneyPrecise.format(charges)}</strong><small>Increase account balances</small></article><article><span>Payments</span><strong className="payment">{moneyPrecise.format(payments)}</strong><small>Reduce account balances</small></article><article><span>Saved names</span><strong>{payees.filter((payee) => !payee.deletedAt).length}</strong><small>{transactions.filter((transaction) => transaction.deletedAt).length} deleted transactions retained</small></article></section>
       <section className="balance-strip" aria-label="Calculated account balances">{accounts.map((account) => <div key={account.id}><span>{account.name}</span><strong>{moneyPrecise.format(account.balance)}</strong><small>Calculated balance</small></div>)}</section>
@@ -1793,14 +1801,14 @@ function BalanceUpdateModal({ account, error, onClose, onSave }: { account: Debt
   const changed = !invalidBalance && (Math.abs(difference) >= 0.005 || Boolean(account.interestAutomation?.enabled));
   return <div className="modal-backdrop" onMouseDown={(event) => { if (event.currentTarget === event.target) onClose(); }}>
     <section className="modal debt-action-modal" role="dialog" aria-modal="true" aria-labelledby="balance-modal-title" aria-describedby="balance-modal-description">
-      <header><div><span>Balance reconciliation</span><h2 id="balance-modal-title">Update {account.name} balance</h2><p id="balance-modal-description">Enter the balance shown by your lender. The difference appears in Payments as a balance adjustment; it is not automatically counted as a payment. {account.interestAutomation?.enabled && "This replaces estimated interest already included in the balance. Interest through the effective date will not be added again."}</p></div><button type="button" onClick={onClose} aria-label="Close balance update form">&times;</button></header>
+      <header><div><span>Balance reconciliation</span><h2 id="balance-modal-title">Update {account.name} balance</h2><p id="balance-modal-description">Enter the balance shown by your lender. The difference appears in Transactions as a balance adjustment; it is not automatically counted as a payment. {account.interestAutomation?.enabled && "This replaces estimated interest already included in the balance. Interest through the effective date will not be added again."}</p></div><button type="button" onClick={onClose} aria-label="Close balance update form">&times;</button></header>
       <div className="debt-action-form">
         <div className="balance-change-preview" aria-live="polite"><div><span>Previous balance</span><strong>{moneyPrecise.format(account.balance)}</strong></div><i aria-hidden="true">&rarr;</i><div><span>New balance</span><strong>{invalidBalance ? "—" : moneyPrecise.format(parsedBalance)}</strong></div></div>
         {invalidBalance && <p className="form-error" role="alert">Enter a balance of $0.00 or more, with up to two decimal places. Blank does not mean zero.</p>}{error && <p className="form-error" role="alert">{error}</p>}
         <p className={difference > 0 ? "balance-difference increase" : "balance-difference decrease"}>{changed ? (difference > 0 ? "Increase " : "Decrease ") + moneyPrecise.format(Math.abs(difference)) : "Enter a different current balance to continue."}</p>
         <div className="form-grid"><label><span>New current balance</span><input type="text" inputMode="decimal" value={balanceText} aria-invalid={invalidBalance} onChange={event => setBalanceText(event.target.value)}/></label><label><span>Effective date</span><input type="date" value={draft.date} onChange={(event) => setDraft({ ...draft, date: event.target.value })}/></label><label className="wide"><span>Optional note</span><input value={draft.note} maxLength={240} placeholder="Example: Reconciled to August statement" onChange={(event) => setDraft({ ...draft, note: event.target.value })}/></label></div>
       </div>
-      <footer><span>You can identify a balance decrease as a payment later in Payments.</span><div><button className="secondary" type="button" onClick={onClose}>Cancel</button><button className="primary" type="button" disabled={!changed || !draft.date} onClick={() => onSave({ ...draft, balance: parsedBalance })}>Confirm balance update</button></div></footer>
+      <footer><span>You can identify a balance decrease as a payment later in Transactions.</span><div><button className="secondary" type="button" onClick={onClose}>Cancel</button><button className="primary" type="button" disabled={!changed || !draft.date} onClick={() => onSave({ ...draft, balance: parsedBalance })}>Confirm balance update</button></div></footer>
     </section>
   </div>;
 }

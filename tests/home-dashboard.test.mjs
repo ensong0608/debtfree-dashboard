@@ -235,13 +235,13 @@ test("Phase 4 navigation, advanced access, mobile targets, and headings are expl
   const primaryBlock = client.slice(client.indexOf("const NAV_ITEMS"), client.indexOf("const MORE_NAV_ITEMS"));
   const labels = [...primaryBlock.matchAll(/label: "([^"]+)"/g)].map((match) => match[1]);
 
-  assert.deepEqual(labels, ["Debts", "Payments", "Budget", "More"]);
-  assert.doesNotMatch(primaryBlock, /Transactions|Payees|Credit Utilization|Stats/);
+  assert.deepEqual(labels, ["Debts", "Transactions", "Budget", "More"]);
+  assert.doesNotMatch(primaryBlock, /Detailed ledger|Payees|Credit Utilization|Stats/);
   assert.match(client, /const \[page, setPage\] = useState<PageId>\("accounts"\)/);
   assert.match(client, /const completeOnboarding[\s\S]*?setPage\("accounts"\)/);
   assert.match(client, /aria-current=\{primaryPage === item\.id \? "page" : undefined\}/);
   assert.match(client, /onViewTransactions=\{\(\) => setPage\("history"\)\}/);
-  assert.match(monthly, />Open transactions</);
+  assert.match(monthly, />Open detailed ledger</);
   assert.match(client, /item\.id !== "history" \|\| detailedSpendingTracking/);
   assert.match(client, /<h1>Progress<\/h1>/);
   assert.match(client, /progress-projection-card/);

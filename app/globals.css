@@ -1272,3 +1272,13 @@ textarea:focus-visible{outline:3px solid rgba(22,119,255,.22);outline-offset:2px
 .costco-interest-settings p { font-size: 14px; line-height: 1.5; margin: 10px 0; }
 .costco-interest-settings .interest-toggle { display: flex; align-items: center; gap: 12px; min-height: 48px; }
 .costco-interest-settings .interest-toggle input { width: 24px; height: 24px; flex-shrink: 0; }
+
+.transaction-entry-actions{display:flex;flex-wrap:wrap;gap:10px;margin-top:12px}
+.transaction-entry-actions button{min-height:48px}
+.debt-action-modal>form{display:contents}
+.debt-action-modal .field>textarea{width:100%;min-height:90px;font:inherit;padding:12px;border:1px solid var(--border);border-radius:12px;resize:vertical}
+@media(max-width:600px){nav[aria-label="Primary navigation"] button{padding-left:4px;padding-right:4px}nav[aria-label="Primary navigation"] button span{font-size:13px}.transaction-entry-actions{display:grid;grid-template-columns:1fr 1fr}}
+
+.debt-action-modal .debt-money-field .field-input input{font-size:24px!important;min-height:64px;min-width:0;width:100%;padding:12px}
+.debt-money-field .field-input{display:flex;align-items:center;gap:8px}
+.debt-money-field .field-input>span{padding-left:12px;font-size:22px}
