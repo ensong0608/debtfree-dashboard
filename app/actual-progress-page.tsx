@@ -14,7 +14,7 @@ function ProgressBar({name, starting, current}: {name:string;starting:number;cur
 }
 export default function ActualProgressPage({accounts,transactions,adjustments,snapshots,loans,onCapture,onDelete,onUpdateNote,onAccounts}: {accounts:DebtAccount[];transactions:LedgerTransaction[];adjustments:BalanceAdjustment[];snapshots:PayoffSnapshot[];loans:LoanTracker[];onCapture:(note:string)=>void;onDelete:(id:string)=>void;onUpdateNote:(id:string,note:string)=>void;onAccounts:()=>void}) {
  const report=buildActualProgress(accounts,transactions,adjustments,snapshots);
- const [note,setNote]=useState("");
+ const [note,setNote]=useState(() => snapshots.find(snapshot => snapshot.month === recentDebtMonths()[0])?.note ?? "");
  const months=recentDebtMonths();
  const history=report.snapshots.map(s=>({month:s.month,balance:s.totalBalance}));
  if(history.at(-1)?.month===months[0]) history.pop();
