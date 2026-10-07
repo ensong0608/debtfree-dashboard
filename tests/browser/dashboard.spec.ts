@@ -288,7 +288,9 @@ test("Costco interest starts next cycle, survives refresh, and reconciles withou
   }
   await page.setViewportSize(original);
   await dialog.getByRole("button", { name: "Save details", exact: true }).click();
-  await expect(card).toContainText("Monthly interest estimate on");
+  await card.getByRole("button", { name: "Edit debt details" }).click();
+  await expect(dialog.getByLabel("Automatically add estimated interest")).toBeChecked();
+  await dialog.getByRole("button", { name: "Cancel", exact: true }).click();
   await expect(card.locator(".simple-balance")).toHaveText("$10,075.60");
   await page.getByRole("button", { name: "Transactions", exact: true }).click();
   await expect(page.locator(".payment-activity>article")).toHaveCount(0);
