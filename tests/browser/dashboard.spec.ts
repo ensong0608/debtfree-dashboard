@@ -432,4 +432,17 @@ test("a named lender adjustment uses its signed amount without another ledger de
  const fixture=JSON.parse(readFileSync(path.resolve("tests/fixtures/legacy-v0.json"),"utf8"));fixture.transactions=[];
  await page.goto("/");await page.locator('input[type="file"]').setInputFiles({name:"signed-adjustment.json",mimeType:"application/json",buffer:Buffer.from(JSON.stringify(fixture))});
  const card=page.locator(".balance-first-cards>article").filter({hasText:"Sample Rewards Card"});
- await card.getByRole("button",{name:"Updat
+ await card.getByRole("button",{name:"Update balance for Sample Rewards Card",exact:true}).click();
+ const dialog=page.getByRole("dialog");await dialog.getByLabel("New current balance").fill("2517.71");await dialog.getByRole("button",{name:"Confirm balance update"}).click();
+ await page.getByRole("button",{name:"Transactions",exact:true}).click();
+ const entry=page.locator(".payment-activity>article");await entry.getByRole("button",{name:"Edit transaction",exact:true}).click();
+ await expect(dialog.getByLabel("Transaction amount",{exact:true})).toHaveValue("+66.96");
+ await dialog.getByLabel("What’s it for?",{exact:true}).fill("SFC Henderson grocery run");
+ await expect(dialog).toContainText("$2,517.71");await dialog.getByRole("button",{name:"Save transaction",exact:true}).click();
+ await expect(entry.getByRole("heading",{name:"SFC Henderson grocery run"})).toBeVisible();
+ await entry.getByRole("button",{name:"Edit transaction",exact:true}).click();await dialog.getByLabel("Transaction amount",{exact:true}).fill("-50");
+ await expect(dialog).toContainText("$2,400.75");await dialog.getByRole("button",{name:"Save transaction",exact:true}).click();
+ await expect(page.locator(".simple-total>strong")).toHaveText("$50.00");
+ await page.reload();await expect(card.locator(".simple-balance")).toHaveText("$2,400.75");
+ await page.getByRole("button",{name:"Transactions",exact:true}).click();await expect(page.locator(".payment-activity>article")).toHaveCount(1);await expect(page.locator(".simple-total>strong")).toHaveText("$50.00");
+});
