@@ -272,7 +272,6 @@ test("Costco interest starts next cycle, survives refresh, and reconciles withou
   await page.locator('input[type="file"]').setInputFiles({ name: "costco-test.json", mimeType: "application/json", buffer: Buffer.from(JSON.stringify(fixture)) });
   const card = page.locator(".balance-first-cards>article").filter({ hasText: "Costco" });
   await expect(card.locator(".simple-balance")).toHaveText("$10,075.60");
-  await card.getByText("Account details", { exact: true }).click();
   await card.getByRole("button", { name: "Edit debt details" }).click();
   const dialog = page.getByRole("dialog");
   await dialog.getByLabel("Automatically add estimated interest").check();

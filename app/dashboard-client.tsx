@@ -1,4 +1,5 @@
 "use client";
+import DebtProgressRing from "./debt-progress-ring";
 import PayoffCalculatorPage from "./payoff-calculator-page";
 import type { LoanTracker } from "./loan-progress";
 import LoanProgressPanel from "./loan-progress-panel";
@@ -53,7 +54,7 @@ import { confirmAdjustmentPayment, parseMoneyInput } from "./payments";
 import HomeDashboardPage from "./home-dashboard-page";
 import { buildHomeDashboard, type HomeAction } from "./home-dashboard";
 import CostcoInterestSettings from "./costco-interest-settings";
-import { MobileCategorySummary, MobileDebtProgress } from "./mobile-debt-visuals";
+import { MobileCategorySummary } from "./mobile-debt-visuals";
 import { DEBT_CATEGORY_COLORS } from "./debt-presentation";
 import { accrueCostcoInterest, COSTCO_ESTIMATED_APR, householdDate, reconcileInterest, validDate } from "./interest-accrual";
 import { arrangeDebt, groupedDisplayDebts, type DebtDisplayGroup, canArchiveDebt, createBalanceAdjustment, createDebtPayment, replaceDebtPayment, DebtPaymentError, debtStatus, payoffPriority, promoNotice, setDebtArchived, splitDebtAccounts } from "./debts-screen";
@@ -1254,12 +1255,19 @@ function AccountsPage({
     </div>
     {importMessage && <p className={importMessage.startsWith("Import failed") ? "import-message error" : "import-message"}>{importMessage}</p>}
     {actionMessage && <p className="debt-action-message" role="status" aria-live="polite">{actionMessage}</p>}
-    {loanPanel}
     <section className="simple-total"><span>Total current balance · all debts</span><strong>{moneyPrecise.format(totalBalance + loans.reduce((sum, loan) => sum + loan.remainingAmount, 0))}</strong><MobileCategorySummary accounts={current} loans={loans}/></section>
     <button type="button" className="secondary" aria-pressed={arranging} onClick={() => setArranging(!arranging)}>{arranging ? "Done arranging" : "Arrange debts"}</button>
     {displayGroups.filter(group => group.accounts.length || group.group !== "Other").map(({group, accounts: groupAccounts}) => <section className="household-debt-group" key={group} aria-label={`${group} debts`}><h2>{group} <small>{moneyPrecise.format(groupAccounts.reduce((sum, account) => sum + account.balance, 0))}</small></h2><div className="balance-first-cards">{groupAccounts.map((account, index) => {
-      const lastUpdate = balanceAdjustments.filter(a => a.accountId === account.id).sort((a,b) => b.createdAt.localeCompare(a.createdAt))[0];
-      return <article key={account.id} data-debt-category={DEBT_CATEGORY_COLORS[account.type].key}><h2>{account.name}</h2>{arranging && <div className="debt-arrange-controls"><label>Group <select aria-label={`Group for ${account.name}`} value={group} onChange={event => onArrange(account.id, event.target.value as DebtDisplayGroup, 0)}>{["Mama", "Papi", "Other"].map(value => <option key={value}>{value}</option>)}</select></label><button className="secondary" type="button" disabled={index === 0} aria-label={`Move ${account.name} up`} onClick={() => onArrange(account.id, group, -1)}>↑ Up</button><button className="secondary" type="button" disabled={index === groupAccounts.length - 1} aria-label={`Move ${account.name} down`} onClick={() => onArrange(account.id, group, 1)}>↓ Down</button></div>}<span className="mobile-debt-category">{account.type}</span><strong className="simple-balance">{moneyPrecise.format(account.balance)}</strong><p>{lastUpdate ? "Balance checked " + formatDate(lastUpdate.date) : "No lender balance check recorded"}</p>{account.interestAutomation?.enabled && <p>Monthly interest estimate on · Closing day 2</p>}<p>Minimum {moneyPrecise.format(effectiveMinimum(account))}{account.dueDate ? " · Due " + formatDate(account.dueDate) : ""}</p><MobileDebtProgress account={account}/><button className="primary" type="button" aria-label={`Update balance for ${account.name}`} onClick={() => onUpdateBalance(account)}>Update balance</button><details><summary>Account details</summary><p>{account.type} · APR {account.apr.toFixed(2)}%</p><p>Minimum and due date are references, not payment confirmations.</p><div className="simple-account-actions"><button className="secondary" type="button" aria-label={`Record payment for ${account.name}`} disabled={account.balance <= 0} onClick={() => onRecordPayment(account)}>Record payment</button><button className="secondary" type="button" onClick={() => onEdit(account)}>Edit debt details</button>{account.balance <= 0 && <button className="secondary" type="button" aria-label={`Archive ${account.name}`} onClick={() => onArchive(account.id)}>Archive</button>}</div></details><DebtActivityPanel accountId={account.id} name={account.name} transactions={transactions} adjustments={balanceAdjustments}/></article>;
+      return <article className="compact-debt-card" key={account.id} data-debt-category={DEBT_CATEGORY_COLORS[account.type].key}>
+        <div className="compact-debt-top">
+          <div className="compact-debt-identity"><h2>{account.name}</h2><strong className="simple-balance">{moneyPrecise.format(account.balance)}</strong></div>
+          <DebtProgressRing account={account}/>
+          <dl className="compact-debt-meta"><div><dt>APR</dt><dd>{account.apr.toFixed(2)}%</dd></div><div><dt>Min</dt><dd>{moneyPrecise.format(effectiveMinimum(account))}</dd></div><div><dt>Due</dt><dd>{account.dueDate ? formatDate(account.dueDate) : "—"}</dd></div></dl>
+        </div>
+        {arranging && <div className="debt-arrange-controls"><label>Group <select aria-label={`Group for ${account.name}`} value={group} onChange={event => onArrange(account.id, event.target.value as DebtDisplayGroup, 0)}>{["Mama", "Papi", "Other"].map(value => <option key={value}>{value}</option>)}</select></label><button className="secondary" type="button" disabled={index === 0} aria-label={`Move ${account.name} up`} onClick={() => onArrange(account.id, group, -1)}>↑ Up</button><button className="secondary" type="button" disabled={index === groupAccounts.length - 1} aria-label={`Move ${account.name} down`} onClick={() => onArrange(account.id, group, 1)}>↓ Down</button></div>}
+        <div className="compact-debt-actions"><button className="secondary" type="button" aria-label={`Update balance for ${account.name}`} onClick={() => onUpdateBalance(account)}>Update</button><button className="secondary" type="button" aria-label={`Edit debt details for ${account.name}`} onClick={() => onEdit(account)}>Edit details</button>{account.balance <= 0 && <button className="secondary" type="button" aria-label={`Archive ${account.name}`} onClick={() => onArchive(account.id)}>Archive</button>}</div>
+        <DebtActivityPanel accountId={account.id} name={account.name} transactions={transactions} adjustments={balanceAdjustments}/>
+      </article>;
     })}</div></section>)}
     <details className="detailed-debts" open={current.length === 0}><summary>Detailed debt view & import</summary>
     <section className="metrics">
@@ -1324,6 +1332,7 @@ function AccountsPage({
       <summary>Archived debts ({archived.length})</summary>
       <div>{archived.map((account) => <article key={account.id}><div><strong>{account.name}</strong><span>Paid off - {account.type}</span></div><button type="button" className="secondary" aria-label={`Restore ${account.name}`} onClick={() => onRestore(account.id)}>Restore</button></article>)}</div>
     </details>}
+    {loanPanel}
   </div>;
 }
 function ProfilePage({ user, householdName, role, members, cloudStatus, deviceOnly, transferMessage, onExportBackup, onImportBackup, onReset, onRecover, onInvite, onRemove }: { user: DashboardUser; householdName: string; role: HouseholdRole; members: HouseholdMember[]; cloudStatus: CloudStatus; deviceOnly: boolean; transferMessage: string; onExportBackup: () => Promise<void>; onImportBackup: (file: File, mode: ImportMode) => Promise<void>; onReset: () => Promise<void>; onRecover: () => Promise<void>; onInvite: (email: string, role: Exclude<HouseholdRole, "owner">) => Promise<void>; onRemove: (email: string) => Promise<void> }) {
