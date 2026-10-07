@@ -114,12 +114,12 @@ test("create a household plan, record payment, change strategy and restore a bac
   await page.getByRole("button", { name: "Confirm balance update" }).click();
   await expect(page.getByRole("dialog")).toHaveCount(0);
   await page.getByRole("button", { name: "Budget", exact: true }).click();
-  await page.locator(".budget-section-card").filter({hasText:"Income"}).locator(":scope > summary").click();
+  await page.locator(".budget-section-card").filter({has:page.getByText("Income",{exact:true})}).locator(":scope > summary").click();
   await expect(page.getByRole("button", { name: /Edit Household salary/ })).toBeVisible();
   await expect(page.getByRole("button", {name:"Open detailed ledger",exact:true})).toHaveCount(0);
   await page.getByRole("button", { name: "Next month", exact: true }).click();
   await page.getByRole("button", { name: "Copy recurring items" }).click();
-  await page.locator(".budget-section-card").filter({hasText:"Income"}).locator(":scope > summary").click();
+  await page.locator(".budget-section-card").filter({has:page.getByText("Income",{exact:true})}).locator(":scope > summary").click();
   await expect(page.getByRole("button", { name: /Edit Household salary/ })).toBeVisible();
   await page.getByRole("button", { name: "More", exact: true }).click();
   await page.getByRole("button", { name: "Payoff Plan", exact: true }).click();
@@ -205,7 +205,8 @@ test("paid expense and minimum records preserve balances, survive reload, and ca
  await page.getByRole("button",{name:"Undo paid record for Sample Rewards Card",exact:true}).click();
  await expect(page.getByRole("button",{name:"Minimum already paid for Sample Rewards Card",exact:true})).toBeVisible();
  await page.getByRole("button",{name:"Undo paid record for Paid rent",exact:true}).click();
- await expect(page.getByRole("button",{name:"Edit Paid rent",exact:true})).toContainText("$0.00");
+ await expect(page.getByRole("button",{name:"Edit Paid rent",exact:true})).toContainText("$500.00");
+ await expect(page.getByRole("button",{name:"Record paid for Paid rent",exact:true})).toBeVisible();
 });
 
 test("duplicate payments can be deleted, cancelled, and restored from Payments", async ({page}) => {

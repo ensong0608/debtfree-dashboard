@@ -13,7 +13,7 @@ test('Budget section cards keep clear totals, Helvetica, and hide retired tools'
  await page.getByRole('button',{name:'Budget',exact:true}).click();
  await expect(page.locator('.budget-main-summary>strong')).toHaveText('$2,390.00');
  await expect(page.locator('.budget-section-card')).toHaveCount(3);
- const income=page.locator('.budget-section-card').filter({hasText:'Income'});
+ const income=page.locator('.budget-section-card').filter({has:page.getByText('Income',{exact:true})});
  await expect(income).not.toHaveAttribute('open','');
  await income.locator(':scope > summary').click();
  await expect(page.getByRole('button',{name:'Edit Household salary',exact:true})).toBeVisible();
