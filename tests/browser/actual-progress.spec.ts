@@ -19,6 +19,7 @@ test("six-month debt activity counts payments and actual progress stays fixed af
  await expect(history).toContainText("Balance up +$50.00");
  await expect(history).toContainText("Balance down −$100.00");
  await expect(history.locator(".debt-history-month").nth(1)).toContainText("No payments recorded");
+ await page.getByRole("button",{name:"More",exact:true}).click();
  await page.getByRole("button",{name:"Progress",exact:true}).filter({visible:true}).click();
  await expect(page.getByRole("heading",{name:"Progress",exact:true})).toBeVisible();
  await expect(page.locator(".actual-progress-summary")).toContainText("$1,000.00");
@@ -31,6 +32,7 @@ test("six-month debt activity counts payments and actual progress stays fixed af
  await page.getByRole("button",{name:"Save this month's balance check",exact:true}).click();
  await expect(page.locator(".actual-progress-summary")).toContainText("$1,000.00");
  await page.reload();
+ await page.getByRole("button",{name:"More",exact:true}).click();
  await page.getByRole("button",{name:"Progress",exact:true}).filter({visible:true}).click();
  await expect(page.locator(".actual-progress-summary")).toContainText("$350.00");
  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1)).toBe(true);
