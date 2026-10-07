@@ -1,0 +1,37 @@
+import { test, expect } from '@playwright/test';
+import { readFileSync } from 'node:fs';
+import AxeBuilder from '@axe-core/playwright';
+
+test('Budget section cards keep clear totals, Helvetica, and hide retired tools', async ({page}) => {
+ const fixture=JSON.parse(readFileSync('tests/fixtures/legacy-v0.json','utf8'));
+ const now=new Date();const month=now.getFullYear()+'-'+String(now.getMonth()+1).padStart(2,'0');
+ const common={paymentMethod:'debit',creditAccountId:'',createdAt:now.toISOString(),recurring:true};
+ fixture.monthlyBudgets[month]=[{...common,id:'salary',name:'Household salary',kind:'income',category:'Salary',amount:6500},{...common,id:'mortgage',name:'Mortgage',kind:'expense',category:'Housing',amount:2100},{...common,id:'bills',name:'Other bills',kind:'expense',category:'Other',amount:2010}];
+ fixture.transactions=[];fixture.balanceAdjustments=[];
+ await page.goto('/');
+ await page.locator('input[type="file"]').setInputFiles({name:'budget-cards.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(fixture))});
+ await page.getByRole('button',{name:'Budget',exact:true}).click();
+ await expect(page.locator('.budget-main-summary>strong')).toHaveText('$2,390.00');
+ await expect(page.locator('.budget-section-card')).toHaveCount(3);
+ const income=page.locator('.budget-section-card').filter({hasText:'Income'});
+ await expect(income).not.toHaveAttribute('open','');
+ await income.locator(':scope > summary').click();
+ await expect(page.getByRole('button',{name:'Edit Household salary',exact:true})).toBeVisible();
+ await expect(page.getByRole('button',{name:'Edit Mortgage',exact:true})).toBeVisible();
+ expect(await page.locator('body').evaluate(el=>getComputedStyle(el).fontFamily)).toContain('Helvetica');
+ await page.getByText('Payment tracking & budget details',{exact:true}).click();
+ await page.getByLabel('Cash cushion (monthly safety buffer)',{exact:true}).fill('500');
+ await expect(page.locator('.budget-main-summary>strong')).toHaveText('$2,390.00');
+ await expect(page.locator('.debt-capacity-card .available')).toContainText('$1,890.00');
+ await page.getByRole('button',{name:'More',exact:true}).click();
+ await expect(page.getByRole('button',{name:'Home',exact:true})).toHaveCount(0);
+ await page.getByText('Advanced tools',{exact:true}).click();
+ await expect(page.getByRole('button',{name:'Detailed ledger',exact:true})).toHaveCount(0);
+ await page.getByRole('button',{name:'Stats & Projections',exact:true}).click();
+ await expect(page.locator('.insights-list')).toContainText('Sample Rewards Card');
+ await expect(page.locator('.scenario-card,.strategy-comparison,.projection-table')).toHaveCount(0);
+ expect((await new AxeBuilder({page}).include('.debt-insights-screen').withRules(['color-contrast']).analyze()).violations).toEqual([]);
+ expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1)).toBe(true);
+ await page.getByRole('button',{name:'Open payoff calculator ›',exact:true}).click();
+ await expect(page.getByLabel('Extra each month',{exact:true})).toBeVisible();
+});

@@ -86,7 +86,7 @@ test("Phase 6 JSON round trip retains disabled advanced data and unknown fields"
 test("desktop, tablet, phone, accessible labels, and validation are present", async () => {
   const [page, styles, client] = await Promise.all([readFile(new URL("../app/monthly-plan-page.tsx", import.meta.url), "utf8"), readFile(new URL("../app/globals.css", import.meta.url), "utf8"), readFile(new URL("../app/dashboard-client.tsx", import.meta.url), "utf8")]);
   assert.match(page, /<h1>Budget<\/h1>/);
-  assert.match(page, /Enable detailed spending tracking/);
+  assert.doesNotMatch(page, /Enable detailed spending tracking/);
   assert.match(page, /aria-label="Planned, spent, and remaining"/);
   assert.match(page, /aria-label="Cash cushion \(monthly safety buffer\)"/);
   assert.match(page, /role="alert"/);
@@ -94,7 +94,7 @@ test("desktop, tablet, phone, accessible labels, and validation are present", as
   assert.match(styles, /@media\(max-width:700px\)/);
   assert.match(client, /detailedSpendingTracking && <TransactionsPage/);
   assert.match(client, /plannedItems=\{planningCashflowItems\}/);
-  assert.match(page, /Payoff Plan calls for/);
+  assert.match(page, /Saved payment checklist/);
   assert.match(page, /Cash cushion to keep/);
   assert.match(client, /\["charge", "payment", "fee"\]/);
   assert.match(client, /transactionDraft\.type === "payment" && !editingTransactionId/);

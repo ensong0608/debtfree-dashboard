@@ -39,12 +39,10 @@ import {
   calculatePlan,
   estimatedMinimum,
   effectiveMinimum,
-  hasPromoTerms,
   individualPayoffMonths,
   monthlyInterest,
   round,
   type LinkedCardExpenses,
-  type PayoffPlan,
 } from "./payoff-engine";
 import OnboardingFlow from "./onboarding-flow";
 import MonthlyPlanPage from "./monthly-plan-page";
@@ -61,6 +59,7 @@ import { accrueCostcoInterest, COSTCO_ESTIMATED_APR, householdDate, reconcileInt
 import { arrangeDebt, groupedDisplayDebts, type DebtDisplayGroup, canArchiveDebt, createBalanceAdjustment, createDebtPayment, replaceDebtPayment, DebtPaymentError, debtStatus, payoffPriority, promoNotice, setDebtArchived, splitDebtAccounts } from "./debts-screen";
 import { createPayoffSnapshot, transactionAdjustedAccounts } from "./progress-balances";
 import ActualProgressPage from "./actual-progress-page";
+import DebtInsightsPage from "./debt-insights-page";
 import DebtActivityPanel from "./debt-activity-panel";
 import { spentForPlannedItem, copyRecurringPlannedItems } from "./monthly-plan";
 import {
@@ -237,10 +236,8 @@ const MORE_NAV_ITEMS: { id: PageId; label: string; icon: string }[] = [
   { id: "plan", label: "Payoff Plan", icon: "✓" },
   { id: "snapshots", label: "Progress", icon: "◉" },
   { id: "profile", label: "Settings", icon: "⚙" },
-  { id: "home", label: "Home", icon: "⌂" },
 ];
 const ADVANCED_NAV_ITEMS: { id: PageId; label: string; icon: string }[] = [
-  { id: "history", label: "Detailed ledger", icon: "↻" },
   { id: "utilization", label: "Credit Utilization", icon: "◔" },
   { id: "stats", label: "Stats & Projections", icon: "↗" },
 ];
@@ -996,7 +993,7 @@ export default function DashboardClient({ user }: { user: DashboardUser }) {
         {localError && <section role="alert" className="viewer-notice">{localError}<button onClick={() => void exportDashboardBackup()}>Export backup</button></section>}
         {!deviceOnly && (cloudStatus === "error" || cloudStatus === "conflict") && <section role="alert" className="viewer-notice"><strong>{cloudStatus === "conflict" ? "Another session changed this household. Your changes are retained." : "Cloud access or saving is unavailable. Pending changes are retained."}</strong><button onClick={() => void refreshHousehold()}>Retry connection</button><button onClick={() => void exportDashboardBackup()}>Export my changes</button>{cloudStatus === "conflict" && <button onClick={() => { void (async () => { if (!confirm("Load the latest household data? Your current changes will be kept as a recovery checkpoint.")) return; try { if (dashboardContract.current) await repository.checkpoint(dashboardContract.current); const loaded = await sync.current?.useCloud(); if (loaded?.contract) applyDashboardPayload(loaded.contract); } catch { setLocalError("Could not load the household. Export your changes before continuing."); } })(); }}>Load latest household</button>}</section>}
         {isViewer && <section className="viewer-notice" role="status"><strong>Viewer access</strong><span>You can review this household dashboard, but only the owner and admins can make changes.</span></section>}
-        {page === "more" && <div className="screen more-screen"><div className="screen-title"><div><h1>More</h1><p>Optional tools, settings, and backups.</p></div></div><section className="more-links" aria-label="More tools">{MORE_NAV_ITEMS.map(item => <button key={item.id} type="button" onClick={() => setPage(item.id)}>{item.label}<span aria-hidden="true">›</span></button>)}<button type="button" onClick={() => setPage("profile")}>Import & export backups<span aria-hidden="true">›</span></button></section><details className="more-advanced"><summary>Advanced tools</summary><div className="more-links">{ADVANCED_NAV_ITEMS.filter(item => item.id !== "history" || detailedSpendingTracking).map(item => <button key={item.id} type="button" onClick={() => setPage(item.id)}>{item.label}<span aria-hidden="true">›</span></button>)}</div>{!detailedSpendingTracking && <p>Enable detailed spending tracking in Budget to access transaction entry. Existing records are retained.</p>}</details></div>}
+        {page === "more" && <div className="screen more-screen"><div className="screen-title"><div><h1>More</h1><p>Optional tools, settings, and backups.</p></div></div><section className="more-links" aria-label="More tools">{MORE_NAV_ITEMS.map(item => <button key={item.id} type="button" onClick={() => setPage(item.id)}>{item.label}<span aria-hidden="true">›</span></button>)}<button type="button" onClick={() => setPage("profile")}>Import & export backups<span aria-hidden="true">›</span></button></section><details className="more-advanced"><summary>Advanced tools</summary><div className="more-links">{ADVANCED_NAV_ITEMS.filter(item => item.id !== "history" || detailedSpendingTracking).map(item => <button key={item.id} type="button" onClick={() => setPage(item.id)}>{item.label}<span aria-hidden="true">›</span></button>)}</div></details></div>}
         {page === "payments" && <PaymentsPage readOnly={isViewer} accounts={calculatedAccounts} transactions={transactions} adjustments={balanceAdjustments} message={debtActionMessage} onConfirm={confirmBalancePayment} onUndoConfirmation={undoBalancePayment} storedAccounts={accounts} onChange={changeTransactionEntry} onDialog={setDebtEntryOpen}/>}
         <fieldset className="viewer-readonly-surface" disabled={isViewer}>
 
@@ -1008,7 +1005,7 @@ export default function DashboardClient({ user }: { user: DashboardUser }) {
         {page === "snapshots" && <ActualProgressPage accounts={accounts} transactions={transactions} adjustments={balanceAdjustments} snapshots={snapshots} loans={monthlyPlan.loanTrackers ?? []} onCapture={captureSnapshot} onUpdateNote={updateSnapshotNote} onDelete={removeSnapshot} onAccounts={() => setPage("accounts")}/>}
         {page === "profile" && <ProfilePage user={user} householdName={householdName} role={householdRole} members={householdMembers} cloudStatus={cloudStatus} deviceOnly={deviceOnly} transferMessage={transferMessage} onExportBackup={exportDashboardBackup} onImportBackup={importDashboardBackup} onReset={resetDashboardData} onRecover={async () => { try { const checkpoint = await repository.loadCheckpoint(); if (!checkpoint) { setTransferMessage("No recovery checkpoint is available."); return; } if (!confirm("Restore the saved recovery checkpoint? Current data will be saved as the automatic backup.")) return; await repository.saveHousehold(checkpoint); applyDashboardPayload(checkpoint); } catch (error) { setTransferMessage(dashboardDataErrorMessage(error)); } }} onInvite={inviteMember} onRemove={removeAdmin}/>}
         {page === "utilization" && <UtilizationPage accounts={calculatedAccounts} onEditAccount={openEdit}/>}
-        {page === "stats" && <StatsPage accounts={calculatedAccounts} snapshots={snapshots} transactions={transactions} extra={effectiveExtra} strategy={strategy} linkedCardExpenses={linkedCardExpenses} linkedCardPurchases={linkedCardPurchases}/>}
+        {page === "stats" && <DebtInsightsPage accounts={calculatedAccounts} onPlan={()=>setPage("plan")} onProgress={()=>setPage("snapshots")}/>}
         </fieldset>
       </div>
       {page === "payments" && !debtEntryOpen && <section className="bottom-action-bar transaction-add-bar" aria-label="Add a record"><button type="button" aria-label="Add record" disabled={isViewer || !accounts.length} onClick={() => { setNewRecordOpen(true); setDebtEntryOpen(true); }}>+</button></section>}
@@ -1430,62 +1427,7 @@ function UtilizationPage({ accounts, onEditAccount }: { accounts: DebtAccount[];
   </div>;
 }
 
-function StatsPage({ accounts, snapshots, transactions, extra, strategy, linkedCardExpenses, linkedCardPurchases }: { accounts: DebtAccount[]; snapshots: PayoffSnapshot[]; transactions: LedgerTransaction[]; extra: number; strategy: PayoffStrategy; linkedCardExpenses: LinkedCardExpenses; linkedCardPurchases: LinkedCardExpenses }) {
-  const [scenarioExtra, setScenarioExtra] = useState(extra);
-  const totalDebt = accounts.reduce((sum, account) => sum + account.balance, 0);
-  const forecast = useMemo(() => calculatePlan(accounts, scenarioExtra, strategy, linkedCardExpenses, linkedCardPurchases), [accounts, linkedCardExpenses, linkedCardPurchases, scenarioExtra, strategy]);
-  const avalanche = useMemo(() => calculatePlan(accounts, scenarioExtra, "avalanche", linkedCardExpenses, linkedCardPurchases), [accounts, linkedCardExpenses, linkedCardPurchases, scenarioExtra]);
-  const snowball = useMemo(() => calculatePlan(accounts, scenarioExtra, "snowball", linkedCardExpenses, linkedCardPurchases), [accounts, linkedCardExpenses, linkedCardPurchases, scenarioExtra]);
-  const baseline = useMemo(() => calculatePlan(accounts, 0, strategy, linkedCardExpenses, linkedCardPurchases), [accounts, linkedCardExpenses, linkedCardPurchases, strategy]);
-  const activeTransactions = transactions.filter((transaction) => !transaction.deletedAt);
-  const payments = activeTransactions.filter((transaction) => transaction.type === "payment").reduce((sum, transaction) => sum + transaction.amount, 0);
-  const charges = activeTransactions.filter((transaction) => transaction.type !== "payment").reduce((sum, transaction) => sum + transaction.amount, 0);
-  const netLedgerReduction = round(payments - charges);
-  const orderedSnapshots = [...snapshots].sort((a, b) => a.month.localeCompare(b.month));
-  const firstSnapshot = orderedSnapshots[0] ?? null;
-  const latestSnapshot = orderedSnapshots.at(-1) ?? null;
-  const actualSnapshotReduction = firstSnapshot && latestSnapshot ? round(firstSnapshot.totalBalance - latestSnapshot.totalBalance) : 0;
-  const averageSnapshotReduction = orderedSnapshots.length > 1 ? round(actualSnapshotReduction / (orderedSnapshots.length - 1)) : 0;
-  const payoffDate = (result: PayoffPlan) => result.stalled ? (result.nonAmortizingAccountIds.length ? "No payoff at this payment" : "Needs adjustment") : result.months.length ? monthAfter(result.months.length - 1) : totalDebt <= 0 ? "Debt free" : "No projection";
-  const scenarioValues = [...new Set([0, extra, extra + 100, extra + 250, extra + 500].map((value) => Math.max(0, round(value))))].sort((a, b) => a - b);
-  const scenarios = scenarioValues.map((value) => ({ value, result: calculatePlan(accounts, value, strategy, linkedCardExpenses, linkedCardPurchases) }));
-  const milestone = (remainingShare: number) => { const entry = forecast.months.find((month) => month.remaining <= totalDebt * remainingShare + .005); return entry ? monthAfter(entry.month - 1) : null; };
-  const promoAccounts = accounts.filter(hasPromoTerms);
-  const nonAmortizingAccounts = accounts.filter((account) => forecast.nonAmortizingAccountIds.includes(account.id));
-  const fallbackPromoAccounts = accounts.filter((account) => forecast.promoMinimumFallbackIds.includes(account.id));
-  const forecastInterestSaved = baseline.totalInterest > 0 && !baseline.stalled && !forecast.stalled ? Math.max(0, round(baseline.totalInterest - forecast.totalInterest)) : 0;
 
-  return <div className="screen stats-screen">
-    <div className="screen-title"><div><span className="eyebrow">Complete debt outlook</span><h1>Stats & projections</h1><p>Combine your live ledger, saved snapshots, and payoff plan to understand progress and test faster payoff scenarios.</p></div></div>
-    {!accounts.length ? <section className="large-empty"><span>Stats</span><h2>Add debt accounts to build projections</h2><p>Once balances and minimum payments exist, this page will compare strategies and payoff scenarios.</p></section> : <>
-      <section className="stats-hero"><div><span>Projected debt-free date</span><strong>{payoffDate(forecast)}</strong><small>{forecast.stalled ? "Increase monthly payments to create a finish line" : `${forecast.months.length} months using ${strategy}`}</small></div><div><span>Current debt</span><strong>{moneyPrecise.format(totalDebt)}</strong><small>{accounts.filter((account) => account.balance > 0).length} active accounts</small></div><div><span>Monthly payoff plan</span><strong>{moneyPrecise.format(forecast.monthly)}</strong><small>Minimums, linked card expenses, and extra</small></div><div><span>Projected interest</span><strong>{moneyPrecise.format(forecast.totalInterest)}</strong><small>{forecastInterestSaved > 0 ? `${moneyPrecise.format(forecastInterestSaved)} less than minimum-only pace` : "Based on current balances and rates"}</small></div></section>
-      <section className="scenario-card"><div className="scenario-copy"><span>What-if planner</span><h2>Extra payment each month</h2><p>Adjust this amount to update every projection below. This does not change your saved payoff plan.</p></div><div className="scenario-control"><div><span>$</span><input type="number" min="0" step="25" value={scenarioExtra || ""} placeholder="0" onChange={(event) => setScenarioExtra(number(event.target.value))}/><button type="button" disabled={scenarioExtra === extra} onClick={() => setScenarioExtra(extra)}>Use saved extra</button></div><input aria-label="Extra monthly payment scenario" type="range" min="0" max="2000" step="25" value={Math.min(2000, scenarioExtra)} onChange={(event) => setScenarioExtra(number(event.target.value))}/></div><div className="scenario-result"><span>Scenario finish</span><strong>{payoffDate(forecast)}</strong><small>{forecast.stalled ? "Payments do not outpace interest" : `${forecast.months.length} months | ${moneyPrecise.format(forecast.totalInterest)} interest`}</small></div></section>
-      {promoAccounts.length > 0 && <section className={forecast.stalled ? "true-cost-warning danger" : "true-cost-warning"}>
-        <div className="true-cost-icon" aria-hidden="true">!</div>
-        <div className="true-cost-copy">
-          <span>True Cost forecast</span>
-          <h2>{forecast.stalled ? "No reliable payoff date at this payment" : `${moneyPrecise.format(forecast.totalInterest)} projected interest through ${payoffDate(forecast)}`}</h2>
-          <p>{forecast.stalled
-            ? `The forecast stops when the balance no longer falls. It accumulated ${moneyPrecise.format(forecast.totalInterest)} in interest before that point.`
-            : forecast.peakMonthly > forecast.monthly + .005
-              ? `The required monthly plan rises from ${moneyPrecise.format(forecast.monthly)} to ${moneyPrecise.format(forecast.peakMonthly)} when the saved post-promo minimum takes effect.`
-              : `The monthly plan stays at ${moneyPrecise.format(forecast.monthly)} while the post-promo APR and minimum are applied.`}</p>
-          <div className="true-cost-terms">{promoAccounts.map((account) => <div key={account.id}><strong>{account.name}</strong><span>{formatDate(account.promoEndDate)} end</span><span>{account.postPromoApr.toFixed(2)}% APR after</span><span>{moneyPrecise.format(account.postPromoMinimum > 0 ? account.postPromoMinimum : effectiveMinimum(account))} minimum after</span></div>)}</div>
-          {fallbackPromoAccounts.length > 0 && <small>Minimum not yet supplied for {fallbackPromoAccounts.map((account) => account.name).join(", ")}. The forecast keeps the current minimum; it does not silently estimate a higher one.</small>}
-          {nonAmortizingAccounts.length > 0 && <strong className="non-amortizing">Non-amortizing: {nonAmortizingAccounts.map((account) => account.name).join(", ")}. The modeled payment does not reduce the balance after interest and new charges.</strong>}
-        </div>
-      </section>}\n      <section className="stats-grid">
-        <article className="strategy-card"><div className="stats-card-head"><div><span>Strategy comparison</span><strong>Same payment, different order</strong></div></div><div className="strategy-comparison"><div className={strategy === "avalanche" ? "active" : ""}><span>Avalanche</span><strong>{payoffDate(avalanche)}</strong><small>{avalanche.stalled ? "Non-amortizing" : `${avalanche.months.length} months`}</small><b>{moneyPrecise.format(avalanche.totalInterest)} interest</b></div><div className={strategy === "snowball" ? "active" : ""}><span>Snowball</span><strong>{payoffDate(snowball)}</strong><small>{snowball.stalled ? "Non-amortizing" : `${snowball.months.length} months`}</small><b>{moneyPrecise.format(snowball.totalInterest)} interest</b></div></div><p>{avalanche.totalInterest <= snowball.totalInterest ? `Avalanche saves ${moneyPrecise.format(snowball.totalInterest - avalanche.totalInterest)} in projected interest.` : `Snowball saves ${moneyPrecise.format(avalanche.totalInterest - snowball.totalInterest)} in this projection.`}</p></article>
-        <article className="progress-card"><div className="stats-card-head"><div><span>Recorded progress</span><strong>What your real data shows</strong></div></div><div className="recorded-progress"><div><span>Ledger payments</span><strong>{moneyPrecise.format(payments)}</strong></div><div><span>Charges & fees</span><strong>{moneyPrecise.format(charges)}</strong></div><div className={netLedgerReduction >= 0 ? "good" : "warning"}><span>Net ledger movement</span><strong>{netLedgerReduction >= 0 ? "-" : "+"}{moneyPrecise.format(Math.abs(netLedgerReduction))}</strong></div><div className={actualSnapshotReduction >= 0 ? "good" : "warning"}><span>Snapshot change</span><strong>{orderedSnapshots.length > 1 ? `${actualSnapshotReduction >= 0 ? "-" : "+"}${moneyPrecise.format(Math.abs(actualSnapshotReduction))}` : "Need 2 months"}</strong></div></div><p>{orderedSnapshots.length > 1 ? `Average saved-month reduction: ${moneyPrecise.format(Math.abs(averageSnapshotReduction))}.` : "Capture a snapshot in two different months to measure actual monthly progress."}</p></article>
-      </section>
-      <section className="stats-grid lower">
-        <article className="composition-card"><div className="stats-card-head"><div><span>Balance composition</span><strong>Where your debt sits today</strong></div></div><div className="composition-list">{[...accounts].filter((account) => account.balance > 0).sort((a, b) => b.balance - a.balance).map((account) => <div key={account.id}><div><span>{account.name}</span><strong>{moneyPrecise.format(account.balance)}</strong></div><div className="composition-track"><i style={{ width: `${totalDebt > 0 ? account.balance / totalDebt * 100 : 0}%` }}/></div><small>{totalDebt > 0 ? (account.balance / totalDebt * 100).toFixed(1) : "0"}% of total | {account.apr.toFixed(2)}% APR</small></div>)}</div></article>
-        <article className="milestones-card"><div className="stats-card-head"><div><span>Payoff milestones</span><strong>Projected balance checkpoints</strong></div></div><div className="milestone-list">{[{ share: .75, label: "25% paid off" }, { share: .5, label: "Halfway there" }, { share: .25, label: "75% paid off" }, { share: 0, label: "Debt free" }].map((item, index) => <div key={item.label}><span>{index + 1}</span><div><strong>{item.label}</strong><small>{item.share > 0 ? `${moneyPrecise.format(totalDebt * item.share)} remaining` : "$0 remaining"}</small></div><b>{milestone(item.share) ?? "Needs adjustment"}</b></div>)}</div></article>
-      </section>
-      <section className="projection-table-card"><div className="stats-card-head"><div><span>Extra-payment scenarios</span><strong>Compare finish dates and interest</strong></div></div><div className="projection-table-scroll"><table className="projection-table"><thead><tr><th>Extra each month</th><th>Total monthly plan</th><th>Payoff date</th><th>Months</th><th>Projected interest</th><th>Interest saved</th></tr></thead><tbody>{scenarios.map(({ value, result }) => <tr key={value} className={Math.abs(value - scenarioExtra) < .01 ? "active" : ""}><td><strong>{moneyPrecise.format(value)}</strong>{Math.abs(value - extra) < .01 && <small>Saved plan</small>}</td><td>{moneyPrecise.format(result.monthly)}</td><td>{payoffDate(result)}</td><td>{result.stalled ? "-" : result.months.length}</td><td>{moneyPrecise.format(result.totalInterest)}</td><td className="saved">{baseline.totalInterest > result.totalInterest ? moneyPrecise.format(baseline.totalInterest - result.totalInterest) : "-"}</td></tr>)}</tbody></table></div></section>
-    </>}
-  </div>;
-}
 function CashflowModal({ draft, editing, accounts, onChange, onClose, onSave, onRemove }: { draft: CashflowDraft; editing: boolean; accounts: DebtAccount[]; onChange: (draft: CashflowDraft) => void; onClose: () => void; onSave: () => void; onRemove: () => void }) {
   const creditAccounts = accounts.filter((account) => account.type === "Credit card");
   const isOutflow = draft.kind === "expense" || draft.kind === "purchase";
