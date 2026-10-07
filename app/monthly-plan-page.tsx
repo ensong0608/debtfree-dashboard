@@ -63,7 +63,7 @@ export default function MonthlyPlanPage(props: Props) {
   const accountNames = new Map(accounts.map((account) => [account.id, account.name]));
 
   return <div className="screen monthly-plan-screen">
-    <div className="screen-title monthly-title"><div><span className="eyebrow">{isCurrent ? "Current monthly plan" : "Monthly plan archive"}</span><h1>Budget</h1><p>Your Monthly Plan: itemize income, expenses, and monthly bills. Planned entries never change a debt balance.</p></div><div className="cashflow-quick-actions"><button className="income-action" type="button" onClick={() => props.onAdd("income")}>+ Recurring income</button><button className="expense-action" type="button" onClick={() => props.onAdd("expense")}>+ Recurring spending</button><button className="purchase-action" type="button" onClick={() => props.onAdd("purchase")}>+ One-time adjustment</button></div></div>
+    <div className="screen-title monthly-title"><h1>Budget</h1></div>
 
 
 

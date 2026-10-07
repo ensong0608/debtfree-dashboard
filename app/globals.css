@@ -1587,7 +1587,7 @@ textarea:focus-visible{outline:3px solid rgba(22,119,255,.22);outline-offset:2px
 .compact-activity .inline-captured-balance{font-size:11px!important;color:#4e5f72!important;white-space:nowrap;font-variant-numeric:tabular-nums}.inline-activity-entry b{font-size:12px;white-space:nowrap;font-variant-numeric:tabular-nums}
 .debt-total-heading{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-right:82px}.summary-loan-toggle{border:1px solid #9cabb9;background:#fff;color:#36485c;border-radius:7px;padding:5px 9px;font-size:11px;min-height:32px}
 .transactions-heading{font-size:24px;color:#243448;margin:0 0 18px}
-.transactions-screen,.debts-screen{padding-bottom:130px}
+
 .transactions-screen .payment-activity>.clean-transaction-card{position:relative;padding:16px;overflow:hidden}
 .transaction-edit-surface{position:absolute;inset:0;width:100%;height:100%;background:transparent;border:0;border-radius:inherit;box-shadow:none;z-index:1}
 .transaction-edit-surface:hover{background:#24344804}.transaction-edit-surface:focus-visible{outline:3px solid #5797d0;outline-offset:-3px}
@@ -1595,8 +1595,13 @@ textarea:focus-visible{outline:3px solid rgba(22,119,255,.22);outline-offset:2px
 .transaction-clean-name{padding-right:34px}.payment-activity .transaction-clean-name h2{font-size:16px;font-weight:700;color:#243448;margin:0 0 4px}.payment-activity .transaction-clean-name p{font-size:12px;color:#4e5f72;margin:0;line-height:1.5}
 .transaction-clean-kind{display:inline-block;color:#4e5f72;font-size:11px;margin-top:3px}
 .transaction-value-line{display:flex;align-items:baseline;justify-content:space-between;gap:10px;margin-top:12px;min-width:0}.transaction-value-line>small{font-size:11px;color:#4e5f72;line-height:1.5;overflow-wrap:anywhere}.transaction-value-line>.transaction-signed-total{font-size:20px;font-weight:750;white-space:nowrap;margin:0;flex:none}
-.transaction-add-bar{position:fixed;z-index:30;bottom:14px;left:276px;right:20px;display:flex;justify-content:center;padding:8px;background:#f4f5f7;border:1px solid #dce5ee;border-radius:12px;box-shadow:0 -2px 10px #24344808}
+.main-area:has(>.bottom-action-bar){grid-template-rows:72px minmax(0,1fr) auto}
+.bottom-action-bar{display:flex;justify-content:center;align-items:center;gap:8px;padding:8px 12px;min-width:0;width:100%;margin:0;background:#f4f5f7;border:0;border-top:1px solid #dce5ee;border-radius:0;box-shadow:none}
+.budget-add-bar{display:grid;grid-template-columns:repeat(3,minmax(0,1fr))}
+.budget-add-bar>button{min-width:0;min-height:44px;padding:8px 4px;border:1px solid;border-radius:9px;font-size:13px;font-weight:700;white-space:nowrap}
+.budget-add-bar>.income-action{background:#edf8f4;border-color:#b2d9cd;color:#087f66}.budget-add-bar>.expense-action{background:#fff8ed;border-color:#efd1a8;color:#995b0b}.budget-add-bar>.purchase-action{background:#fff2f3;border-color:#edc1c6;color:#b23840}
+
 .transaction-add-bar>button{width:44px;height:44px;min-height:44px;border:1px solid #d1c4ec;border-radius:12px;background:#f5f1fc;color:#6945ae;font-size:30px;line-height:1;padding:0;font-weight:600}
-.dashboard-collapsed .transaction-add-bar{left:96px}.compose-record-type{display:grid;gap:8px;font-size:13px;color:#243448}.compose-record-type>div{display:flex;gap:8px}.compose-record-type button{min-height:44px;padding:8px 14px;border:1px solid #9cabb9;border-radius:8px;background:#fff;color:#36485c}.compose-record-type button[aria-pressed=true]{background:#edf8f4;border-color:#42a88d;color:#206f5a}
-@media(max-width:820px){.transaction-add-bar,.dashboard-collapsed .transaction-add-bar{left:12px;right:12px;bottom:calc(74px + env(safe-area-inset-bottom,0px))}.transactions-screen,.debts-screen{padding-bottom:160px}}
+.compose-record-type{display:grid;gap:8px;font-size:13px;color:#243448}.compose-record-type>div{display:flex;gap:8px}.compose-record-type button{min-height:44px;padding:8px 14px;border:1px solid #9cabb9;border-radius:8px;background:#fff;color:#36485c}.compose-record-type button[aria-pressed=true]{background:#edf8f4;border-color:#42a88d;color:#206f5a}
+@media(max-width:820px){.main-area:has(>.bottom-action-bar){grid-template-rows:60px minmax(0,1fr) auto}}
 @media(max-width:380px){.compact-entry-list>.inline-activity-entry{gap:4px;grid-template-columns:30px minmax(0,1fr) auto auto}.inline-activity-entry b{font-size:11px}.transaction-value-line{gap:6px}.transaction-value-line>.transaction-signed-total{font-size:18px}}
