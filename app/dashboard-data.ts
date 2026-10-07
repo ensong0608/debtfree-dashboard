@@ -1,3 +1,4 @@
+import type { LoanTracker } from "./loan-progress.ts";
 import { validDate, type InterestAutomation, type InterestEstimate } from "./interest-accrual.ts";
 export const DASHBOARD_BACKUP_FORMAT = "debtfree-dashboard-backup" as const;
 export const LEGACY_DASHBOARD_DATA_VERSION = 1 as const;
@@ -234,6 +235,7 @@ export type MonthlyPlanMonth = {
 };
 
 export type MonthlyPlanSettings = {
+  loanTrackers?: LoanTracker[];
   monthlyCommitment?: number;
   detailedSpendingTracking: boolean;
   months: Record<string, MonthlyPlanMonth>;
@@ -796,6 +798,31 @@ function validatePlanning(value: unknown, path: string, issues: string[]) {
 function validateMonthlyPlan(value: unknown, path: string, issues: string[]) {
   const plan = requiredRecord(value, path, issues);
   if (!plan) return;
+  if (plan.loanTrackers !== undefined) {
+    const loans = requiredArray(plan.loanTrackers, path + ".loanTrackers", issues);
+    const ids = new Set<string>();
+    loans?.forEach((raw, i) => {
+      const p = path + ".loanTrackers[" + i + "]";
+      const loan = requiredRecord(raw, p, issues);
+      if (!loan) return;
+      for (const key of ["id", "name", "budgetItemId", "budgetItemName"]) requiredString(loan[key], p + "." + key, issues);
+      if (typeof loan.id === "string") { if (ids.has(loan.id)) issues.push(p + ".id is duplicated."); ids.add(loan.id); }
+      enumValue(loan.kind, new Set(["house", "car"]), p + ".kind", issues);
+      enumValue(loan.balanceKind, new Set(["principal", "payoff"]), p + ".balanceKind", issues);
+      requiredNumber(loan.originalAmount, p + ".originalAmount", issues);
+      if (typeof loan.originalAmount === "number" && loan.originalAmount <= 0) issues.push(p + ".originalAmount must be positive.");
+      requiredNumber(loan.remainingAmount, p + ".remainingAmount", issues);
+      if (typeof loan.asOf !== "string" || !validDate(loan.asOf)) issues.push(p + ".asOf must be a valid date.");
+      requiredArray(loan.history, p + ".history", issues)?.forEach((raw, index) => {
+        const entry = requiredRecord(raw, p + ".history[" + index + "]", issues);
+        if (!entry) return;
+        requiredNumber(entry.amount, p + ".history.amount", issues);
+        enumValue(entry.balanceKind, new Set(["principal", "payoff"]), p + ".history.balanceKind", issues);
+        if (typeof entry.date !== "string" || !validDate(entry.date)) issues.push(p + ".history.date must be a valid date.");
+        requiredString(entry.recordedAt, p + ".history.recordedAt", issues);
+      });
+    });
+  }
   requiredBoolean(plan.detailedSpendingTracking, path + ".detailedSpendingTracking", issues);
   if (plan.monthlyCommitment !== undefined) requiredNumber(plan.monthlyCommitment, path + ".monthlyCommitment", issues);
   const months = requiredRecord(plan.months, path + ".months", issues);

@@ -10,6 +10,6 @@ Cloudflare Workers is the sole production hosting target. The production Worker 
 - Run lint and the full test suite before publishing. Run `npm run deploy:check` to validate the exact Cloudflare Worker bundle without changing production.
 - Commit only the intended source and tests, push the exact commit to `origin`, then run `npm run deploy` to publish that source directly to Cloudflare.
 - Apply remote D1 migrations only when committed schema migrations changed. Never replace, recreate, or delete the production D1 database during an ordinary deployment.
-- After deployment, confirm Wrangler reports the production Worker URL and deployment identifier, verify Cloudflare Access protects the URL, and verify the application responds successfully after authentication where practical.
+- After deployment, confirm Wrangler reports the production Worker URL and deployment identifier, verify Google sign-in protects the app and unauthenticated household API requests are denied, and verify the application responds successfully after authentication where practical.
 - Do not report completion until the direct Cloudflare deployment and production checks succeed.
 - Never stage `.codex-remote-attachments/`, `debtfree-old-dashboard.json`, generated deployment bundles, credentials, or other user-provided reference files.

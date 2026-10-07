@@ -1434,3 +1434,28 @@ textarea:focus-visible{outline:3px solid rgba(22,119,255,.22);outline-offset:2px
  .plan-screen>.calculation-details{order:7}
  .plan-screen>.large-empty{order:1}
 }
+
+.loan-progress-section{color:#243448;margin:0 0 24px;min-width:0}
+.loan-progress-section>header{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:14px}
+.loan-progress-section h2{font-size:20px;margin:0 0 4px;color:#243448}
+.loan-progress-section header p,.loan-budget-note{font-size:12px;color:#4e5f72;line-height:1.5}
+.loan-progress-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
+.loan-progress-card{--loan-mark:#328575;--loan-track:#d2e9e2;background:#eff8f5;border:1px solid #d5e3df;border-top:4px solid var(--loan-mark);border-radius:16px;padding:20px;min-width:0;color:#243448}
+.loan-progress-card.loan-car{--loan-mark:#8560c6;--loan-track:#e5dbf4;background:#f6f2fc;border-color:#e1d8ef;border-top-color:var(--loan-mark)}
+.loan-kind{display:block;color:#4e5f72;font-size:12px}
+.loan-progress-card h3{font-size:18px;margin:6px 0 20px;color:#243448}
+.loan-progress-card>span:not(.loan-kind){font-size:12px;color:#4e5f72}
+.loan-balance{display:block;font-size:30px;letter-spacing:-.6px;color:#243448;overflow-wrap:anywhere}
+.loan-progress-track{height:9px;background:var(--loan-track);border-radius:10px;overflow:hidden;margin-top:20px}
+.loan-progress-track i{display:block;height:100%;background:var(--loan-mark);border-radius:10px}
+.loan-progress-caption{display:flex;justify-content:space-between;flex-wrap:wrap;gap:5px;margin:8px 0 18px;font-size:12px;color:#36485c}
+.loan-progress-card dl{display:grid;gap:10px;font-size:13px;margin:0 0 18px}
+.loan-progress-card dl>div{display:flex;justify-content:space-between;gap:10px}
+.loan-progress-card dt{color:#4e5f72}.loan-progress-card dd{margin:0;font-weight:650;text-align:right}
+.loan-progress-section .secondary{background:#fff;color:#36485c;border:1px solid #9cabb9;border-radius:10px;min-height:44px;padding:10px 14px}
+.loan-progress-card>.secondary{width:100%;border-color:var(--loan-mark)}
+.loan-progress-card details{font-size:12px;margin-top:10px}.loan-progress-card summary{min-height:44px;cursor:pointer;display:flex;align-items:center}
+.loan-quote-note,.loan-progress-card details p{font-size:12px;line-height:1.5;color:#4e5f72}
+.loan-modal{background:#fff;color:#243448}.loan-modal form>header,.loan-modal form>footer{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:20px}
+.loan-modal input,.loan-modal select{width:100%;min-width:0;min-height:44px;font-size:16px}
+@media(max-width:600px){.loan-progress-grid{grid-template-columns:1fr}.loan-progress-card{padding:18px}.loan-progress-section>header{align-items:flex-start}.loan-progress-section>header>.secondary{flex-shrink:0}.loan-modal .form-grid{grid-template-columns:1fr}.loan-modal .form-grid .wide{grid-column:auto}}
