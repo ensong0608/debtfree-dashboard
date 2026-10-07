@@ -1357,3 +1357,80 @@ textarea:focus-visible{outline:3px solid rgba(22,119,255,.22);outline-offset:2px
 .transactions-screen .simple-total>details>summary{cursor:pointer}
 .transactions-screen .simple-total>details p{font-size:12px;line-height:1.5;margin:8px 0 0}
 @media(max-width:600px){.transaction-compose form>footer{padding:14px 20px}.transactions-screen .simple-total{padding:16px}.transactions-screen .simple-total>strong{font-size:30px}}
+
+/* Approved mobile look: neutral surfaces with stable debt-category colors. */
+.mobile-category-summary,.mobile-debt-category,.mobile-debt-progress,.mobile-payoff-timeline{display:none}
+@media(max-width:760px){
+ .debts-screen,.plan-screen{color-scheme:light;background:#f4f5f7;color:#243448;padding:18px 14px;min-width:0}
+ .debts-screen .screen-title,.plan-screen .screen-title{background:#f4f5f7;color:#243448;padding:0;margin-bottom:20px}
+ .debts-screen .screen-title h1,.plan-screen .screen-title h1{color:#243448;font-size:30px;font-weight:750;margin:4px 0 8px}
+ .debts-screen .screen-title .eyebrow,.plan-screen .screen-title .eyebrow{display:none}
+ .debts-screen .screen-title p,.plan-screen .screen-title p{color:#4e5f72;font-size:13px;line-height:1.5}
+ .debts-screen .screen-actions{display:block;width:auto}
+ .debts-screen .screen-actions>.primary{width:auto;background:#243448;color:#fff;border:1px solid #243448;box-shadow:none;min-height:44px;padding:11px 18px;border-radius:10px}
+ [data-debt-category=credit]{--category-mark:#e8b63b;--category-ink:#815905;--category-surface:#fff9eb;--category-track:#f3e6bd}
+ [data-debt-category=auto]{--category-mark:#9473e4;--category-ink:#6945ae;--category-surface:#f5f1fc;--category-track:#e8dcf7}
+ [data-debt-category=medical]{--category-mark:#e46e9f;--category-ink:#a23768;--category-surface:#fff2f7;--category-track:#f6d9e6}
+ [data-debt-category=student]{--category-mark:#42a88d;--category-ink:#206f5a;--category-surface:#edf8f4;--category-track:#d2eadf}
+ [data-debt-category=personal]{--category-mark:#5797d0;--category-ink:#306791;--category-surface:#eff6fc;--category-track:#d9e8f6}
+ [data-debt-category=other]{--category-mark:#8493a5;--category-ink:#4e5f72;--category-surface:#f0f3f6;--category-track:#dce3eb}
+ .debts-screen .simple-total{position:relative;display:block;padding:22px 18px 16px;border:1px solid #e1e5e9;border-radius:16px;background:#fff;color:#243448;box-shadow:none;margin-bottom:18px;min-height:120px}
+ .debts-screen .simple-total>span{color:#4e5f72;font-size:13px;display:block;padding-right:82px}
+ .debts-screen .simple-total>strong{color:#243448;font-size:29px;font-weight:750;letter-spacing:-.7px;display:block;padding-right:76px;overflow-wrap:anywhere}
+ .mobile-category-summary{display:block;margin-top:18px}
+ .category-donut{position:absolute;width:68px;height:68px;top:22px;right:16px;border-radius:50%}
+ .category-donut:after{content:'';position:absolute;inset:11px;background:#fff;border-radius:50%}
+ .category-legend{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px 12px;padding:0;margin:0;list-style:none}
+ .category-legend li{display:flex;align-items:center;gap:7px;color:#3f4f62;font-size:12px;line-height:1.4}
+ .category-legend i{width:8px;height:8px;background:var(--category-mark);border-radius:50%;flex-shrink:0}
+ .balance-first-cards{gap:14px}
+ .debts-screen .balance-first-cards>article{background:var(--category-surface);color:#243448;border:1px solid #e2e5e9;border-left:3px solid var(--category-mark);border-radius:15px;padding:18px;box-shadow:none;min-width:0}
+ .debts-screen .balance-first-cards h2{font-size:17px;font-weight:750;color:#243448;line-height:1.35;overflow-wrap:anywhere;margin:0 0 3px}
+ .mobile-debt-category{display:block;color:var(--category-ink);font-size:12px;font-weight:600;margin-bottom:10px}
+ .debts-screen .balance-first-cards .simple-balance{color:#243448;font-size:28px;font-weight:750;letter-spacing:-.5px}
+ .debts-screen .balance-first-cards p{color:#4e5f72;font-size:12px;line-height:1.5}
+ .mobile-debt-progress{display:block;margin:14px 0}
+ .category-progress-track{height:7px;background:var(--category-track);border-radius:8px;overflow:hidden}
+ .category-progress-track>span{display:block;height:100%;background:var(--category-mark);border-radius:8px}
+ .mobile-debt-progress>div+div{display:flex;justify-content:space-between;flex-wrap:wrap;gap:6px;font-size:11px;margin-top:7px;color:#4e5f72}
+ .mobile-debt-progress strong{color:#243448;font-size:11px}
+ .debts-screen .balance-first-cards>article>.primary{background:#fff;color:var(--category-ink);border:1px solid var(--category-mark);box-shadow:none;border-radius:10px;min-height:46px;font-size:14px}
+ .debts-screen .balance-first-cards summary{color:#36485c;font-size:13px;min-height:44px;display:flex;align-items:center}
+ .debts-screen .detailed-debts>summary,.debts-screen .archived-debts>summary{color:#36485c;min-height:44px}
+ .plan-screen{display:flex;flex-direction:column;gap:16px;height:auto;overflow:visible}
+ .plan-screen>.screen-title{order:0;margin-bottom:0}
+ .plan-screen .plan-controls{gap:12px}
+ .plan-screen .plan-controls small{font-size:12px;color:#4e5f72}
+ .plan-screen .strategy-control button{font-size:13px;min-height:44px}
+ .plan-screen .strategy-control button.active{background:#243448;color:#fff}
+ .plan-screen>.plan-hero{order:1;display:grid;grid-template-columns:1fr;margin:0;background:#e1e5e9;border-color:#e1e5e9;border-radius:16px;box-shadow:none}
+ .plan-screen .plan-hero>div{display:block;background:#fff;padding:16px 18px}
+ .plan-screen .plan-hero>div>span{font-size:12px;color:#4e5f72;text-transform:none;letter-spacing:0}
+ .plan-screen .plan-hero-value strong{color:#243448;font-size:25px}
+ .plan-screen .plan-hero small{display:block;font-size:12px;color:#4e5f72;line-height:1.4}
+ .mobile-payoff-timeline{display:block;order:2;color:#243448;background:#f4f5f7}
+ .mobile-payoff-timeline h2{color:#243448;font-size:19px;line-height:1.4;margin:4px 0 16px}
+ .mobile-payoff-timeline ol{list-style:none;border-left:2px solid #dce1e7;margin:0 0 0 13px;padding:0 0 0 14px}
+ .mobile-payoff-timeline li{background:#fff;border:1px solid #e1e5e9;border-radius:14px;margin-bottom:14px;padding:10px 14px}
+ .mobile-payoff-timeline summary{display:flex;align-items:center;gap:10px;list-style:none;cursor:pointer;min-height:50px}
+ .mobile-payoff-timeline summary:after{content:'⌄';margin-left:auto;color:#4e5f72}
+ .mobile-payoff-timeline details[open]>summary:after{content:'⌃'}
+ .payoff-step-number{display:grid;place-items:center;flex:0 0 30px;height:30px;border-radius:9px;background:var(--category-surface);color:var(--category-ink);font-weight:750}
+ .mobile-payoff-timeline summary>div{min-width:0}
+ .mobile-payoff-timeline summary strong{color:#243448;font-size:14px;line-height:1.4;overflow-wrap:anywhere}
+ .mobile-payoff-timeline summary small{display:block;color:#4e5f72;font-size:12px;margin-top:4px}
+ .payoff-step-body{padding:12px 0 4px}
+ .category-milestone{display:flex;align-items:center;gap:9px;background:var(--category-surface);padding:12px;border-radius:10px;color:var(--category-ink)}
+ .category-milestone strong{font-size:13px;color:var(--category-ink)}
+ .payoff-step-body dl{display:grid;gap:10px;margin:16px 0}
+ .payoff-step-body dl>div{display:flex;justify-content:space-between;gap:10px;font-size:12px}
+ .payoff-step-body dt{color:#4e5f72}
+ .payoff-step-body dd{color:#243448;font-weight:700;margin:0;white-space:nowrap}
+ .payoff-step-body p{color:#4e5f72;font-size:12px;line-height:1.5}
+ .plan-screen>.custom-order-card{order:3}
+ .plan-screen>.what-if-card{order:4}
+ .plan-screen>.plan-insights{order:5}
+ .plan-screen>.payoff-schedule{order:6}
+ .plan-screen>.calculation-details{order:7}
+ .plan-screen>.large-empty{order:1}
+}
