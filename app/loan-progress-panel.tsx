@@ -1,4 +1,5 @@
 'use client';
+import LoanActivityPanel from "./loan-activity-panel";
 import { useEffect, useState } from 'react';
 import type { CashflowItem } from './dashboard-data';
 import { linkedLoanPayment, loanProgress, loanPaymentSplit, recordLoanPayment, type LoanTracker } from './loan-progress';
@@ -42,7 +43,7 @@ export default function LoanProgressPanel({ loans, items, onChange, onDialog }: 
         {!split && loan.kind === 'house' && <p className="loan-quote-note">Set APR and escrow in Update loan to calculate the monthly payment split.</p>}
         {approximate && <p className="loan-quote-note">Progress uses a payoff quote, which may include accrued interest or fees.</p>}
         <button className="secondary" type="button" aria-label={`Update ${loan.name} loan`} onClick={() => open(loan)}>Update loan</button>
-        <details><summary>Balance history</summary>{loan.history.slice().reverse().map((entry, index) => <p key={index}>{entry.date} · {money.format(entry.amount)} · {entry.balanceKind === 'payoff' ? 'Payoff quote' : 'Principal'}{entry.payment !== undefined && <> · Payment {money.format(entry.payment)} · Principal {money.format(entry.principal ?? 0)} · Interest {money.format(entry.interest ?? 0)} · Escrow {money.format(entry.escrow ?? 0)}</>}</p>)}</details>
+        <LoanActivityPanel loan={loan}/>
       </article>;
     })}</div>
     <p className="loan-budget-note">Payments are included in Budget. Record a monthly payment here to calculate principal reduction, or update the lender balance to reconcile. Estimates use monthly interest; payments are recorded only when you confirm them.</p>

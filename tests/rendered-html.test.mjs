@@ -18,7 +18,7 @@ test("renders the DebtFree Dashboard shell and optional detail tools", async () 
   assert.match(client, /softDeleteTransaction/);
   assert.match(client, /ledger-pagination/);
   assert.match(client, /captureSnapshot/);
-  assert.match(client, /SnapshotNoteEditor/);
+  assert.match(client, /onUpdateNote=\{updateSnapshotNote\}/);
   assert.match(client, /Revolving credit health/i);
   assert.match(client, /What-if planner/i);
   assert.match(client, /Strategy comparison/i);

@@ -39,9 +39,9 @@ test('loans persist, use Budget payments, and do not change existing debt balanc
   await dialog.getByRole('button',{name:'Save loan'}).click();
   await expect(card).toContainText('≈ 25.00% paid down');
   await expect(card).toContainText('accrued interest');
-  await card.getByText('Balance history', {exact:true}).click();
-  await expect(card.locator('details')).toContainText('$80,000.00');
-  await expect(card.locator('details')).toContainText('$75,000.00');
+  await card.getByText('Activity · last 6 months', {exact:true}).click();
+  await expect(card.locator('.debt-history')).toContainText('$80,000.00');
+  await expect(card.locator('.debt-history')).toContainText('$75,000.00');
   await page.getByRole('button',{name:'Update Home loan'}).click();
   await dialog.getByLabel('Balance type').selectOption('principal');
   await dialog.getByRole('button',{name:'Save loan'}).click();
@@ -52,7 +52,7 @@ test('loans persist, use Budget payments, and do not change existing debt balanc
   await expect(card).toContainText('$73,744.93');
   await page.reload();
   await expect(card).toContainText('$73,744.93');
-  await expect(card.locator('details')).toContainText('Payment $2,100.00');
+  await expect(card.locator('.debt-history')).toContainText('Payment $2,100.00');
   const axe = await new AxeBuilder({page}).include('.loan-progress-section').withRules(['color-contrast']).analyze();
   expect(axe.violations).toEqual([]);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);

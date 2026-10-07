@@ -1505,3 +1505,44 @@ textarea:focus-visible{outline:3px solid rgba(22,119,255,.22);outline-offset:2px
 .plan-screen>.plan-hero small{font-size:12px;color:#4e5f72}
 .plan-screen>.custom-order-card li{display:flex;flex-wrap:wrap;justify-content:space-between;gap:12px;padding:12px}
 @media(max-width:700px){.calculator-controls{grid-template-columns:minmax(0,1fr)}.plan-screen>.calculator-controls{order:0}.plan-screen>.plan-table-card{order:2}.plan-screen>.export-control{order:8}.plan-screen .extra-control input{font-size:20px;min-height:48px}.plan-screen>.plan-hero>div{display:block}}
+
+.debt-history{margin:12px 0;color:#243448;min-width:0}
+.debt-history>summary{font-weight:700;cursor:pointer;min-height:44px;padding:12px 0}
+.activity-explanation,.debt-history p,.debt-history small{font-size:13px!important;color:#4e5f72!important;line-height:1.5}
+.debt-history-month{border-top:1px solid #dce5ee;padding:8px 0}
+.debt-history-month>summary{display:list-item!important;cursor:pointer;min-height:48px;padding:10px 0;font-size:14px!important}
+.debt-history-month>summary strong,.debt-history-month>summary span{display:block;margin:3px 0}
+.debt-history-month>summary span{font-size:13px;color:#4e5f72;font-weight:500}
+.activity-month-totals{display:grid!important;grid-template-columns:1fr!important;gap:6px!important;font-size:13px}
+.activity-month-totals>div{display:flex;justify-content:space-between;gap:8px}
+.activity-month-totals dt{color:#4e5f72}
+.activity-month-totals dd{margin:0;color:#243448;font-weight:650}
+.activity-entry-list{list-style:none;padding:0;margin:8px 0}
+.activity-entry-list li{border-top:1px solid #dce5ee;padding:12px 0;overflow-wrap:anywhere}
+.activity-entry-list li>div{display:flex;justify-content:space-between;flex-wrap:wrap;gap:6px}
+.activity-entry-list li small,.activity-entry-list li>b{display:block;margin:5px 0;font-size:13px}
+.activity-entry-list time{color:#4e5f72;font-size:12px}
+.balance-down{color:#166534}.balance-up{color:#9a3412}
+.actual-progress-screen{display:grid;gap:18px}
+.actual-progress-summary{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}
+.actual-progress-summary article,.actual-month-card,.actual-history-card,.actual-account-grid>article{background:white;border:1px solid #dce5ee;border-radius:16px;padding:20px;min-width:0;color:#243448}
+.actual-progress-summary span,.actual-progress-summary small,.actual-progress-group header small{display:block;font-size:13px;line-height:1.5;color:#4e5f72}
+.actual-progress-summary strong{display:block;font-size:26px;margin:8px 0;overflow-wrap:anywhere}
+.actual-progress-bar{height:10px;background:#e2e8f0;border-radius:8px;overflow:hidden;margin:12px 0}
+.actual-progress-bar>i{display:block;height:100%;background:#166534;border-radius:8px}
+.actual-progress-group>header{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:12px}
+.actual-progress-group h2,.actual-history-card h2,.actual-month-card h2{font-size:20px;margin:0 0 12px}
+.actual-progress-group h3{font-size:18px;margin:0 0 14px}
+.actual-account-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr));gap:14px}
+.actual-account-grid dl{margin:0;display:grid;gap:8px}
+.actual-account-grid dl>div{display:flex;justify-content:space-between;gap:10px;font-size:14px}
+.actual-account-grid dt{color:#4e5f72}.actual-account-grid dd{margin:0;font-weight:650}
+.actual-progress-screen p,.actual-progress-screen small{color:#4e5f72;line-height:1.5;font-size:13px}
+.actual-history-card svg{display:block;max-width:100%;height:auto;width:100%}
+.actual-history-card svg text{font-size:13px;fill:#4e5f72}
+.actual-history-card summary,.saved-check summary{min-height:44px;padding:12px 0;cursor:pointer}
+.actual-history-card label{display:grid;gap:8px;color:#243448;margin:12px 0}
+.actual-history-card textarea{padding:10px;border:1px solid #94a3b8;border-radius:8px;color:#243448;background:#fff;font-size:16px;width:100%}
+.saved-check{border-top:1px solid #dce5ee;margin-top:12px}
+.saved-check button{margin:6px}
+@media(max-width:700px){.actual-progress-summary{grid-template-columns:1fr}.actual-progress-group>header{align-items:flex-start}.actual-account-grid{grid-template-columns:minmax(0,1fr)}.actual-progress-summary article,.actual-account-grid>article,.actual-month-card,.actual-history-card{padding:16px}}
