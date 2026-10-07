@@ -114,13 +114,10 @@ test("create a household plan, record payment, change strategy and restore a bac
   await page.getByRole("button", { name: "More", exact: true }).click();
   await page.getByRole("button", { name: "Payoff Plan", exact: true }).click();
   await page.getByRole("button", { name: /Snowball/, exact: false }).first().click();
-  await expect(page.getByRole("heading", { name: "What if we paid more each month?" })).toBeVisible();
-  const savedExtra = page.getByText(/^Saved extra:/);
-  const beforeScenario = await savedExtra.textContent();
-  await page.getByLabel(/Custom additional amount/).fill("50");
-  await expect(savedExtra).toHaveText(beforeScenario!);
-  await page.getByRole("button", { name: "Apply this amount to my plan" }).click();
-  await expect(savedExtra).not.toHaveText(beforeScenario!);
+  await page.getByLabel("Extra each month", { exact: true }).fill("7000");
+  await expect(page.getByText("Monthly calculator amount", { exact: true })).toBeVisible();
+  await expect(page.locator(".plan-hero")).toContainText("$7,000.00");
+  await expect(page.getByText("What-if calculator", { exact: true })).toHaveCount(0);
   await page.getByRole("button", { name: "More", exact: true }).click();
   await page.getByRole("button", { name: "Settings", exact: true }).click();
   const download = page.waitForEvent("download");

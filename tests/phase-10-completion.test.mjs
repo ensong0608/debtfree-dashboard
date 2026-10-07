@@ -63,15 +63,11 @@ test("Phase 6 what-if scenarios are isolated until their total is applied", () =
   assert.deepEqual(accounts, original);
 });
 
-test("Phase 6 UI provides 50, 100, 250, custom, results, and explicit apply", async () => {
-  const source = await readFile(new URL("../app/dashboard-client.tsx", import.meta.url), "utf8");
-  assert.match(source, /\[50, 100, 250\]/);
-  assert.match(source, /Custom additional amount/);
-  assert.match(source, /<span>Debt-free date<\/span>/);
-  assert.match(source, /<span>Time saved<\/span>/);
-  assert.match(source, /<span>Interest saved<\/span>/);
-  assert.match(source, /Apply this amount to my plan/);
-  assert.match(source, /Test an increase without changing the saved plan/);
+test("Payoff calculator replaces the removed what-if controls", async () => {
+  const source = await readFile(new URL("../app/payoff-calculator-page.tsx", import.meta.url), "utf8");
+  assert.match(source, /Extra each month/);
+  assert.match(source, /Monthly calculator amount/);
+  assert.doesNotMatch(source, /What-if calculator|Recommended strategy|Compare strategies|MobilePayoffTimeline/);
 });
 
 test("Phase 9 report exposes required metrics, dual-path chart, and restrained milestones", async () => {

@@ -239,6 +239,7 @@ export type MonthlyPlanMonth = {
 export type MonthlyPlanSettings = {
   loanTrackers?: LoanTracker[];
   monthlyCommitment?: number;
+  calculatorAmount?: number;
   detailedSpendingTracking: boolean;
   months: Record<string, MonthlyPlanMonth>;
   [key: string]: unknown;
@@ -830,6 +831,7 @@ function validateMonthlyPlan(value: unknown, path: string, issues: string[]) {
     });
   }
   requiredBoolean(plan.detailedSpendingTracking, path + ".detailedSpendingTracking", issues);
+  if (plan.calculatorAmount !== undefined) requiredNumber(plan.calculatorAmount, path + ".calculatorAmount", issues);
   if (plan.monthlyCommitment !== undefined) requiredNumber(plan.monthlyCommitment, path + ".monthlyCommitment", issues);
   const months = requiredRecord(plan.months, path + ".months", issues);
   if (months) Object.entries(months).forEach(([month, raw]) => {
