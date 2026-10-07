@@ -49,6 +49,7 @@ import {
 import OnboardingFlow from "./onboarding-flow";
 import MonthlyPlanPage from "./monthly-plan-page";
 import PaymentsPage from "./payments-page";
+import DebtEntryDialog from "./debt-entry-dialog";
 import { changeDebtEntry, type EntryCommand } from "./debt-transactions";
 import { confirmAdjustmentPayment, parseMoneyInput } from "./payments";
 import HomeDashboardPage from "./home-dashboard-page";
@@ -281,6 +282,7 @@ export default function DashboardClient({ user }: { user: DashboardUser }) {
   const [editingCashflowId, setEditingCashflowId] = useState<string | null>(null);
   const [cashflowDraft, setCashflowDraft] = useState<CashflowDraft>(EMPTY_CASHFLOW_DRAFT);
   const [debtEntryOpen, setDebtEntryOpen] = useState(false);
+  const [newRecordOpen, setNewRecordOpen] = useState(false);
   const [transactionModalOpen, setTransactionModalOpen] = useState(false);
   const [editingTransactionId, setEditingTransactionId] = useState<string | null>(null);
   const [auditTransactionId, setAuditTransactionId] = useState<string | null>(null);
@@ -995,7 +997,7 @@ export default function DashboardClient({ user }: { user: DashboardUser }) {
         {!deviceOnly && (cloudStatus === "error" || cloudStatus === "conflict") && <section role="alert" className="viewer-notice"><strong>{cloudStatus === "conflict" ? "Another session changed this household. Your changes are retained." : "Cloud access or saving is unavailable. Pending changes are retained."}</strong><button onClick={() => void refreshHousehold()}>Retry connection</button><button onClick={() => void exportDashboardBackup()}>Export my changes</button>{cloudStatus === "conflict" && <button onClick={() => { void (async () => { if (!confirm("Load the latest household data? Your current changes will be kept as a recovery checkpoint.")) return; try { if (dashboardContract.current) await repository.checkpoint(dashboardContract.current); const loaded = await sync.current?.useCloud(); if (loaded?.contract) applyDashboardPayload(loaded.contract); } catch { setLocalError("Could not load the household. Export your changes before continuing."); } })(); }}>Load latest household</button>}</section>}
         {isViewer && <section className="viewer-notice" role="status"><strong>Viewer access</strong><span>You can review this household dashboard, but only the owner and admins can make changes.</span></section>}
         {page === "more" && <div className="screen more-screen"><div className="screen-title"><div><h1>More</h1><p>Optional tools, settings, and backups.</p></div></div><section className="more-links" aria-label="More tools">{MORE_NAV_ITEMS.map(item => <button key={item.id} type="button" onClick={() => setPage(item.id)}>{item.label}<span aria-hidden="true">›</span></button>)}<button type="button" onClick={() => setPage("profile")}>Import & export backups<span aria-hidden="true">›</span></button></section><details className="more-advanced"><summary>Advanced tools</summary><div className="more-links">{ADVANCED_NAV_ITEMS.filter(item => item.id !== "history" || detailedSpendingTracking).map(item => <button key={item.id} type="button" onClick={() => setPage(item.id)}>{item.label}<span aria-hidden="true">›</span></button>)}</div>{!detailedSpendingTracking && <p>Enable detailed spending tracking in Budget to access transaction entry. Existing records are retained.</p>}</details></div>}
-        {page === "payments" && <PaymentsPage readOnly={isViewer} accounts={calculatedAccounts} transactions={transactions} adjustments={balanceAdjustments} message={debtActionMessage} onRecord={() => { const account = calculatedAccounts.find(a => !a.archivedAt && a.balance > 0); if (account) openRecommendedPayment(account.id, 0); }} onConfirm={confirmBalancePayment} onUndoConfirmation={undoBalancePayment} storedAccounts={accounts} onChange={changeTransactionEntry} onDialog={setDebtEntryOpen}/>}
+        {page === "payments" && <PaymentsPage readOnly={isViewer} accounts={calculatedAccounts} transactions={transactions} adjustments={balanceAdjustments} message={debtActionMessage} onConfirm={confirmBalancePayment} onUndoConfirmation={undoBalancePayment} storedAccounts={accounts} onChange={changeTransactionEntry} onDialog={setDebtEntryOpen}/>}
         <fieldset className="viewer-readonly-surface" disabled={isViewer}>
 
         {page === "home" && <HomeDashboardPage model={homeDashboard} onRecordPayment={openRecommendedPayment} onExtra={updateExtra} onAction={openHomeAction} onViewPayments={() => setPage("payments")} onViewPlan={() => setPage("plan")} onViewDebts={() => setPage("accounts")} onViewProgress={() => setPage("snapshots")} onViewMonthlyPlan={() => setPage("monthly")}/>}
@@ -1011,6 +1013,8 @@ export default function DashboardClient({ user }: { user: DashboardUser }) {
       </div>
     </main>
 
+    {(page === "accounts" || page === "payments") && !debtEntryOpen && !modalOpen && !paymentRequest && !balanceAccountId && <section className="transaction-add-bar" aria-label="Add a record"><button type="button" aria-label="Add record" disabled={isViewer || !accounts.length} onClick={() => { setNewRecordOpen(true); setDebtEntryOpen(true); }}>+</button></section>}
+    {!isViewer && newRecordOpen && <DebtEntryDialog state={{accounts, transactions, adjustments:balanceAdjustments}} command={{action:"save"}} readOnly={isViewer} onSave={changeTransactionEntry} onClose={() => { setNewRecordOpen(false); setDebtEntryOpen(false); }}/>}
     {!isViewer && modalOpen && <AccountModal draft={draft} editing={Boolean(editingId)} autoFocusField={accountAutoFocus} onChange={setDraft} onClose={() => setModalOpen(false)} onSave={saveAccount} onRemove={removeAccount}/>}
     {!isViewer && paymentAccount && paymentRequest && <PaymentModal key={paymentAccount.id + paymentRequest.suggestedAmount} accounts={calculatedAccounts.filter(a => !a.archivedAt && a.balance > 0)} onAccountChange={id => openRecommendedPayment(id, 0)} error={debtActionMessage} account={paymentAccount} suggestedAmount={paymentRequest.suggestedAmount} onClose={() => setPaymentRequest(null)} onSave={recordPayment}/>}
     {!isViewer && auditTransaction && <PaymentCorrectionModal key={auditTransaction.id + auditTransaction.updatedAt} transaction={auditTransaction} accountWithoutOriginal={auditAccountWithoutOriginal} onClose={() => setAuditTransactionId(null)} onSave={correctDebtPayment}/> }
@@ -1199,6 +1203,8 @@ function AccountsPage({
 }: AccountsPageProps) {
   const { current, archived } = splitDebtAccounts(accounts);
   const [arranging, setArranging] = useState(false);
+  const [includeSummaryLoans, setIncludeSummaryLoans] = useState(() => { try { return typeof window === "undefined" || localStorage.getItem("debtfree-summary-loans") !== "hidden"; } catch { return true; } });
+  const toggleSummaryLoans = () => { const next = !includeSummaryLoans; setIncludeSummaryLoans(next); try { localStorage.setItem("debtfree-summary-loans", next ? "shown" : "hidden"); } catch {} };
   const displayGroups = groupedDisplayDebts(current);
   const totalLinkedExpenses = Object.values(linkedCardExpenses).reduce((sum, amount) => sum + amount, 0);
   const paidOffCount = current.filter((account) => account.balance <= 0).length;
@@ -1255,7 +1261,7 @@ function AccountsPage({
     </div>
     {importMessage && <p className={importMessage.startsWith("Import failed") ? "import-message error" : "import-message"}>{importMessage}</p>}
     {actionMessage && <p className="debt-action-message" role="status" aria-live="polite">{actionMessage}</p>}
-    <section className="simple-total"><span>Total current balance · all debts</span><strong>{moneyPrecise.format(totalBalance + loans.reduce((sum, loan) => sum + loan.remainingAmount, 0))}</strong><MobileCategorySummary accounts={current} loans={loans}/></section>
+    <section className="simple-total debt-total-summary"><div className="debt-total-heading"><span>{includeSummaryLoans ? "Total current balance · all debts" : "Current balance · cards & other debts"}</span>{loans.length > 0 && <button type="button" className="summary-loan-toggle" aria-pressed={!includeSummaryLoans} onClick={toggleSummaryLoans}>{includeSummaryLoans ? "Hide house & car" : "Show house & car"}</button>}</div><strong>{moneyPrecise.format(totalBalance + (includeSummaryLoans ? loans.reduce((sum, loan) => sum + loan.remainingAmount, 0) : 0))}</strong><MobileCategorySummary accounts={current} loans={includeSummaryLoans ? loans : []}/></section>
     <button type="button" className="secondary" aria-pressed={arranging} onClick={() => setArranging(!arranging)}>{arranging ? "Done arranging" : "Arrange debts"}</button>
     {displayGroups.filter(group => group.accounts.length || group.group !== "Other").map(({group, accounts: groupAccounts}) => <section className="household-debt-group" key={group} aria-label={`${group} debts`}><h2>{group} <small>{moneyPrecise.format(groupAccounts.reduce((sum, account) => sum + account.balance, 0))}</small></h2><div className="balance-first-cards">{groupAccounts.map((account, index) => {
       return <article className="compact-debt-card" key={account.id} data-debt-category={DEBT_CATEGORY_COLORS[account.type].key}>

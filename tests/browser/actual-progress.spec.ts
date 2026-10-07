@@ -16,6 +16,8 @@ test("six-month debt activity counts payments and actual progress stays fixed af
  const history=card.locator(".debt-history");
  await history.locator(':scope > summary').click();
  await expect(history.locator(".debt-history-month")).toHaveCount(1);
+ await expect(history.locator("details")).toHaveCount(0);
+ await expect(history.locator(".inline-captured-balance").filter({hasText:"$750.00 → $650.00"})).toHaveCount(1);
  await expect(history.locator(".debt-history-month").first()).toContainText("2 payments recorded · $300.00");
  await expect(history).toContainText("+$50.00");
  await expect(history).toContainText("−$100.00");
@@ -23,7 +25,7 @@ test("six-month debt activity counts payments and actual progress stays fixed af
  await expect(card.locator(".debt-progress-ring")).toHaveAttribute("aria-valuenow", "35");
  const centered=await card.evaluate(element=>{const card=element.getBoundingClientRect();const ring=element.querySelector('.debt-progress-ring')!.getBoundingClientRect();return Math.abs(card.x+card.width/2-ring.x-ring.width/2)<2;});
  expect(centered).toBe(true);
- expect(await history.locator('.compact-activity-entry > summary').first().evaluate(e=>e.getBoundingClientRect().height)).toBeLessThanOrEqual(48);
+ expect(await history.locator('.inline-activity-entry').first().evaluate(e=>e.getBoundingClientRect().height)).toBeLessThanOrEqual(48);
  const contrast=await new AxeBuilder({page}).include(".debts-screen").withRules(["color-contrast"]).analyze();expect(contrast.violations).toEqual([]);
  await page.getByRole("button",{name:"More",exact:true}).click();
  await page.getByRole("button",{name:"Progress",exact:true}).filter({visible:true}).click();

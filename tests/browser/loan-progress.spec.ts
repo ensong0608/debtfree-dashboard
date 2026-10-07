@@ -27,6 +27,13 @@ test('loans persist, use Budget payments, and do not change existing debt balanc
   await expect(page.getByRole('status').first()).toHaveText(/Saved on device/);
   await page.reload();
   await expect(card).toContainText('$80,000.00');
+  await page.getByRole('button', {name:'Hide house & car',exact:true}).click();
+  await expect(page.locator('.simple-total>strong')).toHaveText(before);
+  await expect(page.locator('.category-legend')).not.toContainText('House loan');
+  await expect(card).toBeVisible();
+  await page.reload();
+  await expect(page.locator('.simple-total>strong')).toHaveText(before);
+  await page.getByRole('button', {name:'Show house & car',exact:true}).click();
   await page.getByRole('button', {name:'Budget',exact:true}).click();
   await page.getByRole('button', {name:'Edit Mortgage',exact:true}).click();
   await page.getByRole('dialog').getByLabel(/Monthly amount/).fill('2100');

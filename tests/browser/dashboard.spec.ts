@@ -1,7 +1,14 @@
-import { test, expect } from "@playwright/test";
+import { test, expect, type Page } from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
 import path from "node:path";
 import { readFileSync } from "node:fs";
+
+async function openPaymentRecord(page: Page) {
+  await page.getByRole("button", { name: "Add record", exact: true }).click();
+  const dialog = page.getByRole("dialog");
+  await dialog.getByRole("button", { name: "Payment", exact: true }).click();
+  await dialog.getByLabel("What’s it for?", { exact: true }).fill("Payment");
+}
 
 test("Payments connects lender updates and recorded payments without a second deduction", async ({ page }) => {
   const fixture = JSON.parse(readFileSync(path.resolve("tests/fixtures/legacy-v0.json"), "utf8"));
@@ -20,29 +27,32 @@ test("Payments connects lender updates and recorded payments without a second de
   const adjustment = page.locator(".payment-activity>article").filter({ hasText: "Sample Rewards Card" }).first();
   await expect(adjustment).toContainText("Balance adjustment");
   await expect(page.locator(".simple-total>strong")).toHaveText("$0.00");
-  await adjustment.getByText("This was a payment", { exact: true }).click();
-  await adjustment.getByRole("button", { name: "Confirm as payment" }).click();
+  await adjustment.locator(".transaction-edit-surface").click();
+  await dialog.getByRole("button", { name: "Payment", exact: true }).click();
+  await dialog.getByRole("button", { name: "Save transaction", exact: true }).click();
   await expect(page.locator(".simple-total>strong")).toHaveText("$150.00");
   await page.getByRole("button", { name: "Debts", exact: true }).click();
   await expect(card.locator(".simple-balance")).toHaveText("$2,300.75");
   await page.getByRole("button", { name: "Transactions", exact: true }).click();
-  await page.getByRole("button", { name: "Record payment", exact: true }).click();
-  await dialog.getByLabel("Payment debt", { exact: true }).selectOption("account-card-1");
-  await dialog.getByLabel("Payment amount").fill("100");
+  await openPaymentRecord(page);
+  await dialog.getByLabel("Card used", { exact: true }).selectOption("account-card-1");
+  await dialog.getByLabel("Transaction amount").fill("100");
   const originalViewport = page.viewportSize()!;
   if (originalViewport.width <= 430) {
     await page.setViewportSize({ width: originalViewport.width, height: 420 });
-    await dialog.getByRole("button", { name: "Confirm payment" }).scrollIntoViewIfNeeded();
-    await expect(dialog.getByRole("button", { name: "Confirm payment" })).toBeVisible();
+    await dialog.getByRole("button", { name: "Save transaction" }).scrollIntoViewIfNeeded();
+    await expect(dialog.getByRole("button", { name: "Save transaction" })).toBeVisible();
     await page.setViewportSize(originalViewport);
   }
-  await dialog.getByRole("button", { name: "Confirm payment" }).click();
+  await dialog.getByRole("button", { name: "Save transaction" }).click();
   await expect(page.locator(".simple-total>strong")).toHaveText("$250.00");
   await page.reload();
   await expect(card.locator(".simple-balance")).toHaveText("$2,200.75");
   await page.getByRole("button", { name: "Transactions", exact: true }).click();
   await expect(page.locator(".simple-total>strong")).toHaveText("$250.00");
-  await page.getByRole("button", { name: "Keep as adjustment", exact: true }).click();
+  await page.locator(".payment-activity>article").filter({ hasText: "Balance update" }).locator(".transaction-edit-surface").click();
+  await dialog.getByRole("button", { name: "Transaction", exact: true }).click();
+  await dialog.getByRole("button", { name: "Save transaction", exact: true }).click();
   await expect(page.locator(".simple-total>strong")).toHaveText("$100.00");
   await page.getByRole("button", { name: "Debts", exact: true }).click();
   await expect(card.locator(".simple-balance")).toHaveText("$2,200.75");
@@ -92,11 +102,11 @@ test("create a household plan, record payment, change strategy and restore a bac
   await page.getByRole("button", { name: "Continue into the application" }).click();
   await expect(page.getByRole("heading", { name: "Debts", exact: true })).toBeVisible();
   await page.getByRole("button", { name: "Transactions", exact: true }).click();
-  await page.getByRole("button", { name: "Record payment", exact: true }).click();
+  await openPaymentRecord(page);
   const dialog = page.getByRole("dialog");
   await expect(dialog).toBeVisible();
-  await dialog.getByLabel(/Payment amount/).fill("100");
-  await dialog.getByRole("button", { name: "Confirm payment" }).click();
+  await dialog.getByLabel(/Transaction amount/).fill("100");
+  await dialog.getByRole("button", { name: "Save transaction" }).click();
   await expect(dialog).toHaveCount(0);
   await page.getByRole("button", { name: "Debts", exact: true }).click();
   await page.getByRole("button", { name: "Update balance for Test card 1", exact: true }).filter({ visible: true }).click();
@@ -205,11 +215,11 @@ test("duplicate payments can be deleted, cancelled, and restored from Payments",
  await page.locator('input[type="file"]').setInputFiles({name:"delete-fixture.json",mimeType:"application/json",buffer:Buffer.from(JSON.stringify(fixture))});
  await page.getByRole("button",{name:"Transactions",exact:true}).click();
  for(let i=0;i<2;i++){
-  await page.getByRole("button",{name:"Record payment",exact:true}).click();
+  await openPaymentRecord(page);
   const dialog=page.getByRole("dialog");
-  await dialog.getByLabel("Payment debt",{exact:true}).selectOption("account-card-1");
-  await dialog.getByLabel("Payment amount",{exact:true}).fill("100");
-  await dialog.getByRole("button",{name:"Confirm payment",exact:true}).click();
+  await dialog.getByLabel("Card used",{exact:true}).selectOption("account-card-1");
+  await dialog.getByLabel("Transaction amount",{exact:true}).fill("100");
+  await dialog.getByRole("button",{name:"Save transaction",exact:true}).click();
  }
  await expect(page.locator(".simple-total>strong")).toHaveText("$200.00");
  const deleteButton=page.getByRole("button",{name:"Delete payment of $100.00 for Sample Rewards Card",exact:true}).first();
@@ -244,22 +254,22 @@ test("payment amount stays readable with a phone keyboard viewport", async ({pag
  await page.getByRole("button",{name:"Transactions",exact:true}).click();
  for(const width of [360,390,430]){
   await page.setViewportSize({width,height:844});
-  await page.getByRole("button",{name:"Record payment",exact:true}).click();
+  await openPaymentRecord(page);
   const dialog=page.getByRole("dialog");
-  const amount=dialog.getByLabel("Payment amount",{exact:true});
+  const amount=dialog.getByLabel("Transaction amount",{exact:true});
   await amount.fill("123.45");
   // Android browsers can shrink visualViewport while keeping the layout viewport tall.
   await page.evaluate(()=>{Object.defineProperty(window.visualViewport!,"height",{configurable:true,value:330});Object.defineProperty(window.visualViewport!,"offsetTop",{configurable:true,value:20});window.visualViewport!.dispatchEvent(new Event("resize"));});
   await expect.poll(()=>amount.evaluate(el=>{const rect=el.getBoundingClientRect();return rect.top>=20 && rect.bottom<=350;})).toBe(true);
   expect(await amount.evaluate(el=>parseFloat(getComputedStyle(el).fontSize))).toBeGreaterThanOrEqual(24);
-  await expect(amount).toHaveValue("123.45");
-  const confirm=dialog.getByRole("button",{name:"Confirm payment",exact:true});
+  await expect(amount).toHaveValue("-123.45");
+  const confirm=dialog.getByRole("button",{name:"Save transaction",exact:true});
   await confirm.scrollIntoViewIfNeeded();
   const box=await confirm.boundingBox();expect(box!.y).toBeGreaterThanOrEqual(20);expect(box!.y+box!.height).toBeLessThanOrEqual(350);
   await amount.focus();
   await amount.evaluate(el=>el.scrollIntoView({block:"nearest"}));
   if(width===390 && testInfo.project.name==="phone")await page.screenshot({path:"outputs/payment-keyboard-fixed-390.png"});
-  await dialog.getByRole("button",{name:"Close payment form",exact:true}).click();
+  await dialog.getByRole("button",{name:"Close transaction",exact:true}).click();
   await page.evaluate(()=>{delete (window.visualViewport as unknown as Record<string,unknown>).height;delete (window.visualViewport as unknown as Record<string,unknown>).offsetTop;window.visualViewport!.dispatchEvent(new Event("resize"));});
  }
 });
@@ -317,7 +327,9 @@ test("Costco interest starts next cycle, survives refresh, and reconciles withou
   await expect(card.locator(".simple-balance")).toHaveText("$10,260.00");
   await page.getByRole("button", { name: "Transactions", exact: true }).click();
   await expect(activity).toHaveCount(1);
-  await expect(activity).toContainText("Estimate reconciled to lender balance");
+  await activity.locator(".transaction-edit-surface").click();
+  await expect(page.getByRole("dialog")).toContainText("Estimate reconciled to lender balance");
+  await page.getByRole("dialog").getByRole("button", {name:"Cancel",exact:true}).click();
 });
 
 test("Debts can scroll to Wells Fargo on a desktop with many accounts", async ({ page }, testInfo) => {
@@ -361,7 +373,7 @@ test("Transactions can add, edit, remove and restore purchases and balance adjus
   await page.locator('input[type="file"]').setInputFiles({name:"transaction-fixture.json",mimeType:"application/json",buffer:Buffer.from(JSON.stringify(fixture))});
   await page.getByRole("button",{name:"Transactions",exact:true}).click();
   const dialog=page.getByRole("dialog");
-  await page.getByRole("button",{name:"Add transaction",exact:true}).click();
+  await page.getByRole("button",{name:"Add record",exact:true}).click();
   await dialog.getByLabel("Card used",{exact:true}).selectOption("account-card-1");
   await dialog.getByLabel("What’s it for?",{exact:true}).fill("SFC Henderson grocery run");
   await expect(dialog.getByLabel("Transaction type",{exact:true})).toHaveCount(0);
@@ -387,10 +399,13 @@ test("Transactions can add, edit, remove and restore purchases and balance adjus
   await dialog.getByRole("button",{name:"Save transaction",exact:true}).click();
   let entry=page.locator(".payment-activity>article").filter({hasText:"Purchase"});
   await expect(entry).toContainText("+$66.96");
+  await expect(entry.locator("details")).toHaveCount(0);
+  await expect(entry.locator(".transaction-delete-x")).toHaveText("×");
+  await expect(entry.locator(".transaction-value-line")).toContainText("$2,450.75 → $2,517.71");
   await expect(entry.getByRole("heading",{name:"SFC Henderson grocery run"})).toBeVisible();
   if(testInfo.project.name === "phone") { await entry.scrollIntoViewIfNeeded(); await page.screenshot({path:"outputs/named-transaction-card-430.png"}); }
   await expect(page.locator(".simple-total>strong")).toHaveText("$0.00");
-  await entry.getByRole("button",{name:"Edit transaction",exact:true}).click();
+  await entry.locator(".transaction-edit-surface").click();
   await dialog.getByLabel("Transaction amount",{exact:true}).fill("100");
   await expect(dialog).toContainText("$2,550.75");
   await dialog.getByRole("button",{name:"Save transaction",exact:true}).click();
@@ -401,7 +416,7 @@ test("Transactions can add, edit, remove and restore purchases and balance adjus
   await page.getByRole("button",{name:/Restore transaction of/}).click();
   await expect(dialog).toContainText("$2,550.75");
   await dialog.getByRole("button",{name:"Confirm restore",exact:true}).click();
-  await page.getByRole("button",{name:"Add transaction",exact:true}).click();
+  await page.getByRole("button",{name:"Add record",exact:true}).click();
   await dialog.getByLabel("Card used",{exact:true}).selectOption("account-card-1");
   await dialog.getByLabel("What’s it for?",{exact:true}).fill("Monthly card payment");
   await dialog.getByLabel("Transaction amount",{exact:true}).fill("50");
@@ -410,7 +425,7 @@ test("Transactions can add, edit, remove and restore purchases and balance adjus
   await expect(dialog).toContainText("$2,500.75");
   await dialog.getByRole("button",{name:"Save transaction",exact:true}).click();
   entry=page.locator(".payment-activity>article").filter({hasText:"Monthly card payment"});
-  await entry.getByRole("button",{name:"Edit transaction",exact:true}).click();
+  await entry.locator(".transaction-edit-surface").click();
   await dialog.getByLabel("Transaction amount",{exact:true}).fill("-75");
   await expect(dialog).toContainText("$2,475.75");
   await dialog.getByRole("button",{name:"Save transaction",exact:true}).click();
@@ -433,12 +448,12 @@ test("a named lender adjustment uses its signed amount without another ledger de
  await card.getByRole("button",{name:"Update balance for Sample Rewards Card",exact:true}).click();
  const dialog=page.getByRole("dialog");await dialog.getByLabel("New current balance").fill("2517.71");await dialog.getByRole("button",{name:"Confirm balance update"}).click();
  await page.getByRole("button",{name:"Transactions",exact:true}).click();
- const entry=page.locator(".payment-activity>article");await entry.getByRole("button",{name:"Edit transaction",exact:true}).click();
+ const entry=page.locator(".payment-activity>article");await entry.locator(".transaction-edit-surface").click();
  await expect(dialog.getByLabel("Transaction amount",{exact:true})).toHaveValue("+66.96");
  await dialog.getByLabel("What’s it for?",{exact:true}).fill("SFC Henderson grocery run");
  await expect(dialog).toContainText("$2,517.71");await dialog.getByRole("button",{name:"Save transaction",exact:true}).click();
  await expect(entry.getByRole("heading",{name:"SFC Henderson grocery run"})).toBeVisible();
- await entry.getByRole("button",{name:"Edit transaction",exact:true}).click();await dialog.getByLabel("Transaction amount",{exact:true}).fill("-50");
+ await entry.locator(".transaction-edit-surface").click();await dialog.getByLabel("Transaction amount",{exact:true}).fill("-50");
  await expect(dialog).toContainText("$2,400.75");await dialog.getByRole("button",{name:"Save transaction",exact:true}).click();
  await expect(page.locator(".simple-total>strong")).toHaveText("$50.00");
  await page.reload();await expect(card.locator(".simple-balance")).toHaveText("$2,400.75");
