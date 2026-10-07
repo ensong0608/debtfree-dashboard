@@ -25,7 +25,7 @@ test('loans persist, use Budget payments, and do not change existing debt balanc
   await expect(card).toContainText('$80,000.00');
   await page.getByRole('button', {name:'Budget',exact:true}).click();
   await page.getByRole('button', {name:'Edit Mortgage',exact:true}).click();
-  await page.getByRole('dialog').getByLabel('Monthly amount',{exact:true}).fill('2100');
+  await page.getByRole('dialog').getByLabel(/Monthly amount/).fill('2100');
   await page.getByRole('dialog').getByRole('button',{name:/Save/}).click();
   await page.getByRole('button',{name:'Debts',exact:true}).click();
   await expect(card).toContainText('$2,100.00');
