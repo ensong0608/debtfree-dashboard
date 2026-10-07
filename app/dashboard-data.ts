@@ -47,6 +47,8 @@ export type DebtAccount = OwnershipMetadata & {
   archivedAt?: string | null;
   archiveHistory?: DebtArchiveEvent[];
   customOrder?: number;
+  displayGroup?: "Mama" | "Papi" | "Other";
+  displayOrder?: number;
   householdMember?: PlannedAssignment;
   [key: string]: unknown;
 };
@@ -621,6 +623,8 @@ function validateAccount(value: unknown, path: string, issues: string[]) {
   requiredNumber(item.postPromoMinimum, `${path}.postPromoMinimum`, issues);
   requiredString(item.createdAt, `${path}.createdAt`, issues);
   if (hasOwn(item, "archivedAt")) nullableString(item.archivedAt, `${path}.archivedAt`, issues);
+  if (hasOwn(item, "displayGroup")) enumValue(item.displayGroup, new Set(["Mama", "Papi", "Other"]), `${path}.displayGroup`, issues);
+  if (hasOwn(item, "displayOrder")) requiredNumber(item.displayOrder, `${path}.displayOrder`, issues, true);
   if (hasOwn(item, "customOrder")) requiredNumber(item.customOrder, `${path}.customOrder`, issues, true);
   if (hasOwn(item, "householdMember")) enumValue(item.householdMember, plannedAssignments, path + ".householdMember", issues);
   if (hasOwn(item, "archiveHistory")) {
@@ -812,11 +816,13 @@ function validateMonthlyPlan(value: unknown, path: string, issues: string[]) {
       requiredNumber(loan.originalAmount, p + ".originalAmount", issues);
       if (typeof loan.originalAmount === "number" && loan.originalAmount <= 0) issues.push(p + ".originalAmount must be positive.");
       requiredNumber(loan.remainingAmount, p + ".remainingAmount", issues);
+      for (const key of ["apr", "escrow", "principalAndInterest"]) if (loan[key] !== undefined) requiredNumber(loan[key], p + "." + key, issues);
       if (typeof loan.asOf !== "string" || !validDate(loan.asOf)) issues.push(p + ".asOf must be a valid date.");
       requiredArray(loan.history, p + ".history", issues)?.forEach((raw, index) => {
         const entry = requiredRecord(raw, p + ".history[" + index + "]", issues);
         if (!entry) return;
         requiredNumber(entry.amount, p + ".history.amount", issues);
+        for (const key of ["payment", "principal", "interest", "escrow", "extraPrincipal"]) if (entry[key] !== undefined) requiredNumber(entry[key], p + ".history." + key, issues);
         enumValue(entry.balanceKind, new Set(["principal", "payoff"]), p + ".history.balanceKind", issues);
         if (typeof entry.date !== "string" || !validDate(entry.date)) issues.push(p + ".history.date must be a valid date.");
         requiredString(entry.recordedAt, p + ".history.recordedAt", issues);

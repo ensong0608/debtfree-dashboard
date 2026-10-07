@@ -76,3 +76,18 @@ test("Phase 4 Debts UI exposes required actions and swaps the desktop table for 
   assert.match(styles, /\.debt-table th:nth-child\(8\),\.debt-table td:nth-child\(8\)\{width:150px/);
   assert.match(styles, /text-overflow:ellipsis;white-space:nowrap/);
 });
+
+test("household display defaults follow the requested order and custom moves persist", async () => {
+  const { groupedDisplayDebts, arrangeDebt } = await import("../app/debts-screen.ts");
+  const names = ["Usbconnect", "Citi double cash", "Wells fargo", "Chase freedom", "Costco", "Citi cash", "PENFED", "Chase prime", "Discover", "Citi1"];
+  const original = names.map(name => account(name));
+  const groups = groupedDisplayDebts(original);
+  assert.deepEqual(groups[0].accounts.map(a => a.name), ["Citi1", "Discover", "Chase prime", "PENFED", "Citi cash"]);
+  assert.deepEqual(groups[1].accounts.map(a => a.name), ["Costco", "Chase freedom", "Wells fargo", "Citi double cash", "Usbconnect"]);
+  const reordered = arrangeDebt(original, "Discover", "Mama", -1);
+  assert.equal(groupedDisplayDebts(JSON.parse(JSON.stringify(reordered)))[0].accounts[0].name, "Discover");
+  const moved = arrangeDebt(reordered, "Discover", "Papi");
+  assert.equal(groupedDisplayDebts(moved)[1].accounts.at(-1).name, "Discover");
+  assert.equal(original.find(a => a.name === "Discover").displayGroup, undefined);
+  assert.equal(moved.find(a => a.name === "Discover").balance, 1000);
+});

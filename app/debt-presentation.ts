@@ -1,4 +1,5 @@
 import type { DebtAccount, DebtType } from "./dashboard-data.ts";
+import type { LoanTracker } from "./loan-progress.ts";
 import type { PayoffPlan } from "./payoff-engine.ts";
 
 export const DEBT_CATEGORY_COLORS: Record<DebtType, { key: string; color: string; label: string }> = {
@@ -10,15 +11,19 @@ export const DEBT_CATEGORY_COLORS: Record<DebtType, { key: string; color: string
   "Other": { key: "other", color: "#8493a5", label: "Other" },
 };
 
-export function categoryBalances(accounts: DebtAccount[]) {
-  return (Object.keys(DEBT_CATEGORY_COLORS) as DebtType[]).map(type => ({
+export function categoryBalances(accounts: DebtAccount[], loans: LoanTracker[] = []) {
+  const categories = (Object.keys(DEBT_CATEGORY_COLORS) as DebtType[]).map(type => ({
     type, ...DEBT_CATEGORY_COLORS[type],
     balance: accounts.filter(account => !account.archivedAt && account.type === type).reduce((sum, account) => sum + Math.max(0, account.balance), 0),
-  })).filter(category => category.balance > 0);
+  }));
+  for (const loan of loans) {
+    if (loan.kind === "car") categories.find(category => category.type === "Auto loan")!.balance += Math.max(0, loan.remainingAmount);
+  }
+  return [...categories, { type: "House loan", key: "house", color: "#328575", label: "House loan", balance: loans.filter(loan => loan.kind === "house").reduce((sum, loan) => sum + Math.max(0, loan.remainingAmount), 0) }].filter(category => category.balance > 0);
 }
 
-export function categoryGradient(accounts: DebtAccount[]) {
-  const categories = categoryBalances(accounts);
+export function categoryGradient(accounts: DebtAccount[], loans: LoanTracker[] = []) {
+  const categories = categoryBalances(accounts, loans);
   const total = categories.reduce((sum, category) => sum + category.balance, 0);
   let position = 0;
   return total > 0 ? `conic-gradient(${categories.map(category => {

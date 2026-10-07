@@ -21,3 +21,9 @@ test("milestones identify accounts by ID, handle ties, and suppress unreliable f
   assert.deepEqual(payoffMilestones(accounts,plan).map(m => [m.account.id,m.month.month]),[["a",1],["b",2]]);
   assert.deepEqual(payoffMilestones(accounts,{...plan,stalled:true}),[]);
 });
+
+test('composition includes separately tracked house and car balances', () => {
+  const categories = categoryBalances([{ type: 'Credit card', balance: 100 }], [{ kind: 'house', remainingAmount: 300 }, { kind: 'car', remainingAmount: 100 }]);
+  assert.equal(categories.reduce((sum, item) => sum + item.balance, 0), 500);
+  assert.deepEqual(categories.map(item => [item.label, item.balance]), [['Credit card', 100], ['Auto loan', 100], ['House loan', 300]]);
+});

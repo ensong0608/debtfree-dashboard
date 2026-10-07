@@ -1,14 +1,15 @@
+import type { LoanTracker } from "./loan-progress";
 import type { DebtAccount } from "./dashboard-data";
 import type { PayoffPlan } from "./payoff-engine";
 import { categoryBalances, categoryGradient, DEBT_CATEGORY_COLORS, payoffMilestones, trackedPayoffProgress } from "./debt-presentation";
 
 const money = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" });
 
-export function MobileCategorySummary({ accounts }: { accounts: DebtAccount[] }) {
-  const categories = categoryBalances(accounts);
+export function MobileCategorySummary({ accounts, loans = [] }: { accounts: DebtAccount[]; loans?: LoanTracker[] }) {
+  const categories = categoryBalances(accounts, loans);
   return <div className="mobile-category-summary">
-    <div className="category-donut" style={{ background: categoryGradient(accounts) }} role="img" aria-label={categories.length ? `Balance by category: ${categories.map(category => `${category.label} ${money.format(category.balance)}`).join(", ")}` : "No outstanding debt balance"}/>
-    <ul className="category-legend">{categories.map(category => <li key={category.type} data-debt-category={category.key}><i aria-hidden="true"/><span>{category.label}</span></li>)}</ul>
+    <div className="category-donut" style={{ background: categoryGradient(accounts, loans) }} role="img" aria-label={categories.length ? `Balance by category: ${categories.map(category => `${category.label} ${money.format(category.balance)}`).join(", ")}` : "No outstanding debt balance"}/>
+    <ul className="category-legend">{categories.map(category => <li key={category.type} data-debt-category={category.key}><i aria-hidden="true"/><span>{category.label} · {money.format(category.balance)}</span></li>)}</ul>
   </div>;
 }
 
