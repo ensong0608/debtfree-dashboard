@@ -1,4 +1,6 @@
 "use client";
+
+import { recurringDueDate } from "./recurring-due-date";
 import { entryHistory } from "./entry-history";
 import DebtProgressBar from "./debt-progress-bar";
 import OutlineIcon from "./outline-icon";
@@ -487,7 +489,7 @@ export default function DashboardClient({ user }: { user: DashboardUser }) {
       minimum: [effectiveMinimum(a) + (linkedCardExpenses[a.id] ?? 0), effectiveMinimum(b) + (linkedCardExpenses[b.id] ?? 0)],
       monthlyInterest: [monthlyInterest(a), monthlyInterest(b)],
       status: [a.balance <= 0 ? "paid off" : a.payoffMode, b.balance <= 0 ? "paid off" : b.payoffMode],
-      dueDate: [a.dueDate || "9999", b.dueDate || "9999"],
+      dueDate: [recurringDueDate(a.dueDate) || "9999", recurringDueDate(b.dueDate) || "9999"],
       payoff: [paidOffById.get(a.id) ?? 9999, paidOffById.get(b.id) ?? 9999],
     };
     const [first, second] = values[sortKey];
@@ -1204,6 +1206,11 @@ function AccountsPage({
 }: AccountsPageProps) {
   const { current, archived } = splitDebtAccounts(accounts);
   const [arranging, setArranging] = useState(false);
+  const [dueMonth, setDueMonth] = useState(currentMonthKey);
+  useEffect(() => {
+    const timer = window.setInterval(() => setDueMonth(currentMonthKey()), 60000);
+    return () => window.clearInterval(timer);
+  }, []);
   const [debtTab, setDebtTab] = useState<"accounts" | "loans">("accounts");
   const displayGroups = groupedDisplayDebts(current);
   const totalLinkedExpenses = Object.values(linkedCardExpenses).reduce((sum, amount) => sum + amount, 0);
@@ -1276,8 +1283,7 @@ function AccountsPage({
           <button className="secondary" type="button" disabled={readOnly} aria-label={`Edit debt details for ${account.name}`} onClick={() => onEdit(account)}>Edit details</button>
           <button className="secondary" type="button" disabled={readOnly || account.balance <= 0} aria-label={`Record payment for ${account.name}`} onClick={() => onRecordPayment(account)}>Record payment</button>
           {account.balance <= 0 && <button className="secondary" type="button" disabled={readOnly} aria-label={`Archive ${account.name}`} onClick={() => onArchive(account.id)}>Archive</button>}
-          <p>Saved due date: {account.dueDate ? formatDate(account.dueDate) : "Unknown"}. Saved date; not an overdue status.</p>
-          <p>Lender last checked {typeof account.balanceAsOf === "string" ? formatDate(account.balanceAsOf) : "unknown — update from lender"}. Current balances include recorded activity. Household saving does not check lenders.</p>
+          <p>Due date: {account.dueDate ? formatDate(recurringDueDate(account.dueDate, dueMonth)) : "—"}</p>
           <DebtActivityPanel accountId={account.id} name={account.name} transactions={transactions} adjustments={balanceAdjustments}/>
         </div></details></div>
       </article>;
@@ -1311,7 +1317,7 @@ function AccountsPage({
                 <td className="number-cell"><strong>{moneyPrecise.format(account.balance)}</strong>{account.creditLimit > 0 && <small>{Math.round(account.balance / account.creditLimit * 100)}% utilized</small>}</td>
                 <td className="number-cell">{account.apr.toFixed(2)}%</td>
                 <td><button className={"minimum-toggle " + account.minimumMode} type="button" disabled={readOnly || account.balance <= 0} onClick={() => onToggleMinimum(account.id)}><strong>{moneyPrecise.format(effectiveMinimum(account) + cardExpense)}</strong><small>{account.minimumMode === "auto" ? "Auto estimate" : "Manual amount"}</small></button></td>
-                <td><span className="date-cell">{formatDate(account.dueDate)}</span></td>
+                <td><span className="date-cell">{formatDate(recurringDueDate(account.dueDate, dueMonth))}</span></td>
                 <td>{account.balance > 0 ? <button className={"status-toggle " + account.payoffMode} type="button" disabled={readOnly} onClick={() => onTogglePayoff(account.id)}>{status}</button> : <span className="status-toggle paid">{status}</span>}</td>
                 <td><strong className="priority-order">{priorityLabel(account)}</strong></td>
                 <td>{promo ? <span className={"promo-notice " + promo.tone}>{promo.label}</span> : <span className="muted-value">No promotion</span>}</td>
@@ -1330,7 +1336,7 @@ function AccountsPage({
             <dl>
               <div><dt>APR</dt><dd>{account.apr.toFixed(2)}%</dd></div>
               <div><dt>Minimum</dt><dd>{moneyPrecise.format(effectiveMinimum(account) + cardExpense)}</dd></div>
-              <div><dt>Due date</dt><dd>{formatDate(account.dueDate)}</dd></div>
+              <div><dt>Due date</dt><dd>{formatDate(recurringDueDate(account.dueDate, dueMonth))}</dd></div>
               <div><dt>Priority</dt><dd>{priorityLabel(account)}</dd></div>
             </dl>
             {promo && <p className={"promo-notice " + promo.tone}>{promo.label}</p>}
@@ -1542,7 +1548,7 @@ function AccountModal({ draft, editing, autoFocusField, onChange, onClose, onSav
           <small className="promo-help">If the future minimum is unknown, DebtFree keeps today&apos;s minimum instead of inventing a higher payment. Update it when the issuer confirms the amount.</small>
         </div>}
         <Field label="Credit limit" prefix="$" value={draft.creditLimit} placeholder="Optional" onChange={(creditLimit) => onChange({ ...draft, creditLimit })}/>
-        <label><span>Statement due date (saved)</span><input type="date" value={draft.dueDate} onChange={(event) => onChange({ ...draft, dueDate: event.target.value })}/></label>
+        <label><span>Due date</span><input type="date" value={recurringDueDate(draft.dueDate)} onChange={(event) => onChange({ ...draft, dueDate: event.target.value })}/></label>
       </div></div>
       <footer>{editing ? <details className="advanced-danger"><summary>Advanced destructive action</summary><p>Permanently deleting removes the debt details. Existing payments, adjustments, and snapshots remain referenced for audit.</p><button className="danger" type="button" onClick={onRemove}>Permanently delete debt account</button></details> : <span/>}<div><button className="secondary" type="button" onClick={onClose}>Cancel</button><button className="primary" type="button" disabled={!draft.name.trim() || Boolean(invalidInterestDate)} onClick={onSave}>{editing ? "Save details" : "Add debt"}</button></div></footer>
     </section>

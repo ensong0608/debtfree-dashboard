@@ -4,7 +4,7 @@ test('signed refunds, date corrections and lender confirmations preserve balance
  const fixture=JSON.parse(readFileSync('tests/fixtures/legacy-v0.json','utf8'));fixture.transactions=[];
  await page.goto('/');await page.locator('input[type="file"]').setInputFiles({name:'audit-isolated.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(fixture))});
  const card=page.locator('.balance-first-cards>article').filter({hasText:'Sample Rewards Card'});
- await card.locator('.debt-overflow > summary').click();await expect(card).toContainText('Saved due date');await expect(card).toContainText('Lender last checked unknown');
+ await card.locator('.debt-overflow > summary').click();const now=new Date();const due=new Date(now.getFullYear(),now.getMonth(),18).toLocaleDateString('en-US',{month:'2-digit',day:'2-digit',year:'numeric'});await expect(card).toContainText('Due date: '+due);await expect(card).not.toContainText('Lender last checked');
  await page.getByRole('button',{name:'Transactions',exact:true}).click();await page.getByRole('button',{name:'Add record',exact:true}).click();
  const dialog=page.getByRole('dialog');await expect(dialog.getByRole('group',{name:'Record type'})).toHaveCount(0);
  await dialog.getByLabel('What’s it for?',{exact:true}).fill('Store refund');await dialog.getByLabel('Card used',{exact:true}).selectOption('account-card-1');await dialog.getByLabel('Transaction amount',{exact:true}).fill('-66.96');
