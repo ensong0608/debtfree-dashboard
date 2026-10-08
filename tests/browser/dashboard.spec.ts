@@ -124,7 +124,7 @@ test("create a household plan, record payment, change strategy and restore a bac
   await page.getByRole("button", { name: "Payoff Calculator", exact: true }).click();
   await page.getByRole("button", { name: /Snowball/, exact: false }).first().click();
   await page.getByLabel("Total monthly debt payment", { exact: true }).fill("7000");
-  await expect(page.getByText("Monthly calculator amount", { exact: true })).toBeVisible();
+  await expect(page.getByText("Monthly amount", { exact: true })).toBeVisible();
   await expect(page.locator(".plan-hero")).toContainText("$7,000.00");
   await expect(page.getByText("What-if calculator", { exact: true })).toHaveCount(0);
   await page.getByRole("button", { name: "More", exact: true }).click();
