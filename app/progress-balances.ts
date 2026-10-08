@@ -48,6 +48,7 @@ export function createPayoffSnapshot(input: {
   const existing = input.existing ?? null;
   return {
     ...(existing ?? {}),
+    ...(existing ? { revisions: [...(Array.isArray(existing.revisions) ? existing.revisions : []), { ...existing, revisions: undefined }] } : {}),
     id: existing?.id ?? input.id ?? `snapshot-${input.capturedAt}`,
     month: input.month,
     capturedAt: input.capturedAt,

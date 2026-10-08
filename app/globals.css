@@ -1633,3 +1633,6 @@ textarea:focus-visible{outline:3px solid rgba(22,119,255,.22);outline-offset:2px
 .budget-category-icon.adjustments{background:#fcecee;color:#b23840}
 
 .debt-add-bar>button{min-height:44px;padding:8px 16px;border:1px solid #d1c4ec;border-radius:12px;background:#f5f1fc;color:#6945ae;font-size:15px;font-weight:700}
+
+/* Keep correction-history controls reachable above the card edit surface. */
+.clean-transaction-card>details{position:relative;z-index:2}

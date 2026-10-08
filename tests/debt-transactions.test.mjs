@@ -83,14 +83,14 @@ test("signed input names activity, preserves magnitude backups, and applies edit
  assert.equal(restored.transactions[0].title,"Card payment");assert.equal(restored.transactions[0].amount,50);
  assert.throws(()=>change(initial(),{action:"save",draft:signedEntryDraft(undefined,{...input,title:" "})}),/title/);
 });
-test("signed lender adjustment changes offset only and negative sign confirms payment once",()=>{
+test("signed lender adjustment changes offset only; payment confirmation is explicit",()=>{
  let state=change(initial(),{action:"save",draft:draft("adjustment",66.96)},"adjust");
  const input={accountId:"card",title:"SFC Henderson grocery run",amount:"+66.96",date:"2026-10-05",note:""};
  state=change(state,{action:"save",id:"adjustment:adjust",draft:signedEntryDraft(state.adjustments[0],input)});
  assert.equal(balance(state),1066.96);assert.equal(state.transactions.length,0);
- state=change(state,{action:"save",id:"adjustment:adjust",draft:signedEntryDraft(state.adjustments[0],{...input,amount:"-50"})});
+ state=change(state,{action:"save",id:"adjustment:adjust",draft:{...signedEntryDraft(state.adjustments[0],{...input,amount:"-50"}),confirmAsPayment:true}});
  assert.equal(balance(state),950);assert.equal(state.transactions.length,0);assert.equal(confirmedPaymentTotal([],state.adjustments,"2026-10"),50);
- state=change(state,{action:"save",id:"adjustment:adjust",draft:signedEntryDraft(state.adjustments[0],{...input,amount:"-50"})});
+ state=change(state,{action:"save",id:"adjustment:adjust",draft:{...signedEntryDraft(state.adjustments[0],{...input,amount:"-50"}),confirmAsPayment:true}});
  assert.equal(balance(state),950);assert.equal(confirmedPaymentTotal([],state.adjustments,"2026-10"),50);
  state=change(state,{action:"save",id:"adjustment:adjust",draft:signedEntryDraft(state.adjustments[0],{...input,amount:"+20"})});
  assert.equal(balance(state),1020);assert.equal(confirmedPaymentTotal([],state.adjustments,"2026-10"),0);

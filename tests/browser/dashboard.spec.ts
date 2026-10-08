@@ -6,7 +6,6 @@ import { readFileSync } from "node:fs";
 async function openPaymentRecord(page: Page) {
   await page.getByRole("button", { name: "Add record", exact: true }).click();
   const dialog = page.getByRole("dialog");
-  await dialog.getByRole("button", { name: "Payment", exact: true }).click();
   await dialog.getByLabel("What’s it for?", { exact: true }).fill("Payment");
 }
 
@@ -28,7 +27,7 @@ test("Payments connects lender updates and recorded payments without a second de
   await expect(adjustment).toContainText("Balance adjustment");
   await expect(page.locator(".simple-total>strong")).toHaveText("$0.00");
   await adjustment.locator(".transaction-edit-surface").click();
-  await dialog.getByRole("button", { name: "Payment", exact: true }).click();
+  await dialog.getByLabel("Decrease classification").selectOption("payment");
   await dialog.getByRole("button", { name: "Save transaction", exact: true }).click();
   await expect(page.locator(".simple-total>strong")).toHaveText("$150.00");
   await page.getByRole("button", { name: "Debts", exact: true }).click();
@@ -36,7 +35,7 @@ test("Payments connects lender updates and recorded payments without a second de
   await page.getByRole("button", { name: "Transactions", exact: true }).click();
   await openPaymentRecord(page);
   await dialog.getByLabel("Card used", { exact: true }).selectOption("account-card-1");
-  await dialog.getByLabel("Transaction amount").fill("100");
+  await dialog.getByLabel("Transaction amount").fill("-100");
   const originalViewport = page.viewportSize()!;
   if (originalViewport.width <= 430) {
     await page.setViewportSize({ width: originalViewport.width, height: 420 });
@@ -51,7 +50,7 @@ test("Payments connects lender updates and recorded payments without a second de
   await page.getByRole("button", { name: "Transactions", exact: true }).click();
   await expect(page.locator(".simple-total>strong")).toHaveText("$250.00");
   await page.locator(".payment-activity>article").filter({ hasText: "Balance update" }).locator(".transaction-edit-surface").click();
-  await dialog.getByRole("button", { name: "Transaction", exact: true }).click();
+  await dialog.getByLabel("Decrease classification").selectOption("adjustment");
   await dialog.getByRole("button", { name: "Save transaction", exact: true }).click();
   await expect(page.locator(".simple-total>strong")).toHaveText("$100.00");
   await page.getByRole("button", { name: "Debts", exact: true }).click();
@@ -105,7 +104,7 @@ test("create a household plan, record payment, change strategy and restore a bac
   await openPaymentRecord(page);
   const dialog = page.getByRole("dialog");
   await expect(dialog).toBeVisible();
-  await dialog.getByLabel(/Transaction amount/).fill("100");
+  await dialog.getByLabel(/Transaction amount/).fill("-100");
   await dialog.getByRole("button", { name: "Save transaction" }).click();
   await expect(dialog).toHaveCount(0);
   await page.getByRole("button", { name: "Debts", exact: true }).click();
@@ -124,7 +123,7 @@ test("create a household plan, record payment, change strategy and restore a bac
   await page.getByRole("button", { name: "More", exact: true }).click();
   await page.getByRole("button", { name: "Payoff Plan", exact: true }).click();
   await page.getByRole("button", { name: /Snowball/, exact: false }).first().click();
-  await page.getByLabel("Extra each month", { exact: true }).fill("7000");
+  await page.getByLabel("Total monthly debt payment", { exact: true }).fill("7000");
   await expect(page.getByText("Monthly calculator amount", { exact: true })).toBeVisible();
   await expect(page.locator(".plan-hero")).toContainText("$7,000.00");
   await expect(page.getByText("What-if calculator", { exact: true })).toHaveCount(0);
@@ -206,7 +205,7 @@ test("duplicate payments can be deleted, cancelled, and restored from Payments",
   await openPaymentRecord(page);
   const dialog=page.getByRole("dialog");
   await dialog.getByLabel("Card used",{exact:true}).selectOption("account-card-1");
-  await dialog.getByLabel("Transaction amount",{exact:true}).fill("100");
+  await dialog.getByLabel("Transaction amount",{exact:true}).fill("-100");
   await dialog.getByRole("button",{name:"Save transaction",exact:true}).click();
  }
  await expect(page.locator(".simple-total>strong")).toHaveText("$200.00");
@@ -245,7 +244,7 @@ test("payment amount stays readable with a phone keyboard viewport", async ({pag
   await openPaymentRecord(page);
   const dialog=page.getByRole("dialog");
   const amount=dialog.getByLabel("Transaction amount",{exact:true});
-  await amount.fill("123.45");
+  await amount.fill("-123.45");
   // Android browsers can shrink visualViewport while keeping the layout viewport tall.
   await page.evaluate(()=>{Object.defineProperty(window.visualViewport!,"height",{configurable:true,value:330});Object.defineProperty(window.visualViewport!,"offsetTop",{configurable:true,value:20});window.visualViewport!.dispatchEvent(new Event("resize"));});
   await expect.poll(()=>amount.evaluate(el=>{const rect=el.getBoundingClientRect();return rect.top>=20 && rect.bottom<=350;})).toBe(true);
@@ -387,7 +386,7 @@ test("Transactions can add, edit, remove and restore purchases and balance adjus
   await dialog.getByRole("button",{name:"Save transaction",exact:true}).click();
   let entry=page.locator(".payment-activity>article").filter({hasText:"Purchase"});
   await expect(entry).toContainText("+$66.96");
-  await expect(entry.locator("details")).toHaveCount(0);
+  await expect(entry.locator("details")).toHaveCount(1);
   await expect(entry.locator(".transaction-delete-x")).toHaveText("×");
   await expect(entry.locator(".transaction-value-line")).toContainText("$2,450.75 → $2,517.71");
   await expect(entry.getByRole("heading",{name:"SFC Henderson grocery run"})).toBeVisible();
@@ -442,7 +441,7 @@ test("a named lender adjustment uses its signed amount without another ledger de
  await expect(dialog).toContainText("$2,517.71");await dialog.getByRole("button",{name:"Save transaction",exact:true}).click();
  await expect(entry.getByRole("heading",{name:"SFC Henderson grocery run"})).toBeVisible();
  await entry.locator(".transaction-edit-surface").click();await dialog.getByLabel("Transaction amount",{exact:true}).fill("-50");
- await expect(dialog).toContainText("$2,400.75");await dialog.getByRole("button",{name:"Save transaction",exact:true}).click();
+ await expect(dialog).toContainText("$2,400.75");await dialog.getByLabel("Decrease classification").selectOption("payment");await dialog.getByRole("button",{name:"Save transaction",exact:true}).click();
  await expect(page.locator(".simple-total>strong")).toHaveText("$50.00");
  await page.reload();await expect(card.locator(".simple-balance")).toHaveText("$2,400.75");
  await page.getByRole("button",{name:"Transactions",exact:true}).click();await expect(page.locator(".payment-activity>article")).toHaveCount(1);await expect(page.locator(".simple-total>strong")).toHaveText("$50.00");

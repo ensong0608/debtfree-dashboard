@@ -55,7 +55,7 @@ test("the dashboard and actual Progress use the same posted balance source", asy
     readFile(new URL("../app/actual-progress-page.tsx", import.meta.url), "utf8"),
   ]);
   assert.match(source, /transactionAdjustedAccounts\(accounts, transactions, detailedSpendingTracking\)/);
-  assert.match(source, /<ActualProgressPage accounts=\{accounts\}/);
+  assert.match(source, /<ActualProgressPage readOnly=\{isViewer\} accounts=\{accounts\}/);
   assert.match(model, /transactionAdjustedAccounts\(accounts, transactions\)/);
   assert.match(panel, /money.format\(report.current\)/);
   assert.doesNotMatch(panel, /minimumOnlyPlan|Projected debt-free|Estimated interest paid/);

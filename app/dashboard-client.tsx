@@ -1,4 +1,5 @@
 "use client";
+import { entryHistory } from "./entry-history";
 import DebtProgressRing from "./debt-progress-ring";
 import PayoffCalculatorPage from "./payoff-calculator-page";
 import type { LoanTracker } from "./loan-progress";
@@ -302,7 +303,7 @@ export default function DashboardClient({ user }: { user: DashboardUser }) {
   const applyDashboardPayload = useCallback((contract: DashboardBackup) => {
     dashboardContract.current = contract;
     const { payload } = contract;
-    setAccounts(payload.accounts.map((a) => ({ ...a, baselineBalance: a.baselineBalance ?? payload.planning?.debts.find(d => d.id === a.id)?.balance ?? a.balance })));
+    setAccounts(payload.accounts);
     setMonthlyBudgets(payload.monthlyBudgets);
     setMonthlyPlan({ ...(payload.monthlyPlan ?? { detailedSpendingTracking: false, months: {} }), monthlyCommitment: initialCommitment(transactionAdjustedAccounts(payload.accounts, payload.transactions), payload.extra, payload.monthlyBudgets[currentMonthKey()] ?? [], payload.monthlyPlan) });
     setPayees(payload.payees);
@@ -648,7 +649,7 @@ export default function DashboardClient({ user }: { user: DashboardUser }) {
         : createBalanceAdjustment({ storedAccount: checked.account, currentBalance: currentAccount.balance, nextBalance: draft.balance, date: draft.date, note: draft.note, creator: auditCreator });
       setTransactions(checked.transactions);
       if (!deviceOnly) setCloudStatus("saving");
-      setAccounts((current) => current.map((item) => item.id === result.account.id ? result.account : item));
+      setAccounts((current) => current.map((item) => item.id === result.account.id ? { ...result.account, balanceAsOf: draft.date } : item));
       if (result.adjustment) setBalanceAdjustments((current) => [...current, result.adjustment!]);
       setBalanceAccountId(null);
       if (!result.adjustment) { setDebtActionMessage("Lender balance confirmed. Interest through this date is covered and will not be added again."); return; }
@@ -983,7 +984,7 @@ export default function DashboardClient({ user }: { user: DashboardUser }) {
       <header className="topbar">
         <div><span className="mobile-product">DebtFree Dashboard</span><strong>{ALL_NAV_ITEMS.find((item) => item.id === page)?.label}</strong></div>
         <div className="top-actions">
-          <span className={`save-state ${deviceOnly ? deviceSaveStatus : cloudStatus}`} role="status"><i/> {deviceOnly ? deviceSaveStatus === "synced" ? "Saved on device" : deviceSaveStatus === "error" ? "Device save failed" : "Saving on device" : cloudStatus === "synced" ? "Household saved" : cloudStatus === "conflict" ? "Save conflict" : cloudStatus === "error" ? "Cloud save unavailable" : "Saving"}</span>
+          <span className={`save-state ${deviceOnly ? deviceSaveStatus : cloudStatus}`} role="status" title="Saves household records; does not verify lender balances"><i/> {deviceOnly ? deviceSaveStatus === "synced" ? "Saved on device" : deviceSaveStatus === "error" ? "Device save failed" : "Saving on device" : cloudStatus === "synced" ? "Household saved" : cloudStatus === "conflict" ? "Save conflict" : cloudStatus === "error" ? "Cloud save unavailable" : "Saving"}</span>
           <button className={navigationCollapsed ? "dashboard-toggle mobile-dashboard-toggle is-collapsed" : "dashboard-toggle mobile-dashboard-toggle"} type="button" onClick={toggleDashboardNavigation} aria-label={navigationCollapsed ? "Expand dashboard navigation" : "Collapse dashboard navigation"} aria-controls="dashboard-navigation" aria-expanded={!navigationCollapsed}><i aria-hidden="true"><b/></i></button>
           <button className="refresh-dashboard" type="button" aria-label="Refresh dashboard" title="Refresh after changes finish saving" disabled={Boolean(localError) || (!isViewer && deviceSaveStatus !== "synced") || (!deviceOnly && cloudStatus !== "synced") || modalOpen || cashflowModalOpen || transactionModalOpen || paymentRequest !== null || balanceAccountId !== null || auditTransactionId !== null || debtEntryOpen} onClick={() => { if (!sync.current?.pending && !localError) window.location.reload(); }}>↻</button>
           <button className="avatar" type="button" onClick={() => setPage("profile")} aria-label="Open My Account">{user.displayName.slice(0,2).toUpperCase()}</button>
@@ -999,10 +1000,10 @@ export default function DashboardClient({ user }: { user: DashboardUser }) {
 
         {page === "home" && <HomeDashboardPage model={homeDashboard} onRecordPayment={openRecommendedPayment} onExtra={updateExtra} onAction={openHomeAction} onViewPayments={() => setPage("payments")} onViewPlan={() => setPage("plan")} onViewDebts={() => setPage("accounts")} onViewProgress={() => setPage("snapshots")} onViewMonthlyPlan={() => setPage("monthly")}/>}
         {page === "monthly" && <MonthlyPlanPage month={selectedMonth} hasMonth={Object.prototype.hasOwnProperty.call(monthlyBudgets, selectedMonth)} previousHasItems={(monthlyBudgets[shiftMonth(selectedMonth, -1)] ?? []).some((item) => item.recurring ?? item.kind !== "purchase")} items={cashflowItems} accounts={calculatedAccounts} transactions={transactions} settings={selectedPlanSettings} trackingEnabled={detailedSpendingTracking} plannedMinimums={selectedPlanSettings.minimums ?? (selectedMonth === currentMonthKey() ? monthlyTargets.minimums : {})} plannedPayments={selectedMonth === currentMonthKey() ? monthlyTargets.payments : selectedPlanSettings.payments ?? {}} onMonth={setSelectedMonth} onCopyPrevious={copyPreviousBudget} onStartBlank={startBlankBudget} onAdd={openNewCashflow} onEdit={openEditCashflow} onSettings={updateSelectedPlanSettings} onTracking={setDetailedSpendingTracking} onViewTransactions={() => setPage("history")}/>}
-        {page === "accounts" && <AccountsPage onArrange={(id, group, direction) => setAccounts(current => arrangeDebt(current, id, group, direction))} loans={monthlyPlan.loanTrackers ?? []} loanPanel={<LoanProgressPanel loans={monthlyPlan.loanTrackers ?? []} items={planningCashflowItems} onChange={loanTrackers => setMonthlyPlan(current => ({ ...current, loanTrackers }))} onDialog={setDebtEntryOpen}/>} accounts={sortedAccounts} transactions={transactions} balanceAdjustments={balanceAdjustments} actionMessage={debtActionMessage} activeCount={activeCount} totalBalance={totalBalance} minimums={minimums} interest={interest} linkedCardExpenses={linkedCardExpenses} sortKey={sortKey} sortDirection={sortDirection} paidOffById={paidOffById} priorityById={priorityById} strategy={strategy} onSort={changeSort} onAdd={openNew} onEdit={openEdit} onUpdateBalance={openBalanceEdit} onRecordPayment={(account) => openRecommendedPayment(account.id, plan.months[0]?.payments[account.id] ?? effectiveMinimum(account))} onMarkPaidOff={markAccountPaidOff} onArchive={archiveAccount} onRestore={restoreAccount} onToggleMinimum={toggleMinimumMode} onTogglePayoff={togglePayoffMode} onSample={() => { setAccounts(SAMPLE_ACCOUNTS); setCustomDebtOrder(normalizeCustomDebtOrder(SAMPLE_ACCOUNTS)); }} onImport={importDebtFreeCsv} importMessage={importMessage}/>}
+        {page === "accounts" && <AccountsPage readOnly={isViewer} onArrange={(id, group, direction) => setAccounts(current => arrangeDebt(current, id, group, direction))} loans={monthlyPlan.loanTrackers ?? []} loanPanel={<LoanProgressPanel readOnly={isViewer} loans={monthlyPlan.loanTrackers ?? []} items={planningCashflowItems} onChange={loanTrackers => setMonthlyPlan(current => ({ ...current, loanTrackers }))} onDialog={setDebtEntryOpen}/>} accounts={sortedAccounts} transactions={transactions} balanceAdjustments={balanceAdjustments} actionMessage={debtActionMessage} activeCount={activeCount} totalBalance={totalBalance} minimums={minimums} interest={interest} linkedCardExpenses={linkedCardExpenses} sortKey={sortKey} sortDirection={sortDirection} paidOffById={paidOffById} priorityById={priorityById} strategy={strategy} onSort={changeSort} onAdd={openNew} onEdit={openEdit} onUpdateBalance={openBalanceEdit} onRecordPayment={(account) => openRecommendedPayment(account.id, plan.months[0]?.payments[account.id] ?? effectiveMinimum(account))} onMarkPaidOff={markAccountPaidOff} onArchive={archiveAccount} onRestore={restoreAccount} onToggleMinimum={toggleMinimumMode} onTogglePayoff={togglePayoffMode} onSample={() => { setAccounts(SAMPLE_ACCOUNTS); setCustomDebtOrder(normalizeCustomDebtOrder(SAMPLE_ACCOUNTS)); }} onImport={importDebtFreeCsv} importMessage={importMessage}/>}
         {page === "history" && detailedSpendingTracking && <TransactionsPage accounts={calculatedAccounts} payees={payees} transactions={transactions} onQuickAdd={openNewTransaction} onEdit={openEditTransaction} onAudit={setAuditTransactionId} onDelete={softDeleteTransaction} onRestore={restoreTransaction} onBatchAdd={addBatchTransactions} onManagePayees={() => setPayeeModalOpen(true)}/>}
         {page === "plan" && <PayoffCalculatorPage accounts={payoffAccounts} amount={monthlyPlan.calculatorAmount ?? extra} strategy={strategy} customDebtOrder={customDebtOrder} onAmount={calculatorAmount => setMonthlyPlan(current => ({ ...current, calculatorAmount }))} onStrategy={setStrategy} onCustomOrder={orderedIds => setCustomDebtOrder(current => mergeVisibleCustomDebtOrder(accounts, current, orderedIds))} onAccounts={() => setPage("accounts")}/>}
-        {page === "snapshots" && <ActualProgressPage accounts={accounts} transactions={transactions} adjustments={balanceAdjustments} snapshots={snapshots} loans={monthlyPlan.loanTrackers ?? []} onCapture={captureSnapshot} onUpdateNote={updateSnapshotNote} onDelete={removeSnapshot} onAccounts={() => setPage("accounts")}/>}
+        {page === "snapshots" && <ActualProgressPage readOnly={isViewer} accounts={accounts} transactions={transactions} adjustments={balanceAdjustments} snapshots={snapshots} loans={monthlyPlan.loanTrackers ?? []} onCapture={captureSnapshot} onUpdateNote={updateSnapshotNote} onDelete={removeSnapshot} onAccounts={() => setPage("accounts")}/>}
         {page === "profile" && <ProfilePage user={user} householdName={householdName} role={householdRole} members={householdMembers} cloudStatus={cloudStatus} deviceOnly={deviceOnly} transferMessage={transferMessage} onExportBackup={exportDashboardBackup} onImportBackup={importDashboardBackup} onReset={resetDashboardData} onRecover={async () => { try { const checkpoint = await repository.loadCheckpoint(); if (!checkpoint) { setTransferMessage("No recovery checkpoint is available."); return; } if (!confirm("Restore the saved recovery checkpoint? Current data will be saved as the automatic backup.")) return; await repository.saveHousehold(checkpoint); applyDashboardPayload(checkpoint); } catch (error) { setTransferMessage(dashboardDataErrorMessage(error)); } }} onInvite={inviteMember} onRemove={removeAdmin}/>}
         {page === "utilization" && <UtilizationPage accounts={calculatedAccounts} onEditAccount={openEdit}/>}
         {page === "stats" && <DebtInsightsPage accounts={calculatedAccounts} onPlan={()=>setPage("plan")} onProgress={()=>setPage("snapshots")}/>}
@@ -1162,6 +1163,7 @@ function PayeeRow({ payee, onRename, onDelete }: { payee: Payee; onRename: (id: 
   return <div className="payee-row"><div><span>{payee.name.slice(0, 2).toUpperCase()}</span>{editing ? <input autoFocus value={name} onChange={(event) => setName(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter" && name.trim()) { onRename(payee.id, name); setEditing(false); } }}/>: <strong>{payee.name}</strong>}</div><div>{editing ? <button type="button" onClick={() => { if (name.trim()) onRename(payee.id, name); setEditing(false); }}>Save</button> : <button type="button" onClick={() => setEditing(true)}>Rename</button>}<button type="button" onClick={() => onDelete(payee.id)}>Remove</button></div></div>;
 }
 type AccountsPageProps = {
+  readOnly: boolean;
   onArrange: (id: string, group: DebtDisplayGroup, direction: -1 | 0 | 1) => void;
   loans: LoanTracker[];
   loanPanel?: React.ReactNode;
@@ -1195,7 +1197,7 @@ type AccountsPageProps = {
 };
 
 function AccountsPage({
-  onArrange,
+  readOnly, onArrange,
   loans, loanPanel, accounts, transactions, balanceAdjustments, actionMessage, activeCount, totalBalance, minimums, interest, linkedCardExpenses, sortKey, sortDirection,
   paidOffById, priorityById, strategy, onSort, onAdd, onEdit, onUpdateBalance, onRecordPayment,
   onMarkPaidOff, onArchive, onRestore, onToggleMinimum, onTogglePayoff, onSample, onImport, importMessage,
@@ -1215,18 +1217,18 @@ function AccountsPage({
   const auditRows = [
     ...transactions.filter((transaction) => transaction.debtAction && transaction.balanceBefore !== undefined && transaction.balanceAfter !== undefined).map((transaction) => ({
       id: transaction.id, accountId: transaction.accountId, kind: transaction.debtAction === "mark-paid-off" ? "Marked paid off" : "Payment",
-      date: transaction.date, createdAt: transaction.createdAt, before: transaction.balanceBefore ?? 0, after: transaction.balanceAfter ?? 0,
+      date: transaction.date, createdAt: transaction.createdAt, before: entryHistory(transaction).before, after: entryHistory(transaction).after,
       difference: -transaction.amount, note: transaction.memo, creator: transaction.creator,
     })),
     ...balanceAdjustments.map((adjustment) => ({
       id: adjustment.id, accountId: adjustment.accountId, kind: "Balance update",
-      date: adjustment.date, createdAt: adjustment.createdAt, before: adjustment.balanceBefore, after: adjustment.balanceAfter,
+      date: adjustment.date, createdAt: adjustment.createdAt, before: entryHistory(adjustment).before, after: entryHistory(adjustment).after,
       difference: adjustment.difference, note: adjustment.note ?? "", creator: adjustment.creator,
     })),
   ].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
   const auditCreatorLabel = (creator: { email?: string; displayName?: string } | undefined) => creator?.displayName || creator?.email || "Household member";
   const importInput = (label: string) => <label className="secondary import-file">
-    <input type="file" accept=".csv,text/csv" onChange={(event) => {
+    <input disabled={readOnly} type="file" accept=".csv,text/csv" onChange={(event) => {
       const input = event.currentTarget;
       const file = input.files?.[0];
       if (file) void onImport(file).finally(() => { input.value = ""; });
@@ -1245,12 +1247,12 @@ function AccountsPage({
     return payoff ? monthAfter(payoff - 1) : "Needs adjustment";
   };
   const actionButtons = (account: DebtAccount) => <div className="debt-actions" aria-label={`Actions for ${account.name}`}>
-    <button type="button" className="debt-action primary-action" aria-label={`Record payment for ${account.name}`} disabled={account.balance <= 0} onClick={() => onRecordPayment(account)}>Record payment</button>
-    <button type="button" className="debt-action" aria-label={`Update balance for ${account.name}`} onClick={() => onUpdateBalance(account)}>Update balance</button>
+    <button type="button" className="debt-action primary-action" aria-label={`Record payment for ${account.name}`} disabled={readOnly || account.balance <= 0} onClick={() => onRecordPayment(account)}>Record payment</button>
+    <button type="button" className="debt-action" aria-label={`Update balance for ${account.name}`} disabled={readOnly} onClick={() => onUpdateBalance(account)}>Update balance</button>
     {account.balance > 0
-      ? <button type="button" className="debt-action" aria-label={`Mark ${account.name} paid off`} onClick={() => onMarkPaidOff(account.id)}>Mark paid off</button>
-      : <button type="button" className="debt-action" aria-label={`Archive ${account.name}`} onClick={() => onArchive(account.id)}>Archive</button>}
-    <button type="button" className="debt-action" aria-label={`Edit ${account.name}`} onClick={() => onEdit(account)}>Edit</button>
+      ? <button type="button" className="debt-action" aria-label={`Mark ${account.name} paid off`} disabled={readOnly} onClick={() => onMarkPaidOff(account.id)}>Mark paid off</button>
+      : <button type="button" className="debt-action" aria-label={`Archive ${account.name}`} disabled={readOnly} onClick={() => onArchive(account.id)}>Archive</button>}
+    <button type="button" className="debt-action" aria-label={`Edit ${account.name}`} disabled={readOnly} onClick={() => onEdit(account)}>Edit</button>
   </div>;
 
   return <div className="screen debts-screen">
@@ -1258,16 +1260,16 @@ function AccountsPage({
     {importMessage && <p className={importMessage.startsWith("Import failed") ? "import-message error" : "import-message"}>{importMessage}</p>}
     {actionMessage && <p className="debt-action-message" role="status" aria-live="polite">{actionMessage}</p>}
     <section className="simple-total debt-total-summary"><div className="debt-total-heading"><span>{includeSummaryLoans ? "Total current balance · all debts" : "Current balance · cards & other debts"}</span>{loans.length > 0 && <button type="button" className="summary-loan-toggle" aria-pressed={!includeSummaryLoans} onClick={toggleSummaryLoans}>{includeSummaryLoans ? "Hide house & car" : "Show house & car"}</button>}</div><strong>{moneyPrecise.format(totalBalance + (includeSummaryLoans ? loans.reduce((sum, loan) => sum + loan.remainingAmount, 0) : 0))}</strong><MobileCategorySummary accounts={current} loans={includeSummaryLoans ? loans : []}/></section>
-    <button type="button" className="secondary" aria-pressed={arranging} onClick={() => setArranging(!arranging)}>{arranging ? "Done arranging" : "Arrange debts"}</button>
+    <button type="button" className="secondary" disabled={readOnly} aria-pressed={arranging} onClick={() => setArranging(!arranging)}>{arranging ? "Done arranging" : "Arrange debts"}</button>
     {displayGroups.filter(group => group.accounts.length || group.group !== "Other").map(({group, accounts: groupAccounts}) => <section className="household-debt-group" key={group} aria-label={`${group} debts`}><h2>{group} <small>{moneyPrecise.format(groupAccounts.reduce((sum, account) => sum + account.balance, 0))}</small></h2><div className="balance-first-cards">{groupAccounts.map((account, index) => {
       return <article className="compact-debt-card" key={account.id} data-debt-category={DEBT_CATEGORY_COLORS[account.type].key}>
         <div className="compact-debt-top">
           <div className="compact-debt-identity"><h2>{account.name}</h2><strong className="simple-balance">{moneyPrecise.format(account.balance)}</strong></div>
           <DebtProgressRing account={account}/>
-          <dl className="compact-debt-meta"><div><dt>APR</dt><dd>{account.apr.toFixed(2)}%</dd></div><div><dt>Min</dt><dd>{moneyPrecise.format(effectiveMinimum(account))}</dd></div><div><dt>Due</dt><dd>{account.dueDate ? formatDate(account.dueDate) : "—"}</dd></div></dl>
+          <dl className="compact-debt-meta"><div><dt>APR</dt><dd>{account.apr.toFixed(2)}%</dd></div><div><dt>Min</dt><dd>{moneyPrecise.format(effectiveMinimum(account))}</dd></div><div><dt>Saved due date</dt><dd>{account.dueDate ? formatDate(account.dueDate) : "—"}</dd></div></dl><small>Saved date; not an overdue status. Lender last checked {typeof account.balanceAsOf === "string" ? account.balanceAsOf : "unknown — update from lender"}. Current balances include recorded activity. Household saving does not check lenders.</small>
         </div>
-        {arranging && <div className="debt-arrange-controls"><label>Group <select aria-label={`Group for ${account.name}`} value={group} onChange={event => onArrange(account.id, event.target.value as DebtDisplayGroup, 0)}>{["Mama", "Papi", "Other"].map(value => <option key={value}>{value}</option>)}</select></label><button className="secondary" type="button" disabled={index === 0} aria-label={`Move ${account.name} up`} onClick={() => onArrange(account.id, group, -1)}>↑ Up</button><button className="secondary" type="button" disabled={index === groupAccounts.length - 1} aria-label={`Move ${account.name} down`} onClick={() => onArrange(account.id, group, 1)}>↓ Down</button></div>}
-        <div className="compact-debt-actions"><button className="secondary" type="button" aria-label={`Update balance for ${account.name}`} onClick={() => onUpdateBalance(account)}>Update</button><button className="secondary" type="button" aria-label={`Edit debt details for ${account.name}`} onClick={() => onEdit(account)}>Edit details</button>{account.balance <= 0 && <button className="secondary" type="button" aria-label={`Archive ${account.name}`} onClick={() => onArchive(account.id)}>Archive</button>}</div>
+        {arranging && <div className="debt-arrange-controls"><label>Group <select disabled={readOnly} aria-label={`Group for ${account.name}`} value={group} onChange={event => onArrange(account.id, event.target.value as DebtDisplayGroup, 0)}>{["Mama", "Papi", "Other"].map(value => <option key={value}>{value}</option>)}</select></label><button className="secondary" type="button" disabled={readOnly || index === 0} aria-label={`Move ${account.name} up`} onClick={() => onArrange(account.id, group, -1)}>↑ Up</button><button className="secondary" type="button" disabled={readOnly || index === groupAccounts.length - 1} aria-label={`Move ${account.name} down`} onClick={() => onArrange(account.id, group, 1)}>↓ Down</button></div>}
+        <div className="compact-debt-actions"><button className="secondary" type="button" aria-label={`Update balance for ${account.name}`} disabled={readOnly} onClick={() => onUpdateBalance(account)}>Update</button><button className="secondary" type="button" disabled={readOnly} aria-label={`Edit debt details for ${account.name}`} onClick={() => onEdit(account)}>Edit details</button>{account.balance <= 0 && <button className="secondary" type="button" disabled={readOnly} aria-label={`Archive ${account.name}`} onClick={() => onArchive(account.id)}>Archive</button>}</div>
         <DebtActivityPanel accountId={account.id} name={account.name} transactions={transactions} adjustments={balanceAdjustments}/>
       </article>;
     })}</div></section>)}
@@ -1296,12 +1298,12 @@ function AccountsPage({
               const promo = promoNotice(account);
               const status = debtStatus(account);
               return <tr key={account.id}>
-                <td><button className="account-name" type="button" onClick={() => onEdit(account)}><span>{account.name.slice(0, 2).toUpperCase()}</span><div><strong>{account.name}</strong><small>{account.type} - Estimated paid off date: {payoffLabel(account)}</small></div></button></td>
+                <td><button className="account-name" type="button" disabled={readOnly} onClick={() => onEdit(account)}><span>{account.name.slice(0, 2).toUpperCase()}</span><div><strong>{account.name}</strong><small>{account.type} - Estimated paid off date: {payoffLabel(account)}</small></div></button></td>
                 <td className="number-cell"><strong>{moneyPrecise.format(account.balance)}</strong>{account.creditLimit > 0 && <small>{Math.round(account.balance / account.creditLimit * 100)}% utilized</small>}</td>
                 <td className="number-cell">{account.apr.toFixed(2)}%</td>
-                <td><button className={"minimum-toggle " + account.minimumMode} type="button" disabled={account.balance <= 0} onClick={() => onToggleMinimum(account.id)}><strong>{moneyPrecise.format(effectiveMinimum(account) + cardExpense)}</strong><small>{account.minimumMode === "auto" ? "Auto estimate" : "Manual amount"}</small></button></td>
+                <td><button className={"minimum-toggle " + account.minimumMode} type="button" disabled={readOnly || account.balance <= 0} onClick={() => onToggleMinimum(account.id)}><strong>{moneyPrecise.format(effectiveMinimum(account) + cardExpense)}</strong><small>{account.minimumMode === "auto" ? "Auto estimate" : "Manual amount"}</small></button></td>
                 <td><span className="date-cell">{formatDate(account.dueDate)}</span></td>
-                <td>{account.balance > 0 ? <button className={"status-toggle " + account.payoffMode} type="button" onClick={() => onTogglePayoff(account.id)}>{status}</button> : <span className="status-toggle paid">{status}</span>}</td>
+                <td>{account.balance > 0 ? <button className={"status-toggle " + account.payoffMode} type="button" disabled={readOnly} onClick={() => onTogglePayoff(account.id)}>{status}</button> : <span className="status-toggle paid">{status}</span>}</td>
                 <td><strong className="priority-order">{priorityLabel(account)}</strong></td>
                 <td>{promo ? <span className={"promo-notice " + promo.tone}>{promo.label}</span> : <span className="muted-value">No promotion</span>}</td>
                 <td>{actionButtons(account)}</td>
@@ -1326,13 +1328,13 @@ function AccountsPage({
             {actionButtons(account)}
           </article>;
         })}</div>
-      </> : <div className="empty-table"><span>{"\u25a4"}</span><h2>No debts added yet</h2><p>Add your debts to calculate your recommended payoff order and estimated debt-free date.</p><div>{importInput("Import DebtFree CSV")}<button className="primary" type="button" onClick={onAdd}>Add first debt</button><button className="secondary" type="button" onClick={onSample}>Load samples</button></div></div>}
+      </> : <div className="empty-table"><span>{"\u25a4"}</span><h2>No debts added yet</h2><p>Add your debts to calculate your recommended payoff order and estimated debt-free date.</p><div>{importInput("Import DebtFree CSV")}<button className="primary" type="button" disabled={readOnly} onClick={onAdd}>Add first debt</button><button className="secondary" type="button" disabled={readOnly} onClick={onSample}>Load samples</button></div></div>}
     </section>
-    {auditRows.length > 0 && <section className="debt-audit-card" aria-labelledby="debt-audit-title"><header><div><span>Auditable debt activity</span><h2 id="debt-audit-title">Payment and balance history</h2></div><small>Every entry preserves the balance before and after the action.</small></header><div className="debt-audit-list">{auditRows.slice(0, 10).map((row) => <article key={row.id}><div><strong>{row.kind}: {accountNames.get(row.accountId) ?? "Removed debt"}</strong><span>{formatDate(row.date)} - {auditCreatorLabel(row.creator)}</span>{row.note && <small>{row.note}</small>}</div><div><strong>{moneyPrecise.format(row.before)} to {moneyPrecise.format(row.after)}</strong><span className={row.difference <= 0 ? "decrease" : "increase"}>{row.difference <= 0 ? "-" : "+"}{moneyPrecise.format(Math.abs(row.difference))}</span></div></article>)}</div></section>}
+    {auditRows.length > 0 && <section className="debt-audit-card" aria-labelledby="debt-audit-title"><header><div><span>Auditable debt activity</span><h2 id="debt-audit-title">Payment and balance history</h2></div><small>Captured balances are shown only when their original application can be established. Corrections are available in Transactions.</small></header><div className="debt-audit-list">{auditRows.slice(0, 10).map((row) => <article key={row.id}><div><strong>{row.kind}: {accountNames.get(row.accountId) ?? "Removed debt"}</strong><span>{formatDate(row.date)} - {auditCreatorLabel(row.creator)}</span>{row.note && <small>{row.note}</small>}</div><div><strong>{row.before !== undefined && row.after !== undefined ? moneyPrecise.format(row.before) + " to " + moneyPrecise.format(row.after) + " (captured when saved)" : "Historical balances unavailable"}</strong><span className={row.difference <= 0 ? "decrease" : "increase"}>{row.difference <= 0 ? "-" : "+"}{moneyPrecise.format(Math.abs(row.difference))}</span></div></article>)}</div></section>}
     </details>
     {archived.length > 0 && <details className="archived-debts">
       <summary>Archived debts ({archived.length})</summary>
-      <div>{archived.map((account) => <article key={account.id}><div><strong>{account.name}</strong><span>Paid off - {account.type}</span></div><button type="button" className="secondary" aria-label={`Restore ${account.name}`} onClick={() => onRestore(account.id)}>Restore</button></article>)}</div>
+      <div>{archived.map((account) => <article key={account.id}><div><strong>{account.name}</strong><span>Paid off - {account.type}</span></div><button type="button" className="secondary" aria-label={`Restore ${account.name}`} disabled={readOnly} onClick={() => onRestore(account.id)}>Restore</button></article>)}</div>
     </details>}
     {loanPanel}
   </div>;
@@ -1393,7 +1395,7 @@ function ProfilePage({ user, householdName, role, members, cloudStatus, deviceOn
       </article>
       {!deviceOnly && <article className="roles-card household-card">
         <div className="card-head"><div><span>{householdName}</span><strong>Household members</strong></div></div>
-        {role === "owner" && <div className="invite-admin"><label><span>Member email and access</span><div><input type="email" value={email} placeholder="member@example.com" onChange={(event) => setEmail(event.target.value)}/><select aria-label="Household access role" value={accessRole} onChange={(event) => setAccessRole(event.target.value as Exclude<HouseholdRole, "owner">)}><option value="admin">Admin</option><option value="viewer">Viewer</option></select><button className="primary" type="button" disabled={working || !email.trim()} onClick={invite}>Add member</button></div><small>Admins can edit the shared dashboard. Viewers can only review it. Each member signs in with a one-time code sent to their own email.</small></label></div>}
+        {role === "owner" && <div className="invite-admin"><label><span>Member email and access</span><div><input type="email" value={email} placeholder="member@example.com" onChange={(event) => setEmail(event.target.value)}/><select aria-label="Household access role" value={accessRole} onChange={(event) => setAccessRole(event.target.value as Exclude<HouseholdRole, "owner">)}><option value="admin">Admin</option><option value="viewer">Viewer</option></select><button className="primary" type="button" disabled={working || !email.trim()} onClick={invite}>Add member</button></div><small>Admins can edit the shared dashboard. Viewers can only review it. Each member signs in with Google using their authorized email.</small></label></div>}
         {message && <p className="share-message">{message}</p>}
         <div className="member-list">{members.map((member) => <div className="member-row" key={member.email}><div><strong>{member.display_name || member.email}</strong><small>{member.display_name ? member.email : member.status === "invited" ? "Waiting for first sign-in" : "Household member"}</small></div><span className={member.status}>{member.role}</span>{role === "owner" && member.role !== "owner" ? <button type="button" disabled={working} onClick={() => remove(member.email)}>Remove</button> : <i/>}</div>)}</div>
       </article>}
@@ -1488,14 +1490,14 @@ function BalanceUpdateModal({ account, error, onClose, onSave }: { account: Debt
   const parsedBalance = parseMoneyInput(balanceText);
   const difference = round(parsedBalance - account.balance);
   const invalidBalance = !Number.isFinite(parsedBalance);
-  const changed = !invalidBalance && (Math.abs(difference) >= 0.005 || Boolean(account.interestAutomation?.enabled));
+  const changed = !invalidBalance;
   return <div className="modal-backdrop" onMouseDown={(event) => { if (event.currentTarget === event.target) onClose(); }}>
     <section className="modal debt-action-modal" role="dialog" aria-modal="true" aria-labelledby="balance-modal-title" aria-describedby="balance-modal-description">
       <header><div><span>Balance reconciliation</span><h2 id="balance-modal-title">Update {account.name} balance</h2><p id="balance-modal-description">Enter the balance shown by your lender. The difference appears in Transactions as a balance adjustment; it is not automatically counted as a payment. {account.interestAutomation?.enabled && "This replaces estimated interest already included in the balance. Interest through the effective date will not be added again."}</p></div><button type="button" onClick={onClose} aria-label="Close balance update form">&times;</button></header>
       <div className="debt-action-form">
         <div className="balance-change-preview" aria-live="polite"><div><span>Previous balance</span><strong>{moneyPrecise.format(account.balance)}</strong></div><i aria-hidden="true">&rarr;</i><div><span>New balance</span><strong>{invalidBalance ? "—" : moneyPrecise.format(parsedBalance)}</strong></div></div>
         {invalidBalance && <p className="form-error" role="alert">Enter a balance of $0.00 or more, with up to two decimal places. Blank does not mean zero.</p>}{error && <p className="form-error" role="alert">{error}</p>}
-        <p className={difference > 0 ? "balance-difference increase" : "balance-difference decrease"}>{changed ? (difference > 0 ? "Increase " : "Decrease ") + moneyPrecise.format(Math.abs(difference)) : "Enter a different current balance to continue."}</p>
+        <p className={difference > 0 ? "balance-difference increase" : "balance-difference decrease"}>{invalidBalance ? "Enter a valid lender balance to continue." : difference === 0 ? "Balance unchanged. Confirming updates the lender balance effective date." : (difference > 0 ? "Increase " : "Decrease ") + moneyPrecise.format(Math.abs(difference))}</p>
         <div className="form-grid"><label><span>New current balance</span><input type="text" inputMode="decimal" value={balanceText} aria-invalid={invalidBalance} onChange={event => setBalanceText(event.target.value)}/></label><label><span>Effective date</span><input type="date" value={draft.date} onChange={(event) => setDraft({ ...draft, date: event.target.value })}/></label><label className="wide"><span>Optional note</span><input value={draft.note} maxLength={240} placeholder="Example: Reconciled to August statement" onChange={(event) => setDraft({ ...draft, note: event.target.value })}/></label></div>
       </div>
       <footer><span>You can identify a balance decrease as a payment later in Transactions.</span><div><button className="secondary" type="button" onClick={onClose}>Cancel</button><button className="primary" type="button" disabled={!changed || !draft.date} onClick={() => onSave({ ...draft, balance: parsedBalance })}>Confirm balance update</button></div></footer>
@@ -1530,7 +1532,7 @@ function AccountModal({ draft, editing, autoFocusField, onChange, onClose, onSav
           <small className="promo-help">If the future minimum is unknown, DebtFree keeps today&apos;s minimum instead of inventing a higher payment. Update it when the issuer confirms the amount.</small>
         </div>}
         <Field label="Credit limit" prefix="$" value={draft.creditLimit} placeholder="Optional" onChange={(creditLimit) => onChange({ ...draft, creditLimit })}/>
-        <label><span>Next due date</span><input type="date" value={draft.dueDate} onChange={(event) => onChange({ ...draft, dueDate: event.target.value })}/></label>
+        <label><span>Statement due date (saved)</span><input type="date" value={draft.dueDate} onChange={(event) => onChange({ ...draft, dueDate: event.target.value })}/></label>
       </div></div>
       <footer>{editing ? <details className="advanced-danger"><summary>Advanced destructive action</summary><p>Permanently deleting removes the debt details. Existing payments, adjustments, and snapshots remain referenced for audit.</p><button className="danger" type="button" onClick={onRemove}>Permanently delete debt account</button></details> : <span/>}<div><button className="secondary" type="button" onClick={onClose}>Cancel</button><button className="primary" type="button" disabled={!draft.name.trim() || Boolean(invalidInterestDate)} onClick={onSave}>{editing ? "Save details" : "Add debt"}</button></div></footer>
     </section>

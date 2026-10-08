@@ -101,11 +101,11 @@ test("balance updates reconcile upward and downward without duplicate ledger eff
   assert.equal(transactionAdjustedAccounts([downward.account], [charge])[0].balance, 900);
 });
 
-test("balance updates reject negative and unchanged balances", () => {
+test("balance updates reject negatives and allow unchanged lender confirmation", () => {
   const debt = account("card");
   const input = { storedAccount: debt, currentBalance: 1000, date: paymentDate, createdAt };
   assert.throws(() => createBalanceAdjustment({ ...input, nextBalance: -0.01 }), (error) => error instanceof DebtBalanceError && /\$0\.00 or greater/i.test(error.message));
-  assert.throws(() => createBalanceAdjustment({ ...input, nextBalance: 1000 }), (error) => error instanceof DebtBalanceError && /different from the current balance/i.test(error.message));
+  assert.equal(createBalanceAdjustment({ ...input, nextBalance: 1000 }).adjustment.difference, 0);
 });
 
 test("mark paid off retains the debt and archive/restore preserves history", () => {

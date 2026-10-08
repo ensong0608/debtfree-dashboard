@@ -4,7 +4,7 @@ import { validDate } from "./interest-accrual.ts";
 import { round } from "./payoff-engine.ts";
 
 export type EntryKind = "payment" | "purchase" | "interest" | "fee" | "adjustment";
-export type EntryDraft = { accountId: string; kind: EntryKind; amount: number; date: string; note: string; direction: "increase" | "decrease"; paymentKind?: PaymentKind; title?: string; confirmAsPayment?: boolean };
+export type EntryDraft = { accountId: string; kind: EntryKind; amount: number; date: string; note: string; direction: "increase" | "decrease"; paymentKind?: PaymentKind; credit?: boolean; title?: string; confirmAsPayment?: boolean };
 export type EntryCommand = { action: "save" | "delete" | "restore"; id?: string; draft?: EntryDraft };
 export type EntryState = { accounts: DebtAccount[]; transactions: LedgerTransaction[]; adjustments: BalanceAdjustment[] };
 export const entryMovement = (draft: EntryDraft) => round(draft.amount * (draft.kind === "payment" || draft.kind === "adjustment" && draft.direction === "decrease" ? -1 : 1));
@@ -20,7 +20,7 @@ export function signedEntryDraft(original: LedgerTransaction | BalanceAdjustment
   const adjustment = original && "difference" in original;
   const transaction = original && !adjustment ? original as LedgerTransaction : undefined;
   const kind: EntryKind = adjustment ? "adjustment" : signed < 0 ? "payment" : transaction?.interestEstimate || transaction?.category === "Interest" && transaction.type === "fee" ? "interest" : transaction?.type === "fee" ? "fee" : "purchase";
-  return { accountId: input.accountId, title: input.title.trim(), amount: Math.abs(signed), date: input.date, note: input.note, kind, direction: signed < 0 ? "decrease" : "increase", ...(adjustment ? { confirmAsPayment: signed < 0 } : {}), ...(transaction?.paymentKind && signed < 0 ? { paymentKind: transaction.paymentKind } : {}) };
+  return { accountId: input.accountId, title: input.title.trim(), amount: Math.abs(signed), date: input.date, note: input.note, kind, direction: signed < 0 ? "decrease" : "increase", ...(adjustment ? { confirmAsPayment: Boolean((original as BalanceAdjustment).confirmedPayment) && signed < 0 } : {}), ...(transaction?.credit === true && signed < 0 ? { credit: true } : {}), ...(transaction?.paymentKind && signed < 0 ? { paymentKind: transaction.paymentKind } : {}) };
 }
 
 /** One mutation path for both previews and commits. Adjustment offsets remain separate from ledger movements. */
@@ -73,7 +73,16 @@ export function changeDebtEntry(state: EntryState, command: EntryCommand, creato
       else { delete updated.debtAction; delete updated.paymentKind; delete updated.plannedItemId; }
     }
     transactions = transaction ? state.transactions.map(t => t.id === transaction.id ? updated : t) : [...state.transactions, updated];
-    if (command.action === "save") { updated.balanceBefore = current.balance; updated.balanceAfter = transactionAdjustedAccounts(accounts, transactions).find(a => a.id === accountId)!.balance; }
+    if (command.action === "save") { updated.credit = draft!.credit === true && type === "payment"; if (updated.credit) { delete updated.debtAction; delete updated.paymentKind; } updated.balanceBefore = current.balance; updated.balanceAfter = transactionAdjustedAccounts(accounts, transactions).find(a => a.id === accountId)!.balance; }
   }
+  for (const account of accounts) {
+    const posted = transactions.filter(t => t.accountId === account.id && !t.deletedAt).reduce((sum,t) => sum + (t.type === "payment" ? -t.amount : t.amount), 0);
+    if (round(account.balance + (account.balanceOffset ?? 0) + posted) < 0) throw new Error("This change would exceed an account’s debt balance. Reconcile its lender balance before correcting or restoring this entry.");
+  }
+  const after = transactionAdjustedAccounts(accounts, transactions);
+  const movement = [...new Set([accountId, original?.accountId].filter((id): id is string => Boolean(id)))].map(id => ({ accountId: id, before: before.find(a => a.id === id)!.balance, after: after.find(a => a.id === id)!.balance }));
+  const annotate = <T extends LedgerTransaction | BalanceAdjustment>(entry: T): T => ({ ...entry, balanceEvents: [...(Array.isArray(original?.balanceEvents) ? original.balanceEvents : []), { action: command.action, recordedAt: now, effectiveDate: command.action === "save" ? draft!.date : original!.date, movement, ...(creator ? { creator } : {}) }] });
+  if (adjustment || command.action === "save" && draft!.kind === "adjustment") adjustments = adjustments.map(a => a.id === (adjustment?.id ?? newId) ? annotate(a) : a);
+  else transactions = transactions.map(t => t.id === (transaction?.id ?? newId) ? annotate(t) : t);
   return { accounts, transactions, adjustments };
 }

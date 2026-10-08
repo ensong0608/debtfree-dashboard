@@ -105,7 +105,7 @@ test("removes disposable starter assets", async () => {
   assert.match(dashboardSource, /Add member/);
   assert.match(page, /getAuthenticatedUser/);
   assert.match(page, /Local device storage only/);
-  assert.match(dashboardSource, /one-time code sent to their own email/i);
+  assert.match(dashboardSource, /signs in with Google/i);
   assert.match(dashboardSource, /Estimated paid off date/);
   assert.match(dashboardSource, /Credit limit/);
   assert.match(dashboardSource, /minimum-only/);
@@ -138,7 +138,7 @@ test("supports a mobile dashboard shell and collapsible navigation", async () =>
   assert.match(client, /sidebar-head/);
   assert.match(client, /mobile-dashboard-toggle/);
   assert.doesNotMatch(client, /<span>\{navigationCollapsed \? "Expand" : "Collapse"\}<\/span>/);
-  assert.match(client, /one-time code sent to their own email/);
+  assert.match(client, /signs in with Google/);
   assert.match(store, /SELECT id FROM households LIMIT 1/);
   assert.match(page, /This account is not part of the shared household/);
   assert.doesNotMatch(client, /window\.close\(\)|Close dashboard/);
