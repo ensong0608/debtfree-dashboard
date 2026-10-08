@@ -11,7 +11,7 @@ test('Budget section cards keep clear totals, Helvetica, and hide retired tools'
  await page.goto('/');
  await page.locator('input[type="file"]').setInputFiles({name:'budget-cards.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(fixture))});
  await page.getByRole('button',{name:'Budget',exact:true}).click();
- await expect(page.locator('.budget-main-summary>strong')).toHaveText('$2,390.00');
+ await expect(page.locator('.budget-main-summary,.budget-options,.monthly-title')).toHaveCount(0);
  await expect(page.locator('.budget-section-card')).toHaveCount(3);
  const income=page.locator('.budget-section-card').filter({has:page.getByText('Income',{exact:true})});
  await expect(income).not.toHaveAttribute('open','');
@@ -19,10 +19,8 @@ test('Budget section cards keep clear totals, Helvetica, and hide retired tools'
  await expect(page.getByRole('button',{name:'Edit Household salary',exact:true})).toBeVisible();
  await expect(page.getByRole('button',{name:'Edit Mortgage',exact:true})).toBeVisible();
  expect(await page.locator('body').evaluate(el=>getComputedStyle(el).fontFamily)).toContain('Helvetica');
- await page.getByText('Payment tracking & budget details',{exact:true}).click();
- await page.getByLabel('Cash cushion (monthly safety buffer)',{exact:true}).fill('500');
- await expect(page.locator('.budget-main-summary>strong')).toHaveText('$2,390.00');
- await expect(page.locator('.debt-capacity-card .available')).toContainText('$1,890.00');
+ await expect(income.locator('summary')).toContainText('$6,500.00');
+ await expect(page.locator('.budget-category-icon svg')).toHaveCount(3);
  await page.getByRole('button',{name:'More',exact:true}).click();
  await expect(page.getByRole('button',{name:'Home',exact:true})).toHaveCount(0);
  await page.getByText('Advanced tools',{exact:true}).click();

@@ -170,43 +170,31 @@ test("unauthenticated API requests cannot read or change household data", async 
   expect((await request.get("/api/health")).status()).toBe(401);
 });
 
-test("paid expense and minimum records preserve balances, survive reload, and can be undone", async ({page}) => {
- const {readFileSync} = await import("node:fs");
+test("simplified Budget preserves existing paid records and balances across months", async ({page}) => {
  const fixture = JSON.parse(readFileSync(path.resolve("tests/fixtures/legacy-v0.json"),"utf8"));
  const now=new Date();const month=now.getFullYear()+"-"+String(now.getMonth()+1).padStart(2,"0");
- fixture.monthlyBudgets[month]=[{id:"paid-rent",name:"Paid rent",kind:"expense",category:"Housing",amount:500,paymentMethod:"debit",creditAccountId:"",createdAt:now.toISOString(),recurring:true},{id:"paid-card",name:"Included card expense",kind:"expense",category:"Other",amount:20,paymentMethod:"credit",creditAccountId:"account-card-1",createdAt:now.toISOString(),recurring:true}];
+ fixture.monthlyBudgets[month]=[{id:"paid-rent",name:"Paid rent",kind:"expense",category:"Housing",amount:500,paymentMethod:"debit",creditAccountId:"",createdAt:now.toISOString(),recurring:true}];
  fixture.transactions=[];
+ const settlement={id:"existing-paid-rent",targetId:"paid-rent",name:"Paid rent",kind:"spending",amount:500,date:month+"-01",createdAt:now.toISOString(),source:"debit"};
+ fixture.monthlyPlan={detailedSpendingTracking:false,months:{[month]:{safetyBuffer:250,debtPaymentTarget:100,settlements:[settlement]}}};
  await page.goto("/");
  await page.locator('input[type="file"]').setInputFiles({name:"paid-setup.json",mimeType:"application/json",buffer:Buffer.from(JSON.stringify(fixture))});
- const balance = page.locator(".debts-screen .simple-total>strong");
- const before=await balance.textContent();
+ const balance=page.locator(".debts-screen .simple-total>strong");const before=await balance.textContent();
  await page.getByRole("button",{name:"Budget",exact:true}).click();
- await page.getByText("Payment tracking & budget details",{exact:true}).click();
- await page.getByRole("button",{name:"Record paid for Paid rent",exact:true}).click();
- await expect(page.getByLabel("Paid using")).toHaveValue("debit");
- await page.getByRole("button",{name:"Save paid record"}).click();
- await expect(page.getByRole("button",{name:"Edit Paid rent",exact:true})).toContainText("$0.00");
- await page.getByRole("button",{name:"Record paid for Included card expense",exact:true}).click();
- await expect(page.getByLabel("Paid using")).toHaveValue("included");
- await page.getByRole("button",{name:"Save paid record"}).click();
- await page.getByRole("button",{name:"Minimum already paid for Sample Rewards Card",exact:true}).click();
- await page.getByRole("button",{name:"Save paid record"}).click();
- await expect(page.getByRole("button",{name:"Minimum already paid for Sample Rewards Card",exact:true})).toHaveCount(0);
- await page.reload();
- await expect(balance).toHaveText(before!);
- await page.getByRole("button",{name:"Budget",exact:true}).click();
- await page.getByText("Payment tracking & budget details",{exact:true}).click();
- await expect(page.getByRole("button",{name:"Undo paid record for Paid rent",exact:true})).toBeVisible();
+ await expect(page.getByRole("button",{name:"Edit Paid rent",exact:true})).toContainText("Paid $500.00 · Remaining $0.00");
+ await expect(page.locator(".budget-options,.budget-main-summary")).toHaveCount(0);
  await page.getByRole("button",{name:"Next month",exact:true}).click();
  await page.getByRole("button",{name:"Copy recurring items",exact:true}).click();
- await expect(page.getByRole("heading",{name:"Paid records without balance changes"})).toHaveCount(0);
- await page.getByRole("button",{name:"Previous month",exact:true}).click();
- await page.getByText("Payment tracking & budget details",{exact:true}).click();
- await page.getByRole("button",{name:"Undo paid record for Sample Rewards Card",exact:true}).click();
- await expect(page.getByRole("button",{name:"Minimum already paid for Sample Rewards Card",exact:true})).toBeVisible();
- await page.getByRole("button",{name:"Undo paid record for Paid rent",exact:true}).click();
- await expect(page.getByRole("button",{name:"Edit Paid rent",exact:true})).toContainText("$500.00");
- await expect(page.getByRole("button",{name:"Record paid for Paid rent",exact:true})).toBeVisible();
+ await expect(page.getByRole("button",{name:"Edit Paid rent",exact:true})).not.toContainText("Paid $500.00");
+ await page.reload();await expect(balance).toHaveText(before!);
+ await page.getByRole("button",{name:"Budget",exact:true}).click();
+ await expect(page.getByRole("button",{name:"Edit Paid rent",exact:true})).toContainText("Paid $500.00 · Remaining $0.00");
+ await page.getByRole("button",{name:"More",exact:true}).click();
+ await page.getByRole("button",{name:"Settings",exact:true}).click();
+ const download=page.waitForEvent("download");await page.getByRole("button",{name:"Export full backup",exact:true}).click();
+ const file=await download;const backup=JSON.parse(readFileSync((await file.path())!,"utf8"));
+ expect(backup.payload.monthlyPlan.months[month].settlements).toEqual([settlement]);
+ expect(backup.payload.monthlyPlan.months[month].safetyBuffer).toBe(250);
 });
 
 test("duplicate payments can be deleted, cancelled, and restored from Payments", async ({page}) => {

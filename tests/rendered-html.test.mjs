@@ -66,8 +66,8 @@ test("simplifies monthly planning and copies recurring entries", async () => {
     readFile(new URL("../app/globals.css", import.meta.url), "utf8"),
   ]);
   assert.match(client, /copyRecurringPlannedItems/);
-  assert.match(monthly, /Planned, spent, and remaining/i);
-  assert.match(monthly, /Available debt payment/i);
+  assert.match(monthly, /Select plan month/i);
+  assert.match(monthly, /Planned entries/i);
   assert.match(monthly, /One-time adjustments are never copied/i);
   assert.match(styles, /Phase 6 Monthly Plan/);
 });
