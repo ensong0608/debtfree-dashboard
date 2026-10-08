@@ -240,6 +240,7 @@ export type MonthlyPlanSettings = {
   loanTrackers?: LoanTracker[];
   monthlyCommitment?: number;
   calculatorAmount?: number;
+  progressStartingBalance?: number;
   detailedSpendingTracking: boolean;
   months: Record<string, MonthlyPlanMonth>;
   [key: string]: unknown;
@@ -804,6 +805,7 @@ function validatePlanning(value: unknown, path: string, issues: string[]) {
 function validateMonthlyPlan(value: unknown, path: string, issues: string[]) {
   const plan = requiredRecord(value, path, issues);
   if (!plan) return;
+  if (plan.progressStartingBalance !== undefined) requiredNumber(plan.progressStartingBalance, path + ".progressStartingBalance", issues);
   if (plan.loanTrackers !== undefined) {
     const loans = requiredArray(plan.loanTrackers, path + ".loanTrackers", issues);
     const ids = new Set<string>();

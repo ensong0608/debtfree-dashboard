@@ -86,3 +86,12 @@ test('updating a monthly check retains its original balances and preserves the s
  assert.equal(revised.revisions[0].totalBalance,1000);assert.equal(first.totalBalance,1000);
  const report=buildActualProgress([{...a,balanceOffset:-200}],[],[],[revised]);assert.equal(report.starting,1000);assert.equal(report.reduction,200);
 });
+
+test('pinned first starting amount survives missing accounts and later checks',()=>{
+ const original=61871.72;
+ const snapshot={id:'first',month:'2026-07',capturedAt:'2026-07-31T00:00:00Z',totalBalance:57881.29,accounts:[{accountId:'removed',balance:0}],note:''};
+ const r=buildActualProgress([{...a,balance:48653.77,baselineBalance:1}],[],[],[snapshot],new Date('2026-10-07'),original);
+ assert.equal(r.starting,original);assert.equal(r.current,48653.77);assert.equal(r.comparisonAvailable,true);assert.equal(r.reduction,13217.95);
+ snapshot.totalBalance=50000;
+ assert.equal(buildActualProgress([{...a,balance:48000}],[],[],[snapshot],new Date('2026-11-01'),original).starting,original);
+});

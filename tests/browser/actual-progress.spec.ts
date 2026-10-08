@@ -47,6 +47,8 @@ test("six-month debt activity counts payments and actual progress stays fixed af
  await page.getByRole("button",{name:"Progress",exact:true}).filter({visible:true}).click();
  await expect(page.locator(".actual-progress-summary")).toContainText("$350.00");
  await expect(page.locator(".snapshot-controls .saved-check")).toHaveCount(1);
+ await expect(page.locator(".progress-story")).toContainText("$1,000.00");
+ await expect(page.locator(".progress-story")).not.toContainText("Starting comparison unavailable");
  await expect(page.getByRole("button",{name:"Update this month's snapshot",exact:true})).toBeVisible();
  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1)).toBe(true);
  const result=await new AxeBuilder({page}).include(".actual-progress-screen").withRules(["color-contrast"]).analyze();
