@@ -13,3 +13,10 @@ Cloudflare Workers is the sole production hosting target. The production Worker 
 - After deployment, confirm Wrangler reports the production Worker URL and deployment identifier, verify Google sign-in protects the app and unauthenticated household API requests are denied, and verify the application responds successfully after authentication where practical.
 - Do not report completion until the direct Cloudflare deployment and production checks succeed.
 - Never stage `.codex-remote-attachments/`, `debtfree-old-dashboard.json`, generated deployment bundles, credentials, or other user-provided reference files.
+
+## App wording and simplicity
+
+- Keep app copy short, useful, and limited to the user's requested information and controls.
+- Do not add unsolicited explanations, lender-check dates, "unknown" status labels, disclaimers, or technical notes to cards or other app surfaces. Necessary validation and error messages should be concise and appear beside the relevant action.
+- Preserve explicitly removed text and sections. Do not restore them during audits or redesigns without the user's request.
+- Debt cards must not display "Lender date unknown", "Lender last checked", or household-saving/lender-verification explanations. Due dates recur on the chosen day in the current month; show only the concise due-date label and value.
