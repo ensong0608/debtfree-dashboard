@@ -12,7 +12,8 @@ test("six-month debt activity counts payments and actual progress stays fixed af
  await page.goto("/");
  await page.locator('input[type="file"]').setInputFiles({name:"activity.json",mimeType:"application/json",buffer:Buffer.from(JSON.stringify(fixture))});
  const card=page.locator(".balance-first-cards>article").filter({has:page.getByRole("heading",{name:"Citi1",exact:true})});
- await expect(page.locator(".debts-screen > :last-child")).toHaveClass("loan-progress-section");
+ await expect(page.getByRole("tab",{name:"Cards & other",exact:true})).toHaveAttribute("aria-selected","true");
+ await card.locator(".debt-overflow > summary").click();
  const history=card.locator(".debt-history");
  await history.locator(':scope > summary').click();
  await expect(history.locator(".debt-history-month")).toHaveCount(1);
@@ -22,14 +23,12 @@ test("six-month debt activity counts payments and actual progress stays fixed af
  await expect(history).toContainText("+$50.00");
  await expect(history).toContainText("−$100.00");
  await expect(history).not.toContainText("No activity recorded for this month");
- await expect(card.locator(".debt-progress-ring")).toHaveAttribute("aria-valuenow", "35");
- const centered=await card.evaluate(element=>{const card=element.getBoundingClientRect();const ring=element.querySelector('.debt-progress-ring')!.getBoundingClientRect();return Math.abs(card.x+card.width/2-ring.x-ring.width/2)<2;});
- expect(centered).toBe(true);
+ await expect(card.locator(".debt-reduction-track")).toHaveAttribute("aria-valuenow", "35");
  expect(await history.locator('.inline-activity-entry').first().evaluate(e=>e.getBoundingClientRect().height)).toBeLessThanOrEqual(48);
  const contrast=await new AxeBuilder({page}).include(".debts-screen").withRules(["color-contrast"]).analyze();expect(contrast.violations).toEqual([]);
  await page.getByRole("button",{name:"More",exact:true}).click();
  await page.getByRole("button",{name:"Progress",exact:true}).filter({visible:true}).click();
- await expect(page.getByRole("heading",{name:"Progress",exact:true})).toBeVisible();
+ await expect(page.locator(".topbar")).toContainText("Progress");
  await expect(page.locator(".actual-progress-summary")).toContainText("$1,000.00");
  await expect(page.locator(".actual-progress-summary")).toContainText("$650.00");
  await expect(page.locator(".actual-progress-summary")).toContainText("$350.00");

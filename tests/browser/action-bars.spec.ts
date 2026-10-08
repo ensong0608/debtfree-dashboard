@@ -23,7 +23,7 @@ test('bottom action bars belong to their tabs, touch the content edges, and open
   await expect(page.getByRole('button',{name:'Add record',exact:true})).toHaveCount(0);
   await expect(page.locator('.cashflow-quick-actions')).toHaveCount(0);
   await checkEdges();
-  const cases=[['Income +','Add planned income'],['Spending +','Add planned spending'],['Oneoff +, one-time adjustment','Add one-time adjustment']];
+  const cases=[['Income +','Add planned income'],['Spending +','Add planned spending'],['One-time +','Add one-time adjustment']];
   for(const [name,heading] of cases){
     await page.getByRole('button',{name,exact:true}).click();
     await expect(page.getByRole('dialog').getByRole('heading')).toHaveText(heading);

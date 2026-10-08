@@ -22,7 +22,7 @@ test("renders the DebtFree Dashboard shell and optional detail tools", async () 
   assert.match(client, /Revolving credit health/i);
   assert.match(client, /DebtInsightsPage/);
   assert.doesNotMatch(client, /Strategy comparison/i);
-  assert.match(monthly, /title: "Oneoff"/);
+  assert.match(monthly, /title: "One-time"/);
   assert.match(monthly, /title: "Income"/);
   assert.match(monthly, /title: "Spending"/);
   assert.doesNotMatch(monthly, /Enable detailed spending tracking/i);
@@ -82,7 +82,7 @@ test("removes disposable starter assets", async () => {
     readFile(new URL("../package.json", import.meta.url), "utf8"),
   ]);
   const dashboardSource = page + client + monthly + payoffEngine + progressReport;
-  assert.match(dashboardSource, /DebtFree Dashboard/);
+  assert.match(layout, /DebtFree Dashboard/);
   assert.match(dashboardSource, /Import DebtFree CSV/);
   assert.match(dashboardSource, /extractDebtFreeAccounts/);
   const calculator = await readFile(new URL("../app/payoff-calculator-page.tsx", import.meta.url), "utf8");

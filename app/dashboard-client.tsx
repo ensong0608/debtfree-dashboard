@@ -1,6 +1,7 @@
 "use client";
 import { entryHistory } from "./entry-history";
-import DebtProgressRing from "./debt-progress-ring";
+import DebtProgressBar from "./debt-progress-bar";
+import OutlineIcon from "./outline-icon";
 import PayoffCalculatorPage from "./payoff-calculator-page";
 import type { LoanTracker } from "./loan-progress";
 import LoanProgressPanel from "./loan-progress-panel";
@@ -54,7 +55,6 @@ import { confirmAdjustmentPayment, parseMoneyInput } from "./payments";
 import HomeDashboardPage from "./home-dashboard-page";
 import { buildHomeDashboard, type HomeAction } from "./home-dashboard";
 import CostcoInterestSettings from "./costco-interest-settings";
-import { MobileCategorySummary } from "./mobile-debt-visuals";
 import { DEBT_CATEGORY_COLORS } from "./debt-presentation";
 import { accrueCostcoInterest, COSTCO_ESTIMATED_APR, householdDate, reconcileInterest, validDate } from "./interest-accrual";
 import { arrangeDebt, groupedDisplayDebts, type DebtDisplayGroup, canArchiveDebt, createBalanceAdjustment, createDebtPayment, replaceDebtPayment, DebtPaymentError, debtStatus, payoffPriority, promoNotice, setDebtArchived, splitDebtAccounts } from "./debts-screen";
@@ -972,21 +972,21 @@ export default function DashboardClient({ user }: { user: DashboardUser }) {
       onComplete={completeOnboarding}
     />;
   }
-  return <div className={navigationCollapsed ? "app-shell dashboard-collapsed" : "app-shell"}>
+  return <div data-page={primaryPage} className={navigationCollapsed ? "app-shell dashboard-collapsed" : "app-shell"}>
     <aside className="sidebar" id="dashboard-navigation">
       <div className="sidebar-head"><button className="brand" type="button" onClick={() => setPage("accounts")}><span>DF</span><div><strong>DebtFree</strong><small>Dashboard</small></div></button><button className={navigationCollapsed ? "dashboard-toggle sidebar-dashboard-toggle is-collapsed" : "dashboard-toggle sidebar-dashboard-toggle"} type="button" onClick={toggleDashboardNavigation} aria-label={navigationCollapsed ? "Expand dashboard navigation" : "Collapse dashboard navigation"} aria-controls="dashboard-navigation" aria-expanded={!navigationCollapsed}><i aria-hidden="true"><b/></i></button></div>
-      <nav aria-label="Primary navigation">{NAV_ITEMS.map((item) => <button type="button" key={item.id} data-nav-page={item.id} className={primaryPage === item.id ? "nav-item active" : "nav-item"} aria-current={primaryPage === item.id ? "page" : undefined} onClick={() => setPage(item.id)}><i aria-hidden="true">{item.icon}</i><span>{item.label}</span></button>)}</nav>
+      <nav aria-label="Primary navigation">{NAV_ITEMS.map((item) => <button type="button" key={item.id} data-nav-page={item.id} className={primaryPage === item.id ? "nav-item active" : "nav-item"} aria-current={primaryPage === item.id ? "page" : undefined} onClick={() => setPage(item.id)}><i aria-hidden="true"><OutlineIcon name={item.id === "accounts" ? "card" : item.id === "payments" ? "list" : item.id === "monthly" ? "chart" : "more"}/></i><span>{item.label}</span></button>)}</nav>
 
       <div className="sidebar-foot"><span>{householdName}</span><strong>{deviceOnly ? "Stored on this device" : cloudStatus === "synced" ? "Shared household data" : cloudStatus === "error" ? "Device backup active" : "Syncing changes"}</strong></div>
     </aside>
 
     <main className="main-area">
       <header className="topbar">
-        <div><span className="mobile-product">DebtFree Dashboard</span><strong>{ALL_NAV_ITEMS.find((item) => item.id === page)?.label}</strong></div>
+        <div><strong>{ALL_NAV_ITEMS.find((item) => item.id === page)?.label}</strong></div>
         <div className="top-actions">
           <span className={`save-state ${deviceOnly ? deviceSaveStatus : cloudStatus}`} role="status" title="Saves household records; does not verify lender balances"><i/> {deviceOnly ? deviceSaveStatus === "synced" ? "Saved on device" : deviceSaveStatus === "error" ? "Device save failed" : "Saving on device" : cloudStatus === "synced" ? "Household saved" : cloudStatus === "conflict" ? "Save conflict" : cloudStatus === "error" ? "Cloud save unavailable" : "Saving"}</span>
           <button className={navigationCollapsed ? "dashboard-toggle mobile-dashboard-toggle is-collapsed" : "dashboard-toggle mobile-dashboard-toggle"} type="button" onClick={toggleDashboardNavigation} aria-label={navigationCollapsed ? "Expand dashboard navigation" : "Collapse dashboard navigation"} aria-controls="dashboard-navigation" aria-expanded={!navigationCollapsed}><i aria-hidden="true"><b/></i></button>
-          <button className="refresh-dashboard" type="button" aria-label="Refresh dashboard" title="Refresh after changes finish saving" disabled={Boolean(localError) || (!isViewer && deviceSaveStatus !== "synced") || (!deviceOnly && cloudStatus !== "synced") || modalOpen || cashflowModalOpen || transactionModalOpen || paymentRequest !== null || balanceAccountId !== null || auditTransactionId !== null || debtEntryOpen} onClick={() => { if (!sync.current?.pending && !localError) window.location.reload(); }}>↻</button>
+          <button className="refresh-dashboard" type="button" aria-label="Refresh dashboard" title="Refresh after changes finish saving" disabled={Boolean(localError) || (!isViewer && deviceSaveStatus !== "synced") || (!deviceOnly && cloudStatus !== "synced") || modalOpen || cashflowModalOpen || transactionModalOpen || paymentRequest !== null || balanceAccountId !== null || auditTransactionId !== null || debtEntryOpen} onClick={() => { if (!sync.current?.pending && !localError) window.location.reload(); }}><OutlineIcon name="refresh"/></button>
           <button className="avatar" type="button" onClick={() => setPage("profile")} aria-label="Open My Account">{user.displayName.slice(0,2).toUpperCase()}</button>
         </div>
       </header>
@@ -994,9 +994,9 @@ export default function DashboardClient({ user }: { user: DashboardUser }) {
         {localError && <section role="alert" className="viewer-notice">{localError}<button onClick={() => void exportDashboardBackup()}>Export backup</button></section>}
         {!deviceOnly && (cloudStatus === "error" || cloudStatus === "conflict") && <section role="alert" className="viewer-notice"><strong>{cloudStatus === "conflict" ? "Another session changed this household. Your changes are retained." : "Cloud access or saving is unavailable. Pending changes are retained."}</strong><button onClick={() => void refreshHousehold()}>Retry connection</button><button onClick={() => void exportDashboardBackup()}>Export my changes</button>{cloudStatus === "conflict" && <button onClick={() => { void (async () => { if (!confirm("Load the latest household data? Your current changes will be kept as a recovery checkpoint.")) return; try { if (dashboardContract.current) await repository.checkpoint(dashboardContract.current); const loaded = await sync.current?.useCloud(); if (loaded?.contract) applyDashboardPayload(loaded.contract); } catch { setLocalError("Could not load the household. Export your changes before continuing."); } })(); }}>Load latest household</button>}</section>}
         {isViewer && <section className="viewer-notice" role="status"><strong>Viewer access</strong><span>You can review this household dashboard, but only the owner and admins can make changes.</span></section>}
-        {page === "more" && <div className="screen more-screen"><div className="screen-title"><div><h1>More</h1><p>Optional tools, settings, and backups.</p></div></div><section className="more-links" aria-label="More tools">{MORE_NAV_ITEMS.map(item => <button key={item.id} type="button" onClick={() => setPage(item.id)}>{item.label}<span aria-hidden="true">›</span></button>)}<button type="button" onClick={() => setPage("profile")}>Import & export backups<span aria-hidden="true">›</span></button></section><details className="more-advanced"><summary>Advanced tools</summary><div className="more-links">{ADVANCED_NAV_ITEMS.filter(item => item.id !== "history" || detailedSpendingTracking).map(item => <button key={item.id} type="button" onClick={() => setPage(item.id)}>{item.label}<span aria-hidden="true">›</span></button>)}</div></details></div>}
+        {page === "more" && <div className="screen more-screen"><h1 className="sr-only">More</h1><section className="more-links" aria-label="More tools">{MORE_NAV_ITEMS.map(item => <button key={item.id} type="button" onClick={() => setPage(item.id)}>{item.label}<span aria-hidden="true">›</span></button>)}<button type="button" onClick={() => setPage("profile")}>Import & export backups<span aria-hidden="true">›</span></button></section><details className="more-advanced"><summary>Advanced tools</summary><div className="more-links">{ADVANCED_NAV_ITEMS.filter(item => item.id !== "history" || detailedSpendingTracking).map(item => <button key={item.id} type="button" onClick={() => setPage(item.id)}>{item.label}<span aria-hidden="true">›</span></button>)}</div></details></div>}
         {page === "payments" && <PaymentsPage readOnly={isViewer} accounts={calculatedAccounts} transactions={transactions} adjustments={balanceAdjustments} message={debtActionMessage} onConfirm={confirmBalancePayment} onUndoConfirmation={undoBalancePayment} storedAccounts={accounts} onChange={changeTransactionEntry} onDialog={setDebtEntryOpen}/>}
-        <fieldset className="viewer-readonly-surface" disabled={isViewer}>
+        <fieldset className="viewer-readonly-surface" disabled={isViewer && page !== "accounts"}>
 
         {page === "home" && <HomeDashboardPage model={homeDashboard} onRecordPayment={openRecommendedPayment} onExtra={updateExtra} onAction={openHomeAction} onViewPayments={() => setPage("payments")} onViewPlan={() => setPage("plan")} onViewDebts={() => setPage("accounts")} onViewProgress={() => setPage("snapshots")} onViewMonthlyPlan={() => setPage("monthly")}/>}
         {page === "monthly" && <MonthlyPlanPage month={selectedMonth} hasMonth={Object.prototype.hasOwnProperty.call(monthlyBudgets, selectedMonth)} previousHasItems={(monthlyBudgets[shiftMonth(selectedMonth, -1)] ?? []).some((item) => item.recurring ?? item.kind !== "purchase")} items={cashflowItems} accounts={calculatedAccounts} transactions={transactions} settings={selectedPlanSettings} trackingEnabled={detailedSpendingTracking} plannedMinimums={selectedPlanSettings.minimums ?? (selectedMonth === currentMonthKey() ? monthlyTargets.minimums : {})} plannedPayments={selectedMonth === currentMonthKey() ? monthlyTargets.payments : selectedPlanSettings.payments ?? {}} onMonth={setSelectedMonth} onCopyPrevious={copyPreviousBudget} onStartBlank={startBlankBudget} onAdd={openNewCashflow} onEdit={openEditCashflow} onSettings={updateSelectedPlanSettings} onTracking={setDetailedSpendingTracking} onViewTransactions={() => setPage("history")}/>}
@@ -1009,9 +1009,9 @@ export default function DashboardClient({ user }: { user: DashboardUser }) {
         {page === "stats" && <DebtInsightsPage accounts={calculatedAccounts} onPlan={()=>setPage("plan")} onProgress={()=>setPage("snapshots")}/>}
         </fieldset>
       </div>
-      {page === "payments" && !debtEntryOpen && <section className="bottom-action-bar transaction-add-bar" aria-label="Add a record"><button type="button" aria-label="Add record" disabled={isViewer || !accounts.length} onClick={() => { setNewRecordOpen(true); setDebtEntryOpen(true); }}>+</button></section>}
+      {page === "payments" && !debtEntryOpen && <section className="bottom-action-bar transaction-add-bar" aria-label="Add a record"><button type="button" aria-label="Add record" disabled={isViewer || !accounts.length} onClick={() => { setNewRecordOpen(true); setDebtEntryOpen(true); }}>Transaction +</button></section>}
       {page === "accounts" && !debtEntryOpen && <section className="bottom-action-bar debt-add-bar" aria-label="Add a debt"><button type="button" disabled={isViewer} onClick={openNew}>Debt +</button></section>}
-      {page === "monthly" && !cashflowModalOpen && <section className="bottom-action-bar budget-add-bar" aria-label="Add a budget entry"><button type="button" className="income-action" disabled={isViewer} onClick={() => openNewCashflow("income")}>Income +</button><button type="button" className="expense-action" disabled={isViewer} onClick={() => openNewCashflow("expense")}>Spending +</button><button type="button" className="purchase-action" aria-label="Oneoff +, one-time adjustment" disabled={isViewer} onClick={() => openNewCashflow("purchase")}>Oneoff +</button></section>}
+      {page === "monthly" && !cashflowModalOpen && <section className="bottom-action-bar budget-add-bar" aria-label="Add a budget entry"><button type="button" className="income-action" disabled={isViewer} onClick={() => openNewCashflow("income")}>Income +</button><button type="button" className="expense-action" disabled={isViewer} onClick={() => openNewCashflow("expense")}>Spending +</button><button type="button" className="purchase-action" aria-label="One-time +" disabled={isViewer} onClick={() => openNewCashflow("purchase")}>One-time +</button></section>}
     </main>
 
     {!isViewer && newRecordOpen && <DebtEntryDialog state={{accounts, transactions, adjustments:balanceAdjustments}} command={{action:"save"}} readOnly={isViewer} onSave={changeTransactionEntry} onClose={() => { setNewRecordOpen(false); setDebtEntryOpen(false); }}/>}
@@ -1204,8 +1204,7 @@ function AccountsPage({
 }: AccountsPageProps) {
   const { current, archived } = splitDebtAccounts(accounts);
   const [arranging, setArranging] = useState(false);
-  const [includeSummaryLoans, setIncludeSummaryLoans] = useState(() => { try { return typeof window === "undefined" || localStorage.getItem("debtfree-summary-loans") !== "hidden"; } catch { return true; } });
-  const toggleSummaryLoans = () => { const next = !includeSummaryLoans; setIncludeSummaryLoans(next); try { localStorage.setItem("debtfree-summary-loans", next ? "shown" : "hidden"); } catch {} };
+  const [debtTab, setDebtTab] = useState<"accounts" | "loans">("accounts");
   const displayGroups = groupedDisplayDebts(current);
   const totalLinkedExpenses = Object.values(linkedCardExpenses).reduce((sum, amount) => sum + amount, 0);
   const paidOffCount = current.filter((account) => account.balance <= 0).length;
@@ -1259,21 +1258,31 @@ function AccountsPage({
     <h1 className="sr-only">Debts</h1>
     {importMessage && <p className={importMessage.startsWith("Import failed") ? "import-message error" : "import-message"}>{importMessage}</p>}
     {actionMessage && <p className="debt-action-message" role="status" aria-live="polite">{actionMessage}</p>}
-    <section className="simple-total debt-total-summary"><div className="debt-total-heading"><span>{includeSummaryLoans ? "Total current balance · all debts" : "Current balance · cards & other debts"}</span>{loans.length > 0 && <button type="button" className="summary-loan-toggle" aria-pressed={!includeSummaryLoans} onClick={toggleSummaryLoans}>{includeSummaryLoans ? "Hide house & car" : "Show house & car"}</button>}</div><strong>{moneyPrecise.format(totalBalance + (includeSummaryLoans ? loans.reduce((sum, loan) => sum + loan.remainingAmount, 0) : 0))}</strong><MobileCategorySummary accounts={current} loans={includeSummaryLoans ? loans : []}/></section>
+    <div className="debt-tabs" role="tablist" aria-label="Debt category"><button type="button" role="tab" id="accounts-tab" aria-controls="accounts-panel" aria-selected={debtTab === "accounts"} onClick={() => setDebtTab("accounts")}>Cards &amp; other</button><button type="button" role="tab" id="loans-tab" aria-controls="loans-panel" aria-selected={debtTab === "loans"} onClick={() => setDebtTab("loans")}>House &amp; car</button></div>
+    <section className="simple-total debt-total-summary"><span>{debtTab === "accounts" ? "Cards & other accounts total" : "House & car total"}</span><strong>{moneyPrecise.format(debtTab === "accounts" ? totalBalance : loans.reduce((sum, loan) => sum + loan.remainingAmount, 0))}</strong></section>
+    <div role="tabpanel" id="accounts-panel" aria-labelledby="accounts-tab" hidden={debtTab !== "accounts"}>
     <button type="button" className="secondary" disabled={readOnly} aria-pressed={arranging} onClick={() => setArranging(!arranging)}>{arranging ? "Done arranging" : "Arrange debts"}</button>
     {displayGroups.filter(group => group.accounts.length || group.group !== "Other").map(({group, accounts: groupAccounts}) => <section className="household-debt-group" key={group} aria-label={`${group} debts`}><h2>{group} <small>{moneyPrecise.format(groupAccounts.reduce((sum, account) => sum + account.balance, 0))}</small></h2><div className="balance-first-cards">{groupAccounts.map((account, index) => {
       return <article className="compact-debt-card" key={account.id} data-debt-category={DEBT_CATEGORY_COLORS[account.type].key}>
         <div className="compact-debt-top">
           <div className="compact-debt-identity"><h2>{account.name}</h2><strong className="simple-balance">{moneyPrecise.format(account.balance)}</strong></div>
-          <DebtProgressRing account={account}/>
-          <dl className="compact-debt-meta"><div><dt>APR</dt><dd>{account.apr.toFixed(2)}%</dd></div><div><dt>Min</dt><dd>{moneyPrecise.format(effectiveMinimum(account))}</dd></div><div><dt>Saved due date</dt><dd>{account.dueDate ? formatDate(account.dueDate) : "—"}</dd></div></dl><small>Saved date; not an overdue status. Lender last checked {typeof account.balanceAsOf === "string" ? account.balanceAsOf : "unknown — update from lender"}. Current balances include recorded activity. Household saving does not check lenders.</small>
+          <dl className="compact-debt-meta"><div><dt>APR</dt><dd>{account.apr.toFixed(2)}%</dd></div><div><dt>Minimum payment</dt><dd>{moneyPrecise.format(effectiveMinimum(account))}</dd></div></dl>
         </div>
+        <DebtProgressBar account={account}/>
+
         {arranging && <div className="debt-arrange-controls"><label>Group <select disabled={readOnly} aria-label={`Group for ${account.name}`} value={group} onChange={event => onArrange(account.id, event.target.value as DebtDisplayGroup, 0)}>{["Mama", "Papi", "Other"].map(value => <option key={value}>{value}</option>)}</select></label><button className="secondary" type="button" disabled={readOnly || index === 0} aria-label={`Move ${account.name} up`} onClick={() => onArrange(account.id, group, -1)}>↑ Up</button><button className="secondary" type="button" disabled={readOnly || index === groupAccounts.length - 1} aria-label={`Move ${account.name} down`} onClick={() => onArrange(account.id, group, 1)}>↓ Down</button></div>}
-        <div className="compact-debt-actions"><button className="secondary" type="button" aria-label={`Update balance for ${account.name}`} disabled={readOnly} onClick={() => onUpdateBalance(account)}>Update</button><button className="secondary" type="button" disabled={readOnly} aria-label={`Edit debt details for ${account.name}`} onClick={() => onEdit(account)}>Edit details</button>{account.balance <= 0 && <button className="secondary" type="button" disabled={readOnly} aria-label={`Archive ${account.name}`} onClick={() => onArchive(account.id)}>Archive</button>}</div>
-        <DebtActivityPanel accountId={account.id} name={account.name} transactions={transactions} adjustments={balanceAdjustments}/>
+        <div className="compact-debt-actions"><button className="secondary update-balance" type="button" aria-label={`Update balance for ${account.name}`} disabled={readOnly} onClick={() => onUpdateBalance(account)}>Update balance</button>
+        <details className="debt-overflow"><summary aria-label={`More options for ${account.name}`}><OutlineIcon name="more"/></summary><div className="debt-overflow-content">
+          <button className="secondary" type="button" disabled={readOnly} aria-label={`Edit debt details for ${account.name}`} onClick={() => onEdit(account)}>Edit details</button>
+          <button className="secondary" type="button" disabled={readOnly || account.balance <= 0} aria-label={`Record payment for ${account.name}`} onClick={() => onRecordPayment(account)}>Record payment</button>
+          {account.balance <= 0 && <button className="secondary" type="button" disabled={readOnly} aria-label={`Archive ${account.name}`} onClick={() => onArchive(account.id)}>Archive</button>}
+          <p>Saved due date: {account.dueDate ? formatDate(account.dueDate) : "Unknown"}. Saved date; not an overdue status.</p>
+          <p>Lender last checked {typeof account.balanceAsOf === "string" ? formatDate(account.balanceAsOf) : "unknown — update from lender"}. Current balances include recorded activity. Household saving does not check lenders.</p>
+          <DebtActivityPanel accountId={account.id} name={account.name} transactions={transactions} adjustments={balanceAdjustments}/>
+        </div></details></div>
       </article>;
     })}</div></section>)}
-    <details className="detailed-debts" open={current.length === 0}><summary>Detailed debt view & import</summary>
+    <fieldset className="viewer-readonly-surface" disabled={readOnly}><details className="detailed-debts" open={current.length === 0}><summary>Detailed debt view & import</summary>
     <section className="metrics">
       <article className="metric"><span>Total balance</span><strong>{moneyPrecise.format(totalBalance)}</strong><small>Across current debts</small></article>
       <article className="metric"><span>Active debts</span><strong>{activeCount}</strong><small>{paidOffCount} paid off and ready to archive</small></article>
@@ -1331,12 +1340,13 @@ function AccountsPage({
       </> : <div className="empty-table"><span>{"\u25a4"}</span><h2>No debts added yet</h2><p>Add your debts to calculate your recommended payoff order and estimated debt-free date.</p><div>{importInput("Import DebtFree CSV")}<button className="primary" type="button" disabled={readOnly} onClick={onAdd}>Add first debt</button><button className="secondary" type="button" disabled={readOnly} onClick={onSample}>Load samples</button></div></div>}
     </section>
     {auditRows.length > 0 && <section className="debt-audit-card" aria-labelledby="debt-audit-title"><header><div><span>Auditable debt activity</span><h2 id="debt-audit-title">Payment and balance history</h2></div><small>Captured balances are shown only when their original application can be established. Corrections are available in Transactions.</small></header><div className="debt-audit-list">{auditRows.slice(0, 10).map((row) => <article key={row.id}><div><strong>{row.kind}: {accountNames.get(row.accountId) ?? "Removed debt"}</strong><span>{formatDate(row.date)} - {auditCreatorLabel(row.creator)}</span>{row.note && <small>{row.note}</small>}</div><div><strong>{row.before !== undefined && row.after !== undefined ? moneyPrecise.format(row.before) + " to " + moneyPrecise.format(row.after) + " (captured when saved)" : "Historical balances unavailable"}</strong><span className={row.difference <= 0 ? "decrease" : "increase"}>{row.difference <= 0 ? "-" : "+"}{moneyPrecise.format(Math.abs(row.difference))}</span></div></article>)}</div></section>}
-    </details>
+    </details></fieldset>
     {archived.length > 0 && <details className="archived-debts">
       <summary>Archived debts ({archived.length})</summary>
       <div>{archived.map((account) => <article key={account.id}><div><strong>{account.name}</strong><span>Paid off - {account.type}</span></div><button type="button" className="secondary" aria-label={`Restore ${account.name}`} disabled={readOnly} onClick={() => onRestore(account.id)}>Restore</button></article>)}</div>
     </details>}
-    {loanPanel}
+    </div>
+    <div role="tabpanel" id="loans-panel" aria-labelledby="loans-tab" hidden={debtTab !== "loans"}>{loanPanel}</div>
   </div>;
 }
 function ProfilePage({ user, householdName, role, members, cloudStatus, deviceOnly, transferMessage, onExportBackup, onImportBackup, onReset, onRecover, onInvite, onRemove }: { user: DashboardUser; householdName: string; role: HouseholdRole; members: HouseholdMember[]; cloudStatus: CloudStatus; deviceOnly: boolean; transferMessage: string; onExportBackup: () => Promise<void>; onImportBackup: (file: File, mode: ImportMode) => Promise<void>; onReset: () => Promise<void>; onRecover: () => Promise<void>; onInvite: (email: string, role: Exclude<HouseholdRole, "owner">) => Promise<void>; onRemove: (email: string) => Promise<void> }) {

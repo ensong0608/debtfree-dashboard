@@ -21,11 +21,11 @@ test("category colors stay readable on phones and payoff steps use the saved for
   }
   for (const width of [360,390,430]) {
     await page.setViewportSize({ width, height: 844 });
-    await expect(summary).toBeVisible();
+    await expect(summary).toHaveCount(0);
     await expect(page.locator('.balance-first-cards [data-debt-category="credit"]')).toHaveCount(1);
     await expect(page.locator('.balance-first-cards [data-debt-category="auto"]')).toHaveCount(1);
     await expect(page.getByRole("progressbar", { name: "Sample Rewards Card balance reduction since tracking began" })).toHaveAttribute("aria-valuenow", "18.3");
-    expect(await page.locator(".debts-screen").evaluate(el => getComputedStyle(el).backgroundColor)).toBe("rgb(244, 245, 247)");
+    expect(await page.locator(".debts-screen").evaluate(el => getComputedStyle(el).backgroundColor)).toBe("rgb(246, 247, 249)");
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
   }
   await page.screenshot({ path: "outputs/category-debts-phone.png", fullPage: true });

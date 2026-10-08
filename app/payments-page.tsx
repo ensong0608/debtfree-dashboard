@@ -1,8 +1,9 @@
 "use client";
-import { useEffect, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
 import type { BalanceAdjustment, DebtAccount, LedgerTransaction } from "./dashboard-data";
 import { confirmedPaymentTotal, paymentActivity } from "./payments";
 import { entryHistory } from "./entry-history";
+import OutlineIcon from "./outline-icon";
 import DebtEntryDialog from "./debt-entry-dialog";
 import type { EntryCommand } from "./debt-transactions";
 
@@ -31,19 +32,24 @@ export default function PaymentsPage({ readOnly, accounts, transactions, adjustm
   return <div className="screen payments-screen transactions-screen">
     <h1 className="sr-only">Transactions</h1>
     {message && <p className="debt-action-message" role="status">{message}</p>}
-    <div className="payments-filters"><label><span>Month</span><input type="month" value={month} onChange={e => setMonth(e.target.value)}/></label><label><span>Debt</span><select value={accountId} onChange={e => setAccountId(e.target.value)}><option value="all">All card/other accounts</option>{knownIds.map(id => <option key={id} value={id}>{names.get(id) ?? "Removed debt (" + id + ")"}</option>)}</select></label></div>
-    <section className="simple-total" aria-label="Confirmed payment total"><span>Payments this month</span><strong>{currency.format(confirmedPaymentTotal(transactions, adjustments, month, accountId))}</strong><details><summary>How totals work</summary><p>Payments exclude refunds, credits, and unidentified reconciliation adjustments. Cards and other accounts only; house/car payments are separate. Payments recorded differ from net debt reduction because purchases, interest, credits, and lender adjustments also change balances. Budget checklists stay unchanged.</p></details></section>
+    <div className="payments-filters"><label><span>Month</span><input type="month" value={month} onChange={e => setMonth(e.target.value)}/></label><label><span>Account</span><select value={accountId} onChange={e => setAccountId(e.target.value)}><option value="all">All card/other accounts</option>{knownIds.map(id => <option key={id} value={id}>{names.get(id) ?? "Removed debt (" + id + ")"}</option>)}</select></label></div>
+    <details className="transaction-reporting"><summary>Payment total &amp; how balances work</summary><section className="simple-total" aria-label="Confirmed payment total"><span>Payments this month</span><strong>{currency.format(confirmedPaymentTotal(transactions, adjustments, month, accountId))}</strong><p>Payments exclude refunds, credits, and unidentified reconciliation adjustments. Cards and other accounts only; house/car payments are separate. Payments recorded differ from net debt reduction because purchases, interest, credits, and lender adjustments also change balances. Budget checklists stay unchanged.</p></section></details>
     <section className="payment-activity" aria-label="Debt transaction activity">
-      {rows.length ? rows.map(row => {
+      {rows.length ? rows.map((row, index) => {
         const history = entryHistory(row.adjustment ?? transactions.find(t => "transaction:" + t.id === row.id)!);
         const kind = row.kind === "payment" ? "Payment" : row.kind === "credit" ? "Refund / credit" : row.kind === "interest" ? (transactions.find(t => "transaction:" + t.id === row.id)?.interestEstimate ? "Estimated interest" : "Interest") : row.kind === "purchase" ? "Purchase" : row.kind === "fee" ? "Fee" : "Balance adjustment";
-        return <article className="clean-transaction-card" key={row.id} data-activity-id={row.id}>
-          <button type="button" className="transaction-edit-surface" disabled={readOnly} aria-label={`Edit ${row.title} for ${names.get(row.accountId) ?? "removed debt"}`} onClick={() => open({ action: "save", id: row.id })}/>
-          <button type="button" className="transaction-delete-x" disabled={readOnly} onClick={() => open({ action: "delete", id: row.id })} aria-label={(row.kind === "payment" && !row.adjustment ? "Delete payment of " : "Delete transaction of ") + currency.format(row.amount) + " for " + (names.get(row.accountId) ?? "removed debt")}>×</button>
-          <div className="transaction-clean-name"><h2>{row.title}</h2><p>{names.get(row.accountId) ?? "Removed debt"} · {dateLabel(row.date)} · {kind}</p></div>
-          <div className="transaction-value-line"><small>{history.before !== undefined && history.after !== undefined ? `Captured when saved: ${currency.format(history.before)} → ${currency.format(history.after)}` : history.explanation}</small><strong className={"transaction-signed-total " + (row.difference < 0 ? "is-payment" : "is-increase")}>{row.difference < 0 ? "−" : "+"}{currency.format(row.amount)}</strong></div>
-          <details><summary>Balance history &amp; corrections</summary><p>{history.explanation}</p>{history.events.map((event, i) => <p key={i}>{event.action} · recorded {event.recordedAt} · entry date {event.effectiveDate}{event.movement.map(m => ` · ${names.get(m.accountId) ?? m.accountId}: ${currency.format(m.before)} → ${currency.format(m.after)} (net ${currency.format(m.after - m.before)})`).join("")}</p>)}{history.revisions.length > 0 && <ul>{history.revisions.map((revision, i) => <li key={i}>Prior version · {String(revision.date ?? "date unavailable")} · {names.get(String(revision.accountId)) ?? "Removed account"} · {String(revision.title ?? "Untitled")} · {currency.format(typeof revision.difference === "number" ? revision.difference : (revision.type === "payment" ? -1 : 1) * Number(revision.amount ?? 0))} · corrected {String(revision.correctedAt ?? "time unavailable")}</li>)}</ul>}</details>
-        </article>;
+        return <Fragment key={row.id}>
+          {(index === 0 || rows[index - 1].date !== row.date) && <h2 className="transaction-date"><time dateTime={row.date}>{dateLabel(row.date)}</time></h2>}
+          <article className="clean-transaction-card" data-activity-id={row.id}>
+          <button type="button" className="transaction-edit-surface" disabled={readOnly} aria-label={`Edit ${row.title} for ${names.get(row.accountId) ?? "removed debt"}`} onClick={() => open({ action: "save", id: row.id })}>
+            <span className={"transaction-icon " + (row.difference < 0 ? "decrease" : "increase")}><OutlineIcon name={row.kind === "purchase" ? "cart" : row.kind === "payment" || row.kind === "credit" ? "card" : "receipt"}/></span>
+            <span className="transaction-clean-name"><strong>{row.title}</strong><span>{names.get(row.accountId) ?? "Removed debt"}</span></span>
+            <span className="transaction-amount"><strong className={"transaction-signed-total " + (row.difference < 0 ? "is-payment" : "is-increase")}>{row.difference < 0 ? "−" : "+"}{currency.format(row.amount)}</strong><small>{kind}</small></span>
+            <span className="transaction-chevron"><OutlineIcon name="chevron"/></span>
+            {history.before !== undefined && history.after !== undefined && <small className="transaction-captured">Captured when saved: {currency.format(history.before)} → {currency.format(history.after)}</small>}
+          </button>
+          <details className="transaction-secondary"><summary>Balance history &amp; corrections</summary><p>{history.explanation}</p>{history.events.map((event, i) => <p key={i}>{event.action} · recorded {event.recordedAt} · entry date {event.effectiveDate}{event.movement.map(m => ` · ${names.get(m.accountId) ?? m.accountId}: ${currency.format(m.before)} → ${currency.format(m.after)} (net ${currency.format(m.after - m.before)})`).join("")}</p>)}{history.revisions.length > 0 && <ul>{history.revisions.map((revision, i) => <li key={i}>Prior version · {String(revision.date ?? "date unavailable")} · {names.get(String(revision.accountId)) ?? "Removed account"} · {String(revision.title ?? "Untitled")} · {currency.format(typeof revision.difference === "number" ? revision.difference : (revision.type === "payment" ? -1 : 1) * Number(revision.amount ?? 0))} · corrected {String(revision.correctedAt ?? "time unavailable")}</li>)}</ul>}<button type="button" className="secondary transaction-delete-x" disabled={readOnly} onClick={() => open({ action: "delete", id: row.id })} aria-label={(row.kind === "payment" && !row.adjustment ? "Delete payment of " : "Delete transaction of ") + currency.format(row.amount) + " for " + (names.get(row.accountId) ?? "removed debt")}>Delete transaction</button></details>
+        </article></Fragment>;
       }) : <div className="simple-empty"><h2>No activity this month</h2><p>Use + to add a record, or update a lender balance in Debts.</p></div>}
 
     </section>
