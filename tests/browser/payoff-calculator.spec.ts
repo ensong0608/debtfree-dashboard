@@ -20,6 +20,17 @@ test("calculator uses only the entered amount and preserves balances and Budget"
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
   await page.getByLabel("Total monthly debt payment", { exact: true }).fill("5000");
   await expect(page.locator(".plan-hero")).toContainText("4 months");
+  await expect(page.locator(".plan-table tbody tr")).toHaveCount(4);
+  await expect(page.getByRole("button", { name: "Custom", exact: true })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: /Show all|Show fewer/ })).toHaveCount(0);
+  await expect(page.getByText("Enter a monthly amount to see how long it could take to pay off your current debts.", { exact: true })).toHaveCount(0);
+  await expect(page.getByText("This is the entire monthly amount used by this calculator.", { exact: false })).toHaveCount(0);
+  const results = await page.locator(".plan-hero>div").evaluateAll(elements => elements.map(e => ({top:e.getBoundingClientRect().top, left:e.getBoundingClientRect().left})));
+  expect(results).toHaveLength(3);
+  expect(results[0].top).toBe(results[1].top);
+  expect(results[1].top).toBe(results[2].top);
+  expect(results[0].left).toBeLessThan(results[1].left);
+  expect(results[1].left).toBeLessThan(results[2].left);
   await page.reload();
   await page.getByRole("button", { name: "More", exact: true }).click();
   await page.getByRole("button", { name: "Payoff Calculator", exact: true }).click();

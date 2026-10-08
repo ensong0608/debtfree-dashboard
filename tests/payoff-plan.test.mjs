@@ -169,28 +169,17 @@ test("legacy v4 payload migrates custom order explicitly and round-trips unknown
   assert.deepEqual(roundTrip.payload.futurePhase7Field, { retained: true });
 });
 
-test("schedule is collapsed to a short preview by default and expands only on request", async () => {
+test("payoff pages render the complete schedule without expansion controls", async () => {
   const client = await readFile(new URL("../app/payoff-calculator-page.tsx", import.meta.url), "utf8");
-  assert.match(client, /useState\(false\)/);
-  assert.match(client, /scheduleExpanded \? scheduleRows : scheduleRows\.slice\(0, DEFAULT_SCHEDULE_PREVIEW_MONTHS\)/);
-  assert.match(client, /aria-expanded=\{scheduleExpanded\}/);
-  assert.match(client, /setScheduleExpanded\(current => !current\)/);
-  assert.match(client, /Show all \$\{scheduleRows\.length\} months/);
-  assert.match(client, /displayedScheduleRows\.map/);
+  assert.match(client, /plan\.months\.map/);
+  assert.doesNotMatch(client, /scheduleExpanded|DEFAULT_SCHEDULE_PREVIEW_MONTHS|Show fewer months|Show all/);
 });
 
-test("keyboard and mobile move controls remain visible and announce reordered positions", async () => {
-  const [client, styles] = await Promise.all([
-    readFile(new URL("../app/payoff-calculator-page.tsx", import.meta.url), "utf8"),
-    readFile(new URL("../app/globals.css", import.meta.url), "utf8"),
-  ]);
-  assert.match(client, /Move \$\{account\.name\} up/);
-  assert.match(client, /Move \$\{account\.name\} down/);
+test("payoff pages expose only avalanche and snowball while retaining audit announcements", async () => {
+  const client = await readFile(new URL("../app/payoff-calculator-page.tsx", import.meta.url), "utf8");
+  assert.match(client, /\["avalanche", "snowball"\]/);
+  assert.doesNotMatch(client, /custom-order-card|Move up|Move down/);
   assert.match(client, /aria-live="polite"/);
-  assert.match(client, /moved to position \$\{next \+ 1\} of \$\{ids\.length\}/);
-  assert.match(styles, /@media\(max-width:700px\)/);
-  assert.match(styles, /custom-order-actions\{display:grid!important\}/);
-  assert.match(styles, /custom-order-actions button\{touch-action:manipulation\}/);
 });
 
 test("calculation transparency includes every required assumption and estimate warning", async () => {
