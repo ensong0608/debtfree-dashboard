@@ -4,7 +4,15 @@ type Event = { action: string; recordedAt: string; effectiveDate: string; moveme
 export function entryHistory(entry: LedgerTransaction | BalanceAdjustment) {
   const events = Array.isArray(entry.balanceEvents) ? entry.balanceEvents as Event[] : [];
   const movement = "difference" in entry ? entry.difference : entry.type === "payment" ? -entry.amount : entry.amount;
-  const corrected = Array.isArray(entry.revisions) && entry.revisions.length > 0;
-  const legacyValid = !corrected && entry.balanceBefore !== undefined && entry.balanceAfter !== undefined && round(entry.balanceAfter - entry.balanceBefore) === movement;
-  return { events, revisions: Array.isArray(entry.revisions) ? entry.revisions : [], before: legacyValid ? entry.balanceBefore : undefined, after: legacyValid ? entry.balanceAfter : undefined, explanation: events.length ? "Recorded application events below; dates do not reconstruct a lender's historical balance." : corrected ? "Corrected entry. Historical balances are unavailable; prior versions are retained below." : legacyValid ? "Balances captured when saved; not a lender balance for the entry date." : "Historical balances unavailable." };
+  const revisions = Array.isArray(entry.revisions) ? entry.revisions : [];
+  // The first retained version is the original record, not the latest edit's
+  // balance delta. Only use its captured pair when the record establishes it.
+  const first = (revisions[0] ?? entry) as LedgerTransaction | BalanceAdjustment;
+  const originalMovement = "difference" in first ? first.difference : first.type === "payment" ? -first.amount : first.amount;
+  const captured = Number.isFinite(first.balanceBefore) && Number.isFinite(first.balanceAfter) && Number.isFinite(originalMovement) && round(first.balanceAfter! - first.balanceBefore!) === originalMovement;
+  const original = captured ? { accountId: first.accountId, date: first.date, amount: originalMovement, before: first.balanceBefore!, after: first.balanceAfter! } : undefined;
+  // A corrected amount, account, or date must not borrow the original pair in
+  // its current activity row. The original remains accessible in the history.
+  const sameEntry = original && !entry.deletedAt && original.accountId === entry.accountId && original.date === entry.date && original.amount === movement;
+  return { events, revisions, original, before: sameEntry ? original.before : undefined, after: sameEntry ? original.after : undefined, explanation: original ? "Original captured balance; later edits are listed below." : "Original captured balances unavailable; retained versions are listed below." };
 }

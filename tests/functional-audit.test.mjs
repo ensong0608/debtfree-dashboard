@@ -19,7 +19,7 @@ test('amount, sign, date, and account corrections replace movement once; event t
  let s=mutate(fresh(),{action:'save',draft:signedEntryDraft(undefined,input('+66.96'))});
  assert.deepEqual(balances(s),[1066.96,500]);
  s=mutate(s,{action:'save',id:'transaction:entry',draft:signedEntryDraft(s.transactions[0],input('+66.96'))});
- assert.deepEqual(balances(s),[1066.96,500]);assert.equal(entryHistory(s.transactions[0]).before,undefined);
+ assert.deepEqual(balances(s),[1066.96,500]);assert.equal(entryHistory(s.transactions[0]).before,1000);
  assert.equal(entryHistory(s.transactions[0]).events.at(-1).movement[0].after-entryHistory(s.transactions[0]).events.at(-1).movement[0].before,0);
  s=mutate(s,{action:'save',id:'transaction:entry',draft:signedEntryDraft(s.transactions[0],input('-100','2026-09-01','b'))});
  assert.deepEqual(balances(s),[1000,400]);assert.equal(confirmedPaymentTotal(s.transactions,[],'2026-09'),100);
@@ -33,7 +33,7 @@ test('amount, sign, date, and account corrections replace movement once; event t
 });
 test('legacy misleading correction balances are not presented as transaction balances',()=>{
  const old={id:'adj',accountId:'a',difference:66.96,balanceBefore:4386.55,balanceAfter:4386.55,revisions:[{difference:66.96}],date:'2026-10-03'};
- assert.equal(entryHistory(old).before,undefined);assert.match(entryHistory(old).explanation,/Historical balances/);
+ assert.equal(entryHistory(old).before,undefined);assert.match(entryHistory(old).explanation,/Original captured balances unavailable/);
  const valid={...old,revisions:[],balanceBefore:4319.59};assert.equal(entryHistory(valid).before,4319.59);
 });
 test('negative reconciliation stays an adjustment until explicitly identified; classification never posts twice',()=>{
