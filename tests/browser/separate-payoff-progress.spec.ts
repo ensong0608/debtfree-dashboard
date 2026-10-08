@@ -37,7 +37,8 @@ test("calculator and plan save independently and plan reserves minimums within t
   await minimum.fill("1200");
   await page.getByRole("button", { name: "Save minimum for Plan card 1", exact: true }).click();
   await expect(allocation).toContainText("Minimums $2,100.00 · Extra $4,900.00");
-  await expect(allocation.locator(".allocation-card").first()).toContainText("$5,800.00");
+  await expect(allocation.locator(".allocation-card").first()).toContainText("$900.00");
+  await expect(allocation.locator(".allocation-card").nth(1)).toContainText("$6,100.00");
   await expect(page.locator(".plan-table tbody tr")).toHaveCount(3);
   expect(await page.getByLabel("Total monthly debt payment", { exact: true }).evaluate(input => Number.parseFloat(getComputedStyle(input.closest('.extra-control')!.querySelector('label')!).fontSize))).toBeGreaterThanOrEqual(14);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
