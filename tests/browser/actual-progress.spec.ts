@@ -33,11 +33,11 @@ test("six-month debt activity counts payments and actual progress stays fixed af
  await expect(page.locator(".actual-progress-summary")).toContainText("$650.00");
  await expect(page.locator(".actual-progress-summary")).toContainText("$350.00");
  await expect(page.locator(".actual-month-card")).toContainText("$350.00 net decrease");
- await expect(page.locator(".actual-month-card")).toContainText("2 payments recorded");
+ await expect(page.locator(".actual-month-card")).toContainText("3 debt reductions recorded");
  await expect(page.locator(".progress-story")).toContainText("Your debt is $350.00 lower.");
- await expect(page.locator(".progress-month-story")).toContainText("−$300.00");
+ await expect(page.locator(".progress-month-story")).toContainText("−$400.00");
  await expect(page.locator(".progress-month-story")).toContainText("+$50.00");
- await expect(page.locator(".progress-month-story")).toContainText("Other lender balance changes");
+ await expect(page.locator(".progress-month-story")).toContainText("Debt increases");
  await expect(page.locator(".progress-projection-card,.phase-nine-metrics")).toHaveCount(0);
  await expect(page.getByRole("region",{name:"Snapshots",exact:true})).toBeVisible();
  await page.getByRole("button",{name:"Save snapshot",exact:true}).click();

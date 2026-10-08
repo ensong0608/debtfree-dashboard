@@ -1749,3 +1749,6 @@ input,select,textarea{font-size:16px}
 .debts-screen .debt-total-summary>strong{padding-right:0}
 
 .snapshot-controls{margin-bottom:16px}
+
+.plan-screen .extra-control label,.plan-screen .strategy-control>span{font-size:14px}
+.plan-screen .extra-control small,.plan-screen .strategy-control small{font-size:13px;line-height:1.5}

@@ -8,7 +8,7 @@ test("calculator uses only the entered amount and preserves balances and Budget"
   await page.goto("/");
   await page.locator('input[type="file"]').setInputFiles({ name: "calculator.json", mimeType: "application/json", buffer: Buffer.from(JSON.stringify(fixture)) });
   await page.getByRole("button", { name: "More", exact: true }).click();
-  await page.getByRole("button", { name: "Payoff Plan", exact: true }).click();
+  await page.getByRole("button", { name: "Payoff Calculator", exact: true }).click();
   await page.getByLabel("Total monthly debt payment", { exact: true }).fill("7000");
   await expect(page.locator(".plan-hero")).toContainText("3 months");
   await expect(page.locator(".plan-hero")).toContainText("$7,000.00");
@@ -22,7 +22,7 @@ test("calculator uses only the entered amount and preserves balances and Budget"
   await expect(page.locator(".plan-hero")).toContainText("4 months");
   await page.reload();
   await page.getByRole("button", { name: "More", exact: true }).click();
-  await page.getByRole("button", { name: "Payoff Plan", exact: true }).click();
+  await page.getByRole("button", { name: "Payoff Calculator", exact: true }).click();
   await expect(page.getByLabel("Total monthly debt payment", { exact: true })).toHaveValue("5000");
   await page.getByRole("button", { name: "Debts", exact: true }).click();
   await expect(page.locator(".simple-total")).toContainText("$20,000.00");

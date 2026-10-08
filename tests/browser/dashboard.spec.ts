@@ -121,7 +121,7 @@ test("create a household plan, record payment, change strategy and restore a bac
   await page.locator(".budget-section-card").filter({has:page.getByText("Income",{exact:true})}).locator(":scope > summary").click();
   await expect(page.getByRole("button", { name: /Edit Household salary/ })).toBeVisible();
   await page.getByRole("button", { name: "More", exact: true }).click();
-  await page.getByRole("button", { name: "Payoff Plan", exact: true }).click();
+  await page.getByRole("button", { name: "Payoff Calculator", exact: true }).click();
   await page.getByRole("button", { name: /Snowball/, exact: false }).first().click();
   await page.getByLabel("Total monthly debt payment", { exact: true }).fill("7000");
   await expect(page.getByText("Monthly calculator amount", { exact: true })).toBeVisible();

@@ -162,7 +162,7 @@ test("exports a complete payoff report in CSV, Excel, and PDF formats", async ()
     readFile(new URL("../package.json", import.meta.url), "utf8"),
   ]);
   assert.match(client, /Export calculation/);
-  assert.match(client, /totalMinimums: 0/);
+  assert.match(client, /totalMinimums: firstMinimums/);
   assert.match(client, /exportReport\(format\)/);
   assert.match(client, /\["csv", "excel", "pdf"\]/);
   assert.match(exporter, /MONTHLY PLAN BREAKDOWN/);

@@ -236,7 +236,13 @@ export type MonthlyPlanMonth = {
   [key: string]: unknown;
 };
 
+export type RemovedProgressAccount = Pick<DebtAccount, "id" | "name" | "balance" | "baselineBalance" | "displayGroup" | "displayOrder"> & { removedAt: string };
+
 export type MonthlyPlanSettings = {
+  payoffPlanAmount?: number;
+  payoffPlanStrategy?: PayoffStrategy;
+  payoffPlanOrder?: string[];
+  removedProgressAccounts?: RemovedProgressAccount[];
   loanTrackers?: LoanTracker[];
   monthlyCommitment?: number;
   calculatorAmount?: number;
@@ -805,6 +811,23 @@ function validatePlanning(value: unknown, path: string, issues: string[]) {
 function validateMonthlyPlan(value: unknown, path: string, issues: string[]) {
   const plan = requiredRecord(value, path, issues);
   if (!plan) return;
+  if (plan.payoffPlanAmount !== undefined) requiredNumber(plan.payoffPlanAmount, path + ".payoffPlanAmount", issues);
+  if (plan.payoffPlanStrategy !== undefined) enumValue(plan.payoffPlanStrategy, new Set(["avalanche", "snowball", "custom"]), path + ".payoffPlanStrategy", issues);
+  if (plan.payoffPlanOrder !== undefined) requiredArray(plan.payoffPlanOrder, path + ".payoffPlanOrder", issues)?.forEach((id, i) => requiredString(id, path + ".payoffPlanOrder[" + i + "]", issues));
+  if (plan.removedProgressAccounts !== undefined) {
+    const ids = new Set<string>();
+    requiredArray(plan.removedProgressAccounts, path + ".removedProgressAccounts", issues)?.forEach((raw, i) => {
+      const p = path + ".removedProgressAccounts[" + i + "]";
+      const account = requiredRecord(raw, p, issues);
+      if (!account) return;
+      for (const key of ["id", "name", "removedAt"]) requiredString(account[key], p + "." + key, issues);
+      requiredNumber(account.balance, p + ".balance", issues);
+      if (account.baselineBalance !== undefined) requiredNumber(account.baselineBalance, p + ".baselineBalance", issues);
+      if (account.displayGroup !== undefined) enumValue(account.displayGroup, new Set(["Mama", "Papi", "Other"]), p + ".displayGroup", issues);
+      if (account.displayOrder !== undefined) requiredNumber(account.displayOrder, p + ".displayOrder", issues);
+      if (typeof account.id === "string") { if (ids.has(account.id)) issues.push(p + ".id is duplicated."); ids.add(account.id); }
+    });
+  }
   if (plan.progressStartingBalance !== undefined) requiredNumber(plan.progressStartingBalance, path + ".progressStartingBalance", issues);
   if (plan.loanTrackers !== undefined) {
     const loans = requiredArray(plan.loanTrackers, path + ".loanTrackers", issues);

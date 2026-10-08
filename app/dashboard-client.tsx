@@ -64,7 +64,7 @@ import { createPayoffSnapshot, transactionAdjustedAccounts } from "./progress-ba
 import ActualProgressPage from "./actual-progress-page";
 import DebtInsightsPage from "./debt-insights-page";
 import DebtActivityPanel from "./debt-activity-panel";
-import { buildActualProgress } from "./debt-activity";
+import { buildActualProgress, retainRemovedProgressAccount } from "./debt-activity";
 import { spentForPlannedItem, copyRecurringPlannedItems } from "./monthly-plan";
 import {
   accountsWithCustomDebtOrder,
@@ -80,7 +80,7 @@ import {
 } from "./onboarding-plan";
 import { scanReceipt, type ReceiptScanResult } from "./receipt-ocr";
 
-type PageId = "payments" | "more" | "home" | "accounts" | "history" | "plan" | "monthly" | "snapshots" | "utilization" | "stats" | "profile";
+type PageId = "payments" | "more" | "home" | "accounts" | "history" | "calculator" | "plan" | "monthly" | "snapshots" | "utilization" | "stats" | "profile";
 type SortKey = "name" | "balance" | "creditLimit" | "apr" | "minimum" | "monthlyInterest" | "status" | "dueDate" | "payoff";
 type SortDirection = "asc" | "desc";
 
@@ -237,6 +237,7 @@ const NAV_ITEMS: { id: PageId; label: string; icon: string }[] = [
   { id: "more", label: "More", icon: "···" },
 ];
 const MORE_NAV_ITEMS: { id: PageId; label: string; icon: string }[] = [
+  { id: "calculator", label: "Payoff Calculator", icon: "✓" },
   { id: "plan", label: "Payoff Plan", icon: "✓" },
   { id: "snapshots", label: "Progress", icon: "◉" },
   { id: "profile", label: "Settings", icon: "⚙" },
@@ -596,6 +597,8 @@ export default function DashboardClient({ user }: { user: DashboardUser }) {
     if (!editingId) return;
     const account = accounts.find((item) => item.id === editingId);
     if (confirm("Permanently delete " + (account?.name ?? "this debt account") + "? Payment, adjustment, and snapshot references will remain for audit, but the debt details cannot be restored.")) {
+      const posted = calculatedAccounts.find(item => item.id === editingId);
+      if (account && posted) setMonthlyPlan(current => ({ ...current, removedProgressAccounts: retainRemovedProgressAccount(current.removedProgressAccounts ?? [], account, posted.balance) }));
       setAccounts((current) => current.filter((item) => item.id !== editingId));
       setCustomDebtOrder((current) => current.filter((id) => id !== editingId));
       setModalOpen(false);
@@ -920,7 +923,9 @@ export default function DashboardClient({ user }: { user: DashboardUser }) {
   };
   const deletePayee = (id: string) => setPayees((current) => current.map((payee) => payee.id === id ? { ...payee, deletedAt: new Date().toISOString() } : payee));
   const captureSnapshot = (note: string) => {
-    if (!calculatedAccounts.length) return;
+    const progress = buildActualProgress(accounts, transactions, balanceAdjustments, snapshots, new Date(), monthlyPlan.progressStartingBalance, monthlyPlan.removedProgressAccounts);
+    const snapshotAccounts = [...calculatedAccounts, ...progress.groups.flatMap(group => group.accounts.filter(account => account.removedFromDebts))];
+    if (!snapshotAccounts.length) return;
     const month = currentMonthKey();
     const now = new Date().toISOString();
     const projectedDebtFreeMonth = plan.months.length && !plan.stalled ? monthAfter(plan.months.length - 1) : null;
@@ -928,10 +933,10 @@ export default function DashboardClient({ user }: { user: DashboardUser }) {
       const existing = current.find((snapshot) => snapshot.month === month);
       const next = createPayoffSnapshot({
         existing,
-        accounts: calculatedAccounts,
+        accounts: snapshotAccounts,
         month,
         capturedAt: now,
-        totalBalance,
+        totalBalance: round(snapshotAccounts.reduce((sum, account) => sum + account.balance, 0)),
         monthlyInterest: interest,
         activeAccountCount: activeCount,
         projectedDebtFreeMonth,
@@ -1006,11 +1011,12 @@ export default function DashboardClient({ user }: { user: DashboardUser }) {
         {page === "monthly" && <MonthlyPlanPage month={selectedMonth} hasMonth={Object.prototype.hasOwnProperty.call(monthlyBudgets, selectedMonth)} previousHasItems={(monthlyBudgets[shiftMonth(selectedMonth, -1)] ?? []).some((item) => item.recurring ?? item.kind !== "purchase")} items={cashflowItems} accounts={calculatedAccounts} transactions={transactions} settings={selectedPlanSettings} trackingEnabled={detailedSpendingTracking} plannedMinimums={selectedPlanSettings.minimums ?? (selectedMonth === currentMonthKey() ? monthlyTargets.minimums : {})} plannedPayments={selectedMonth === currentMonthKey() ? monthlyTargets.payments : selectedPlanSettings.payments ?? {}} onMonth={setSelectedMonth} onCopyPrevious={copyPreviousBudget} onStartBlank={startBlankBudget} onAdd={openNewCashflow} onEdit={openEditCashflow} onSettings={updateSelectedPlanSettings} onTracking={setDetailedSpendingTracking} onViewTransactions={() => setPage("history")}/>}
         {page === "accounts" && <AccountsPage readOnly={isViewer} onArrange={(id, group, direction) => setAccounts(current => arrangeDebt(current, id, group, direction))} loans={monthlyPlan.loanTrackers ?? []} loanPanel={<LoanProgressPanel readOnly={isViewer} loans={monthlyPlan.loanTrackers ?? []} items={planningCashflowItems} onChange={loanTrackers => setMonthlyPlan(current => ({ ...current, loanTrackers }))} onDialog={setDebtEntryOpen}/>} accounts={sortedAccounts} transactions={transactions} balanceAdjustments={balanceAdjustments} actionMessage={debtActionMessage} activeCount={activeCount} totalBalance={totalBalance} minimums={minimums} interest={interest} linkedCardExpenses={linkedCardExpenses} sortKey={sortKey} sortDirection={sortDirection} paidOffById={paidOffById} priorityById={priorityById} strategy={strategy} onSort={changeSort} onAdd={openNew} onEdit={openEdit} onUpdateBalance={openBalanceEdit} onRecordPayment={(account) => openRecommendedPayment(account.id, plan.months[0]?.payments[account.id] ?? effectiveMinimum(account))} onMarkPaidOff={markAccountPaidOff} onArchive={archiveAccount} onRestore={restoreAccount} onToggleMinimum={toggleMinimumMode} onTogglePayoff={togglePayoffMode} onSample={() => { setAccounts(SAMPLE_ACCOUNTS); setCustomDebtOrder(normalizeCustomDebtOrder(SAMPLE_ACCOUNTS)); }} onImport={importDebtFreeCsv} importMessage={importMessage}/>}
         {page === "history" && detailedSpendingTracking && <TransactionsPage accounts={calculatedAccounts} payees={payees} transactions={transactions} onQuickAdd={openNewTransaction} onEdit={openEditTransaction} onAudit={setAuditTransactionId} onDelete={softDeleteTransaction} onRestore={restoreTransaction} onBatchAdd={addBatchTransactions} onManagePayees={() => setPayeeModalOpen(true)}/>}
-        {page === "plan" && <PayoffCalculatorPage accounts={payoffAccounts} amount={monthlyPlan.calculatorAmount ?? extra} strategy={strategy} customDebtOrder={customDebtOrder} onAmount={calculatorAmount => setMonthlyPlan(current => ({ ...current, calculatorAmount }))} onStrategy={setStrategy} onCustomOrder={orderedIds => setCustomDebtOrder(current => mergeVisibleCustomDebtOrder(accounts, current, orderedIds))} onAccounts={() => setPage("accounts")}/>}
-        {page === "snapshots" && <ActualProgressPage readOnly={isViewer} accounts={accounts} startingBalance={monthlyPlan.progressStartingBalance} transactions={transactions} adjustments={balanceAdjustments} snapshots={snapshots} loans={monthlyPlan.loanTrackers ?? []} onCapture={captureSnapshot} onUpdateNote={updateSnapshotNote} onDelete={removeSnapshot} onAccounts={() => setPage("accounts")}/>}
+        {page === "calculator" && <PayoffCalculatorPage accounts={payoffAccounts} amount={monthlyPlan.calculatorAmount ?? extra} strategy={strategy} customDebtOrder={customDebtOrder} onAmount={calculatorAmount => setMonthlyPlan(current => ({ ...current, calculatorAmount }))} onStrategy={setStrategy} onCustomOrder={orderedIds => setCustomDebtOrder(current => mergeVisibleCustomDebtOrder(accounts, current, orderedIds))} onAccounts={() => setPage("accounts")}/>}
+        {page === "plan" && <PayoffCalculatorPage minimumsIncluded accounts={payoffAccounts} amount={monthlyPlan.payoffPlanAmount ?? 0} strategy={monthlyPlan.payoffPlanStrategy ?? "avalanche"} customDebtOrder={monthlyPlan.payoffPlanOrder ?? customDebtOrder} onAmount={payoffPlanAmount => setMonthlyPlan(current => ({ ...current, payoffPlanAmount }))} onStrategy={payoffPlanStrategy => setMonthlyPlan(current => ({ ...current, payoffPlanStrategy }))} onCustomOrder={payoffPlanOrder => setMonthlyPlan(current => ({ ...current, payoffPlanOrder }))} onAccounts={() => setPage("accounts")}/>}
+        {page === "snapshots" && <ActualProgressPage readOnly={isViewer} accounts={accounts} removedAccounts={monthlyPlan.removedProgressAccounts} startingBalance={monthlyPlan.progressStartingBalance} transactions={transactions} adjustments={balanceAdjustments} snapshots={snapshots} loans={monthlyPlan.loanTrackers ?? []} onCapture={captureSnapshot} onUpdateNote={updateSnapshotNote} onDelete={removeSnapshot} onAccounts={() => setPage("accounts")}/>}
         {page === "profile" && <ProfilePage user={user} householdName={householdName} role={householdRole} members={householdMembers} cloudStatus={cloudStatus} deviceOnly={deviceOnly} transferMessage={transferMessage} onExportBackup={exportDashboardBackup} onImportBackup={importDashboardBackup} onReset={resetDashboardData} onRecover={async () => { try { const checkpoint = await repository.loadCheckpoint(); if (!checkpoint) { setTransferMessage("No recovery checkpoint is available."); return; } if (!confirm("Restore the saved recovery checkpoint? Current data will be saved as the automatic backup.")) return; await repository.saveHousehold(checkpoint); applyDashboardPayload(checkpoint); } catch (error) { setTransferMessage(dashboardDataErrorMessage(error)); } }} onInvite={inviteMember} onRemove={removeAdmin}/>}
         {page === "utilization" && <UtilizationPage accounts={calculatedAccounts} onEditAccount={openEdit}/>}
-        {page === "stats" && <DebtInsightsPage accounts={calculatedAccounts} onPlan={()=>setPage("plan")} onProgress={()=>setPage("snapshots")}/>}
+        {page === "stats" && <DebtInsightsPage accounts={calculatedAccounts} onPlan={()=>setPage("calculator")} onProgress={()=>setPage("snapshots")}/>}
         </fieldset>
       </div>
       {page === "payments" && !debtEntryOpen && <section className="bottom-action-bar transaction-add-bar" aria-label="Add a record"><button type="button" aria-label="Add record" disabled={isViewer || !accounts.length} onClick={() => { setNewRecordOpen(true); setDebtEntryOpen(true); }}>Transaction +</button></section>}

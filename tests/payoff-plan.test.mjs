@@ -201,7 +201,7 @@ test("calculation transparency includes every required assumption and estimate w
     "Payments already made are never deducted again",
     "No minimums, Budget expenses, or future purchases are added",
     "Interest is estimated monthly",
-    "hypothetical calculator",
+    "This prioritization scenario",
   ].forEach((label) => assert.ok(client.includes(label), `Missing calculation detail: ${label}`));
 });
 
