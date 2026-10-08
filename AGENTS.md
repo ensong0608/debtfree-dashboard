@@ -20,3 +20,5 @@ Cloudflare Workers is the sole production hosting target. The production Worker 
 - Do not add unsolicited explanations, lender-check dates, "unknown" status labels, disclaimers, or technical notes to cards or other app surfaces. Necessary validation and error messages should be concise and appear beside the relevant action.
 - Preserve explicitly removed text and sections. Do not restore them during audits or redesigns without the user's request.
 - Debt cards must not display "Lender date unknown", "Lender last checked", or household-saving/lender-verification explanations. Due dates recur on the chosen day in the current month; show only the concise due-date label and value.
+
+- Keep the Progress snapshot controls and saved snapshot list directly visible. Do not hide the snapshot feature inside nested dropdowns.

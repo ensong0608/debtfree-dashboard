@@ -39,14 +39,15 @@ test("six-month debt activity counts payments and actual progress stays fixed af
  await expect(page.locator(".progress-month-story")).toContainText("+$50.00");
  await expect(page.locator(".progress-month-story")).toContainText("Other lender balance changes");
  await expect(page.locator(".progress-projection-card,.phase-nine-metrics")).toHaveCount(0);
- await page.getByText("Saved balance history ›",{exact:true}).click();
- await page.getByText("Monthly balance checks (0)",{exact:true}).click();
- await page.getByRole("button",{name:"Save this month's balance check",exact:true}).click();
+ await expect(page.getByRole("region",{name:"Snapshots",exact:true})).toBeVisible();
+ await page.getByRole("button",{name:"Save snapshot",exact:true}).click();
  await expect(page.locator(".actual-progress-summary")).toContainText("$1,000.00");
  await page.reload();
  await page.getByRole("button",{name:"More",exact:true}).click();
  await page.getByRole("button",{name:"Progress",exact:true}).filter({visible:true}).click();
  await expect(page.locator(".actual-progress-summary")).toContainText("$350.00");
+ await expect(page.locator(".snapshot-controls .saved-check")).toHaveCount(1);
+ await expect(page.getByRole("button",{name:"Update this month's snapshot",exact:true})).toBeVisible();
  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1)).toBe(true);
  const result=await new AxeBuilder({page}).include(".actual-progress-screen").withRules(["color-contrast"]).analyze();
  expect(result.violations).toEqual([]);
