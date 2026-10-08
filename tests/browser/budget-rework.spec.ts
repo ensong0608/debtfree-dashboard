@@ -31,5 +31,5 @@ test('Budget section cards keep clear totals, Helvetica, and hide retired tools'
  expect((await new AxeBuilder({page}).include('.debt-insights-screen').withRules(['color-contrast']).analyze()).violations).toEqual([]);
  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1)).toBe(true);
  await page.getByRole('button',{name:'Open payoff calculator ›',exact:true}).click();
- await expect(page.getByLabel('Extra each month',{exact:true})).toBeVisible();
+ await expect(page.getByLabel('Total monthly debt payment',{exact:true})).toBeVisible();
 });

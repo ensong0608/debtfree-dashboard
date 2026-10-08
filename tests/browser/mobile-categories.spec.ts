@@ -33,7 +33,7 @@ test("category colors stay readable on phones and payoff steps use the saved for
   expect(debtsAxe.violations).toEqual([]);
   await page.getByRole("button", { name: "More", exact: true }).click();
   await page.getByRole("button", { name: "Payoff Plan", exact: true }).click();
-  await page.getByLabel("Extra each month", { exact: true }).fill("7000");
+  await page.getByLabel("Total monthly debt payment", { exact: true }).fill("7000");
   await expect(page.locator(".mobile-payoff-timeline")).toHaveCount(0);
   await expect(page.locator(".plan-hero")).toContainText("$7,000.00");
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);

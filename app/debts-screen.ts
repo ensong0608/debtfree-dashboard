@@ -176,9 +176,7 @@ export function createBalanceAdjustment(input: BalanceAdjustmentInput) {
   }
   const balanceBefore = cents(input.currentBalance);
   const balanceAfter = cents(input.nextBalance);
-  if (balanceBefore === balanceAfter) {
-    throw new DebtBalanceError("Enter a balance different from the current balance.");
-  }
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(input.date) || new Date(input.date + "T12:00:00Z").toISOString().slice(0, 10) !== input.date) throw new DebtBalanceError("Enter a valid balance effective date.");
   const createdAt = input.createdAt ?? new Date().toISOString();
   const account = {
     ...input.storedAccount,

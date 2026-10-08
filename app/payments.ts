@@ -1,4 +1,5 @@
 import type { BalanceAdjustment, DebtAuditCreator, LedgerTransaction } from "./dashboard-data.ts";
+import { entryHistory } from "./entry-history.ts";
 import { round } from "./payoff-engine.ts";
 
 /** A confirmation is reporting metadata; it must never become another ledger movement. */
@@ -12,9 +13,9 @@ export function paymentActivity(transactions: LedgerTransaction[], adjustments: 
   return [
     ...transactions.filter(t => !t.deletedAt && t.type === "payment").map(t => ({
       id: "transaction:" + t.id, accountId: t.accountId, date: t.date, createdAt: t.createdAt,
-      amount: t.amount, difference: -t.amount, kind: "payment" as const,
-      title: t.title || "Payment", source: "Recorded payment", note: t.memo, creator: t.creator,
-      before: t.balanceBefore, after: t.balanceAfter, adjustment: null,
+      amount: t.amount, difference: -t.amount, kind: t.credit === true ? "credit" as const : "payment" as const,
+      title: t.title || (t.credit === true ? "Refund / credit" : "Payment"), source: t.credit === true ? "Refund / credit" : "Recorded payment", note: t.memo, creator: t.creator,
+      before: entryHistory(t).before, after: entryHistory(t).after, adjustment: null,
     })),
     ...transactions.filter(t => t.type !== "payment" && !t.deletedAt).map(t => ({
       id: "transaction:" + t.id, accountId: t.accountId, date: t.date, createdAt: t.createdAt,
@@ -22,7 +23,7 @@ export function paymentActivity(transactions: LedgerTransaction[], adjustments: 
       kind: t.interestEstimate || t.category === "Interest" ? "interest" as const : t.type === "charge" ? "purchase" as const : "fee" as const,
       title: t.title || (t.interestEstimate ? "Estimated interest" : t.type === "charge" ? (t.payeeName || "Card purchase") : t.category === "Interest" ? "Interest" : "Fee"),
       source: t.interestEstimate ? (t.interestEstimate.reconciledAt ? "Estimate reconciled to lender balance" : "Automatic interest estimate · Not counted as a payment") : t.type === "charge" ? "Card purchase" : "Interest or fee",
-      note: t.memo, creator: t.creator, before: t.balanceBefore, after: t.balanceAfter, adjustment: null,
+      note: t.memo, creator: t.creator, before: entryHistory(t).before, after: entryHistory(t).after, adjustment: null,
     })),
     ...adjustments.filter(a => !a.deletedAt).map(a => ({
       id: "adjustment:" + a.id, accountId: a.accountId, date: a.date, createdAt: a.createdAt,
@@ -30,7 +31,7 @@ export function paymentActivity(transactions: LedgerTransaction[], adjustments: 
       kind: a.confirmedPayment ? "payment" as const : "adjustment" as const,
       title: a.title || (a.confirmedPayment ? "Payment" : "Balance update"),
       source: a.confirmedPayment ? "Confirmed from balance update" : "Balance updated",
-      note: a.note ?? "", creator: a.creator, before: a.balanceBefore, after: a.balanceAfter, adjustment: a,
+      note: a.note ?? "", creator: a.creator, before: entryHistory(a).before, after: entryHistory(a).after, adjustment: a,
     })),
   ].sort((a, b) => b.date.localeCompare(a.date) || b.createdAt.localeCompare(a.createdAt) || a.id.localeCompare(b.id));
 }

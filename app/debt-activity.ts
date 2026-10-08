@@ -19,20 +19,25 @@ export function buildDebtActivity(accountId: string, transactions: LedgerTransac
   });
 }
 export function buildActualProgress(accounts: DebtAccount[], transactions: LedgerTransaction[], adjustments: BalanceAdjustment[], snapshots: PayoffSnapshot[], date = new Date()) {
-  const currentAccounts = transactionAdjustedAccounts(accounts, transactions).map((account, index) => ({ ...account, baselineBalance: accounts[index].baselineBalance ?? accounts[index].balance }));
-  const starting = round(accounts.reduce((sum, account) => sum + (account.baselineBalance ?? account.balance), 0));
-  const current = round(currentAccounts.reduce((sum, account) => sum + account.balance, 0));
-  const reduction = round(starting - current);
+  const savedVersions = snapshots.flatMap(s => [...(Array.isArray(s.revisions) ? s.revisions as PayoffSnapshot[] : []), s]);
+  const baseline = savedVersions.sort((a,b) => a.capturedAt.localeCompare(b.capturedAt)).find(s => s.accounts?.length > 0);
+  const baselineIds = new Set(baseline?.accounts.map(a => a.accountId) ?? accounts.map(a => a.id));
+  const comparisonAvailable = baseline ? baseline.accounts.every(saved => accounts.some(a => a.id === saved.accountId)) : accounts.length > 0 && accounts.every(a => typeof a.baselineBalance === "number") && [...transactions, ...adjustments].every(entry => accounts.some(a => a.id === entry.accountId));
+  const currentAccounts = transactionAdjustedAccounts(accounts, transactions).map(account => ({ ...account, baselineBalance: baseline ? baselineIds.has(account.id) ? account.baselineBalance ?? baseline.accounts.find(a => a.accountId === account.id)?.balance : undefined : account.baselineBalance }));
+  const comparisonAccounts = currentAccounts.filter(a => baselineIds.has(a.id));
+  const starting = round(baseline ? baseline.accounts.reduce((sum,a) => sum + (accounts.find(account => account.id === a.accountId)?.baselineBalance ?? a.balance), 0) : accounts.reduce((sum,a) => sum + (a.baselineBalance ?? 0), 0));
+  const current = round(comparisonAccounts.reduce((sum,a) => sum + a.balance, 0));
+  const reduction = comparisonAvailable ? round(starting - current) : 0;
   const entries = paymentActivity(transactions, adjustments);
   const month = recentDebtMonths(date)[0];
   const accountIds = new Set(accounts.map(a => a.id));
   const monthEntries = entries.filter(row => accountIds.has(row.accountId) && row.date.slice(0, 7) === month);
   const monthlyChange = round(monthEntries.reduce((sum, row) => sum + row.difference, 0));
   const groups = (["Mama", "Papi", "Other"] as const).map(group => {
-    const items = currentAccounts.filter(a => debtDisplayPlacement(a).group === group).sort((a,b) => debtDisplayPlacement(a).order - debtDisplayPlacement(b).order || a.name.localeCompare(b.name));
+    const items = comparisonAccounts.filter(a => debtDisplayPlacement(a).group === group).sort((a,b) => debtDisplayPlacement(a).order - debtDisplayPlacement(b).order || a.name.localeCompare(b.name));
     const starting = round(items.reduce((sum,a) => sum + (a.baselineBalance ?? a.balance), 0));
     const current = round(items.reduce((sum,a) => sum + a.balance, 0));
     return { group, accounts: items, starting, current, reduction: round(starting - current) };
   });
-  return { starting, current, reduction, percent: starting > 0 ? Math.min(100, Math.max(0, reduction / starting * 100)) : 0, groups, monthlyChange, monthEntries, paymentCount: monthEntries.filter(row => row.kind === "payment").length, baselineDate: accounts.map(a => a.createdAt.slice(0,10)).sort()[0] ?? null, snapshots: [...snapshots].sort((a,b) => a.month.localeCompare(b.month)) };
+  return { comparisonAvailable, baseline, excludedCount: currentAccounts.length - comparisonAccounts.length, starting, current, reduction, percent: starting > 0 ? Math.min(100, Math.max(0, reduction / starting * 100)) : 0, groups, monthlyChange, monthEntries, paymentCount: monthEntries.filter(row => row.kind === "payment").length, baselineDate: baseline?.capturedAt.slice(0,10) ?? null, snapshots: [...snapshots].sort((a,b) => a.month.localeCompare(b.month)) };
 }

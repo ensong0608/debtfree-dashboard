@@ -5,7 +5,7 @@ export function paymentContext(transactions: LedgerTransaction[], month: string,
   const paid: Record<string, number> = {};
   const minimumPaid: Record<string, number> = {};
   for (const t of transactions) {
-    if (t.deletedAt || t.type !== "payment" || t.date.slice(0, 7) !== month) continue;
+    if (t.deletedAt || t.type !== "payment" || t.credit === true || t.date.slice(0, 7) !== month) continue;
     paid[t.accountId] = round((paid[t.accountId] ?? 0) + t.amount);
     if (t.paymentKind !== "extra") minimumPaid[t.accountId] = round((minimumPaid[t.accountId] ?? 0) + t.amount);
   }

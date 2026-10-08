@@ -65,7 +65,7 @@ test("Phase 6 what-if scenarios are isolated until their total is applied", () =
 
 test("Payoff calculator replaces the removed what-if controls", async () => {
   const source = await readFile(new URL("../app/payoff-calculator-page.tsx", import.meta.url), "utf8");
-  assert.match(source, /Extra each month/);
+  assert.match(source, /Total monthly debt payment/);
   assert.match(source, /Monthly calculator amount/);
   assert.doesNotMatch(source, /What-if calculator|Recommended strategy|Compare strategies|MobilePayoffTimeline/);
 });

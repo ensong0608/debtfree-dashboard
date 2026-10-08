@@ -114,11 +114,11 @@ export function buildProgressReport(input: ProgressReportInput) {
   const previousDebtFreeMonth = previousSnapshot?.projectedDebtFreeMonth ?? null;
   const timeGainedMonths = monthDifference(previousDebtFreeMonth, currentDebtFreeMonth);
   const paymentMonth = activeTransactions
-    .filter((transaction) => transaction.type === "payment")
+    .filter((transaction) => transaction.type === "payment" && transaction.credit !== true)
     .map((transaction) => transaction.date.slice(0, 7))
     .sort()[0] ?? null;
   const firstDebtMonth = activeTransactions
-    .filter((transaction) => transaction.type === "payment" && (transaction.balanceAfter ?? Number.POSITIVE_INFINITY) <= .005)
+    .filter((transaction) => transaction.type === "payment" && transaction.credit !== true && (transaction.balanceAfter ?? Number.POSITIVE_INFINITY) <= .005)
     .map((transaction) => transaction.date.slice(0, 7))
     .sort()[0] ?? null;
   const currentHistory = [...history.filter((entry) => entry.month < currentMonth), { month: currentMonth, total: currentDebt }];

@@ -18,7 +18,7 @@ test("counts two payments and confirmed updates once, retaining increases and ma
 });
 test("actual progress includes manual updates without counting confirmations twice and ignores snapshots as baseline",()=>{
  const transactions=[transaction("p1","payment",100),transaction("interest","fee",30)];
- const snapshot={month:"2026-10",totalBalance:9999};
+ const snapshot={month:"2026-10",totalBalance:9999,accounts:[]};
  const report=buildActualProgress([account],transactions,[{...adjustment,confirmedPayment:{confirmedAt:"2026-10-06"}}],[snapshot],date);
  assert.equal(report.starting,1000);assert.equal(report.current,780);assert.equal(report.reduction,220);assert.equal(report.monthlyChange,-220);assert.equal(report.paymentCount,2);assert.equal(report.groups[0].current,780);
  assert.equal(buildActualProgress([account],transactions,[adjustment],[],date).starting,report.starting);
@@ -26,7 +26,7 @@ test("actual progress includes manual updates without counting confirmations twi
 });
 test("increases remain visible and legacy baselines and archived paid cards stay in tracking totals",()=>{
  const report=buildActualProgress([{...account,baselineBalance:undefined,balanceOffset:100}],[],[],[],date);
- assert.equal(report.starting,1000);assert.equal(report.current,1100);assert.equal(report.reduction,-100);assert.equal(report.groups[0].reduction,-100);assert.equal(report.percent,0);
+ assert.equal(report.comparisonAvailable,false);assert.equal(report.starting,0);assert.equal(report.current,1100);assert.equal(report.reduction,0);assert.equal(report.percent,0);
  const paid=buildActualProgress([{...account,balanceOffset:-1000,archivedAt:"2026-10-07"}],[],[],[],date);
  assert.equal(paid.reduction,1000);assert.equal(paid.groups[0].accounts.length,1);
 });

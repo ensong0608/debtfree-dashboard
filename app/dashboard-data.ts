@@ -662,6 +662,7 @@ function validateTransaction(value: unknown, path: string, issues: string[]) {
   if (!item) return;
   requiredString(item.id, `${path}.id`, issues);
   requiredString(item.date, `${path}.date`, issues);
+  if (hasOwn(item, "credit")) requiredBoolean(item.credit, `${path}.credit`, issues);
   requiredString(item.accountId, `${path}.accountId`, issues);
   requiredString(item.payeeId, `${path}.payeeId`, issues, true);
   requiredString(item.payeeName, `${path}.payeeName`, issues, true);
@@ -869,7 +870,7 @@ function validateIdentifiersAndDates(payload: UnknownRecord, path: string, issue
         if (ids.has(item.id)) issues.push(field + "[" + i + "].id duplicates " + item.id + ".");
         ids.add(item.id);
       }
-      for (const key of ["date", "dueDate", "promoEndDate"]) calendarDate(item[key], field + "[" + i + "]." + key);
+      for (const key of ["date", "dueDate", "promoEndDate", "balanceAsOf"]) calendarDate(item[key], field + "[" + i + "]." + key);
       calendarDate(item.month, field + "[" + i + "].month", true);
     });
   };

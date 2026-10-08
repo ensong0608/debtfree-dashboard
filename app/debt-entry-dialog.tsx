@@ -12,11 +12,12 @@ export default function DebtEntryDialog({ state, command, readOnly, onSave, onCl
   const [expected] = useState(() => JSON.stringify(state));
   const movement = transaction ? transaction.amount * (transaction.type === "payment" ? -1 : 1) : adjustment?.difference ?? 0;
   const [fields, setFields] = useState(() => ({ accountId: original?.accountId ?? state.accounts.find(a => !a.archivedAt)?.id ?? state.accounts[0]?.id ?? "", title: original?.title ?? (transaction?.interestEstimate ? "Monthly interest" : transaction?.type === "payment" || adjustment?.confirmedPayment ? "Payment" : transaction ? transaction.payeeName || "Card purchase" : adjustment ? "Balance update" : ""), date: original?.date ?? householdDate(), note: transaction?.memo ?? adjustment?.note ?? "", amount: original ? (movement >= 0 ? "+" : "") + movement.toFixed(2) : "" }));
-  const [recordType, setRecordType] = useState<"payment" | "transaction">(movement < 0 && (!adjustment || adjustment.confirmedPayment) ? "payment" : "transaction");
+  const [negativeKind, setNegativeKind] = useState<"payment" | "credit" | "adjustment">(adjustment ? adjustment.confirmedPayment ? "payment" : "adjustment" : transaction?.credit ? "credit" : "payment");
   const [saveError, setSaveError] = useState("");
   useEffect(() => { const key = (event: KeyboardEvent) => { if (event.key === "Escape") onClose(); }; window.addEventListener("keydown", key); return () => window.removeEventListener("keydown", key); }, [onClose]);
   const draft = signedEntryDraft(original, fields);
-  if (adjustment && draft.direction === "decrease") draft.confirmAsPayment = recordType === "payment";
+  if (adjustment && draft.direction === "decrease") draft.confirmAsPayment = negativeKind === "payment";
+  if (!adjustment) draft.credit = draft.direction === "decrease" && negativeKind === "credit";
   const edited = { ...command, ...(command.action === "save" ? { draft } : {}) };
   let error = ""; let next = state;
   try { next = changeDebtEntry(state, edited, undefined, "preview", "preview-entry"); } catch (e) { error = e instanceof Error ? e.message : "Check the entry."; }
@@ -25,27 +26,21 @@ export default function DebtEntryDialog({ state, command, readOnly, onSave, onCl
   const affected = [...new Set([original?.accountId, fields.accountId].filter(Boolean))];
   const dialogTitle = command.action === "save" ? original ? "Edit transaction" : "New transaction" : command.action === "delete" ? transaction?.type === "payment" ? "Delete payment?" : "Delete transaction?" : transaction?.type === "payment" ? "Restore payment?" : "Restore transaction?";
   const change = (key: keyof typeof fields, value: string) => {
-    if (key === "amount" && value) {
-      if (/^[−-]/.test(value)) setRecordType("payment");
-      else if (/^[+]/.test(value)) setRecordType("transaction");
-      else if (recordType === "payment") value = "-" + value;
-    }
     setFields(d => ({ ...d, [key]: value })); setSaveError("");
   };
   const setSign = (negative: boolean) => change("amount", (negative ? "-" : "+") + fields.amount.replace(/^[+−-]/, ""));
-  const chooseRecordType = (next: "payment" | "transaction") => { setRecordType(next); if (adjustment && movement < 0 && /^[−-]/.test(fields.amount) && next === "transaction") return; setSign(next === "payment"); };
   const suggestions = [...new Set([...state.transactions, ...state.adjustments].map(t => t.title).filter((t): t is string => Boolean(t)))].slice(0, 100);
   const isNegative = /^[−-]/.test(fields.amount);
   return <div className="modal-backdrop" onMouseDown={e => { if (e.currentTarget === e.target) onClose(); }}><section className="modal debt-action-modal transaction-compose" role="dialog" aria-modal="true" aria-labelledby="debt-entry-title">
     <header><div><span className="compose-eyebrow">YOUR CARD ACTIVITY</span><h2 id="debt-entry-title">{dialogTitle}</h2></div><button type="button" aria-label="Close transaction" onClick={onClose}>×</button></header>
     <form onSubmit={e => { e.preventDefault(); if (readOnly || error) return; const result = onSave(edited, expected); if (result) setSaveError(result); else onClose(); }}><div className="debt-action-form compose-fields">
     {command.action === "save" ? <>
-      <div className="compose-record-type"><span>Record type</span><div role="group" aria-label="Record type"><button type="button" aria-pressed={recordType === "transaction"} onClick={() => chooseRecordType("transaction")}>Transaction</button><button type="button" aria-pressed={recordType === "payment"} disabled={Boolean(transaction?.interestEstimate)} onClick={() => chooseRecordType("payment")}>Payment</button></div></div>
       <label className="compose-field"><span>What’s it for?</span><input aria-label="What’s it for?" list="transaction-title-suggestions" maxLength={160} placeholder="e.g. SFC Henderson grocery run" value={fields.title} onChange={e => change("title", e.target.value)}/></label>
       <datalist id="transaction-title-suggestions">{suggestions.map(title => <option key={title} value={title}/>)}</datalist>
       <div className="compose-row"><label className="compose-field"><span>Card used</span><select aria-label="Card used" value={fields.accountId} disabled={Boolean(transaction?.interestEstimate)} onChange={e => change("accountId", e.target.value)}>{state.accounts.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}</select></label><label className="compose-field"><span>Date</span><input aria-label="Transaction date" type="date" value={fields.date} disabled={Boolean(transaction?.interestEstimate)} onChange={e => change("date", e.target.value)}/></label></div>
       <label className={"compose-field signed-money " + (isNegative ? "is-payment" : "is-increase")}><span>Amount</span><div className="signed-money-input"><span aria-hidden="true">$</span><input aria-label="Transaction amount" inputMode="decimal" autoComplete="off" spellCheck={false} value={fields.amount} placeholder="+66.96" aria-describedby="signed-amount-hint entry-validation" onChange={e => change("amount", e.target.value)}/></div></label>
-      <div className="signed-amount-controls"><div role="group" aria-label="Amount sign"><button type="button" aria-label="Use positive amount" aria-pressed={!isNegative} onClick={() => setSign(false)}>+</button><button type="button" aria-label="Use negative amount" aria-pressed={isNegative} disabled={Boolean(transaction?.interestEstimate)} onClick={() => setSign(true)}>−</button></div><span id="signed-amount-hint">+ increases debt · − is a payment</span></div>
+      <div className="signed-amount-controls"><div role="group" aria-label="Amount sign"><button type="button" aria-label="Use positive amount" aria-pressed={!isNegative} onClick={() => setSign(false)}>+</button><button type="button" aria-label="Use negative amount" aria-pressed={isNegative} disabled={Boolean(transaction?.interestEstimate)} onClick={() => setSign(true)}>−</button></div><span id="signed-amount-hint">+ increases debt · − decreases debt (normally a payment)</span></div>
+      {isNegative && <details className="compose-notes" open={Boolean(adjustment) || negativeKind === "credit" || undefined}><summary>{adjustment ? "Classify this balance decrease" : "Refund or credit? (optional)"}</summary><label><span>Report as</span><select aria-label="Decrease classification" value={negativeKind} onChange={e => setNegativeKind(e.target.value as typeof negativeKind)}>{adjustment && <option value="adjustment">Reconciliation adjustment</option>}<option value="payment">Payment</option>{!adjustment && <option value="credit">Refund / credit</option>}</select></label><p>{adjustment ? "Classification changes reporting only. It does not apply another balance decrease." : "Refunds and credits reduce debt but do not count as payments."}</p></details>}
       <details className="compose-notes" open={Boolean(fields.note) || undefined}><summary>Add a note <span>optional</span></summary><label className="compose-field"><span className="sr-only">Notes</span><textarea aria-label="Transaction notes" rows={2} placeholder="Anything else to remember" value={fields.note} onChange={e => change("note", e.target.value)}/></label></details>
     </> : <div className="compose-entry-summary"><strong>{fields.title}</strong><p>{money.format(draft.amount)} · {state.accounts.find(a => a.id === original?.accountId)?.name ?? "Removed debt"} · {fields.date}</p></div>}
     {transaction?.interestEstimate && <p className="compose-context">{transaction.interestEstimate.reconciledAt ? "Estimate reconciled to lender balance" : "Monthly interest · one entry per cycle. Its card and date stay fixed."}</p>}
