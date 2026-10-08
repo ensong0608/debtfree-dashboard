@@ -1009,6 +1009,7 @@ export default function DashboardClient({ user }: { user: DashboardUser }) {
         </fieldset>
       </div>
       {page === "payments" && !debtEntryOpen && <section className="bottom-action-bar transaction-add-bar" aria-label="Add a record"><button type="button" aria-label="Add record" disabled={isViewer || !accounts.length} onClick={() => { setNewRecordOpen(true); setDebtEntryOpen(true); }}>+</button></section>}
+      {page === "accounts" && !debtEntryOpen && <section className="bottom-action-bar debt-add-bar" aria-label="Add a debt"><button type="button" disabled={isViewer} onClick={openNew}>Debt +</button></section>}
       {page === "monthly" && !cashflowModalOpen && <section className="bottom-action-bar budget-add-bar" aria-label="Add a budget entry"><button type="button" className="income-action" disabled={isViewer} onClick={() => openNewCashflow("income")}>Income +</button><button type="button" className="expense-action" disabled={isViewer} onClick={() => openNewCashflow("expense")}>Spending +</button><button type="button" className="purchase-action" aria-label="Oneoff +, one-time adjustment" disabled={isViewer} onClick={() => openNewCashflow("purchase")}>Oneoff +</button></section>}
     </main>
 
@@ -1253,10 +1254,7 @@ function AccountsPage({
   </div>;
 
   return <div className="screen debts-screen">
-    <div className="screen-title">
-      <div><span className="eyebrow">Debt workspace</span><h1>Debts</h1><p>Keep balances current. Record payments when you know the amount.</p></div>
-      <div className="screen-actions"><button className="primary" type="button" onClick={onAdd}>+ Add debt</button></div>
-    </div>
+    <h1 className="sr-only">Debts</h1>
     {importMessage && <p className={importMessage.startsWith("Import failed") ? "import-message error" : "import-message"}>{importMessage}</p>}
     {actionMessage && <p className="debt-action-message" role="status" aria-live="polite">{actionMessage}</p>}
     <section className="simple-total debt-total-summary"><div className="debt-total-heading"><span>{includeSummaryLoans ? "Total current balance · all debts" : "Current balance · cards & other debts"}</span>{loans.length > 0 && <button type="button" className="summary-loan-toggle" aria-pressed={!includeSummaryLoans} onClick={toggleSummaryLoans}>{includeSummaryLoans ? "Hide house & car" : "Show house & car"}</button>}</div><strong>{moneyPrecise.format(totalBalance + (includeSummaryLoans ? loans.reduce((sum, loan) => sum + loan.remainingAmount, 0) : 0))}</strong><MobileCategorySummary accounts={current} loans={includeSummaryLoans ? loans : []}/></section>

@@ -28,7 +28,7 @@ export default function PaymentsPage({ readOnly, accounts, transactions, adjustm
     ...adjustments.filter(a => a.deletedAt).map(a => ({ id: "adjustment:" + a.id, accountId: a.accountId, amount: Math.abs(a.difference), date: a.date, kind: "adjustment" })),
   ].filter(t => t.date.slice(0, 7) === month && (accountId === "all" || t.accountId === accountId));
   return <div className="screen payments-screen transactions-screen">
-    <h1 className="transactions-heading">Transactions</h1>
+    <h1 className="sr-only">Transactions</h1>
     {message && <p className="debt-action-message" role="status">{message}</p>}
     <div className="payments-filters"><label><span>Month</span><input type="month" value={month} onChange={e => setMonth(e.target.value)}/></label><label><span>Debt</span><select value={accountId} onChange={e => setAccountId(e.target.value)}><option value="all">All debts</option>{knownIds.map(id => <option key={id} value={id}>{names.get(id) ?? "Removed debt (" + id + ")"}</option>)}</select></label></div>
     <section className="simple-total" aria-label="Confirmed payment total"><span>Payments this month</span><strong>{currency.format(confirmedPaymentTotal(transactions, adjustments, month, accountId))}</strong><details><summary>How totals work</summary><p>Negative entries saved here count as payments. Older balance decreases stay separate until you identify them as payments. Your budget checklists stay unchanged.</p></details></section>

@@ -1631,3 +1631,5 @@ textarea:focus-visible{outline:3px solid rgba(22,119,255,.22);outline-offset:2px
 .budget-category-icon.income{background:#e5f6ef;color:#087f66}
 .budget-category-icon.spending{background:#fff3de;color:#995b0b}
 .budget-category-icon.adjustments{background:#fcecee;color:#b23840}
+
+.debt-add-bar>button{min-height:44px;padding:8px 16px;border:1px solid #d1c4ec;border-radius:12px;background:#f5f1fc;color:#6945ae;font-size:15px;font-weight:700}

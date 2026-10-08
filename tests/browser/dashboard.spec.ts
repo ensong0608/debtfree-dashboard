@@ -100,7 +100,7 @@ test("create a household plan, record payment, change strategy and restore a bac
   await page.getByLabel(/Total monthly debt-payment amount/).fill("500");
   await page.getByRole("button", { name: /Generate/ }).click();
   await page.getByRole("button", { name: "Continue into the application" }).click();
-  await expect(page.getByRole("heading", { name: "Debts", exact: true })).toBeVisible();
+  await expect(page.locator(".debts-screen")).toBeVisible();
   await page.getByRole("button", { name: "Transactions", exact: true }).click();
   await openPaymentRecord(page);
   const dialog = page.getByRole("dialog");
@@ -138,7 +138,7 @@ test("create a household plan, record payment, change strategy and restore a bac
   await page.getByRole("button", { name: "Replace and import" }).click();
   await expect(page.getByText(/Full backup restored/)).toBeVisible();
   await page.reload();
-  await expect(page.getByRole("heading", { name: "Debts", exact: true })).toBeVisible();
+  await expect(page.locator(".debts-screen")).toBeVisible();
   expect(errors).toEqual([]);
 });
 
@@ -147,7 +147,7 @@ test("legacy import and modal keyboard focus work without document overflow", as
   await page.locator('input[type="file"]').setInputFiles(path.resolve("tests/fixtures/legacy-v0.json"));
   await expect(page.getByRole("button", { name: "Debts", exact: true })).toBeVisible();
   await page.getByRole("button", { name: "Debts", exact: true }).click();
-  const trigger = page.getByRole("button", { name: /Add debt/, exact: false }).first();
+  const trigger = page.getByRole("button", { name: "Debt +", exact: true }).first();
   await trigger.click();
   const dialog = page.getByRole("dialog");
   await expect(dialog).toBeVisible();
