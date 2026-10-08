@@ -1634,6 +1634,9 @@ textarea:focus-visible{outline:3px solid rgba(22,119,255,.22);outline-offset:2px
 
 .debt-add-bar>button{min-height:44px;padding:8px 16px;border:1px solid #d1c4ec;border-radius:12px;background:#f5f1fc;color:#6945ae;font-size:15px;font-weight:700}
 
+/* Keep correction-history controls reachable above the card edit surface. */
+.clean-transaction-card>details{position:relative;z-index:2}
+
 /* Reference design: shared surfaces and controls, with a responsive content grid. */
 :root{--ink:#10182f;--muted:#526079;--line:#dfe3eb;--paper:#f6f7f9;--shadow:0 2px 10px #17243a05;--amber:#bd6900;--teal:#007f73;--lavender:#ece7ff;--rose:#ffe0e4}
 .app-shell{font-size:16px;background:var(--paper)}
