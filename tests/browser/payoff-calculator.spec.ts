@@ -31,6 +31,11 @@ test("calculator uses only the entered amount and preserves balances and Budget"
   expect(results[1].top).toBe(results[2].top);
   expect(results[0].left).toBeLessThan(results[1].left);
   expect(results[1].left).toBeLessThan(results[2].left);
+  const ordering = await page.locator(".plan-screen").evaluate(screen => ({
+    resultsBottom: screen.querySelector(".plan-hero")!.getBoundingClientRect().bottom,
+    scheduleTop: screen.querySelector(".plan-table-card")!.getBoundingClientRect().top,
+  }));
+  expect(ordering.resultsBottom).toBeLessThanOrEqual(ordering.scheduleTop);
   await page.reload();
   await page.getByRole("button", { name: "More", exact: true }).click();
   await page.getByRole("button", { name: "Payoff Calculator", exact: true }).click();

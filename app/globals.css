@@ -1760,7 +1760,11 @@ input,select,textarea{font-size:16px}
 .plan-screen>.plan-hero strong{display:block;font-size:clamp(17px,2.3vw,24px);line-height:1.25;margin:8px 0;overflow-wrap:anywhere}
 .plan-screen>.plan-hero>div>span{display:block;min-height:33px;font-size:12px;line-height:1.35}
 .plan-screen>.plan-hero small{display:block;font-size:11px;line-height:1.35}
-.plan-screen>.calculator-controls{margin-bottom:16px}
+.plan-screen>.calculator-controls{order:0;margin-bottom:16px}
+.plan-screen>.plan-table-card{order:3}
+.plan-screen>.calculation-details{order:4}
+.plan-screen>.export-control{order:5}
+.plan-screen>.large-empty{order:1}
 .plan-screen .strategy-control>div{display:grid;grid-template-columns:repeat(2,minmax(0,1fr))}
 .payment-plan-screen>.plan-hero{background:var(--blue-soft);border-color:var(--line)}
 .payment-plan-screen>.plan-hero>div{background:var(--blue-soft)}
