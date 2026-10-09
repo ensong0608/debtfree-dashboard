@@ -1301,9 +1301,9 @@ textarea:focus-visible{outline:3px solid rgba(22,119,255,.22);outline-offset:2px
 .transaction-compose .signed-money-input>input{min-width:0;width:100%;border:0;box-shadow:none;background:transparent;padding:10px 0;font-size:32px!important;font-weight:750;line-height:1.3;min-height:58px;color:#9a4a10;border-radius:6px}
 .transaction-compose .signed-money.is-payment .signed-money-input{border-color:#b2d9cd;background:#f2fbf7}
 .transaction-compose .signed-money.is-payment input{color:#087f66}
-.transaction-compose .signed-amount-controls{display:flex;align-items:center;gap:12px;margin-top:-10px}
-.transaction-compose .signed-amount-controls>[role=group]{display:flex;gap:6px;flex-shrink:0}
-.transaction-compose .signed-amount-controls button{width:48px;height:44px;border:1px solid #cedce9;border-radius:10px;background:white;color:#284963;font-size:23px}
+.transaction-compose .signed-amount-controls{display:block;margin:0;min-width:0}
+.transaction-compose .signed-amount-controls>[role=group]{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;width:100%}
+.transaction-compose .signed-amount-controls button{width:100%;min-width:0;min-height:48px;height:auto;padding:10px 8px;border:1px solid #cedce9;border-radius:10px;background:white;color:#284963;font-size:14px;font-weight:600;line-height:1.4;white-space:normal}
 .transaction-compose .signed-amount-controls button[aria-pressed=true]{background:#173c62;color:white;border-color:#173c62}
 .transaction-compose .signed-amount-controls>span{font-size:13px;color:#576c82;line-height:1.4}
 .transaction-compose .compose-notes summary{cursor:pointer;color:#365874;font-weight:600;min-height:28px}
@@ -1750,7 +1750,9 @@ input,select,textarea{font-size:16px}
 
 .snapshot-controls{margin-bottom:16px}
 
-.plan-screen .extra-control label,.plan-screen .strategy-control>span{font-size:14px}
+.plan-screen .extra-control label,.plan-screen .strategy-control{width:100%;min-width:0}
+.plan-screen .strategy-control>div{width:100%;max-width:none}
+.plan-screen .strategy-control>span{font-size:14px}
 .plan-screen .extra-control small,.plan-screen .strategy-control small{font-size:13px;line-height:1.5}
 
 /* Compact payoff results, with a separate payment workspace for the Plan. */
@@ -1813,7 +1815,6 @@ button:focus-visible,summary:focus-visible,input:focus-visible,select:focus-visi
 .debts-screen{display:flex;flex-direction:column}.debt-total-summary{order:-1}
 .optional-account-details>summary{padding:14px;border:1px solid var(--line);border-radius:10px;margin-top:12px;cursor:pointer}
 .optional-account-details>.form-grid{margin-top:14px}
-.signed-amount-controls>div{display:grid;grid-template-columns:1fr 1fr;width:100%}.signed-amount-controls button{width:auto;min-height:44px;font-size:14px}
 .payment-overlap{padding:16px;margin:12px;border:1px solid #d5a33b;border-radius:12px;background:#fff8e9;display:grid;gap:10px}
 .payment-overlap p{font-size:13px;line-height:1.4}.payment-overlap small{display:block;font-size:12px}
 .payment-overlap button[aria-pressed=true]{border-color:#aa670f;background:#fff0cf}
@@ -1832,9 +1833,123 @@ button:focus-visible,summary:focus-visible,input:focus-visible,select:focus-visi
 .debts-screen .compact-debt-identity{display:block}.debts-screen .compact-debt-identity h2{font-size:18px;margin-bottom:8px}.debts-screen .compact-debt-identity .simple-balance{font-size:26px}
 .debts-screen .balance-first-cards>.compact-debt-card{border-left-color:var(--category-mark,#e8b63b)}
 [data-debt-category=credit]{--category-mark:#e8b63b;--category-ink:#815905}[data-debt-category=auto]{--category-mark:#9473e4;--category-ink:#6945ae}[data-debt-category=medical]{--category-mark:#e46e9f;--category-ink:#a23768}[data-debt-category=student]{--category-mark:#42a88d;--category-ink:#206f5a}[data-debt-category=personal]{--category-mark:#5797d0;--category-ink:#306791}[data-debt-category=other]{--category-mark:#8493a5;--category-ink:#4e5f72}
-.debts-screen .compact-debt-actions>.primary{background:var(--category-ink,#815905);border:1px solid var(--category-ink,#815905);color:white;font-size:14px;border-radius:9px;box-shadow:none}
+.debts-screen .compact-debt-actions>.primary{background:#b9eee0;border:1px solid #80cdb7;color:#154c40;font-size:14px;border-radius:9px;box-shadow:none}
 .debts-screen .debt-reduction-track>span{background:var(--category-mark,#e8b63b)}
 .debt-tabs button[aria-pressed=true]{background:#e5f2f0;border:1px solid #247c73;color:#135952}
 .scenario-comparison{order:0;display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px}.scenario-comparison article{border:1px solid var(--line);border-radius:12px;padding:14px;background:white;min-width:0}.scenario-comparison article:last-child{background:#fff8ea}.scenario-comparison span{font-size:12px;color:var(--muted);display:block}.scenario-comparison strong{font-size:16px;display:block;margin-top:8px;overflow-wrap:anywhere}
-.progress-snapshot-chart svg{max-height:180px}.loan-progress-card .compact-debt-actions>button:first-child{background:#266c5e;color:white;border-color:#266c5e}
+.progress-snapshot-chart svg{max-height:180px}.loan-progress-card .compact-debt-actions>button:first-child{background:#b9eee0;color:#154c40;border-color:#80cdb7}
 .actual-progress-screen{gap:14px}.snapshot-controls>.snapshot-note{margin:0 0 8px}.snapshot-note summary{font-size:13px}.progress-snapshot-chart h2{font-size:17px}.actual-progress-screen .snapshot-controls>button{min-height:44px;width:100%;margin-bottom:6px}
+
+/* Visible direction choices and full-screen mobile account activity. */
+.transaction-compose .decrease-classification{margin:0;padding:0;border:0;min-width:0}
+.transaction-compose .decrease-classification legend{margin-bottom:10px;font-size:14px;font-weight:600;color:#3b4a60}
+.transaction-compose .decrease-classification>div{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.transaction-compose .decrease-classification label{display:flex;align-items:center;gap:6px;min-width:0;margin:0;padding:10px 8px;min-height:48px;border:1px solid #ccd9e6;border-radius:10px;background:#fff;color:#284963;cursor:pointer;font-size:13px;line-height:1.4}
+.transaction-compose .decrease-classification label>span{min-width:0;white-space:normal;overflow-wrap:anywhere}
+.transaction-compose .decrease-classification input{width:16px;height:16px;min-height:0;flex:0 0 16px;margin:0;padding:0;accent-color:#176c5a}
+.transaction-compose .decrease-classification .is-selected{background:#e5f5ef;border-color:#5c9f8b;color:#154c40}
+.account-activity-modal>header{align-items:center;padding-bottom:16px;border-bottom:1px solid var(--line)}
+.account-activity-modal>header h2{font-size:21px;overflow-wrap:anywhere;min-width:0;margin:0}
+.account-activity-modal>header button{flex:0 0 44px}
+@media(max-width:700px){
+ .account-activity-backdrop{padding:0;place-items:stretch}
+ .modal.account-activity-modal{width:100%;max-width:none;height:100vh;height:100dvh;max-height:none;margin:0;padding:0;border:0;border-radius:0;display:flex;flex-direction:column;overflow:hidden}
+ .account-activity-modal>header{flex:0 0 auto;padding:calc(16px + env(safe-area-inset-top)) 16px 16px;background:white}
+ .account-activity-modal>.debt-history{flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain;padding:0 16px calc(16px + env(safe-area-inset-bottom));margin:0;border:0}
+ .account-activity-modal .inline-activity-entry{grid-template-columns:36px minmax(0,1fr) auto;align-items:start;row-gap:4px;padding:12px 0}
+ .account-activity-modal .inline-activity-title{white-space:normal;overflow-wrap:anywhere}
+ .account-activity-modal .inline-captured-balance{grid-column:2/-1;grid-row:2;white-space:normal}
+ .account-activity-modal .inline-activity-entry b{grid-column:3;grid-row:1}
+}
+
+/* Progress reference: summary trend, compact monthly tiles, then saved snapshots. */
+.actual-progress-screen .debt-tabs{border:1px solid #d2d7df;border-radius:12px;padding:3px;background:#f0f1f4;gap:3px}
+.actual-progress-screen .debt-tabs button[aria-pressed=true]{background:#087b80;border-color:#087b80;color:white;border-radius:9px}
+.actual-progress-screen .actual-progress-summary.progress-story{margin:0;padding:18px;border-radius:16px}
+.actual-progress-screen .progress-story>strong{color:#127b7f;font-size:34px;line-height:1.2;margin:6px 0}
+.actual-progress-screen .progress-story>.progress-percent{font-size:15px;margin:6px 0 18px}
+.progress-percent>b{color:#127b7f}
+.actual-progress-screen .progress-story>dl{grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;margin:0}
+.actual-progress-screen .progress-story>dl>div{display:block;min-width:0}
+.actual-progress-screen .progress-story>dl>div+div{padding-left:18px;border-left:1px solid #dce2e7}
+.actual-progress-screen .progress-story dd{font-size:20px;margin-top:4px;overflow-wrap:anywhere}
+.actual-progress-screen .progress-story .progress-snapshot-chart{margin:14px 0 0}
+.progress-story .progress-snapshot-chart svg{width:100%;display:block;max-height:150px}
+.progress-story .progress-snapshot-chart p{font-size:11px;text-align:right;margin:2px 0 0;color:#586878}
+.progress-month-highlights{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.progress-month-highlights .actual-month-card{padding:16px;border-radius:14px}
+.progress-month-highlights .actual-month-card h2{font-size:15px;font-weight:400;margin:0 0 6px}
+.progress-month-highlights .actual-month-card>strong{color:#127b7f;font-size:23px;line-height:1.3;overflow-wrap:anywhere}
+.progress-month-highlights .actual-month-card p{font-size:11px;margin:4px 0 0}
+.progress-month-breakdown{font-size:13px;padding:0 4px}
+.progress-month-breakdown>summary{min-height:44px;cursor:pointer;display:flex;align-items:center;color:#40556a}
+.progress-month-breakdown dl{padding:12px;background:#fff;border:1px solid var(--line);border-radius:12px}
+.actual-progress-screen .snapshot-controls{margin:0}
+.actual-progress-screen .snapshot-controls>h2{font-size:17px;padding-bottom:12px;margin:0;border-bottom:1px solid #e0e5ea}
+.actual-progress-screen .saved-check{border:0;border-bottom:1px solid #e0e5ea;border-radius:0;margin:0 0 10px;padding:0 0 10px;background:#fff}
+.actual-progress-screen .saved-check>summary{padding:12px 0 0;cursor:pointer;line-height:1.4}
+.actual-progress-screen .saved-check>summary>span{font-size:15px;font-weight:600}
+.actual-progress-screen .snapshot-controls>.snapshot-note{margin:8px 0}
+@media(min-width:900px){.actual-progress-screen{max-width:1000px}.actual-progress-screen .progress-story .progress-snapshot-chart svg{max-height:180px}}
+
+@media(max-width:420px){.transaction-compose .decrease-classification>div{grid-template-columns:minmax(0,1fr)}}
+
+/* Calculator and saved Plan follow the distinct planning reference. */
+.plan-screen.payoff-forecast-screen,.plan-screen.payment-plan-screen{max-width:780px;gap:14px}
+.plan-screen>.plan-purpose{order:0;margin:0;gap:12px}
+.plan-screen .plan-purpose h1{font-size:25px;line-height:1.2;font-weight:750}
+.plan-screen .plan-purpose>span{white-space:nowrap;background:#f2f1ed;color:#374151}
+.payment-plan-screen .plan-purpose>span{background:#e5f2ef;color:#214e46}
+.plan-screen>.calculator-intro{order:0;margin:0;font-size:14px;color:#576374}
+.plan-screen>.calculator-controls{order:0;margin:0;padding:0;border:0;background:transparent;display:grid;grid-template-columns:minmax(0,1fr);gap:12px}
+.plan-screen .extra-control{width:100%;padding:0;display:flex;flex-direction:column;gap:8px}
+.plan-screen .extra-control>label{font-size:14px;font-weight:600}
+.plan-screen .extra-control>div{order:1;width:100%;height:auto;min-height:56px;border:1px solid #cbd3dd;border-radius:10px;background:white;display:flex;align-items:center;padding:0 12px}
+.plan-screen .extra-control>div input{font-size:26px;min-height:56px;font-weight:600;background:transparent;border:0;box-shadow:none;padding:8px 4px;min-width:0}
+.plan-screen .extra-control>small{order:2;background:#eef0f3;border-radius:9px;padding:9px 12px;font-size:13px;color:#4e5a6b}
+.plan-screen .strategy-control{width:100%;min-width:0}
+.plan-screen .strategy-control>div{width:100%;max-width:none}
+.plan-screen .strategy-control>span{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0)}
+.plan-screen .strategy-control>div,.allocation-tabs{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:3px;padding:3px;background:#f1f2f4;border:1px solid #d2d7df;border-radius:10px}
+.plan-screen .strategy-control button,.allocation-tabs button{border:0;border-radius:8px;min-height:44px;padding:8px;font-size:14px;background:transparent;color:#485568}
+.plan-screen .strategy-control button.active,.allocation-tabs button[aria-selected=true]{background:#f6ab32;color:#35230a;font-weight:600;border:0;box-shadow:none}
+.plan-screen>.scenario-comparison{order:0;margin:0;gap:12px}
+.scenario-comparison article{padding:14px;border:1px solid #d4d9df;border-radius:12px;background:#fff}
+.scenario-comparison article:last-child{background:#fff9ed;border-color:#dbbb80}
+.scenario-comparison span{font-size:13px;color:#46546a}.scenario-comparison strong{font-size:20px;line-height:1.4;margin-top:8px}
+.plan-screen>.scenario-actions{order:0;display:grid;gap:10px}
+.scenario-actions button{width:100%;min-height:48px;border-radius:10px;font-size:15px;font-weight:600}
+.scenario-actions>.calculate-scenario{background:#f6ab32;border:1px solid #e29925;color:#35230a;box-shadow:none}
+.scenario-actions>.use-plan{background:white;border:1px solid #9aa6b6;color:#17243a}
+.scenario-actions>small{font-size:12px;color:#536176;line-height:1.4}
+.plan-screen>.calculation-details{order:0;padding:0;border:1px solid #d4d9df;border-radius:12px;background:white}
+.calculation-details>summary{min-height:48px;padding:14px;font-size:14px;font-weight:600;cursor:pointer}
+.plan-screen>.plan-commitment{order:0;border:1px solid #d4d9df;background:white;border-radius:14px;padding:16px}
+.plan-commitment>span{font-size:14px;color:#405065}.plan-commitment>strong{display:block;font-size:32px;line-height:1.3;margin:4px 0;color:#17243a}
+.plan-commitment>p{font-size:13px;color:#526073;margin:6px 0 0}
+.plan-screen.payment-plan-screen>.payment-allocation{order:0;padding:0;background:transparent;border:0}
+.payment-allocation>header{display:block;margin:0 0 12px;padding:0}
+.payment-allocation>header h2{font-size:22px;margin:0;line-height:1.4}
+.payment-allocation .allocation-tabs{margin-bottom:12px}
+.payment-allocation .allocation-cards{display:grid;grid-template-columns:1fr;gap:12px}
+.payment-allocation .allocation-card{background:white;border:1px solid #d4d9df;border-radius:14px;padding:16px;box-shadow:none}
+.allocation-card>header{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:12px;align-items:start;margin-bottom:10px}
+.allocation-card>header h3{font-size:17px;line-height:1.4;margin:0;overflow-wrap:anywhere}
+.allocation-card>header .allocation-total{font-size:21px;line-height:1.4;color:#17243a;font-variant-numeric:tabular-nums}
+.allocation-card .allocation-values{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:14px}
+.allocation-card .allocation-values span,.allocation-card .allocation-minimum label{font-size:12px;color:#536176}
+.allocation-card .allocation-input{height:36px;margin-top:4px;max-width:130px;background:#fff}
+.allocation-card .allocation-values strong{font-size:15px;line-height:36px;margin-top:4px}
+.allocation-card .allocation-recorded{margin-top:12px}
+.allocation-card .allocation-recorded button{background:#fff;border:1px solid #a6afba;border-radius:8px;min-height:44px;font-size:14px;color:#17243a}
+.recorded-payment-label{font-size:13px;color:#526073;margin:6px 0}
+.plan-screen>.edit-saved-plan{order:0;min-height:48px;background:white;border:1px solid #a6afba;border-radius:10px;font-size:14px}
+.plan-screen>.plan-hero,.plan-screen.payment-plan-screen>.plan-hero{order:1;background:white;border:1px solid #d4d9df;border-radius:12px;scroll-margin-top:16px}
+.plan-screen.payment-plan-screen>.plan-hero>div{background:white}
+.plan-screen>.plan-table-card{order:2}
+.plan-screen>.export-control{order:3}
+@media(min-width:900px){.payment-allocation .allocation-cards{grid-template-columns:repeat(2,minmax(0,1fr))}}
+
+.progress-view-activity{background:transparent;border:0;color:#126f72;font-size:14px;min-height:44px;text-align:center;width:100%}
+
+.plan-screen>.plan-schedule-link{order:0;min-height:44px;border:0;background:transparent;color:#895409;font-size:14px}

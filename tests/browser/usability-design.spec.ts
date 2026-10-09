@@ -42,7 +42,7 @@ test('everyday workflows keep independent targets, linked balances, Undo, and te
  await page.getByRole('button',{name:'More',exact:true}).click();await page.getByRole('button',{name:'Payoff Calculator',exact:true}).click();
  await page.getByLabel('Total monthly debt payment',{exact:true}).fill('700');await screenshot('calculator');
  await page.getByRole('button',{name:'More',exact:true}).click();await page.getByRole('button',{name:'Payoff Plan',exact:true}).click();
- await expect(page.getByLabel('Total monthly debt payment',{exact:true})).toHaveValue('600');await expect(page.locator('.allocation-recorded').first()).toContainText('$0.00');
+ await expect(page.getByLabel('Total monthly debt payment',{exact:true})).toHaveValue('600');await page.getByRole('tab',{name:'Recorded',exact:true}).click();await expect(page.locator('.allocation-total').first()).toHaveText('$0.00');await page.getByRole('tab',{name:'Planned',exact:true}).click();
  await screenshot('plan');
  await page.getByRole('button',{name:'More',exact:true}).click();await page.getByRole('button',{name:'Payoff Calculator',exact:true}).click();await page.getByRole('button',{name:'Use this in my plan'}).click();await expect(page.getByLabel('Total monthly debt payment',{exact:true})).toHaveValue('700');
  await page.getByRole('button',{name:'More',exact:true}).click();await page.getByRole('button',{name:'Progress',exact:true}).filter({visible:true}).click();

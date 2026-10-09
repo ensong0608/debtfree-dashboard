@@ -185,12 +185,12 @@ test("payoff pages expose only avalanche and snowball while retaining audit anno
 test("calculation transparency includes every required assumption and estimate warning", async () => {
   const client = await readFile(new URL("../app/payoff-calculator-page.tsx", import.meta.url), "utf8");
   [
-    "How this plan was calculated",
+    "Assumptions",
     "Starting debt",
-    "Payments already made are never deducted again",
+    "Current balances already include recorded transactions",
     "reserves saved or estimated minimums first",
     "Interest is estimated monthly",
-    "Trying a scenario does not change the saved plan",
+    "Trying a scenario does not change your saved plan",
   ].forEach((label) => assert.ok(client.includes(label), `Missing calculation detail: ${label}`));
 });
 

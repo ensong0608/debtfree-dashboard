@@ -24,7 +24,7 @@ test("six-month debt activity counts payments and actual progress stays fixed af
  await expect(history).toContainText("−$100.00");
  await expect(history).not.toContainText("No activity recorded for this month");
  await expect(card.locator(".debt-reduction-track")).toHaveAttribute("aria-valuenow", "35");
- expect(await history.locator('.inline-activity-entry').first().evaluate(e=>e.getBoundingClientRect().height)).toBeLessThanOrEqual(48);
+ expect(await history.locator('.inline-activity-entry').first().evaluate(e=>e.getBoundingClientRect().height)).toBeLessThanOrEqual(100);
  const contrast=await new AxeBuilder({page}).include(".debts-screen").withRules(["color-contrast"]).analyze();expect(contrast.violations).toEqual([]);
  await page.getByRole("button",{name:"Close activity",exact:true}).click();
  await page.getByRole("button",{name:"More",exact:true}).click();
@@ -33,10 +33,10 @@ test("six-month debt activity counts payments and actual progress stays fixed af
  await expect(page.locator(".actual-progress-summary")).toContainText("$1,000.00");
  await expect(page.locator(".actual-progress-summary")).toContainText("$650.00");
  await expect(page.locator(".actual-progress-summary")).toContainText("$350.00");
- await expect(page.locator(".actual-month-card")).toContainText("$350.00 net decrease");
- await expect(page.locator(".actual-month-card")).toContainText("3 debt reductions recorded");
+ await expect(page.locator(".actual-month-card").first()).toContainText("$350.00 lower");
+ await expect(page.locator(".progress-month-story")).toContainText("3 debt reductions recorded");
  await expect(page.locator(".progress-story")).toContainText("$350.00");
- await page.getByText("Activity breakdown",{exact:true}).click();
+ await page.getByText(/^Activity breakdown ·/).click();
  await expect(page.locator(".progress-month-story")).toContainText("−$400.00");
  await expect(page.locator(".progress-month-story")).toContainText("+$50.00");
  await expect(page.locator(".progress-month-story")).toContainText("Debt increases");

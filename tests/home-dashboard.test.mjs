@@ -246,7 +246,7 @@ test("Phase 4 navigation, advanced access, mobile targets, and headings are expl
   const progress = await readFile(new URL("../app/actual-progress-page.tsx", import.meta.url), "utf8");
   assert.match(progress, /<h1>Progress<\/h1>/);
   assert.match(progress, /actual-progress-summary/);
-  assert.match(progress, /Recent changes/);
+  assert.match(progress, /This month/);
   assert.match(page, /aria-labelledby="home-summary-title"/);
   assert.match(page, /<h2[^>]*>Payoff summary<\/h2>/);
   assert.match(page, /<h2>Next three debts<\/h2>/);

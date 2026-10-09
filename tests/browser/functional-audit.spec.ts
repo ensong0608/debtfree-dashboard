@@ -8,7 +8,7 @@ test('signed refunds, date corrections and lender confirmations preserve balance
  await page.getByRole('button',{name:'Transactions',exact:true}).click();await page.getByRole('button',{name:'Add record',exact:true}).click();
  const dialog=page.getByRole('dialog');await expect(dialog.getByRole('group',{name:'Record type'})).toHaveCount(0);
  await dialog.getByLabel('What’s it for?',{exact:true}).fill('Store refund');await dialog.getByLabel('Card used',{exact:true}).selectOption('account-card-1');await dialog.getByLabel('Transaction amount',{exact:true}).fill('-66.96');
- await dialog.getByText('Refund or credit? (optional)',{exact:true}).click();await dialog.getByLabel('Decrease classification').selectOption('credit');await dialog.getByRole('button',{name:'Save transaction',exact:true}).click();
+ await dialog.getByRole("radio",{name:"Refund / credit",exact:true}).check();await dialog.getByRole('button',{name:'Save transaction',exact:true}).click();
  await expect(page.locator('.simple-total>strong')).toHaveText('$0.00');const entry=page.locator('.payment-activity>article').filter({hasText:'Store refund'});await expect(entry).toContainText('Refund / credit');
  await entry.locator('.transaction-edit-surface').click();await dialog.getByLabel('Transaction amount',{exact:true}).fill('-50');await dialog.getByRole('button',{name:'Save transaction',exact:true}).click();
  await entry.getByText('Balance history & corrections',{exact:true}).click();await expect(entry).toContainText('net $16.96');await expect(entry).toContainText('Prior version');

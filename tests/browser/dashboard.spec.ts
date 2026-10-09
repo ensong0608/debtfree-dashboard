@@ -27,7 +27,7 @@ test("Payments connects lender updates and recorded payments without a second de
   await expect(adjustment).toContainText("Balance adjustment");
   await expect(page.locator(".simple-total>strong")).toHaveText("$0.00");
   await adjustment.locator(".transaction-edit-surface").click();
-  await dialog.getByLabel("Decrease classification").selectOption("payment");
+  await dialog.getByRole("radio",{name:"Payment",exact:true}).check();
   await dialog.getByRole("button", { name: "Save transaction", exact: true }).click();
   await expect(page.locator(".simple-total>strong")).toHaveText("$150.00");
   await page.getByRole("button", { name: "Debts", exact: true }).click();
@@ -52,7 +52,7 @@ test("Payments connects lender updates and recorded payments without a second de
   await page.getByRole("button", { name: "Transactions", exact: true }).click();
   await expect(page.locator(".simple-total>strong")).toHaveText("$250.00");
   await page.locator(".payment-activity>article").filter({ hasText: "Balance update" }).locator(".transaction-edit-surface").click();
-  await dialog.getByLabel("Decrease classification").selectOption("adjustment");
+  await dialog.getByRole("radio",{name:"Reconciliation adjustment",exact:true}).check();
   await dialog.getByRole("button", { name: "Save transaction", exact: true }).click();
   await expect(page.locator(".simple-total>strong")).toHaveText("$100.00");
   await page.getByRole("button", { name: "Debts", exact: true }).click();
@@ -451,7 +451,7 @@ test("a named lender adjustment uses its signed amount without another ledger de
  await expect(dialog).toContainText("$2,517.71");await dialog.getByRole("button",{name:"Save transaction",exact:true}).click();
  await expect(entry.getByText("SFC Henderson grocery run",{exact:true})).toBeVisible();
  await entry.locator(".transaction-edit-surface").click();await dialog.getByLabel("Transaction amount",{exact:true}).fill("-50");
- await expect(dialog).toContainText("$2,400.75");await dialog.getByLabel("Decrease classification").selectOption("payment");await dialog.getByRole("button",{name:"Save transaction",exact:true}).click();
+ await expect(dialog).toContainText("$2,400.75");await dialog.getByRole("radio",{name:"Payment",exact:true}).check();await dialog.getByRole("button",{name:"Save transaction",exact:true}).click();
  await expect(page.locator(".simple-total>strong")).toHaveText("$50.00");
  await page.reload();await expect(card.locator(".simple-balance")).toHaveText("$2,400.75");
  await page.getByRole("button",{name:"Transactions",exact:true}).click();await expect(page.locator(".payment-activity>article")).toHaveCount(1);await expect(page.locator(".simple-total>strong")).toHaveText("$50.00");
