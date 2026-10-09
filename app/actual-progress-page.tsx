@@ -27,8 +27,7 @@ export default function ActualProgressPage({accounts,transactions,adjustments,sn
  const [note,setNote]=useState(() => snapshots.find(snapshot => snapshot.month === recentDebtMonths()[0])?.note ?? "");
  const months=recentDebtMonths();
  const [scope,setScope]=useState<"cards"|"loans">("cards");
- const comparisonIds = (report.baseline?.accounts.map(a=>a.accountId) ?? report.groups.flatMap(group=>group.accounts.map(a=>a.id))).sort().join("|");
- const history=report.snapshots.filter(s=>s.accounts.map(a=>a.accountId).sort().join("|")===comparisonIds).map(s=>({month:s.month,balance:s.totalBalance}));
+ const history=report.snapshots.map(s=>({month:s.month,balance:s.totalBalance}));
  const paidOff=report.groups.flatMap(group=>group.accounts).filter(account=>!account.removedFromDebts&&(account.baselineBalance??0)>0&&account.balance<=0).length;
  return <div className="screen snapshots-screen actual-progress-screen"><div className="screen-title"><div><span className="eyebrow">Actual balances</span><h1>Progress</h1></div></div>
  {!accounts.length&&!removedAccounts.length&&!loans.length?<section className="large-empty"><h2>Add a debt to start tracking progress</h2><button className="primary" onClick={onAccounts}>Add debt</button></section>:<>

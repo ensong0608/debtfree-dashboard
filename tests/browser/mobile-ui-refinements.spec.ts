@@ -9,6 +9,7 @@ test('Progress matches the summary-first design and mobile entry choices never o
  fixture.transactions=[{id:'purchase',accountId:'card',type:'charge',amount:66.96,date:today,createdAt:now,payeeId:'',payeeName:'Grocery store',category:'Purchases',memo:'',title:'Weekly grocery run with a long activity title'}];
  fixture.balanceAdjustments=[];fixture.monthlyPlan={progressStartingBalance:10000,months:{},detailedSpendingTracking:false};
  fixture.snapshots=['2026-07','2026-09'].map((month,i)=>({...fixture.snapshots[0],id:'snapshot-'+i,month,capturedAt:month+'-09T12:00:00Z',totalBalance:i?5500:10000,accounts:fixture.accounts.map((a:{id:string;name:string;type:string;balance:number;apr:number},j:number)=>({accountId:a.id,name:a.name,type:a.type,balance:j?0:i?5500:10000,apr:a.apr}))}));
+ fixture.snapshots[1].accounts=fixture.snapshots[1].accounts.slice(0,1);
  await page.goto('/');await page.locator('input[type=file]').setInputFiles({name:'disposable-ui.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(fixture))});
  const screenshot=async(name:string)=>{mkdirSync('../refined-screens',{recursive:true});await page.screenshot({path:`../refined-screens/${info.project.name}-${name}.png`});};
  const card=page.locator('.compact-debt-card').filter({hasText:'Everyday Card with a long account name'});
