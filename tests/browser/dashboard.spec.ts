@@ -36,6 +36,8 @@ test("Payments connects lender updates and recorded payments without a second de
   await openPaymentRecord(page);
   await dialog.getByLabel("Card used", { exact: true }).selectOption("account-card-1");
   await dialog.getByLabel("Transaction amount").fill("-100");
+  await dialog.getByRole("button", {name:"Save transaction",exact:true}).click();
+  await dialog.getByRole("button", {name:"This is another payment",exact:true}).click();
   const originalViewport = page.viewportSize()!;
   if (originalViewport.width <= 430) {
     await page.setViewportSize({ width: originalViewport.width, height: 420 });
@@ -207,6 +209,7 @@ test("duplicate payments can be deleted, cancelled, and restored from Payments",
   await dialog.getByLabel("Card used",{exact:true}).selectOption("account-card-1");
   await dialog.getByLabel("Transaction amount",{exact:true}).fill("-100");
   await dialog.getByRole("button",{name:"Save transaction",exact:true}).click();
+  if(i>0){await dialog.getByRole("button",{name:"This is another payment"}).click();await dialog.getByRole("button",{name:"Save transaction",exact:true}).click();}
  }
  await expect(page.locator(".simple-total>strong")).toHaveText("$200.00");
  const deleteButton=page.getByRole("button",{name:"Delete payment of $100.00 for Sample Rewards Card",exact:true}).first();
@@ -274,6 +277,7 @@ test("Costco interest starts next cycle, survives refresh, and reconciles withou
   if(!await card.getByRole("button",{name:/Edit debt details/}).isVisible()) await card.locator(".debt-overflow > summary").click();
   await card.getByRole("button", { name: /Edit debt details/ }).click();
   const dialog = page.getByRole("dialog");
+  await dialog.getByText("More details — optional",{exact:true}).click();
   await dialog.getByLabel("Automatically add estimated interest").check();
   const close = dialog.getByLabel("Latest closing date already included in my balance");
   await close.fill("2026-10-01");

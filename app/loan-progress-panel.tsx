@@ -9,6 +9,7 @@ const money = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD
 export default function LoanProgressPanel({ loans, items, onChange, onDialog, readOnly = false }: {
   readOnly?: boolean; loans: LoanTracker[]; items: CashflowItem[]; onChange: (loans: LoanTracker[]) => void; onDialog: (open: boolean) => void;
 }) {
+  const [activityLoan,setActivityLoan]=useState<LoanTracker|null>(null);
   const [draft, setDraft] = useState<LoanTracker | null>(null);
   const [paymentDraft, setPaymentDraft] = useState<{ loan: LoanTracker; amount: number; extra: number; date: string } | null>(null);
   const [error, setError] = useState('');
@@ -18,7 +19,7 @@ export default function LoanProgressPanel({ loans, items, onChange, onDialog, re
   const close = () => { setDraft(null); onDialog(false); };
   useEffect(() => {
     if (!draft && !paymentDraft) return;
-    const escape = (event: KeyboardEvent) => { if (event.key === 'Escape') { setDraft(null); setPaymentDraft(null); onDialog(false); } };
+    const escape = (event: KeyboardEvent) => { if (event.key === 'Escape') { setDraft(null); setPaymentDraft(null);setActivityLoan(null); onDialog(false); } };
     window.addEventListener('keydown', escape);
     return () => window.removeEventListener('keydown', escape);
   }, [draft, paymentDraft, onDialog]);
@@ -33,20 +34,18 @@ export default function LoanProgressPanel({ loans, items, onChange, onDialog, re
       let split = null;
       try { if (payment) split = loanPaymentSplit(loan, payment.amount); } catch {}
       return <article key={loan.id} className={`loan-progress-card loan-${loan.kind}`} aria-label={`${loan.name} loan progress`}>
-        <span className="loan-kind">{loan.kind === 'house' ? 'House loan' : 'Car loan'}</span><h3>{loan.name}</h3>
+        <button type="button" className="compact-debt-edit" disabled={readOnly} aria-label={`Edit details for ${loan.name}`} onClick={()=>open(loan)}><span className="loan-kind">{loan.kind === 'house' ? 'House loan' : 'Car loan'}</span><h3>{loan.name}</h3>
         <span>{approximate ? 'Payoff quote' : 'Remaining principal'}</span><strong className="loan-balance">{money.format(loan.remainingAmount)}</strong>
         <div className="loan-progress-track" role="progressbar" aria-label={`${loan.name} loan paid down`} aria-valuenow={Number(progress.percent.toFixed(2))} aria-valuemin={0} aria-valuemax={100}><i style={{ width: `${progress.percent}%` }}/></div>
         <div className="loan-progress-caption"><strong>{approximate ? '≈ ' : ''}{progress.percent.toFixed(2)}% paid down</strong><span>{money.format(progress.reduction)} reduction</span></div>
         <dl><div><dt>Original loan</dt><dd>{money.format(loan.originalAmount)}</dd></div><div><dt>Monthly · Budget</dt><dd>{payment ? money.format(payment.amount) : 'Link a current bill'}</dd></div><div><dt>Balance as of</dt><dd>{loan.asOf}</dd></div></dl>
         {split && <dl className="loan-payment-split"><div><dt>Next payment · principal</dt><dd>{money.format(split.principal)}</dd></div><div><dt>Interest</dt><dd>{money.format(split.interest)}</dd></div><div><dt>Escrow</dt><dd>{money.format(split.escrow)}</dd></div></dl>}
-        {split && <button className="secondary" type="button" disabled={readOnly} onClick={() => { setError(''); setPaymentDraft({ loan, amount: payment!.amount, extra: 0, date: householdDate() }); onDialog(true); }}>Record monthly payment</button>}
-        {!split && loan.kind === 'house' && <p className="loan-quote-note">Set APR and escrow in Update loan to calculate the monthly payment split.</p>}
-        {approximate && <p className="loan-quote-note">Progress uses a payoff quote, which may include accrued interest or fees.</p>}
-        <button className="secondary" type="button" disabled={readOnly} aria-label={`Update ${loan.name} loan`} onClick={() => open(loan)}>Update loan</button>
-        <LoanActivityPanel loan={loan}/>
+        </button><button type="button" className="debt-activity-chevron" aria-label={`Activity for ${loan.name}`} onClick={()=>setActivityLoan(loan)}>›</button><div className="compact-debt-actions">{split && <button className="secondary" type="button" disabled={readOnly} onClick={() => { setError(''); setPaymentDraft({ loan, amount: payment!.amount, extra: 0, date: householdDate() }); onDialog(true); }}>Payment</button>}
+        {!split && <button className="primary" type="button" disabled={readOnly || loan.remainingAmount<=0} onClick={() => {setError('');setPaymentDraft({loan,amount:payment?.amount??0,extra:0,date:householdDate()});onDialog(true);}}>Payment</button>}
+        <button className="secondary" type="button" disabled={readOnly} aria-label={`Update ${loan.name} loan`} onClick={() => open(loan)}>Balance</button></div>
       </article>;
     })}</div>
-    <p className="loan-budget-note">Payments are included in Budget. Record a monthly payment here to calculate principal reduction, or update the lender balance to reconcile. Estimates use monthly interest; payments are recorded only when you confirm them.</p>
+    {activityLoan&&<div className="modal-backdrop"><section className="modal account-activity-modal" role="dialog" aria-modal="true" aria-label={`Activity for ${activityLoan.name}`}><header><h2>{activityLoan.name}</h2><button type="button" aria-label="Close activity" onClick={()=>setActivityLoan(null)}>×</button></header><LoanActivityPanel expanded loan={activityLoan}/></section></div>}
     {paymentDraft && <div className="modal-backdrop"><section className="modal loan-modal" role="dialog" aria-modal="true" aria-labelledby="loan-payment-title"><form onSubmit={event => {
       event.preventDefault();
       if (readOnly) return;

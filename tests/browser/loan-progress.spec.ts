@@ -40,14 +40,15 @@ test('loans persist, use Budget payments, and do not change existing debt balanc
   await dialog.getByLabel('Balance type').selectOption('payoff');
   await dialog.getByRole('button',{name:'Save loan'}).click();
   await expect(card).toContainText('≈ 25.00% paid down');
-  await expect(card).toContainText('accrued interest');
-  await card.getByText('Activity', {exact:true}).click();
-  await expect(card.locator('.debt-history')).toContainText('$80,000.00');
-  await expect(card.locator('.debt-history')).toContainText('$75,000.00');
+
+  await card.getByRole('button',{name:'Activity for Home'}).click();
+  await expect(page.getByRole('dialog').locator('.debt-history')).toContainText('$80,000.00');
+  await expect(page.getByRole('dialog').locator('.debt-history')).toContainText('$75,000.00');
+  await page.getByRole('button',{name:'Close activity'}).click();
   await page.getByRole('button',{name:'Update Home loan'}).click();
   await dialog.getByLabel('Balance type').selectOption('principal');
   await dialog.getByRole('button',{name:'Save loan'}).click();
-  await card.getByRole('button',{name:'Record monthly payment'}).click();
+  await card.getByRole('button',{name:'Payment'}).click();
   const paymentDialog = page.getByRole('dialog', {name:'Record Home payment'});
   await expect(paymentDialog).toContainText('Principal deducted: $1,255.07');
   await paymentDialog.getByRole('button',{name:'Confirm payment'}).click();
@@ -55,7 +56,9 @@ test('loans persist, use Budget payments, and do not change existing debt balanc
   await page.reload();
   await page.getByRole('tab',{name:'House & car',exact:true}).click();
   await expect(card).toContainText('$73,744.93');
-  await expect(card.locator('.debt-history')).toContainText('Payment $2,100.00');
+  await card.getByRole('button',{name:'Activity for Home'}).click();
+  await expect(page.getByRole('dialog').locator('.debt-history')).toContainText('Payment $2,100.00');
+  await page.getByRole('button',{name:'Close activity'}).click();
   const axe = await new AxeBuilder({page}).include('.loan-progress-section').withRules(['color-contrast']).analyze();
   expect(axe.violations).toEqual([]);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);

@@ -80,7 +80,7 @@ function inferredPaymentKind(transaction: LedgerTransaction) {
 }
 
 export function debtPaymentProgress(accounts: DebtAccount[], plannedPayments: Record<string, number>, transactions: LedgerTransaction[], month: string, plannedMinimums: Record<string, number> = {}): DebtPaymentProgress[] {
-  const paidIds = new Set(transactions.filter((t) => !t.deletedAt && t.type === "payment" && t.credit !== true && t.date.slice(0, 7) === month).map((t) => t.accountId));
+  const paidIds = new Set(transactions.filter((t) => !t.deletedAt && t.type === "payment" && t.credit !== true && t.includedIn?.type !== "transaction" && t.date.slice(0, 7) === month).map((t) => t.accountId));
   const known = new Set(accounts.map((a) => a.id));
   const retained = [...accounts, ...[...paidIds].filter((id) => !known.has(id)).map((id) => ({ id, name: transactions.find((t) => t.accountId === id)?.payeeName || "Removed debt", balance: 0, minimum: 0, minimumMode: "manual", apr: 0 } as DebtAccount))];
   return retained.filter((account) => (!account.archivedAt && account.balance > 0) || paidIds.has(account.id)).map((account) => {
@@ -88,7 +88,7 @@ export function debtPaymentProgress(accounts: DebtAccount[], plannedPayments: Re
     const target = round(Math.max(minimumTarget, plannedPayments[account.id] ?? minimumTarget));
     const extraTarget = round(Math.max(0, target - minimumTarget));
     let minimumPaid = 0, extraPaid = 0, unclassified = 0;
-    const payments = transactions.filter((transaction) => !transaction.deletedAt && transaction.type === "payment" && transaction.credit !== true && transaction.accountId === account.id && transaction.date.slice(0, 7) === month);
+    const payments = transactions.filter((transaction) => !transaction.deletedAt && transaction.type === "payment" && transaction.credit !== true && transaction.includedIn?.type !== "transaction" && transaction.accountId === account.id && transaction.date.slice(0, 7) === month);
     for (const payment of payments) {
       const kind = inferredPaymentKind(payment);
       if (kind === "minimum") minimumPaid += payment.amount;

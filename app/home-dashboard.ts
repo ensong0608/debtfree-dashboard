@@ -122,7 +122,7 @@ function actualPaymentsForMonth(accounts: DebtAccount[], transactions: LedgerTra
   const paymentMonth = currentMonthKey(calculationDate);
   const accountNames = new Map(accounts.map((account) => [account.id, account.name]));
   const payments = transactions
-    .filter((transaction) => !transaction.deletedAt && transaction.type === "payment" && transaction.credit !== true && transaction.date.slice(0, 7) === paymentMonth)
+    .filter((transaction) => !transaction.deletedAt && transaction.type === "payment" && transaction.credit !== true && transaction.includedIn?.type !== "transaction" && transaction.date.slice(0, 7) === paymentMonth)
     .sort((a, b) => b.date.localeCompare(a.date) || b.createdAt.localeCompare(a.createdAt))
     .map<HomeActualPayment>((transaction) => ({
       id: transaction.id,
@@ -250,7 +250,7 @@ export function buildHomeDashboard(input: HomeDashboardInput): HomeDashboardMode
     strategy: input.strategy,
     nextPayment,
     payoffOrder,
-    actions: upcomingActions(active, input.snapshots, calculationDate, Object.fromEntries(active.map((a) => [a.id, input.transactions.filter((t) => !t.deletedAt && t.type === "payment" && t.credit !== true && t.paymentKind !== "extra" && t.accountId === a.id && t.date.slice(0, 7) === currentMonthKey(calculationDate)).reduce((sum, t) => sum + t.amount, 0)]))),
+    actions: upcomingActions(active, input.snapshots, calculationDate, Object.fromEntries(active.map((a) => [a.id, input.transactions.filter((t) => !t.deletedAt && t.type === "payment" && t.credit !== true && t.includedIn?.type !== "transaction" && t.paymentKind !== "extra" && t.accountId === a.id && t.date.slice(0, 7) === currentMonthKey(calculationDate)).reduce((sum, t) => sum + t.amount, 0)]))),
     paymentMonth: actualPayments.paymentMonth,
     actualPaymentTotal: actualPayments.total,
     actualPayments: actualPayments.payments,

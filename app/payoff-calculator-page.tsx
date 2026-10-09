@@ -1,15 +1,16 @@
 "use client";
 import { useMemo, useState } from "react";
-import type { DebtAccount, PayoffStrategy } from "./dashboard-data";
+import type { BalanceAdjustment, LedgerTransaction, DebtAccount, PayoffStrategy } from "./dashboard-data";
 import { calculatePayoffCalculator, calculateMinimumPayoffPlan } from "./payoff-calculator";
+import { confirmedPaymentTotal } from "./payments";
 import { parseMoneyInput } from "./payments";
 import { exportPayoffCsv, exportPayoffExcel, exportPayoffPdf, type PayoffReportData } from "./payoff-export";
 import { forecastMinimum, forecastMonthlyRate, forecastMonthKey, round } from "./payoff-engine";
 
 const money = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" });
 const label = (strategy: PayoffStrategy) => strategy === "avalanche" ? "Avalanche" : strategy === "snowball" ? "Snowball" : "Custom";
-export default function PayoffCalculatorPage({ accounts, amount, strategy, customDebtOrder, onAmount, onStrategy, onMinimum, onAccounts, minimumsIncluded = false, readOnly = false }: {
-  minimumsIncluded?: boolean; readOnly?: boolean; accounts: DebtAccount[]; amount: number; strategy: PayoffStrategy; customDebtOrder: string[];
+export default function PayoffCalculatorPage({ accounts, amount, strategy, customDebtOrder, onAmount, onStrategy, onMinimum, onAccounts, onUsePlan, onPayment, savedAmount=0, transactions=[], adjustments=[], minimumsIncluded = false, readOnly = false }: {
+  savedAmount?: number; onUsePlan?: () => void; onPayment?: (id: string, amount: number) => void; transactions?: LedgerTransaction[]; adjustments?: BalanceAdjustment[]; minimumsIncluded?: boolean; readOnly?: boolean; accounts: DebtAccount[]; amount: number; strategy: PayoffStrategy; customDebtOrder: string[];
   onAmount: (amount: number) => void; onStrategy: (strategy: PayoffStrategy) => void; onMinimum?: (id: string, minimum: number) => void; onAccounts: () => void;
 }) {
   const [calculationDate] = useState(() => new Date());
@@ -17,8 +18,8 @@ export default function PayoffCalculatorPage({ accounts, amount, strategy, custo
   const [exportError, setExportError] = useState("");
   const [exporting, setExporting] = useState(false);
   const active = accounts.filter(a => !a.archivedAt && a.balance > 0);
-  const minimumResult = useMemo(() => minimumsIncluded ? calculateMinimumPayoffPlan(accounts, amount, selectedStrategy, customDebtOrder, calculationDate) : null, [minimumsIncluded, accounts, amount, selectedStrategy, customDebtOrder, calculationDate]);
-  const plan = useMemo(() => minimumResult?.plan ?? calculatePayoffCalculator(accounts, minimumsIncluded ? 0 : amount, selectedStrategy, customDebtOrder, calculationDate), [minimumResult, minimumsIncluded, accounts, amount, selectedStrategy, customDebtOrder, calculationDate]);
+  const minimumResult = useMemo(() => calculateMinimumPayoffPlan(accounts, amount, selectedStrategy, customDebtOrder, calculationDate), [accounts, amount, selectedStrategy, customDebtOrder, calculationDate]);
+  const plan = useMemo(() => minimumResult?.plan ?? { monthly: amount, months: [], totalInterest: 0, stalled: true, peakMonthly: amount, nonAmortizingAccountIds: [], promoMinimumFallbackIds: [] } as ReturnType<typeof calculatePayoffCalculator>, [minimumResult, amount]);
   const minimumPaid = (month: typeof plan.months[number]) => round(active.reduce((sum,a) => sum + Math.min(month.payments[a.id] ?? 0, month.minimums[a.id] ?? 0), 0));
   const firstMinimums = plan.months[0] ? minimumPaid(plan.months[0]) : 0;
   const monthLabel = (month: number) => new Date(forecastMonthKey(month, calculationDate) + "-01T12:00:00").toLocaleDateString("en-US", { month: "long", year: "numeric" });
@@ -37,13 +38,15 @@ export default function PayoffCalculatorPage({ accounts, amount, strategy, custo
     finally { setExporting(false); }
   };
   return <div className={`screen plan-screen ${minimumsIncluded ? "payment-plan-screen" : "payoff-forecast-screen"}`}>
+    <div className="plan-purpose"><h1>{minimumsIncluded ? "Payoff Plan" : "Payoff Calculator"}</h1><span>{minimumsIncluded ? "Saved plan" : "What-if"}</span></div>
     <section className="plan-controls calculator-controls">
-      <div className="extra-control"><label htmlFor="extra-monthly">Total monthly debt payment</label><div><b aria-hidden="true">$</b><input id="extra-monthly" type="number" min="0" step="0.01" inputMode="decimal" value={amount || ""} placeholder="7000" onChange={event => onAmount(Math.max(0, Number(event.target.value) || 0))}/></div></div>
-      <div className="strategy-control"><span>Payoff order</span><div>{(["avalanche", "snowball"] as const).map(value => <button type="button" key={value} className={selectedStrategy === value ? "active" : ""} aria-pressed={selectedStrategy === value} onClick={() => onStrategy(value)}>{label(value)}</button>)}</div><small>{selectedStrategy === "avalanche" ? "Highest interest rate first." : "Smallest balance first."}</small></div>
+      <div className="extra-control"><label htmlFor="extra-monthly">Total monthly debt payment</label><small>Includes minimum payments</small><div><b aria-hidden="true">$</b><input id="extra-monthly" type="number" min="0" step="0.01" inputMode="decimal" value={amount || ""} placeholder="7000" disabled={minimumsIncluded && readOnly} onChange={event => onAmount(Math.max(0, Number(event.target.value) || 0))}/></div></div>
+      <div className="strategy-control"><span>Payoff order</span><div>{(["avalanche", "snowball"] as const).map(value => <button type="button" key={value} className={selectedStrategy === value ? "active" : ""} aria-pressed={selectedStrategy === value} disabled={minimumsIncluded && readOnly} onClick={() => onStrategy(value)}>{label(value)}</button>)}</div><small>{selectedStrategy === "avalanche" ? "Highest interest rate first." : "Smallest balance first."}</small></div>
     </section>
+    {!minimumsIncluded && <section className="scenario-comparison"><article><span>Saved plan</span><strong>{money.format(savedAmount)} / month</strong></article><article><span>This scenario</span><strong>{money.format(amount)} / month</strong></article></section>}
     {minimumsIncluded && active.length > 0 && <section className="payment-allocation" aria-label="Monthly payment allocation">
       <header><div><h2>{monthLabel(1)} payment plan</h2><span>First projected month</span></div>{!minimumResult?.error && plan.months[0] && <strong>Minimums {money.format(firstMinimums)} · Extra {money.format(Math.max(0, round(plan.months[0].paid - firstMinimums)))}</strong>}</header>
-      <p className="allocation-help">Saved minimums apply to Debts and future months.</p>
+      <p className="allocation-help">Planned allocations · Recorded payments shown separately</p>
       <div className="allocation-cards">{active.map(account => {
         const payment = minimumResult?.plan?.months[0]?.payments[account.id];
         const projectedMinimum = minimumResult?.plan?.months[0]?.minimums[account.id] ?? forecastMinimum(account, account.balance * (1 + forecastMonthlyRate(account, 1, calculationDate)), 1, calculationDate);
@@ -54,14 +57,15 @@ export default function PayoffCalculatorPage({ accounts, amount, strategy, custo
             <MinimumEditor key={`${account.id}:${savedMinimum}:${account.minimumMode}`} account={account} value={savedMinimum} disabled={readOnly || !onMinimum} onSave={minimum => onMinimum?.(account.id, minimum)}/>
             <div><span>Extra</span><strong>{payment === undefined ? "—" : money.format(Math.max(0, round(payment - allocatedMinimum)))}</strong></div>
             <div><span>Total payment</span><strong>{payment === undefined ? "—" : money.format(payment)}</strong></div>
-          </div>{account.postPromoMinimum > 0 && account.promoEndDate && <small>Promotion minimum: {money.format(account.postPromoMinimum)} after {account.promoEndDate}.</small>}
+          </div><div className="allocation-recorded"><span>Recorded in {monthLabel(1)}: {money.format(confirmedPaymentTotal(transactions, adjustments, forecastMonthKey(1, calculationDate), account.id))}</span><button type="button" className="secondary" disabled={readOnly || account.balance <= 0} onClick={() => onPayment?.(account.id, payment ?? 0)}>Record Payment</button></div>{account.postPromoMinimum > 0 && account.promoEndDate && <small>Promotion minimum: {money.format(account.postPromoMinimum)} after {account.promoEndDate}.</small>}
         </article>;
       })}</div>
     </section>}
     {!active.length ? <section className="large-empty"><h2>Add debts to calculate a payoff</h2><button className="primary" onClick={onAccounts}>Review debt accounts</button></section> : amount <= 0 ? <section className="large-empty"><h2>Enter a monthly amount</h2><p>Enter the total you want to pay each month.</p></section> : minimumResult?.error ? <section className="large-empty"><p role="alert">{minimumResult.error}</p><button className="secondary" onClick={onAccounts}>Review debt accounts</button></section> : <>
       <section className="plan-hero" aria-live="polite"><div><span>Time to pay off</span><strong>{plan.stalled ? "No payoff at this amount" : `${plan.months.length} months`}</strong><small>{plan.stalled ? "Increase the amount to outpace interest." : monthLabel(plan.months.length)}</small></div><div><span>Monthly amount</span><strong>{money.format(amount)}</strong></div><div><span>Estimated interest</span><strong>{money.format(plan.totalInterest)}</strong></div></section>
+      {!minimumsIncluded && <button type="button" className="primary use-plan" disabled={readOnly} onClick={onUsePlan}>Use this in my plan</button>}
       <section className="plan-table-card"><header className="plan-table-summary"><strong>Monthly payoff calculation</strong></header><div className="plan-table-wrap"><table className="plan-table"><caption>Calculated monthly payments and remaining debt</caption><thead><tr><th>Month</th><th>Payment</th><th>Interest</th><th>Ending balance</th><th>Paid off</th></tr></thead><tbody>{plan.months.map(month => <tr key={month.month}><td>{monthLabel(month.month)}</td><td>{money.format(month.paid)}</td><td>{money.format(month.interest)}</td><td>{money.format(month.remaining)}</td><td>{month.paidOff.join(", ") || "—"}</td></tr>)}</tbody></table></div></section>
-      <details className="calculation-details"><summary>How this plan was calculated</summary><div className="calculation-details-body"><p>Starting debt: {money.format(startingDebt)}. Uses current balances, which already reflect recorded transactions. Payments already made are never deducted again.</p>{minimumsIncluded ? <p>Your {money.format(amount)} total covers each card’s saved or estimated minimum first, then the selected payoff order. Minimums are not added on top. Cards and other accounts only; house/car trackers, Budget expenses, and future purchases are excluded. Recorded payments are already reflected in current balances.</p> : <p>Only your entered {money.format(amount)} is allocated each month in the selected order. No minimums, Budget expenses, or future purchases are added. All unarchived cards and other accounts listed in Debts are included, even if marked minimum only. Separate house/car loan trackers are excluded. This prioritization scenario does not reserve statement minimums for each account and may not satisfy lender payment requirements.</p>}<p>Interest is estimated monthly from each remaining balance, using the saved rate or interest calibration and promotional rate changes. This projection does not record payments or change Budget.</p></div></details>
+      <details className="calculation-details"><summary>How this plan was calculated</summary><div className="calculation-details-body"><p>Starting debt: {money.format(startingDebt)}. Uses current balances, which already reflect recorded transactions. Payments already made are never deducted again.</p><p>Your {money.format(amount)} total reserves saved or estimated minimums first, then allocates extra by {label(selectedStrategy).toLowerCase()}. Cards &amp; other only; House &amp; car and future purchases are excluded. Minimum-only flags do not restrict this total-budget projection. Trying a scenario does not change the saved plan.</p><p>Interest is estimated monthly from each remaining balance, using the saved rate or interest calibration and promotional rate changes. This projection does not record payments or change Budget.</p></div></details>
       <div className="export-control"><span>Export calculation</span><div>{(["csv", "excel", "pdf"] as const).map(format => <button key={format} type="button" disabled={exporting} onClick={() => void exportReport(format)}>{format.toUpperCase()}</button>)}</div>{exportError && <p role="alert">{exportError}</p>}</div>
     </>}
   </div>;

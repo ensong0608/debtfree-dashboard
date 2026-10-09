@@ -39,7 +39,7 @@ test("calculator uses only the entered amount and preserves balances and Budget"
   await page.reload();
   await page.getByRole("button", { name: "More", exact: true }).click();
   await page.getByRole("button", { name: "Payoff Calculator", exact: true }).click();
-  await expect(page.getByLabel("Total monthly debt payment", { exact: true })).toHaveValue("5000");
+  await expect(page.getByLabel("Total monthly debt payment", { exact: true })).toHaveValue(String(fixture.extra));
   await page.getByRole("button", { name: "Debts", exact: true }).click();
   await expect(page.locator(".simple-total")).toContainText("$20,000.00");
 });

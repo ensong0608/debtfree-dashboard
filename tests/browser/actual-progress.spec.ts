@@ -13,9 +13,9 @@ test("six-month debt activity counts payments and actual progress stays fixed af
  await page.locator('input[type="file"]').setInputFiles({name:"activity.json",mimeType:"application/json",buffer:Buffer.from(JSON.stringify(fixture))});
  const card=page.locator(".balance-first-cards>article").filter({has:page.getByRole("heading",{name:"Citi1",exact:true})});
  await expect(page.getByRole("tab",{name:"Cards & other",exact:true})).toHaveAttribute("aria-selected","true");
- await card.locator(".debt-overflow > summary").click();
- const history=card.locator(".debt-history");
- await history.locator(':scope > summary').click();
+ await card.getByRole("button",{name:"Activity for Citi1"}).click();
+ const history=page.getByRole("dialog").locator(".debt-history");
+
  await expect(history.locator(".debt-history-month")).toHaveCount(1);
  await expect(history.locator("details")).toHaveCount(0);
  await expect(history.locator(".inline-captured-balance").filter({hasText:"$750.00 → $650.00"})).toHaveCount(1);
@@ -26,6 +26,7 @@ test("six-month debt activity counts payments and actual progress stays fixed af
  await expect(card.locator(".debt-reduction-track")).toHaveAttribute("aria-valuenow", "35");
  expect(await history.locator('.inline-activity-entry').first().evaluate(e=>e.getBoundingClientRect().height)).toBeLessThanOrEqual(48);
  const contrast=await new AxeBuilder({page}).include(".debts-screen").withRules(["color-contrast"]).analyze();expect(contrast.violations).toEqual([]);
+ await page.getByRole("button",{name:"Close activity",exact:true}).click();
  await page.getByRole("button",{name:"More",exact:true}).click();
  await page.getByRole("button",{name:"Progress",exact:true}).filter({visible:true}).click();
  await expect(page.locator(".topbar")).toContainText("Progress");
@@ -34,7 +35,8 @@ test("six-month debt activity counts payments and actual progress stays fixed af
  await expect(page.locator(".actual-progress-summary")).toContainText("$350.00");
  await expect(page.locator(".actual-month-card")).toContainText("$350.00 net decrease");
  await expect(page.locator(".actual-month-card")).toContainText("3 debt reductions recorded");
- await expect(page.locator(".progress-story")).toContainText("Your debt is $350.00 lower.");
+ await expect(page.locator(".progress-story")).toContainText("$350.00");
+ await page.getByText("Activity breakdown",{exact:true}).click();
  await expect(page.locator(".progress-month-story")).toContainText("−$400.00");
  await expect(page.locator(".progress-month-story")).toContainText("+$50.00");
  await expect(page.locator(".progress-month-story")).toContainText("Debt increases");

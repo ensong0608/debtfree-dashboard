@@ -12,19 +12,14 @@ export function updatePayoffMinimum(accounts: DebtAccount[], id: string, minimum
 
 /** A standalone forecast: the entered amount is the entire monthly payment pool. */
 export function calculatePayoffCalculator(accounts: DebtAccount[], amount: number, strategy: PayoffStrategy, customOrder: string[] = [], date = new Date()) {
-  const inputs = accountsWithCustomDebtOrder(accounts.filter(account => !account.archivedAt && account.balance > 0), customOrder).map(account => ({
-    ...account,
-    minimum: 0,
-    minimumMode: "manual" as const,
-    postPromoMinimum: 0,
-    payoffMode: "priority" as const,
-  }));
-  return calculatePlan(inputs, Number.isFinite(amount) ? Math.max(0, round(amount)) : 0, strategy, {}, {}, date);
+  void customOrder;
+  const inputs = accounts.filter(account => !account.archivedAt && account.balance > 0).map(account => ({...account, payoffMode: "priority" as const}));
+  return calculatePlan(inputs, 0, strategy === "snowball" ? "snowball" : "avalanche", {}, {}, date, {}, { monthlyCommitment: Math.max(0, round(amount)), paymentCap: Math.max(0, round(amount)) });
 }
 
 /** A separate total-payment plan; minimums consume this pool, never add to it. */
 export function calculateMinimumPayoffPlan(accounts: DebtAccount[], amount: number, strategy: PayoffStrategy, customOrder: string[] = [], date = new Date()) {
-  const inputs = accountsWithCustomDebtOrder(accounts.filter(account => !account.archivedAt && account.balance > 0), customOrder);
+  const inputs = accountsWithCustomDebtOrder(accounts.filter(account => !account.archivedAt && account.balance > 0).map(account => ({...account, payoffMode: "priority" as const})), customOrder);
   const missing = inputs.filter(account => account.minimumMode === "manual" && account.minimum <= 0);
   const monthly = Number.isFinite(amount) ? Math.max(0, round(amount)) : 0;
   if (missing.length) return { error: `Set a minimum payment for ${missing.map(a => a.name).join(", ")}.`, plan: null };

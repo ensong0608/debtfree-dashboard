@@ -44,7 +44,7 @@ export default function PaymentsPage({ readOnly, accounts, transactions, adjustm
           <button type="button" className="transaction-edit-surface" disabled={readOnly} aria-label={`Edit ${row.title} for ${names.get(row.accountId) ?? "removed debt"}`} onClick={() => open({ action: "save", id: row.id })}>
             <span className={"transaction-icon " + (row.difference < 0 ? "decrease" : "increase")}><OutlineIcon name={row.kind === "purchase" ? "cart" : row.kind === "payment" || row.kind === "credit" ? "card" : "receipt"}/></span>
             <span className="transaction-clean-name"><strong>{row.title}</strong><span>{names.get(row.accountId) ?? "Removed debt"}</span></span>
-            <span className="transaction-amount"><strong className={"transaction-signed-total " + (row.difference < 0 ? "is-payment" : "is-increase")}>{row.difference < 0 ? "−" : "+"}{currency.format(row.amount)}</strong><small>{kind}</small></span>
+            <span className="transaction-amount"><strong className={"transaction-signed-total " + (row.difference < 0 ? "is-payment" : "is-increase")}>{row.difference === 0 ? "" : row.difference < 0 ? "−" : "+"}{currency.format(row.amount)}</strong><small>{row.difference === 0 ? "Already included" : kind}</small></span>
             <span className="transaction-chevron"><OutlineIcon name="chevron"/></span>
             {history.before !== undefined && history.after !== undefined && <small className="transaction-captured">Original balance change: {currency.format(history.before)} → {currency.format(history.after)}</small>}
           </button>

@@ -188,9 +188,9 @@ test("calculation transparency includes every required assumption and estimate w
     "How this plan was calculated",
     "Starting debt",
     "Payments already made are never deducted again",
-    "No minimums, Budget expenses, or future purchases are added",
+    "reserves saved or estimated minimums first",
     "Interest is estimated monthly",
-    "This prioritization scenario",
+    "Trying a scenario does not change the saved plan",
   ].forEach((label) => assert.ok(client.includes(label), `Missing calculation detail: ${label}`));
 });
 

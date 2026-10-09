@@ -1794,3 +1794,47 @@ input,select,textarea{font-size:16px}
   .payment-allocation{padding:14px}
   .allocation-values{gap:8px}
 }
+/* Everyday actions and compact account surfaces. */
+body,input,button,select,textarea{font-family:Helvetica,Arial,sans-serif}
+.compact-debt-card{position:relative;padding:16px;border:1px solid var(--line);border-radius:16px;background:#fff}
+.compact-debt-edit{display:block;width:100%;padding:0;border:0;background:transparent;text-align:left;color:inherit;border-radius:8px;cursor:pointer}
+.compact-debt-top{display:block;padding-right:36px}
+.compact-debt-identity h2{font-size:18px;line-height:1.3;margin:0 0 8px;overflow-wrap:anywhere}
+.compact-debt-identity .simple-balance{font-size:28px;line-height:1.2}
+.compact-debt-meta{display:grid;grid-template-columns:1fr 1fr;margin:14px 0;gap:12px}
+.compact-debt-meta dt{font-size:12px}.compact-debt-meta dd{font-size:16px;margin:5px 0 0}
+.compact-debt-actions{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:14px}
+.compact-debt-actions button{min-height:44px;width:100%}
+.debt-activity-chevron{position:absolute;right:12px;top:12px;width:44px;height:44px;font-size:32px;border:0;border-radius:8px;background:transparent;color:var(--ink)}
+.compact-due{display:block;color:var(--muted);font-size:12px;margin-top:6px}
+button:focus-visible,summary:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid #0e7490;outline-offset:3px}
+.debt-total-summary{order:-1;padding:18px;border:1px solid var(--line);border-radius:16px;background:white;margin-bottom:14px}
+.debt-total-summary strong{font-size:32px}.debt-total-summary small{display:block;margin-top:6px;color:var(--muted)}
+.debts-screen{display:flex;flex-direction:column}.debt-total-summary{order:-1}
+.optional-account-details>summary{padding:14px;border:1px solid var(--line);border-radius:10px;margin-top:12px;cursor:pointer}
+.optional-account-details>.form-grid{margin-top:14px}
+.signed-amount-controls>div{display:grid;grid-template-columns:1fr 1fr;width:100%}.signed-amount-controls button{width:auto;min-height:44px;font-size:14px}
+.payment-overlap{padding:16px;margin:12px;border:1px solid #d5a33b;border-radius:12px;background:#fff8e9;display:grid;gap:10px}
+.payment-overlap p{font-size:13px;line-height:1.4}.payment-overlap small{display:block;font-size:12px}
+.payment-overlap button[aria-pressed=true]{border-color:#aa670f;background:#fff0cf}
+.entry-undo{position:sticky;top:8px;z-index:20;display:flex;align-items:center;justify-content:space-between;gap:12px;background:white;border:1px solid var(--line);border-radius:12px;padding:12px;margin-bottom:16px;box-shadow:0 4px 16px #0001;font-size:13px}
+.entry-undo button{min-height:44px}
+.plan-purpose{display:flex;align-items:center;justify-content:space-between;order:-1;margin-bottom:16px}.plan-purpose h1{font-size:24px;margin:0}.plan-purpose>span{font-size:12px;border-radius:20px;background:#e7f3f1;padding:8px 12px}
+.plan-screen>.use-plan{order:2;margin:14px 0;min-height:44px}.payment-plan-screen>.payment-allocation{order:1}.payment-plan-screen>.plan-hero{order:2}
+.allocation-recorded{display:grid;gap:10px;margin-top:12px;font-size:12px}.allocation-recorded button{min-height:44px}
+.actual-progress-screen .progress-story strong{font-size:32px}.progress-account-details>summary{padding:16px;border:1px solid var(--line);border-radius:12px;background:white;cursor:pointer}.progress-snapshot-chart{margin:16px 0}.saved-check summary small{display:block;font-size:12px;font-weight:400;color:var(--muted);margin-top:5px}
+.account-activity-modal{padding:20px}.account-activity-modal header{display:flex;justify-content:space-between;gap:12px}.account-activity-modal header button{width:44px;height:44px}
+@media(max-width:700px){.compact-debt-card{padding:14px}.compact-debt-identity .simple-balance{font-size:26px}.plan-purpose h1{font-size:22px}.actual-progress-screen .snapshot-controls{padding:16px}.payment-allocation{background:#eef7f5}.balance-first-cards{gap:12px}}
+.loan-progress-card{position:relative;padding:16px}.loan-progress-card>.compact-debt-edit{padding-right:34px}.loan-progress-card h3{font-size:18px;overflow-wrap:anywhere}.loan-progress-card .loan-balance{font-size:28px}.loan-progress-card dl{font-size:12px}.loan-progress-card .loan-payment-split{display:none}
+/* Match the revised Debts reference, overriding the earlier inline total. */
+.debts-screen .debt-total-summary{display:block;background:#fff;border:1px solid var(--line);border-radius:16px;padding:18px;margin-bottom:14px}
+.debts-screen .debt-total-summary>strong{display:block;font-size:32px;margin:6px 0;line-height:1.2}
+.debts-screen .compact-debt-identity{display:block}.debts-screen .compact-debt-identity h2{font-size:18px;margin-bottom:8px}.debts-screen .compact-debt-identity .simple-balance{font-size:26px}
+.debts-screen .balance-first-cards>.compact-debt-card{border-left-color:var(--category-mark,#e8b63b)}
+[data-debt-category=credit]{--category-mark:#e8b63b;--category-ink:#815905}[data-debt-category=auto]{--category-mark:#9473e4;--category-ink:#6945ae}[data-debt-category=medical]{--category-mark:#e46e9f;--category-ink:#a23768}[data-debt-category=student]{--category-mark:#42a88d;--category-ink:#206f5a}[data-debt-category=personal]{--category-mark:#5797d0;--category-ink:#306791}[data-debt-category=other]{--category-mark:#8493a5;--category-ink:#4e5f72}
+.debts-screen .compact-debt-actions>.primary{background:var(--category-ink,#815905);border:1px solid var(--category-ink,#815905);color:white;font-size:14px;border-radius:9px;box-shadow:none}
+.debts-screen .debt-reduction-track>span{background:var(--category-mark,#e8b63b)}
+.debt-tabs button[aria-pressed=true]{background:#e5f2f0;border:1px solid #247c73;color:#135952}
+.scenario-comparison{order:0;display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px}.scenario-comparison article{border:1px solid var(--line);border-radius:12px;padding:14px;background:white;min-width:0}.scenario-comparison article:last-child{background:#fff8ea}.scenario-comparison span{font-size:12px;color:var(--muted);display:block}.scenario-comparison strong{font-size:16px;display:block;margin-top:8px;overflow-wrap:anywhere}
+.progress-snapshot-chart svg{max-height:180px}.loan-progress-card .compact-debt-actions>button:first-child{background:#266c5e;color:white;border-color:#266c5e}
+.actual-progress-screen{gap:14px}.snapshot-controls>.snapshot-note{margin:0 0 8px}.snapshot-note summary{font-size:13px}.progress-snapshot-chart h2{font-size:17px}.actual-progress-screen .snapshot-controls>button{min-height:44px;width:100%;margin-bottom:6px}

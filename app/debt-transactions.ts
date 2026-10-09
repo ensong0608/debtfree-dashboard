@@ -1,10 +1,11 @@
 import type { BalanceAdjustment, DebtAccount, DebtAuditCreator, LedgerTransaction, PaymentKind } from "./dashboard-data.ts";
 import { transactionAdjustedAccounts } from "./progress-balances.ts";
 import { validDate } from "./interest-accrual.ts";
+import { postedMovement, validatePaymentLinks, type PaymentLink } from "./payment-overlap.ts";
 import { round } from "./payoff-engine.ts";
 
 export type EntryKind = "payment" | "purchase" | "interest" | "fee" | "adjustment";
-export type EntryDraft = { accountId: string; kind: EntryKind; amount: number; date: string; note: string; direction: "increase" | "decrease"; paymentKind?: PaymentKind; credit?: boolean; title?: string; confirmAsPayment?: boolean };
+export type EntryDraft = { accountId: string; kind: EntryKind; amount: number; date: string; note: string; direction: "increase" | "decrease"; paymentKind?: PaymentKind; credit?: boolean; reductionKind?: "credit" | "adjustment"; title?: string; confirmAsPayment?: boolean; includedIn?: PaymentLink };
 export type EntryCommand = { action: "save" | "delete" | "restore"; id?: string; draft?: EntryDraft };
 export type EntryState = { accounts: DebtAccount[]; transactions: LedgerTransaction[]; adjustments: BalanceAdjustment[] };
 export const entryMovement = (draft: EntryDraft) => round(draft.amount * (draft.kind === "payment" || draft.kind === "adjustment" && draft.direction === "decrease" ? -1 : 1));
@@ -46,8 +47,8 @@ export function changeDebtEntry(state: EntryState, command: EntryCommand, creato
   if (!state.accounts.some(a => a.id === accountId) || original && !state.accounts.some(a => a.id === original.accountId)) throw new Error("This debt was removed. Restore the debt from a backup before changing its balance history.");
   const before = transactionAdjustedAccounts(state.accounts, state.transactions);
   const current = before.find(a => a.id === accountId)!;
-  const oldMovement = transaction && !transaction.deletedAt ? (transaction.type === "payment" ? -transaction.amount : transaction.amount) : adjustment && !adjustment.deletedAt ? adjustment.difference : 0;
-  if (command.action === "save" && (draft!.kind === "payment" || draft!.confirmAsPayment) && draft!.amount > current.balance - (original?.accountId === accountId ? oldMovement : 0)) throw new Error("Payment cannot exceed the available debt balance.");
+  const oldMovement = transaction && !transaction.deletedAt ? (postedMovement(transaction)) : adjustment && !adjustment.deletedAt ? adjustment.difference : 0;
+  if (command.action === "save" && !draft!.includedIn && !transaction?.includedIn && (draft!.kind === "payment" || draft!.confirmAsPayment) && draft!.amount > current.balance - (original?.accountId === accountId ? oldMovement : 0)) throw new Error("Payment cannot exceed the available debt balance.");
   // Keep prior versions as audit metadata. None are applied as additional movements.
   const revision = original ? { ...original, revisions: undefined } : undefined;
   if (revision) delete revision.revisions;
@@ -67,16 +68,32 @@ export function changeDebtEntry(state: EntryState, command: EntryCommand, creato
     adjustments = adjustment ? state.adjustments.map(a => a.id === adjustment.id ? updated : a) : [...state.adjustments, updated];
   } else {
     const type = draft?.kind === "payment" ? "payment" : draft?.kind === "purchase" ? "charge" : "fee";
-    const updated: LedgerTransaction = command.action === "save" ? { ...transaction, ...audit, id: transaction?.id ?? newId, accountId, date: draft!.date, amount: draft!.amount, type, category: draft!.kind === "interest" ? "Interest" : draft!.kind === "fee" ? "Fees" : transaction?.type === type && transaction.category !== "Interest" && transaction.category !== "Fees" ? transaction.category || (type === "payment" ? "Debt payment" : "Purchases") : type === "payment" ? "Debt payment" : "Purchases", memo: draft!.note.trim(), ...(draft!.title !== undefined ? { title: draft!.title.trim() } : {}), payeeId: transaction?.payeeId ?? "", payeeName: transaction?.payeeName ?? current.name, createdAt: transaction?.createdAt ?? now, updatedAt: now, deletedAt: null, ...(creator && !transaction ? { creator } : {}) } : { ...transaction!, ...audit, deletedAt: command.action === "delete" ? now : null, updatedAt: now };
+    const updated: LedgerTransaction = command.action === "save" ? { ...transaction, ...audit, id: transaction?.id ?? newId, accountId, date: draft!.date, amount: draft!.amount, type, ...(draft!.includedIn ? { includedIn: draft!.includedIn } : {}), category: draft!.kind === "interest" ? "Interest" : draft!.kind === "fee" ? "Fees" : transaction?.type === type && transaction.category !== "Interest" && transaction.category !== "Fees" ? transaction.category || (type === "payment" ? "Debt payment" : "Purchases") : type === "payment" ? "Debt payment" : "Purchases", memo: draft!.note.trim(), ...(draft!.title !== undefined ? { title: draft!.title.trim() } : {}), payeeId: transaction?.payeeId ?? "", payeeName: transaction?.payeeName ?? current.name, createdAt: transaction?.createdAt ?? now, updatedAt: now, deletedAt: null, ...(creator && !transaction ? { creator } : {}) } : { ...transaction!, ...audit, deletedAt: command.action === "delete" ? now : null, updatedAt: now };
     if (command.action === "save") {
+      if (updated.includedIn && (type !== "payment" || draft!.credit)) throw new Error("A linked record must remain a payment.");
       if (type === "payment") { updated.debtAction = "payment"; updated.paymentKind = draft!.paymentKind ?? transaction?.paymentKind ?? "combined"; }
       else { delete updated.debtAction; delete updated.paymentKind; delete updated.plannedItemId; }
     }
     transactions = transaction ? state.transactions.map(t => t.id === transaction.id ? updated : t) : [...state.transactions, updated];
-    if (command.action === "save") { updated.credit = draft!.credit === true && type === "payment"; if (updated.credit) { delete updated.debtAction; delete updated.paymentKind; } updated.balanceBefore = current.balance; updated.balanceAfter = transactionAdjustedAccounts(accounts, transactions).find(a => a.id === accountId)!.balance; }
+    if (command.action === "save") { updated.credit = draft!.credit === true && type === "payment"; if(updated.credit) updated.reductionKind=draft!.reductionKind??"credit";else delete updated.reductionKind; if (updated.credit) { delete updated.debtAction; delete updated.paymentKind; } updated.balanceBefore = current.balance; updated.balanceAfter = transactionAdjustedAccounts(accounts, transactions).find(a => a.id === accountId)!.balance; }
   }
+  if (original && command.action !== "save") {
+    const sourceKey = command.id!;
+    const changedSources=new Set([sourceKey]);
+    for (let pass=0;pass<transactions.length;pass++) {
+      let changed=false;
+      transactions=transactions.map(t=>{
+        const parent=t.includedIn&&`${t.includedIn.type}:${t.includedIn.id}`;
+        if(!parent||!changedSources.has(parent)||(command.action==="delete"?Boolean(t.deletedAt):t.deletedWithSource!==parent))return t;
+        changedSources.add("transaction:"+t.id);changed=true;
+        return {...t,deletedAt:command.action==="delete"?now:null,deletedWithSource:command.action==="delete"?parent:undefined,updatedAt:now};
+      });
+      if(!changed)break;
+    }
+  }
+  validatePaymentLinks(transactions, adjustments);
   for (const account of accounts) {
-    const posted = transactions.filter(t => t.accountId === account.id && !t.deletedAt).reduce((sum,t) => sum + (t.type === "payment" ? -t.amount : t.amount), 0);
+    const posted = transactions.filter(t => t.accountId === account.id && !t.deletedAt).reduce((sum,t) => sum + postedMovement(t), 0);
     if (round(account.balance + (account.balanceOffset ?? 0) + posted) < 0) throw new Error("This change would exceed an account’s debt balance. Reconcile its lender balance before correcting or restoring this entry.");
   }
   const after = transactionAdjustedAccounts(accounts, transactions);
@@ -85,4 +102,18 @@ export function changeDebtEntry(state: EntryState, command: EntryCommand, creato
   if (adjustment || command.action === "save" && draft!.kind === "adjustment") adjustments = adjustments.map(a => a.id === (adjustment?.id ?? newId) ? annotate(a) : a);
   else transactions = transactions.map(t => t.id === (transaction?.id ?? newId) ? annotate(t) : t);
   return { accounts, transactions, adjustments };
+}
+
+/** Undo one everyday mutation, retaining the saved record and its audit trail. */
+export function undoDebtEntry(before: EntryState, current: EntryState, now = new Date().toISOString()): EntryState {
+  const restore = <T extends LedgerTransaction | BalanceAdjustment>(old: T[], latest: T[]): T[] => latest.map(entry => {
+    const previous = old.find(t => t.id === entry.id);
+    if (!previous) return {...entry, deletedAt: now, updatedAt: now};
+    if (JSON.stringify(entry) === JSON.stringify(previous)) return entry;
+    const revision = {...entry, revisions: undefined};
+    return {...previous, updatedAt: now, revisions: [...(Array.isArray(entry.revisions) ? entry.revisions : []), {...revision, correctedAt: now}], balanceEvents: [...(Array.isArray(entry.balanceEvents) ? entry.balanceEvents : []), {action:'undo', recordedAt:now, effectiveDate:previous.date, movement:[]}]} as T;
+  });
+  const result = {accounts: before.accounts, transactions: restore(before.transactions,current.transactions), adjustments:restore(before.adjustments,current.adjustments)};
+  validatePaymentLinks(result.transactions,result.adjustments);
+  return result;
 }

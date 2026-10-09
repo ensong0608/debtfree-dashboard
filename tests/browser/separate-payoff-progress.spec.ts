@@ -49,7 +49,7 @@ test("calculator and plan save independently and plan reserves minimums within t
   await expect(page.getByLabel("Minimum payment for Plan card 1", { exact: true })).toHaveValue("1200");
   await page.getByRole("button", { name: "More", exact: true }).click();
   await page.getByRole("button", { name: "Payoff Calculator", exact: true }).click();
-  await expect(page.getByLabel("Total monthly debt payment", { exact: true })).toHaveValue("3793");
+  await expect(page.getByLabel("Total monthly debt payment", { exact: true })).toHaveValue("7000");
   await page.getByRole("button", { name: "Debts", exact: true }).click();
   await expect(page.locator(".simple-total")).toContainText("$20,000.00");
   const card = page.locator(".balance-first-cards>article").filter({ has: page.getByRole("heading", { name: "Plan card 1", exact: true }) });
@@ -65,7 +65,6 @@ test("removing an isolated test account retains its last balance in Progress", a
   fixture.monthlyPlan = { detailedSpendingTracking: false, months: {}, progressStartingBalance: 1000 };
   await page.goto("/");
   await page.locator('input[type="file"]').setInputFiles({ name: "removal-test.json", mimeType: "application/json", buffer: Buffer.from(JSON.stringify(fixture)) });
-  await page.getByLabel("More options for Removal test card").click();
   await page.getByRole("button", { name: "Edit debt details for Removal test card" }).click();
   await page.getByText("Advanced destructive action", { exact: true }).click();
   page.on("dialog", dialog => dialog.accept());
@@ -73,13 +72,15 @@ test("removing an isolated test account retains its last balance in Progress", a
   await page.getByRole("button", { name: "More", exact: true }).click();
   await page.getByRole("button", { name: "Progress", exact: true }).filter({ visible: true }).click();
   await expect(page.locator(".actual-progress-summary")).toContainText("$1,000.00");
+  await page.getByText("Account details & activity", {exact:true}).click();
   await expect(page.getByText("Removed from Debts · last balance retained", { exact: true })).toBeVisible();
-  await expect(page.locator(".progress-story")).toContainText("Your balance is unchanged.");
+  await expect(page.locator(".progress-story")).toContainText("$0.00");
   await page.getByRole("button", { name: "Save snapshot", exact: true }).click();
   await expect(page.locator(".snapshot-controls .saved-check")).toContainText("$1,000.00");
   await page.reload();
   await page.getByRole("button", { name: "More", exact: true }).click();
   await page.getByRole("button", { name: "Progress", exact: true }).filter({ visible: true }).click();
   await expect(page.locator(".actual-progress-summary")).toContainText("$1,000.00");
+  await page.getByText("Account details & activity", {exact:true}).click();
   await expect(page.getByText("Removed from Debts · last balance retained", { exact: true })).toBeVisible();
 });

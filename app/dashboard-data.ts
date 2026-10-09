@@ -1,3 +1,4 @@
+import { validatePaymentLinks } from "./payment-overlap.ts";
 import type { LoanTracker } from "./loan-progress.ts";
 import { validDate, type InterestAutomation, type InterestEstimate } from "./interest-accrual.ts";
 export const DASHBOARD_BACKUP_FORMAT = "debtfree-dashboard-backup" as const;
@@ -100,6 +101,9 @@ export type LedgerTransaction = OwnershipMetadata & {
   createdAt: string;
   updatedAt: string;
   deletedAt: string | null;
+  reductionKind?: "credit" | "adjustment";
+  includedIn?: { type: "adjustment" | "transaction"; id: string };
+  deletedWithSource?: string;
   debtAction?: "payment" | "mark-paid-off";
   balanceBefore?: number;
   balanceAfter?: number;
@@ -670,6 +674,11 @@ function validateTransaction(value: unknown, path: string, issues: string[]) {
   requiredString(item.id, `${path}.id`, issues);
   requiredString(item.date, `${path}.date`, issues);
   if (hasOwn(item, "credit")) requiredBoolean(item.credit, `${path}.credit`, issues);
+  if(hasOwn(item,"reductionKind")) enumValue(item.reductionKind,new Set(["credit","adjustment"]),path+".reductionKind",issues);
+  if (hasOwn(item, "includedIn")) {
+    const link = requiredRecord(item.includedIn, path + ".includedIn", issues);
+    if (link) { enumValue(link.type, new Set(["adjustment", "transaction"]), path + ".includedIn.type", issues); requiredString(link.id, path + ".includedIn.id", issues); }
+  }
   requiredString(item.accountId, `${path}.accountId`, issues);
   requiredString(item.payeeId, `${path}.payeeId`, issues, true);
   requiredString(item.payeeName, `${path}.payeeName`, issues, true);
@@ -947,6 +956,10 @@ function validateDashboardPayloadFields(value: unknown, path: string, includePla
     if (order && new Set(order).size !== order.length) {
       issues.push(path + ".customDebtOrder must not contain duplicate debt ids.");
     }
+  }
+  if (!issues.length && payload && Array.isArray(payload.transactions)) {
+    try { validatePaymentLinks(payload.transactions as LedgerTransaction[], (payload.balanceAdjustments ?? []) as BalanceAdjustment[]); }
+    catch(error) { issues.push(error instanceof Error ? error.message : "Invalid linked payment."); }
   }
   if (issues.length) throw new DashboardDataError(issues);
   return value as DashboardPayload | DashboardPayloadV1;

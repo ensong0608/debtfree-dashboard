@@ -13,8 +13,8 @@ export function paymentActivity(transactions: LedgerTransaction[], adjustments: 
   return [
     ...transactions.filter(t => !t.deletedAt && t.type === "payment").map(t => ({
       id: "transaction:" + t.id, accountId: t.accountId, date: t.date, createdAt: t.createdAt,
-      amount: t.amount, difference: -t.amount, kind: t.credit === true ? "credit" as const : "payment" as const,
-      title: t.title || (t.credit === true ? "Refund / credit" : "Payment"), source: t.credit === true ? "Refund / credit" : "Recorded payment", note: t.memo, creator: t.creator,
+      amount: t.amount, difference: t.includedIn ? 0 : -t.amount, kind: t.includedIn?.type === "transaction" || t.reductionKind === "adjustment" ? "adjustment" as const : t.credit === true ? "credit" as const : "payment" as const,
+      title: t.title || (t.reductionKind === "adjustment" ? "Balance correction" : t.credit === true ? "Refund / credit" : "Payment"), source: t.includedIn ? "Already included · linked record" : t.credit === true ? "Refund / credit" : "Recorded payment", note: t.memo, creator: t.creator,
       before: entryHistory(t).before, after: entryHistory(t).after, adjustment: null,
     })),
     ...transactions.filter(t => t.type !== "payment" && !t.deletedAt).map(t => ({
