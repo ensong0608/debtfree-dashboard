@@ -1,3 +1,4 @@
+import { postedMovement } from "./payment-overlap.ts";
 import type { DebtAccount, LedgerTransaction, PayoffSnapshot } from "./dashboard-data.ts";
 import { forecastMonthKey, round, type PayoffPlan } from "./payoff-engine.ts";
 import { buildProgressBalanceView } from "./progress-balances.ts";
@@ -102,7 +103,7 @@ export function buildProgressReport(input: ProgressReportInput) {
   const history = balanceView.snapshots.map((snapshot) => ({ month: snapshot.month, total: snapshot.totalBalance }));
   const previousSnapshot = [...balanceView.snapshots].reverse().find((snapshot) => snapshot.month < currentMonth) ?? null;
   const currentMonthTransactions = activeTransactions.filter((transaction) => transaction.date.slice(0, 7) === currentMonth);
-  const ledgerChangeThisMonth = round(currentMonthTransactions.reduce((sum, transaction) => sum + (transaction.type === "payment" ? transaction.amount : -transaction.amount), 0));
+  const ledgerChangeThisMonth = round(currentMonthTransactions.reduce((sum, transaction) => sum + -postedMovement(transaction), 0));
   const changeThisMonth = previousSnapshot ? round(previousSnapshot.totalBalance - currentDebt) : ledgerChangeThisMonth;
   const estimatedInterestPaid = round(activeTransactions.filter((transaction) => transaction.type === "fee").reduce((sum, transaction) => sum + transaction.amount, 0));
   const estimatedInterestAvoided = !input.currentPlan.stalled && !input.minimumOnlyPlan.stalled
@@ -114,11 +115,11 @@ export function buildProgressReport(input: ProgressReportInput) {
   const previousDebtFreeMonth = previousSnapshot?.projectedDebtFreeMonth ?? null;
   const timeGainedMonths = monthDifference(previousDebtFreeMonth, currentDebtFreeMonth);
   const paymentMonth = activeTransactions
-    .filter((transaction) => transaction.type === "payment")
+    .filter((transaction) => transaction.type === "payment" && transaction.credit !== true && transaction.includedIn?.type !== "transaction")
     .map((transaction) => transaction.date.slice(0, 7))
     .sort()[0] ?? null;
   const firstDebtMonth = activeTransactions
-    .filter((transaction) => transaction.type === "payment" && (transaction.balanceAfter ?? Number.POSITIVE_INFINITY) <= .005)
+    .filter((transaction) => transaction.type === "payment" && transaction.credit !== true && transaction.includedIn?.type !== "transaction" && (transaction.balanceAfter ?? Number.POSITIVE_INFINITY) <= .005)
     .map((transaction) => transaction.date.slice(0, 7))
     .sort()[0] ?? null;
   const currentHistory = [...history.filter((entry) => entry.month < currentMonth), { month: currentMonth, total: currentDebt }];

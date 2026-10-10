@@ -1,11 +1,12 @@
 import type { DebtAccount, LedgerTransaction, PayoffSnapshot } from "./dashboard-data.ts";
+import { postedMovement } from "./payment-overlap.ts";
 import { round } from "./payoff-engine.ts";
 
 export function transactionAdjustedAccounts(openingAccounts: DebtAccount[], transactions: LedgerTransaction[], _detailedSpendingTracking = true) {
   void _detailedSpendingTracking; // Kept for existing callers; visibility never changes posted balances.
   const movementByAccount = new Map<string, number>();
   transactions.filter((transaction) => !transaction.deletedAt).forEach((transaction) => {
-    const movement = transaction.type === "payment" ? -transaction.amount : transaction.amount;
+    const movement = postedMovement(transaction);
     movementByAccount.set(transaction.accountId, (movementByAccount.get(transaction.accountId) ?? 0) + movement);
   });
   return openingAccounts.map((account) => ({
@@ -48,6 +49,7 @@ export function createPayoffSnapshot(input: {
   const existing = input.existing ?? null;
   return {
     ...(existing ?? {}),
+    ...(existing ? { revisions: [...(Array.isArray(existing.revisions) ? existing.revisions : []), { ...existing, revisions: undefined }] } : {}),
     id: existing?.id ?? input.id ?? `snapshot-${input.capturedAt}`,
     month: input.month,
     capturedAt: input.capturedAt,

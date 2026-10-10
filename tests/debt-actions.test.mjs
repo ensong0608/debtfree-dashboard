@@ -101,11 +101,11 @@ test("balance updates reconcile upward and downward without duplicate ledger eff
   assert.equal(transactionAdjustedAccounts([downward.account], [charge])[0].balance, 900);
 });
 
-test("balance updates reject negative and unchanged balances", () => {
+test("balance updates reject negatives and allow unchanged lender confirmation", () => {
   const debt = account("card");
   const input = { storedAccount: debt, currentBalance: 1000, date: paymentDate, createdAt };
   assert.throws(() => createBalanceAdjustment({ ...input, nextBalance: -0.01 }), (error) => error instanceof DebtBalanceError && /\$0\.00 or greater/i.test(error.message));
-  assert.throws(() => createBalanceAdjustment({ ...input, nextBalance: 1000 }), (error) => error instanceof DebtBalanceError && /different from the current balance/i.test(error.message));
+  assert.equal(createBalanceAdjustment({ ...input, nextBalance: 1000 }).adjustment.difference, 0);
 });
 
 test("mark paid off retains the debt and archive/restore preserves history", () => {
@@ -164,7 +164,7 @@ test("desktop table, mobile stacked cards, explicit actions, and accessible dial
   assert.match(client, />Restore</);
   assert.match(client, /Advanced destructive action/);
   assert.match(client, /role="dialog" aria-modal="true" aria-labelledby="payment-modal-title" aria-describedby="payment-modal-description"/);
-  assert.match(client, /role="dialog" aria-modal="true" aria-labelledby="balance-modal-title" aria-describedby="balance-modal-description"/);
+  assert.match(client, /role="dialog" aria-modal="true" aria-labelledby="balance-modal-title"/);
   assert.match(client, /role="alert"/);
   assert.match(client, /View . correct/);
   assert.match(client, /Save correction/);

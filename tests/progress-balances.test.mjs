@@ -48,19 +48,17 @@ test("Progress preserves saved historical balances and uses active transactions 
   assert.equal(july.totalBalance, 9999);
 });
 
-test("the dashboard and Progress share the same transaction-adjusted balance source", async () => {
-  const [source, reportSource, panelSource] = await Promise.all([
+test("the dashboard and actual Progress use the same posted balance source", async () => {
+  const [source, model, panel] = await Promise.all([
     readFile(new URL("../app/dashboard-client.tsx", import.meta.url), "utf8"),
-    readFile(new URL("../app/progress-report.ts", import.meta.url), "utf8"),
-    readFile(new URL("../app/progress-report-page.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/debt-activity.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/actual-progress-page.tsx", import.meta.url), "utf8"),
   ]);
   assert.match(source, /transactionAdjustedAccounts\(accounts, transactions, detailedSpendingTracking\)/);
-  assert.match(source, /buildProgressReport\(\{ openingAccounts, transactions, snapshots/);
-  assert.match(reportSource, /buildProgressBalanceView\([\s\S]*openingAccounts,[\s\S]*activeTransactions,[\s\S]*snapshots,[\s\S]*detailedSpendingTracking/);
-  assert.match(source, /openingAccounts=\{accounts\} transactions=\{transactions\}/);
-  assert.match(source, /<ProgressReportPanel report=\{report\}/);
-  assert.match(panelSource, /Transaction-adjusted balance/);
-  assert.match(panelSource, /<span>Starting debt<\/span>/);
+  assert.match(source, /<ActualProgressPage readOnly=\{isViewer\} accounts=\{accounts\}/);
+  assert.match(model, /transactionAdjustedAccounts\(accounts, transactions\)/);
+  assert.match(panel, /money.format\(report.current\)/);
+  assert.doesNotMatch(panel, /minimumOnlyPlan|Projected debt-free|Estimated interest paid/);
 });
 
 test("transaction-adjusted balances never go below zero", () => {

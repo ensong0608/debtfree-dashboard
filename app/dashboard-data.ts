@@ -1,3 +1,6 @@
+import { validatePaymentLinks } from "./payment-overlap.ts";
+import type { LoanTracker } from "./loan-progress.ts";
+import { validDate, type InterestAutomation, type InterestEstimate } from "./interest-accrual.ts";
 export const DASHBOARD_BACKUP_FORMAT = "debtfree-dashboard-backup" as const;
 export const LEGACY_DASHBOARD_DATA_VERSION = 1 as const;
 export const PLANNING_DASHBOARD_DATA_VERSION = 2 as const;
@@ -32,6 +35,7 @@ export type DebtAccount = OwnershipMetadata & {
   baselineBalance?: number;
   apr: number;
   interestFee: number;
+  interestAutomation?: InterestAutomation;
   minimum: number;
   minimumMode: MinimumMode;
   payoffMode: PayoffMode;
@@ -44,6 +48,8 @@ export type DebtAccount = OwnershipMetadata & {
   archivedAt?: string | null;
   archiveHistory?: DebtArchiveEvent[];
   customOrder?: number;
+  displayGroup?: "Mama" | "Papi" | "Other";
+  displayOrder?: number;
   householdMember?: PlannedAssignment;
   [key: string]: unknown;
 };
@@ -90,10 +96,14 @@ export type LedgerTransaction = OwnershipMetadata & {
   type: TransactionType;
   category: string;
   memo: string;
+  title?: string;
   amount: number;
   createdAt: string;
   updatedAt: string;
   deletedAt: string | null;
+  reductionKind?: "credit" | "adjustment";
+  includedIn?: { type: "adjustment" | "transaction"; id: string };
+  deletedWithSource?: string;
   debtAction?: "payment" | "mark-paid-off";
   balanceBefore?: number;
   balanceAfter?: number;
@@ -101,6 +111,7 @@ export type LedgerTransaction = OwnershipMetadata & {
   plannedItemId?: string;
   paymentKind?: PaymentKind;
   replacesTransactionId?: string;
+  interestEstimate?: InterestEstimate;
   replacedByTransactionId?: string;
   [key: string]: unknown;
 };
@@ -114,7 +125,12 @@ export type BalanceAdjustment = OwnershipMetadata & {
   difference: number;
   createdAt: string;
   note?: string;
+  title?: string;
   creator?: DebtAuditCreator;
+  reportKind?: "purchase" | "interest" | "fee" | "credit";
+  confirmedPayment?: { confirmedAt: string; creator?: DebtAuditCreator };
+  deletedAt?: string | null;
+  updatedAt?: string;
   [key: string]: unknown;
 };
 
@@ -225,8 +241,17 @@ export type MonthlyPlanMonth = {
   [key: string]: unknown;
 };
 
+export type RemovedProgressAccount = Pick<DebtAccount, "id" | "name" | "balance" | "baselineBalance" | "displayGroup" | "displayOrder"> & { removedAt: string };
+
 export type MonthlyPlanSettings = {
+  payoffPlanAmount?: number;
+  payoffPlanStrategy?: PayoffStrategy;
+  payoffPlanOrder?: string[];
+  removedProgressAccounts?: RemovedProgressAccount[];
+  loanTrackers?: LoanTracker[];
   monthlyCommitment?: number;
+  calculatorAmount?: number;
+  progressStartingBalance?: number;
   detailedSpendingTracking: boolean;
   months: Record<string, MonthlyPlanMonth>;
   [key: string]: unknown;
@@ -593,6 +618,14 @@ function validateAccount(value: unknown, path: string, issues: string[]) {
   if (item.baselineBalance !== undefined) requiredNumber(item.baselineBalance, `${path}.baselineBalance`, issues);
   requiredNumber(item.apr, `${path}.apr`, issues);
   requiredNumber(item.interestFee, `${path}.interestFee`, issues);
+  if (hasOwn(item, "interestAutomation")) {
+    const config = requiredRecord(item.interestAutomation, path + ".interestAutomation", issues);
+    if (config) {
+      requiredBoolean(config.enabled, path + ".interestAutomation.enabled", issues);
+      if (typeof config.coveredThrough !== "string" || !validDate(config.coveredThrough) || !config.coveredThrough.endsWith("-02")) issues.push(path + ".interestAutomation.coveredThrough must be a valid Costco closing date (day 02).");
+      if (typeof config.estimatedApr !== "number" || !Number.isFinite(config.estimatedApr) || config.estimatedApr <= 0 || config.estimatedApr > 100) issues.push(path + ".interestAutomation.estimatedApr must be greater than 0 and at most 100.");
+    }
+  }
   requiredNumber(item.minimum, `${path}.minimum`, issues);
   enumValue(item.minimumMode, minimumModes, `${path}.minimumMode`, issues);
   enumValue(item.payoffMode, payoffModes, `${path}.payoffMode`, issues);
@@ -603,6 +636,8 @@ function validateAccount(value: unknown, path: string, issues: string[]) {
   requiredNumber(item.postPromoMinimum, `${path}.postPromoMinimum`, issues);
   requiredString(item.createdAt, `${path}.createdAt`, issues);
   if (hasOwn(item, "archivedAt")) nullableString(item.archivedAt, `${path}.archivedAt`, issues);
+  if (hasOwn(item, "displayGroup")) enumValue(item.displayGroup, new Set(["Mama", "Papi", "Other"]), `${path}.displayGroup`, issues);
+  if (hasOwn(item, "displayOrder")) requiredNumber(item.displayOrder, `${path}.displayOrder`, issues, true);
   if (hasOwn(item, "customOrder")) requiredNumber(item.customOrder, `${path}.customOrder`, issues, true);
   if (hasOwn(item, "householdMember")) enumValue(item.householdMember, plannedAssignments, path + ".householdMember", issues);
   if (hasOwn(item, "archiveHistory")) {
@@ -639,13 +674,30 @@ function validateTransaction(value: unknown, path: string, issues: string[]) {
   if (!item) return;
   requiredString(item.id, `${path}.id`, issues);
   requiredString(item.date, `${path}.date`, issues);
+  if (hasOwn(item, "credit")) requiredBoolean(item.credit, `${path}.credit`, issues);
+  if(hasOwn(item,"reductionKind")) enumValue(item.reductionKind,new Set(["credit","adjustment"]),path+".reductionKind",issues);
+  if (hasOwn(item, "includedIn")) {
+    const link = requiredRecord(item.includedIn, path + ".includedIn", issues);
+    if (link) { enumValue(link.type, new Set(["adjustment", "transaction"]), path + ".includedIn.type", issues); requiredString(link.id, path + ".includedIn.id", issues); }
+  }
   requiredString(item.accountId, `${path}.accountId`, issues);
   requiredString(item.payeeId, `${path}.payeeId`, issues, true);
   requiredString(item.payeeName, `${path}.payeeName`, issues, true);
   enumValue(item.type, transactionTypes, `${path}.type`, issues);
+  if (hasOwn(item, "interestEstimate")) {
+    const estimate = requiredRecord(item.interestEstimate, path + ".interestEstimate", issues);
+    if (estimate) {
+      for (const key of ["cycle", "periodStart"]) if (typeof estimate[key] !== "string" || !validDate(estimate[key] as string)) issues.push(path + ".interestEstimate." + key + " must be a valid date.");
+      requiredNumber(estimate.days, path + ".interestEstimate.days", issues, true);
+      requiredNumber(estimate.estimatedApr, path + ".interestEstimate.estimatedApr", issues);
+      if (item.type !== "fee" || item.date !== estimate.cycle || typeof estimate.cycle !== "string" || !estimate.cycle.endsWith("-02") || item.id !== "interest:" + item.accountId + ":" + estimate.cycle.slice(0, 7)) issues.push(path + ".interestEstimate requires a unique monthly interest fee.");
+      if (hasOwn(estimate, "reconciledAt")) requiredString(estimate.reconciledAt, path + ".interestEstimate.reconciledAt", issues);
+    }
+  }
   requiredString(item.category, `${path}.category`, issues);
   requiredString(item.memo, `${path}.memo`, issues, true);
   requiredNumber(item.amount, `${path}.amount`, issues);
+  if (hasOwn(item, "title")) requiredString(item.title, path + ".title", issues, true);
   requiredString(item.createdAt, `${path}.createdAt`, issues);
   requiredString(item.updatedAt, `${path}.updatedAt`, issues);
   nullableString(item.deletedAt, `${path}.deletedAt`, issues);
@@ -670,8 +722,24 @@ function validateBalanceAdjustment(value: unknown, path: string, issues: string[
   requiredNumber(item.balanceAfter, path + ".balanceAfter", issues);
   if (typeof item.difference !== "number" || !Number.isFinite(item.difference)) issues.push(path + ".difference must be a finite number.");
   requiredString(item.createdAt, path + ".createdAt", issues);
+  if (hasOwn(item, "deletedAt")) nullableString(item.deletedAt, path + ".deletedAt", issues);
+  if (hasOwn(item, "updatedAt")) requiredString(item.updatedAt, path + ".updatedAt", issues);
+  if (hasOwn(item, "title")) requiredString(item.title, path + ".title", issues, true);
   if (hasOwn(item, "note")) requiredString(item.note, path + ".note", issues, true);
   if (hasOwn(item, "creator")) validateCreator(item.creator, path + ".creator", issues);
+  if (hasOwn(item, "reportKind")) {
+    enumValue(item.reportKind, new Set(["purchase", "interest", "fee", "credit"]), path + ".reportKind", issues);
+    if (item.reportKind === "credit" ? !(Number(item.difference) < 0) : !(Number(item.difference) > 0)) issues.push(path + ".reportKind does not match the balance direction.");
+    if (hasOwn(item, "confirmedPayment")) issues.push(path + ".reportKind cannot also be a payment.");
+  }
+  if (hasOwn(item, "confirmedPayment")) {
+    const confirmation = requiredRecord(item.confirmedPayment, path + ".confirmedPayment", issues);
+    if (confirmation) {
+      requiredString(confirmation.confirmedAt, path + ".confirmedPayment.confirmedAt", issues);
+      if (hasOwn(confirmation, "creator")) validateCreator(confirmation.creator, path + ".confirmedPayment.creator", issues);
+      if (!(typeof item.difference === "number" && item.difference < 0)) issues.push(path + ".confirmedPayment requires a balance decrease.");
+    }
+  }
 }
 function validateSnapshotAccount(value: unknown, path: string, issues: string[]) {
   const item = requiredRecord(value, path, issues);
@@ -758,7 +826,53 @@ function validatePlanning(value: unknown, path: string, issues: string[]) {
 function validateMonthlyPlan(value: unknown, path: string, issues: string[]) {
   const plan = requiredRecord(value, path, issues);
   if (!plan) return;
+  if (plan.payoffPlanAmount !== undefined) requiredNumber(plan.payoffPlanAmount, path + ".payoffPlanAmount", issues);
+  if (plan.payoffPlanStrategy !== undefined) enumValue(plan.payoffPlanStrategy, new Set(["avalanche", "snowball", "custom"]), path + ".payoffPlanStrategy", issues);
+  if (plan.payoffPlanOrder !== undefined) requiredArray(plan.payoffPlanOrder, path + ".payoffPlanOrder", issues)?.forEach((id, i) => requiredString(id, path + ".payoffPlanOrder[" + i + "]", issues));
+  if (plan.removedProgressAccounts !== undefined) {
+    const ids = new Set<string>();
+    requiredArray(plan.removedProgressAccounts, path + ".removedProgressAccounts", issues)?.forEach((raw, i) => {
+      const p = path + ".removedProgressAccounts[" + i + "]";
+      const account = requiredRecord(raw, p, issues);
+      if (!account) return;
+      for (const key of ["id", "name", "removedAt"]) requiredString(account[key], p + "." + key, issues);
+      requiredNumber(account.balance, p + ".balance", issues);
+      if (account.baselineBalance !== undefined) requiredNumber(account.baselineBalance, p + ".baselineBalance", issues);
+      if (account.displayGroup !== undefined) enumValue(account.displayGroup, new Set(["Mama", "Papi", "Other"]), p + ".displayGroup", issues);
+      if (account.displayOrder !== undefined) requiredNumber(account.displayOrder, p + ".displayOrder", issues);
+      if (typeof account.id === "string") { if (ids.has(account.id)) issues.push(p + ".id is duplicated."); ids.add(account.id); }
+    });
+  }
+  if (plan.progressStartingBalance !== undefined) requiredNumber(plan.progressStartingBalance, path + ".progressStartingBalance", issues);
+  if (plan.loanTrackers !== undefined) {
+    const loans = requiredArray(plan.loanTrackers, path + ".loanTrackers", issues);
+    const ids = new Set<string>();
+    loans?.forEach((raw, i) => {
+      const p = path + ".loanTrackers[" + i + "]";
+      const loan = requiredRecord(raw, p, issues);
+      if (!loan) return;
+      for (const key of ["id", "name", "budgetItemId", "budgetItemName"]) requiredString(loan[key], p + "." + key, issues);
+      if (typeof loan.id === "string") { if (ids.has(loan.id)) issues.push(p + ".id is duplicated."); ids.add(loan.id); }
+      enumValue(loan.kind, new Set(["house", "car"]), p + ".kind", issues);
+      enumValue(loan.balanceKind, new Set(["principal", "payoff"]), p + ".balanceKind", issues);
+      requiredNumber(loan.originalAmount, p + ".originalAmount", issues);
+      if (typeof loan.originalAmount === "number" && loan.originalAmount <= 0) issues.push(p + ".originalAmount must be positive.");
+      requiredNumber(loan.remainingAmount, p + ".remainingAmount", issues);
+      for (const key of ["apr", "escrow", "principalAndInterest"]) if (loan[key] !== undefined) requiredNumber(loan[key], p + "." + key, issues);
+      if (typeof loan.asOf !== "string" || !validDate(loan.asOf)) issues.push(p + ".asOf must be a valid date.");
+      requiredArray(loan.history, p + ".history", issues)?.forEach((raw, index) => {
+        const entry = requiredRecord(raw, p + ".history[" + index + "]", issues);
+        if (!entry) return;
+        requiredNumber(entry.amount, p + ".history.amount", issues);
+        for (const key of ["payment", "principal", "interest", "escrow", "extraPrincipal"]) if (entry[key] !== undefined) requiredNumber(entry[key], p + ".history." + key, issues);
+        enumValue(entry.balanceKind, new Set(["principal", "payoff"]), p + ".history.balanceKind", issues);
+        if (typeof entry.date !== "string" || !validDate(entry.date)) issues.push(p + ".history.date must be a valid date.");
+        requiredString(entry.recordedAt, p + ".history.recordedAt", issues);
+      });
+    });
+  }
   requiredBoolean(plan.detailedSpendingTracking, path + ".detailedSpendingTracking", issues);
+  if (plan.calculatorAmount !== undefined) requiredNumber(plan.calculatorAmount, path + ".calculatorAmount", issues);
   if (plan.monthlyCommitment !== undefined) requiredNumber(plan.monthlyCommitment, path + ".monthlyCommitment", issues);
   const months = requiredRecord(plan.months, path + ".months", issues);
   if (months) Object.entries(months).forEach(([month, raw]) => {
@@ -796,7 +910,7 @@ function validateIdentifiersAndDates(payload: UnknownRecord, path: string, issue
         if (ids.has(item.id)) issues.push(field + "[" + i + "].id duplicates " + item.id + ".");
         ids.add(item.id);
       }
-      for (const key of ["date", "dueDate", "promoEndDate"]) calendarDate(item[key], field + "[" + i + "]." + key);
+      for (const key of ["date", "dueDate", "promoEndDate", "balanceAsOf"]) calendarDate(item[key], field + "[" + i + "]." + key);
       calendarDate(item.month, field + "[" + i + "].month", true);
     });
   };
@@ -848,6 +962,10 @@ function validateDashboardPayloadFields(value: unknown, path: string, includePla
     if (order && new Set(order).size !== order.length) {
       issues.push(path + ".customDebtOrder must not contain duplicate debt ids.");
     }
+  }
+  if (!issues.length && payload && Array.isArray(payload.transactions)) {
+    try { validatePaymentLinks(payload.transactions as LedgerTransaction[], (payload.balanceAdjustments ?? []) as BalanceAdjustment[]); }
+    catch(error) { issues.push(error instanceof Error ? error.message : "Invalid linked payment."); }
   }
   if (issues.length) throw new DashboardDataError(issues);
   return value as DashboardPayload | DashboardPayloadV1;

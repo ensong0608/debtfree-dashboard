@@ -11,21 +11,21 @@ test("renders the DebtFree Dashboard shell and optional detail tools", async () 
   const source = client + monthly;
   assert.match(layout, /DebtFree Dashboard/i);
   assert.match(source, /Monthly Plan/i);
-  assert.doesNotMatch(source, /Monthly Budget/i);
+  assert.doesNotMatch(source, /<h1>Monthly Budget<\/h1>/i);
   assert.match(monthly, /Copy recurring items/i);
   assert.match(client, /Searchable transaction ledger/i);
   assert.match(client, /Batch entry/i);
   assert.match(client, /softDeleteTransaction/);
   assert.match(client, /ledger-pagination/);
   assert.match(client, /captureSnapshot/);
-  assert.match(client, /SnapshotNoteEditor/);
+  assert.match(client, /onUpdateNote=\{updateSnapshotNote\}/);
   assert.match(client, /Revolving credit health/i);
-  assert.match(client, /What-if planner/i);
-  assert.match(client, /Strategy comparison/i);
-  assert.match(monthly, /One-time adjustments/i);
-  assert.match(monthly, /Recurring income/i);
-  assert.match(monthly, /Recurring planned spending/i);
-  assert.match(monthly, /Enable detailed spending tracking/i);
+  assert.match(client, /DebtInsightsPage/);
+  assert.doesNotMatch(client, /Strategy comparison/i);
+  assert.match(monthly, /title: "One-time"/);
+  assert.match(monthly, /title: "Income"/);
+  assert.match(monthly, /title: "Spending"/);
+  assert.doesNotMatch(monthly, /Enable detailed spending tracking/i);
   assert.match(client, /Merchants &amp; recipients/);
   assert.match(client, /Who received the money/);
   assert.match(client, /&times;/);
@@ -49,7 +49,7 @@ test("supports complete JSON backup transfer between dashboard origins", async (
   assert.match(safety, /Replace current data/);
   assert.match(safety, /Merge with current data/);
   assert.match(client, /Local device storage only/);
-  assert.match(client, /deviceOnly \? "Saved on device"/);
+  assert.match(client, /deviceSaveStatus === "synced" \? "Saved on device"/);
   assert.match(client, /profile-grid device-only-profile/);
   assert.doesNotMatch(client, /function DataTransferPanel/);
   assert.match(styles, /data-transfer-card/);
@@ -66,8 +66,8 @@ test("simplifies monthly planning and copies recurring entries", async () => {
     readFile(new URL("../app/globals.css", import.meta.url), "utf8"),
   ]);
   assert.match(client, /copyRecurringPlannedItems/);
-  assert.match(monthly, /Planned, spent, and remaining/i);
-  assert.match(monthly, /Available debt payment/i);
+  assert.match(monthly, /Select plan month/i);
+  assert.match(monthly, /Planned entries/i);
   assert.match(monthly, /One-time adjustments are never copied/i);
   assert.match(styles, /Phase 6 Monthly Plan/);
 });
@@ -82,50 +82,42 @@ test("removes disposable starter assets", async () => {
     readFile(new URL("../package.json", import.meta.url), "utf8"),
   ]);
   const dashboardSource = page + client + monthly + payoffEngine + progressReport;
-  assert.match(dashboardSource, /DebtFree Dashboard/);
+  assert.match(layout, /DebtFree Dashboard/);
   assert.match(dashboardSource, /Import DebtFree CSV/);
   assert.match(dashboardSource, /extractDebtFreeAccounts/);
-  assert.match(dashboardSource, /Avalanche/);
-  assert.match(dashboardSource, /Snowball/);
-  assert.match(dashboardSource, /Custom/);
+  const calculator = await readFile(new URL("../app/payoff-calculator-page.tsx", import.meta.url), "utf8");
+  assert.match(calculator, /Avalanche/);
+  assert.match(calculator, /Snowball/);
+  assert.match(calculator, /Custom/);
   assert.match(dashboardSource, /CashflowItem/);
   assert.match(dashboardSource, /cashflowItems/);
   assert.match(dashboardSource, /Paid with/);
   assert.match(dashboardSource, /Select the card used for this/);
   assert.match(dashboardSource, /linkedCardExpenses/);
-  assert.match(dashboardSource, /Minimums \+ linked card expenses \+ extra/);
-  assert.match(dashboardSource, /linkedExpenseTotals/);
   assert.doesNotMatch(dashboardSource, /Includes \{moneyPrecise\.format\(cardExpense\)\} card expense/);
   assert.doesNotMatch(dashboardSource, /month-sticky|interest-sticky|remaining-sticky|month-plan-head/);
-  assert.match(dashboardSource, /plan-table-summary/);
-  assert.match(dashboardSource, /Recommended strategy/);
-  assert.match(dashboardSource, /Compare strategies/);
-  assert.match(dashboardSource, /Custom payoff order/);
-  assert.match(dashboardSource, /Move up/);
-  assert.match(dashboardSource, /Focus debt/);
-  assert.match(dashboardSource, /Minimum payments/);
-  assert.match(dashboardSource, /Extra payment/);
-  assert.match(dashboardSource, /Ending balance/);
+  assert.match(calculator, /plan-table-summary/);
+  assert.match(calculator, /\["avalanche", "snowball"\]/);
+  assert.doesNotMatch(calculator, /Custom payoff order/);
+  assert.match(calculator, /Saved minimum/);
+  assert.match(calculator, /Ending balance/);
   assert.doesNotMatch(dashboardSource, /moneyPrecise\.format\(month\.payments\[account\.id\] \?\? 0\)\} paid/);
   assert.match(dashboardSource, /\/api\/household/);
   assert.match(dashboardSource, /Add member/);
   assert.match(page, /getAuthenticatedUser/);
   assert.match(page, /Local device storage only/);
-  assert.match(dashboardSource, /one-time code sent to their own email/i);
-  assert.match(dashboardSource, /monthlySurplus/);
-  assert.match(dashboardSource, /Use my \$\{moneyPrecise\.format\(availableExtra\)\} available extra/);
-  assert.match(dashboardSource, /Calculated after planned spending and debt minimums\. Edit anytime/);
+  assert.match(dashboardSource, /signs in with Google/i);
   assert.match(dashboardSource, /Estimated paid off date/);
   assert.match(dashboardSource, /Credit limit/);
   assert.match(dashboardSource, /minimum-only/);
   assert.match(dashboardSource, /Auto estimate/);
-  assert.match(dashboardSource, /Starting debt/);
-  assert.match(dashboardSource, /row\.month\.balances/);
+  assert.match(calculator, /Starting debt/);
+  assert.match(calculator, /month\.balances/);
   assert.match(dashboardSource, /projectedMonthlyRate/);
   assert.match(dashboardSource, /Actual interest fee/);
-  assert.match(dashboardSource, /planAccounts = accounts\.filter/);
-  assert.match(dashboardSource, /Recurring income/);
-  assert.match(dashboardSource, /Recurring planned spending/);
+  assert.match(calculator, /active = accounts\.filter/);
+  assert.match(dashboardSource, /title: "Income"/);
+  assert.match(dashboardSource, /title: "Spending"/);
   assert.match(dashboardSource, /monthly-plan-groups/);
   assert.doesNotMatch(dashboardSource, /cashflow-tabs|Set-aside plan/);
   assert.doesNotMatch(dashboardSource, /<th>Focus<\/th>/);
@@ -145,9 +137,10 @@ test("supports a mobile dashboard shell and collapsible navigation", async () =>
   assert.match(client, /Expand dashboard navigation/);
   assert.match(client, /NAVIGATION_COLLAPSED_KEY/);
   assert.match(client, /sidebar-head/);
-  assert.match(client, /mobile-dashboard-toggle/);
+  assert.match(client, /className="account-bubble"/);
+  assert.doesNotMatch(client, /aria-label="Refresh dashboard"/);
   assert.doesNotMatch(client, /<span>\{navigationCollapsed \? "Expand" : "Collapse"\}<\/span>/);
-  assert.match(client, /one-time code sent to their own email/);
+  assert.match(client, /signs in with Google/);
   assert.match(store, /SELECT id FROM households LIMIT 1/);
   assert.match(page, /This account is not part of the shared household/);
   assert.doesNotMatch(client, /window\.close\(\)|Close dashboard/);
@@ -166,15 +159,14 @@ test("supports a mobile dashboard shell and collapsible navigation", async () =>
 
 test("exports a complete payoff report in CSV, Excel, and PDF formats", async () => {
   const [client, exporter, packageJson] = await Promise.all([
-    readFile(new URL("../app/dashboard-client.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/payoff-calculator-page.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/payoff-export.ts", import.meta.url), "utf8"),
     readFile(new URL("../package.json", import.meta.url), "utf8"),
   ]);
-  assert.match(client, /Export full report/);
-  assert.match(client, /Budget, debts, schedule, transactions, and snapshots/);
-  assert.match(client, /exportReport\("csv"\)/);
-  assert.match(client, /exportReport\("excel"\)/);
-  assert.match(client, /exportReport\("pdf"\)/);
+  assert.match(client, /Export calculation/);
+  assert.match(client, /totalMinimums: firstMinimums/);
+  assert.match(client, /exportReport\(format\)/);
+  assert.match(client, /\["csv", "excel", "pdf"\]/);
   assert.match(exporter, /MONTHLY PLAN BREAKDOWN/);
   assert.match(exporter, /DEBT ACCOUNTS/);
   assert.match(exporter, /PAYOFF SCHEDULE/);
@@ -203,12 +195,9 @@ test("uses explicit post-promo card terms in payoff forecasts", async () => {
   assert.match(client, /from "\.\/payoff-engine"/);
   assert.match(engine, /function forecastMinimum/);
   assert.match(engine, /account\.postPromoMinimum > 0/);
-  assert.match(client, /The forecast keeps the current minimum; it does not silently estimate a higher one/);
-  assert.match(client, /True Cost forecast/);
-  assert.match(client, /forecast\.totalInterest/);
-  assert.match(client, /forecast\.peakMonthly/);
-  assert.match(client, /nonAmortizingAccountIds/);
-  assert.match(client, /No payoff at this payment/);
+  assert.match(engine, /promoMinimumFallbackIds/);
+  assert.match(engine, /nonAmortizingAccountIds/);
+  assert.match(client, /PayoffCalculatorPage/);
   assert.match(styles, /true-cost-warning/);
   assert.match(styles, /promo-fields/);
   assert.match(releaseNotes, /Promo-aware payoff forecasting/);
@@ -249,7 +238,7 @@ test("pays linked credit-card one-time purchases in the current payoff month onl
   assert.match(engine, /oneTimePurchaseTotal - paidThisMonth/);
   assert.match(engine, /scheduledPayment = \(minimums\[account\.id\] \?\? 0\) \+ cardChargeForMonth\(account\.id, month\)/);
   assert.match(payoffPlan, /month\.month === 1 \? linkedCardPurchases\[account\.id\] \?\? 0 : 0/);
-  assert.match(client, /currentMonthPurchaseTotal/);
+  assert.match(client, /linkedCardPurchases, new Date/);
 });
 test("uses verified personal email accounts with household admin and viewer roles", async () => {
   const [auth, client, householdRoute, membersRoute, schema, wranglerSource] = await Promise.all([

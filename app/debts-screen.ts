@@ -87,6 +87,10 @@ export type DebtPaymentInput = {
 export function createDebtPayment(input: DebtPaymentInput): LedgerTransaction {
   const balanceBefore = cents(input.account.balance);
   const amount = cents(input.amount);
+  if (!Number.isFinite(amount)) throw new DebtPaymentError("Enter a valid payment amount.");
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(input.date) || !Number.isFinite(Date.parse(input.date + "T12:00:00Z")) || new Date(input.date + "T12:00:00Z").toISOString().slice(0, 10) !== input.date) {
+    throw new DebtPaymentError("Enter a valid payment date.");
+  }
   if (balanceBefore <= 0) throw new DebtPaymentError(input.account.name + " is already paid off.");
   if (amount <= 0) throw new DebtPaymentError("Enter a payment greater than $0.00.");
   if (amount > balanceBefore) {
@@ -172,9 +176,7 @@ export function createBalanceAdjustment(input: BalanceAdjustmentInput) {
   }
   const balanceBefore = cents(input.currentBalance);
   const balanceAfter = cents(input.nextBalance);
-  if (balanceBefore === balanceAfter) {
-    throw new DebtBalanceError("Enter a balance different from the current balance.");
-  }
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(input.date) || new Date(input.date + "T12:00:00Z").toISOString().slice(0, 10) !== input.date) throw new DebtBalanceError("Enter a valid balance effective date.");
   const createdAt = input.createdAt ?? new Date().toISOString();
   const account = {
     ...input.storedAccount,
@@ -209,4 +211,35 @@ export function setDebtArchived(account: DebtAccount, archived: boolean, created
       },
     ],
   };
+}
+
+export type DebtDisplayGroup = "Mama" | "Papi" | "Other";
+const householdOrder = [
+  ["citi1", "citi 1"], ["discover"], ["chase prime", "chase amazon", "amazon prime"], ["penfed", "pen fed"], ["citi cash", "citi custom cash"],
+  ["costco"], ["chase freedom"], ["wells fargo"], ["citi double cash", "double cash"], ["usbconnect", "us bank connect", "usbank connect", "usb connect"],
+];
+export function debtDisplayPlacement(account: DebtAccount) {
+  const name = account.name.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+  const index = householdOrder.findIndex(aliases => aliases.some(alias => name === alias || name.startsWith(alias + " ")));
+  return { group: account.displayGroup ?? (index < 0 ? "Other" : index < 5 ? "Mama" : "Papi") as DebtDisplayGroup, order: account.displayOrder ?? (index < 0 ? Number.MAX_SAFE_INTEGER : index % 5) };
+}
+export function groupedDisplayDebts(accounts: DebtAccount[]) {
+  return (["Mama", "Papi", "Other"] as const).map(group => ({ group, accounts: accounts.filter(account => !isArchivedDebt(account) && debtDisplayPlacement(account).group === group).sort((a, b) => debtDisplayPlacement(a).order - debtDisplayPlacement(b).order || a.name.localeCompare(b.name)) }));
+}
+export function arrangeDebt(accounts: DebtAccount[], id: string, destination: DebtDisplayGroup, direction: -1 | 0 | 1 = 0) {
+  const groups = groupedDisplayDebts(accounts);
+  const moving = accounts.find(account => account.id === id);
+  if (!moving || isArchivedDebt(moving)) return accounts;
+  const source = debtDisplayPlacement(moving).group;
+  const target = groups.find(group => group.group === destination)!.accounts;
+  if (source !== destination) {
+    groups.find(group => group.group === source)!.accounts = groups.find(group => group.group === source)!.accounts.filter(account => account.id !== id);
+    target.push(moving);
+  } else {
+    const index = target.findIndex(account => account.id === id);
+    const next = index + direction;
+    if (next >= 0 && next < target.length) [target[index], target[next]] = [target[next], target[index]];
+  }
+  const placement = new Map(groups.flatMap(({ group, accounts: items }) => items.map((account, displayOrder) => [account.id, { displayGroup: group, displayOrder }] as const)));
+  return accounts.map(account => ({ ...account, ...placement.get(account.id) }));
 }

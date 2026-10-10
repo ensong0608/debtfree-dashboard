@@ -169,44 +169,28 @@ test("legacy v4 payload migrates custom order explicitly and round-trips unknown
   assert.deepEqual(roundTrip.payload.futurePhase7Field, { retained: true });
 });
 
-test("schedule is collapsed to a short preview by default and expands only on request", async () => {
-  const client = await readFile(new URL("../app/dashboard-client.tsx", import.meta.url), "utf8");
-  assert.match(client, /useState\(false\)/);
-  assert.match(client, /scheduleExpanded \? scheduleRows : scheduleRows\.slice\(0, DEFAULT_SCHEDULE_PREVIEW_MONTHS\)/);
-  assert.match(client, /aria-expanded=\{scheduleExpanded\}/);
-  assert.match(client, /setScheduleExpanded\(\(current\) => !current\)/);
-  assert.match(client, /Show all \$\{scheduleRows\.length\} months/);
-  assert.match(client, /displayedScheduleRows\.map/);
+test("payoff pages render the complete schedule without expansion controls", async () => {
+  const client = await readFile(new URL("../app/payoff-calculator-page.tsx", import.meta.url), "utf8");
+  assert.match(client, /plan\.months\.map/);
+  assert.doesNotMatch(client, /scheduleExpanded|DEFAULT_SCHEDULE_PREVIEW_MONTHS|Show fewer months|Show all/);
 });
 
-test("keyboard and mobile move controls remain visible and announce reordered positions", async () => {
-  const [client, styles] = await Promise.all([
-    readFile(new URL("../app/dashboard-client.tsx", import.meta.url), "utf8"),
-    readFile(new URL("../app/globals.css", import.meta.url), "utf8"),
-  ]);
-  assert.match(client, /Move \$\{account\.name\} up/);
-  assert.match(client, /Move \$\{account\.name\} down/);
+test("payoff pages expose only avalanche and snowball while retaining audit announcements", async () => {
+  const client = await readFile(new URL("../app/payoff-calculator-page.tsx", import.meta.url), "utf8");
+  assert.match(client, /\["avalanche", "snowball"\]/);
+  assert.doesNotMatch(client, /custom-order-card|Move up|Move down/);
   assert.match(client, /aria-live="polite"/);
-  assert.match(client, /moved to position \$\{position\} of \$\{ids\.length\}/);
-  assert.match(styles, /@media\(max-width:700px\)/);
-  assert.match(styles, /custom-order-actions\{display:grid!important\}/);
-  assert.match(styles, /custom-order-actions button\{touch-action:manipulation\}/);
 });
 
 test("calculation transparency includes every required assumption and estimate warning", async () => {
-  const client = await readFile(new URL("../app/dashboard-client.tsx", import.meta.url), "utf8");
+  const client = await readFile(new URL("../app/payoff-calculator-page.tsx", import.meta.url), "utf8");
   [
-    "How this plan was calculated",
-    "Selected strategy",
-    "Monthly payment amount",
-    "Minimum-payment assumptions",
-    "Interest calculation method",
-    "Payment rollover",
-    "Promotional-rate assumptions",
-    "Planned new-purchase assumptions",
-    "Calculation date",
-    "Missing-data warnings",
-    "Estimate based on the balances, rates, and payments currently entered.",
+    "Assumptions",
+    "Starting debt",
+    "Current balances already include recorded transactions",
+    "reserves saved or estimated minimums first",
+    "Interest is estimated monthly",
+    "Trying a scenario does not change your saved plan",
   ].forEach((label) => assert.ok(client.includes(label), `Missing calculation detail: ${label}`));
 });
 

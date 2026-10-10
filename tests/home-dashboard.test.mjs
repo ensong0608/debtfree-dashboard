@@ -168,17 +168,17 @@ test("Phase 3 UI exposes the required Home actions and mobile layout", async () 
   assert.match(page, /Actual payments/);
   assert.match(page, /id="home-extra-payment"/);
   assert.match(page, /className="home-action-item"/);
-  assert.match(client, /label: "Home"/);
+  assert.doesNotMatch(client, /id: "home", label: "Home"/);
   assert.match(client, /label: "Debts"/);
-  assert.match(client, /label: "Monthly Plan"/);
+  assert.match(client, /label: "Budget"/);
   assert.match(client, /label: "Progress"/);
   assert.match(client, /label: "Settings"/);
-  assert.match(client, /<details className="secondary-navigation">/);
-  assert.match(client, /setPage\("home"\)/);
-  assert.match(client, /Recommended payoff payment/);
+  assert.match(client, /className="more-advanced"/);
+  assert.doesNotMatch(client, /id: "home", label: "Home"/);
+  assert.match(client, /Payment details \(optional\)/);
   assert.match(client, /onExtra=\{updateExtra\}/);
   assert.match(client, /onAction=\{openHomeAction\}/);
-  assert.match(client, /onViewPayments=\{\(\) => setPage\(detailedSpendingTracking \? "history" : "monthly"\)\}/);
+  assert.match(client, /onViewPayments=\{\(\) => setPage\("payments"\)\}/);
   assert.match(styles, /Phase 3 action-focused Home/);
   assert.match(styles, /@media\(max-width:600px\)[\s\S]*\.home-summary\{grid-template-columns:minmax\(0,1fr\)/);
   assert.match(styles, /\.next-payment-button\{width:100%;min-height:50px\}/);
@@ -232,20 +232,22 @@ test("Phase 4 navigation, advanced access, mobile targets, and headings are expl
     readFile(new URL("../app/globals.css", import.meta.url), "utf8"),
     readFile(new URL("../app/monthly-plan-page.tsx", import.meta.url), "utf8"),
   ]);
-  const primaryBlock = client.slice(client.indexOf("const NAV_ITEMS"), client.indexOf("const ADVANCED_NAV_ITEMS"));
+  const primaryBlock = client.slice(client.indexOf("const NAV_ITEMS"), client.indexOf("const MORE_NAV_ITEMS"));
   const labels = [...primaryBlock.matchAll(/label: "([^"]+)"/g)].map((match) => match[1]);
 
-  assert.deepEqual(labels, ["Home", "Debts", "Payoff Plan", "Monthly Plan", "Progress", "Settings"]);
-  assert.doesNotMatch(primaryBlock, /Transactions|Payees|Credit Utilization|Stats/);
-  assert.match(client, /const \[page, setPage\] = useState<PageId>\("home"\)/);
-  assert.match(client, /const completeOnboarding[\s\S]*?setPage\("home"\)/);
-  assert.match(client, /aria-current=\{page === item\.id \? "page" : undefined\}/);
+  assert.deepEqual(labels, ["Debts", "Transactions", "Budget", "More"]);
+  assert.doesNotMatch(primaryBlock, /Detailed ledger|Payees|Credit Utilization|Stats/);
+  assert.match(client, /const \[page, setPage\] = useState<PageId>\("accounts"\)/);
+  assert.match(client, /const completeOnboarding[\s\S]*?setPage\("accounts"\)/);
+  assert.match(client, /aria-current=\{primaryPage === item\.id \? "page" : undefined\}/);
   assert.match(client, /onViewTransactions=\{\(\) => setPage\("history"\)\}/);
-  assert.match(monthly, />Open transactions</);
+  assert.doesNotMatch(monthly, />Open detailed ledger</);
   assert.match(client, /item\.id !== "history" \|\| detailedSpendingTracking/);
-  assert.match(client, /<h1>Progress<\/h1>/);
-  assert.match(client, /progress-projection-card/);
-  assert.match(client, />Detailed projections</);
+  const progress = await readFile(new URL("../app/actual-progress-page.tsx", import.meta.url), "utf8");
+  assert.match(client, /<h1>\{ALL_NAV_ITEMS/);
+  assert.match(client, /id: "snapshots", label: "Progress"/);
+  assert.match(progress, /actual-progress-summary/);
+  assert.match(progress, /This month/);
   assert.match(page, /aria-labelledby="home-summary-title"/);
   assert.match(page, /<h2[^>]*>Payoff summary<\/h2>/);
   assert.match(page, /<h2>Next three debts<\/h2>/);

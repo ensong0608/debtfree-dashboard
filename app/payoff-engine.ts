@@ -18,7 +18,7 @@ export type PlanMonth = {
   nonAmortizingAccountIds: string[];
 };
 
-export type PlanContext = { monthlyCommitment?: number; paid?: Record<string, number>; minimumPaid?: Record<string, number>; minimumTargets?: Record<string, number> };
+export type PlanContext = { monthlyCommitment?: number; paymentCap?: number; paid?: Record<string, number>; minimumPaid?: Record<string, number>; minimumTargets?: Record<string, number> };
 
 export type LinkedCardExpenses = Record<string, number>;
 
@@ -161,10 +161,11 @@ export function calculatePlan(
       if (balance <= 0) return;
       const minimum = Math.max(0, (month === 1 ? context.minimumTargets?.[account.id] ?? forecastMinimum(account, balance, month, calculationDate) : forecastMinimum(account, balance, month, calculationDate)) - (month === 1 ? context.minimumPaid?.[account.id] ?? 0 : 0));
       minimums[account.id] = minimum;
-      requiredMinimumTotal += minimum + cardChargeForMonth(account.id, month);
+      requiredMinimumTotal += (context.paymentCap === undefined ? minimum : Math.min(minimum, balance)) + cardChargeForMonth(account.id, month);
     });
     const plannedMonthly = Math.max(0, monthly + (month === 1 ? oneTimePurchaseTotal - paidThisMonth : 0));
-    const requiredMonthly = Math.max(plannedMonthly, round(requiredMinimumTotal));
+    if (context.paymentCap !== undefined && round(requiredMinimumTotal) > round(context.paymentCap)) throw new Error(`Enter at least $${round(requiredMinimumTotal).toFixed(2)} to cover minimums in ${forecastMonthKey(month, calculationDate)}.`);
+    const requiredMonthly = context.paymentCap === undefined ? Math.max(plannedMonthly, round(requiredMinimumTotal)) : plannedMonthly;
     const minimumIncrease = round(Math.max(0, requiredMonthly - monthly));
     peakMonthly = Math.max(peakMonthly, requiredMonthly);
     let available = requiredMonthly;

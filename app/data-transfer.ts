@@ -65,6 +65,7 @@ export function mergeDashboardPayload(current: DashboardPayload, incoming: Dashb
     monthlyPlan: {
       ...current.monthlyPlan,
       ...incoming.monthlyPlan,
+      loanTrackers: mergeById(current.monthlyPlan?.loanTrackers ?? [], incoming.monthlyPlan?.loanTrackers ?? []),
       detailedSpendingTracking: Boolean(current.monthlyPlan?.detailedSpendingTracking || incoming.monthlyPlan?.detailedSpendingTracking),
       months: { ...(current.monthlyPlan?.months ?? {}), ...(incoming.monthlyPlan?.months ?? {}) },
     },

@@ -12,6 +12,8 @@ export class HouseholdSync {
   revision: number | null = null;
   pending: Pending | null = null;
   private inFlight = false;
+  private refreshing = false;
+  private generation = 0;
   private writable = false;
   private conflict = false;
   private accepted = "";
@@ -32,6 +34,23 @@ export class HouseholdSync {
     if (!response.ok) { this.writable = false; throw new Error("Could not verify household access. Your pending changes are retained."); }
     const remote = await response.json() as RemoteHousehold;
     const cloud = remote.payload === null ? null : parseDashboardContract(remote.payload, "Household dashboard");
+    return this.acceptRemote(remote, cloud);
+  }
+  /** Background reads never replace edits made while the request was outstanding. */
+  async refresh(canApply: () => boolean = () => true) {
+    if (this.refreshing || this.inFlight || this.pending || !canApply()) return null;
+    this.refreshing = true;
+    const generation = this.generation;
+    try {
+      const response = await this.request("/api/household", { cache: "no-store" });
+      if (!response.ok) throw new Error("Could not refresh household.");
+      const remote = await response.json() as RemoteHousehold;
+      const cloud = remote.payload === null ? null : parseDashboardContract(remote.payload, "Household dashboard");
+      if (this.pending || this.inFlight || this.generation !== generation || !canApply()) return null;
+      return this.acceptRemote(remote, cloud);
+    } finally { this.refreshing = false; }
+  }
+  private acceptRemote(remote: RemoteHousehold, cloud: DashboardBackup | null) {
     this.writable = remote.role !== "viewer";
     this.revision = remote.revision;
     this.accepted = cloud ? payloadFingerprint(cloud) : "";
@@ -46,6 +65,7 @@ export class HouseholdSync {
   stage(contract: DashboardBackup) {
     if (this.revision === null || !this.writable) return;
     if (!this.pending && payloadFingerprint(contract) === this.accepted) return;
+    this.generation++;
     this.pending = { revision: this.pending?.revision ?? this.revision, contract };
     this.options.storage.setItem(this.options.key, JSON.stringify(this.pending));
     if (this.conflict) return;
