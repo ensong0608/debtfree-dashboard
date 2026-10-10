@@ -23,4 +23,7 @@ test('screen title scrolls with content, account access stays available, and bal
  if(info.project.name==='phone'){await expect(page.locator('.plan-table-wrap')).not.toBeVisible();await expect(page.locator('.schedule-month')).toHaveCount(5);await page.locator('.schedule-month').last().scrollIntoViewIfNeeded();await expect(page.locator('.schedule-month').last()).toContainText('$0.00');}
  const axe=await new AxeBuilder({page}).include('.page-heading').include('.payment-allocation').withRules(['color-contrast']).analyze();expect(axe.violations).toEqual([]);
  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1)).toBe(true);
+ await page.getByRole('button',{name:'Debts',exact:true}).click();await page.getByRole('button',{name:'Update balance for Test card'}).click();await page.getByLabel('New current balance').fill('820');await page.getByRole('radio',{name:'Payment',exact:true}).check();await page.getByRole('button',{name:'Save balance'}).click();await expect(page.locator('.simple-balance').first()).toHaveText('$820.00');
+ await page.getByRole('button',{name:'Transactions',exact:true}).click();await expect(page.locator('.simple-total>strong')).toHaveText('$100.00');await page.reload();await expect(page.locator('.simple-balance').first()).toHaveText('$820.00');
+
 });

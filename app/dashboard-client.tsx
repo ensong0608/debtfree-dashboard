@@ -672,7 +672,7 @@ export default function DashboardClient({ user }: { user: DashboardUser }) {
         ? { account: checked.account, adjustment: null }
         : createBalanceAdjustment({ storedAccount: checked.account, currentBalance: currentAccount.balance, nextBalance: draft.balance, date: draft.date, note: draft.note, creator: auditCreator });
       if (result.adjustment && result.adjustment.difference < 0) {
-        if (draft.decreaseKind === "payment") result.adjustment.confirmedPayment = { confirmedAt: new Date().toISOString(), creator: auditCreator };
+        if (draft.decreaseKind === "payment") result.adjustment.confirmedPayment = { confirmedAt: new Date().toISOString(), ...(auditCreator ? { creator: auditCreator } : {}) };
         else if (draft.decreaseKind === "credit") result.adjustment.reportKind = "credit";
       }
       if (result.adjustment) setUndoEntry({before:{accounts,transactions,adjustments:balanceAdjustments},after:JSON.stringify({accounts:accounts.map(a=>a.id===result.account.id?{...result.account,balanceAsOf:draft.date}:a),transactions:checked.transactions,adjustments:[...balanceAdjustments,result.adjustment]})});
