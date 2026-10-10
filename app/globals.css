@@ -1953,3 +1953,83 @@ button:focus-visible,summary:focus-visible,input:focus-visible,select:focus-visi
 .progress-view-activity{background:transparent;border:0;color:#126f72;font-size:14px;min-height:44px;text-align:center;width:100%}
 
 .plan-screen>.plan-schedule-link{order:0;min-height:44px;border:0;background:transparent;color:#895409;font-size:14px}
+
+/* The screen owns its title; account access travels with the content. */
+.main-area,.main-area:has(>.bottom-action-bar){grid-template-rows:minmax(0,1fr) auto}
+.main-area:not(:has(>.bottom-action-bar)){grid-template-rows:minmax(0,1fr)}
+.page-heading{width:min(1450px,100%);margin:0 auto;display:flex;align-items:center;gap:12px;justify-content:space-between;padding:24px 28px 12px}
+.page-heading h1{margin:0;font-size:28px;font-weight:750;line-height:1.25;letter-spacing:-.5px}
+.account-bubble{position:relative;flex:none;display:grid;place-items:center;width:44px;height:44px;border:0;border-radius:50%;background:#e9edf2;color:#17243a;font-size:14px;font-weight:700}
+.sync-dot{position:absolute;bottom:1px;right:0;width:10px;height:10px;border:2px solid var(--paper);border-radius:50%;background:#a36b0a}
+.sync-dot.synced{background:#0c8a74}.sync-dot.error,.sync-dot.conflict{background:#b53535}
+.page-body .screen{min-height:0;padding-top:12px}
+.page-body .screen>.sr-only,.page-body .screen>.screen-title h1,.plan-purpose h1{display:none}
+.plan-screen>.plan-purpose{justify-content:flex-start}
+.page-body>.page-heading:has(h1){max-width:1450px}
+.page-body:has(.plan-screen)>.page-heading{max-width:780px}
+.page-body:has(.actual-progress-screen)>.page-heading{max-width:1000px}
+.budget-summary{padding:18px;border:1px solid var(--line);border-radius:16px;background:white;margin:14px 0}
+.budget-summary dl{display:grid;gap:12px;margin:0}
+.budget-summary dl>div,.budget-commitment,.budget-after{display:flex;align-items:baseline;justify-content:space-between;gap:16px;font-size:14px}
+.budget-summary dd{margin:0;font-size:20px;font-weight:650;font-variant-numeric:tabular-nums}
+.budget-left{border-top:1px solid var(--line);padding-top:14px;color:#126a61}
+.budget-commitment{padding-top:16px;margin-top:16px;border-top:1px solid var(--line)}
+.budget-after{padding-top:12px;color:#126a61}.budget-summary strong{font-size:17px;font-variant-numeric:tabular-nums}
+.balance-account{display:grid;gap:8px}.balance-account>strong{font-size:19px;overflow-wrap:anywhere}.balance-account>span{font-size:14px;color:var(--muted)}
+.balance-compose .balance-difference{margin:0;background:#eef7f3;padding:12px;border-radius:10px;font-size:16px;color:#166e59}
+.balance-compose .balance-difference.increase{background:#fff5e7;color:#914f07}
+.transaction-compose .compose-preview{order:0;background:#f2f7f5;border:1px solid #d7e6df;border-radius:12px;padding:14px;margin:0}
+.transaction-compose .compose-preview>strong{font-size:14px}
+.transaction-compose .balance-change-preview{margin-top:12px;padding:0;background:transparent}
+.transaction-compose .compose-notes{order:1}
+.transaction-compose .compose-validation{order:2;margin:0}
+.transaction-compose .compose-validation:empty{display:none}
+.transaction-compose .compose-eyebrow{display:none}
+.transaction-compose .signed-amount-controls button[aria-pressed=true]{background:#fff1d6;border-color:#be882d;color:#684105}
+.transaction-compose:has(.signed-money.is-payment) .signed-amount-controls button[aria-pressed=true]{background:#e2f3ec;border-color:#79b89f;color:#185541}
+.transaction-compose>header h2{font-size:22px}
+.transaction-compose>form .primary{background:#b9eee0;border-color:#80cdb7;color:#154c40;box-shadow:none;font-size:15px}
+.transaction-compose>form .secondary{font-size:15px}
+.clean-transaction-card{position:relative;padding-right:44px}
+.clean-transaction-card>.transaction-delete-x{position:absolute;top:12px;right:4px;width:40px;height:44px;padding:0;min-height:44px;border:0;background:transparent;color:#b43b38;font-size:25px;font-weight:400;box-shadow:none}
+.transaction-amount>.transaction-signed-total.is-increase{color:#b43b38}
+.transaction-chevron{display:none}
+.clean-transaction-card>.transaction-edit-surface{grid-template-columns:36px minmax(0,1fr) auto;padding-right:4px}
+.clean-transaction-card>.transaction-secondary{font-size:11px;margin-bottom:6px}
+.transaction-secondary>summary{font-size:11px;min-height:32px}
+.recorded-summary{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:0 0 14px;padding:16px;background:#eaf5f1;border:1px solid #c9e1d7;border-radius:12px}
+.recorded-summary dt,.recorded-account-values dt{font-size:12px;color:#526073}
+.recorded-summary dd{font-size:22px;font-weight:700;color:#126a61;margin:6px 0 0;font-variant-numeric:tabular-nums}
+.recorded-account-values{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin:12px 0 0}
+.recorded-account-values dd{margin:6px 0 0;font-size:15px;font-weight:650;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
+.allocation-card .allocation-recorded button{background:#b9eee0;border-color:#80cdb7;color:#154c40}
+.payment-allocation .allocation-card.allocation-priority{border-color:#d8b678;background:#fffbf2}
+.mobile-payoff-schedule{display:none}
+.snapshot-chart-labels{list-style:none;margin:10px 0 0;padding:0;display:flex;gap:12px;overflow-x:auto}
+.snapshot-chart-labels li{flex:1 0 100px;display:grid;gap:5px;font-size:11px;color:#526073}.snapshot-chart-labels strong{font-size:12px;color:#17243a}
+@media(max-width:820px){
+ .main-area,.main-area:has(>.bottom-action-bar){grid-template-rows:minmax(0,1fr) auto}
+ .main-area:not(:has(>.bottom-action-bar)){grid-template-rows:minmax(0,1fr)}
+ .page-heading{padding:calc(16px + env(safe-area-inset-top)) 16px 6px}.page-heading h1{font-size:26px}
+ .page-body .screen{padding-top:12px}
+}
+@media(max-width:700px){
+ .modal-backdrop:has(.transaction-compose){padding:0;place-items:stretch;top:var(--dialog-viewport-top,0px);height:var(--dialog-viewport-height,100dvh);bottom:auto}
+ .modal.debt-action-modal.transaction-compose{width:100%;max-width:none;height:100%;max-height:100%;margin:0;border:0;border-radius:0;display:flex;flex-direction:column;overflow:hidden}
+ .transaction-compose>header{flex:0 0 auto;padding:calc(16px + env(safe-area-inset-top)) 16px 14px;position:static;background:white;border-bottom:1px solid var(--line)}
+ .transaction-compose>header>div{min-width:0}.transaction-compose>header h2{margin:0}
+ .transaction-compose>header>button{width:44px;height:44px;flex:none}
+ .transaction-compose>.debt-action-form,.transaction-compose>form>.debt-action-form{flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain;padding:18px 16px;scroll-padding:16px}
+ .transaction-compose>form>footer{flex:none;position:static;padding:12px 16px calc(12px + env(safe-area-inset-bottom));background:white;border-top:1px solid var(--line)}
+ .transaction-compose>form>footer>div{width:100%;display:grid;grid-template-columns:1fr 1fr;gap:12px}
+ .transaction-compose>form>footer button{min-height:48px}
+ .plan-table-card>.plan-table-wrap{display:none}
+ .mobile-payoff-schedule{display:grid;gap:12px;padding:0 14px 14px}
+ .schedule-month{padding:16px;border:1px solid var(--line);border-radius:12px;background:#fff}
+ .schedule-month h3{margin:0 0 12px;font-size:17px}
+ .schedule-month dl{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:0}
+ .schedule-month dl>div:last-child{grid-column:1/-1;border-top:1px solid var(--line);padding-top:12px;display:flex;align-items:baseline;justify-content:space-between;gap:10px}
+ .schedule-month dt{font-size:13px;color:var(--muted)}.schedule-month dd{margin:5px 0 0;font-size:17px;font-weight:650;font-variant-numeric:tabular-nums}
+ .schedule-milestone{margin:12px 0 0;padding:10px;background:#e7f5ee;border-radius:8px;color:#166149;font-size:13px}
+}
+@media(max-width:359px){.page-heading{padding-inline:12px}.budget-summary{padding:14px}.budget-summary dd{font-size:17px}.recorded-account-values{gap:6px}.recorded-account-values dd{font-size:13px}}

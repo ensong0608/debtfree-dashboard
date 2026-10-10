@@ -13,7 +13,7 @@ test('signed refunds, date corrections and lender confirmations preserve balance
  await entry.locator('.transaction-edit-surface').click();await dialog.getByLabel('Transaction amount',{exact:true}).fill('-50');await dialog.getByRole('button',{name:'Save transaction',exact:true}).click();
  await entry.getByText('Balance history & corrections',{exact:true}).click();await expect(entry).toContainText('net $16.96');await expect(entry).toContainText('Prior version');
  await page.getByRole('button',{name:'Debts',exact:true}).click();await expect(card.locator('.simple-balance')).toHaveText('$2,400.75');
- await card.getByRole('button',{name:'Update balance for Sample Rewards Card',exact:true}).click();await dialog.getByRole('button',{name:'Confirm balance update'}).click();
+ await card.getByRole('button',{name:'Update balance for Sample Rewards Card',exact:true}).click();await dialog.getByRole('button',{name:'Save balance'}).click();
  await expect(card.locator('.simple-balance')).toHaveText('$2,400.75');await expect(card).not.toContainText('Lender last checked unknown');
  await page.reload();await expect(card.locator('.simple-balance')).toHaveText('$2,400.75');
 });

@@ -8,7 +8,7 @@ export function paymentOverlaps(transactions: LedgerTransaction[], adjustments: 
   if (!(amount > 0) || !/^\d{4}-\d{2}-\d{2}$/.test(date)) return [];
   const nearby = (day: string) => Math.abs(Date.parse(day) - Date.parse(date)) <= 7 * 86400000;
   return [
-    ...adjustments.filter(a => !a.deletedAt && a.accountId === accountId && a.difference < 0 && nearby(a.date)).map(a => {
+    ...adjustments.filter(a => !a.deletedAt && a.reportKind !== "credit" && a.accountId === accountId && a.difference < 0 && nearby(a.date)).map(a => {
       const attributed = transactions.filter(t => !t.deletedAt && t.includedIn?.type === 'adjustment' && t.includedIn.id === a.id).reduce((sum,t) => sum + t.amount, 0);
       return { link: {type:'adjustment' as const,id:a.id}, date:a.date, title:a.title || 'Balance update', difference:a.difference, remaining: a.confirmedPayment ? 0 : round(-a.difference - attributed), canLink: !a.confirmedPayment };
     }),
@@ -28,6 +28,7 @@ export function validatePaymentLinks(transactions: LedgerTransaction[], adjustme
       if (payment.type !== 'payment' || payment.credit) throw new Error('The original payment changed. Review its linked records first.');
     } else {
       const adjustment=source as BalanceAdjustment;
+      if (adjustment.reportKind === "credit") throw new Error("This balance update is a refund or credit. Review its linked payments first.");
       if (adjustment.confirmedPayment) throw new Error('This balance update already has a full payment classification. Keep its existing classification or the linked payments.');
     }
   }

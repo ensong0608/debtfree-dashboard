@@ -181,3 +181,28 @@ test("already-paid records update spending and minimums without mutating the led
  const invalid=structuredClone(backup);invalid.payload.monthlyPlan.months["2026-09"].settlements[0].date="2026-10-01";
  assert.throws(()=>parseDashboardContract(invalid),/Settlement date/);
 });
+
+test("background refresh ignores an outstanding read when an edit is staged and serializes reads", async () => {
+  const cloud = fakeCloud(); let release; let reads=0; let delayed=false;
+  const request = async (url, init) => {
+    if(init?.method === "PUT") return cloud.request(url,init);
+    reads++; const response=await cloud.request(url,init);
+    if(delayed) await new Promise(resolve=>{release=resolve;});
+    return response;
+  };
+  const sync=new HouseholdSync({storage:storage(),key:"background",request,status:()=>{}});
+  const loaded=await sync.load(); delayed=true;
+  const reading=sync.refresh();
+  await Promise.resolve(); await Promise.resolve();
+  assert.equal(await sync.refresh(),null); assert.equal(reads,2);
+  const edit=structuredClone(loaded.contract); edit.payload.extra=321; sync.stage(edit);
+  release(); assert.equal(await reading,null); assert.equal(sync.pending.contract.payload.extra,321);
+  await sync.flush(); assert.equal(cloud.current().payload.extra,321); sync.dispose();
+});
+
+test("background refresh defers if a form opens while remote data is loading", async () => {
+  const cloud=fakeCloud(); let editing=false;
+  const sync=new HouseholdSync({storage:storage(),key:"form",request:async(url,init)=>{const response=await cloud.request(url,init);editing=true;return response;},status:()=>{}});
+  await sync.load(); editing=false;
+  assert.equal(await sync.refresh(()=>!editing),null); sync.dispose();
+});

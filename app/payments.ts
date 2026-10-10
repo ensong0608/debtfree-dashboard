@@ -6,7 +6,9 @@ import { round } from "./payoff-engine.ts";
 export function confirmAdjustmentPayment(adjustment: BalanceAdjustment, creator?: DebtAuditCreator, confirmedAt = new Date().toISOString()): BalanceAdjustment {
   if (!Number.isFinite(adjustment.difference) || adjustment.difference >= 0) throw new Error("Only a balance decrease can be identified as a payment.");
   if (adjustment.confirmedPayment) return adjustment;
-  return { ...adjustment, confirmedPayment: { confirmedAt, ...(creator ? { creator } : {}) } };
+  const { reportKind: _reportKind, ...rest } = adjustment;
+  void _reportKind;
+  return { ...rest, confirmedPayment: { confirmedAt, ...(creator ? { creator } : {}) } };
 }
 
 export function paymentActivity(transactions: LedgerTransaction[], adjustments: BalanceAdjustment[]) {
@@ -28,7 +30,7 @@ export function paymentActivity(transactions: LedgerTransaction[], adjustments: 
     ...adjustments.filter(a => !a.deletedAt).map(a => ({
       id: "adjustment:" + a.id, accountId: a.accountId, date: a.date, createdAt: a.createdAt,
       amount: Math.abs(a.difference), difference: a.difference,
-      kind: a.confirmedPayment ? "payment" as const : "adjustment" as const,
+      kind: a.confirmedPayment ? "payment" as const : a.reportKind ?? "adjustment" as const,
       title: a.title || (a.confirmedPayment ? "Payment" : "Balance update"),
       source: a.confirmedPayment ? "Confirmed from balance update" : "Balance updated",
       note: a.note ?? "", creator: a.creator, before: entryHistory(a).before, after: entryHistory(a).after, adjustment: a,

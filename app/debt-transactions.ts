@@ -5,7 +5,7 @@ import { postedMovement, validatePaymentLinks, type PaymentLink } from "./paymen
 import { round } from "./payoff-engine.ts";
 
 export type EntryKind = "payment" | "purchase" | "interest" | "fee" | "adjustment";
-export type EntryDraft = { accountId: string; kind: EntryKind; amount: number; date: string; note: string; direction: "increase" | "decrease"; paymentKind?: PaymentKind; credit?: boolean; reductionKind?: "credit" | "adjustment"; title?: string; confirmAsPayment?: boolean; includedIn?: PaymentLink };
+export type EntryDraft = { reportKind?: BalanceAdjustment["reportKind"]; accountId: string; kind: EntryKind; amount: number; date: string; note: string; direction: "increase" | "decrease"; paymentKind?: PaymentKind; credit?: boolean; reductionKind?: "credit" | "adjustment"; title?: string; confirmAsPayment?: boolean; includedIn?: PaymentLink };
 export type EntryCommand = { action: "save" | "delete" | "restore"; id?: string; draft?: EntryDraft };
 export type EntryState = { accounts: DebtAccount[]; transactions: LedgerTransaction[]; adjustments: BalanceAdjustment[] };
 export const entryMovement = (draft: EntryDraft) => round(draft.amount * (draft.kind === "payment" || draft.kind === "adjustment" && draft.direction === "decrease" ? -1 : 1));
@@ -41,6 +41,7 @@ export function changeDebtEntry(state: EntryState, command: EntryCommand, creato
     if (!validDate(draft.date)) throw new Error("Enter a valid transaction date.");
     if (!state.accounts.some(a => a.id === draft.accountId)) throw new Error("Choose an existing debt.");
     if (transaction?.interestEstimate && (draft.direction === "decrease" || draft.kind !== "interest" || draft.date !== transaction.date || draft.accountId !== transaction.accountId)) throw new Error("Automatic interest stays attached to its original debt and monthly cycle. You can correct its amount or notes.");
+    if (draft.reportKind && (draft.kind !== "adjustment" || (draft.reportKind === "credit" ? draft.direction !== "decrease" : draft.direction !== "increase") || draft.confirmAsPayment)) throw new Error("Choose a type that matches the balance direction.");
     if (original && Boolean(adjustment) !== (draft.kind === "adjustment")) throw new Error("Keep a balance update as an adjustment. You can change its amount, direction, debt, date, and notes.");
   }
   const accountId = command.action === "save" ? draft!.accountId : original!.accountId;
@@ -65,6 +66,7 @@ export function changeDebtEntry(state: EntryState, command: EntryCommand, creato
     const updated: BalanceAdjustment = command.action === "save" ? { ...adjustment, ...audit, id: adjustment?.id ?? newId, accountId, date: draft!.date, difference, balanceBefore: current.balance, balanceAfter: after.balance, note: draft!.note.trim(), ...(draft!.title !== undefined ? { title: draft!.title.trim() } : {}), createdAt: adjustment?.createdAt ?? now, updatedAt: now, deletedAt: null, ...(creator && !adjustment ? { creator } : {}) } : { ...adjustment!, ...audit, deletedAt: command.action === "delete" ? now : null, updatedAt: now };
     if (command.action === "save" && draft!.confirmAsPayment === true && difference < 0) updated.confirmedPayment ??= { confirmedAt: now, ...(creator ? { creator } : {}) };
     if (difference >= 0 || command.action === "save" && draft!.confirmAsPayment === false) delete updated.confirmedPayment;
+    if (command.action === "save") { if (draft!.reportKind) updated.reportKind = draft!.reportKind; else delete updated.reportKind; }
     adjustments = adjustment ? state.adjustments.map(a => a.id === adjustment.id ? updated : a) : [...state.adjustments, updated];
   } else {
     const type = draft?.kind === "payment" ? "payment" : draft?.kind === "purchase" ? "charge" : "fee";

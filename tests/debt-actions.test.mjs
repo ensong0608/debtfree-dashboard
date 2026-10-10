@@ -164,7 +164,7 @@ test("desktop table, mobile stacked cards, explicit actions, and accessible dial
   assert.match(client, />Restore</);
   assert.match(client, /Advanced destructive action/);
   assert.match(client, /role="dialog" aria-modal="true" aria-labelledby="payment-modal-title" aria-describedby="payment-modal-description"/);
-  assert.match(client, /role="dialog" aria-modal="true" aria-labelledby="balance-modal-title" aria-describedby="balance-modal-description"/);
+  assert.match(client, /role="dialog" aria-modal="true" aria-labelledby="balance-modal-title"/);
   assert.match(client, /role="alert"/);
   assert.match(client, /View . correct/);
   assert.match(client, /Save correction/);

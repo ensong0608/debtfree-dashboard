@@ -19,9 +19,9 @@ test("Payments connects lender updates and recorded payments without a second de
   await card.getByRole("button", { name: "Update balance for Sample Rewards Card", exact: true }).click();
   const dialog = page.getByRole("dialog");
   await dialog.getByLabel("New current balance").fill("");
-  await expect(dialog.getByRole("button", { name: "Confirm balance update" })).toBeDisabled();
+  await expect(dialog.getByRole("button", { name: "Save balance" })).toBeDisabled();
   await dialog.getByLabel("New current balance").fill("2300.75");
-  await dialog.getByRole("button", { name: "Confirm balance update" }).click();
+  await dialog.getByRole("button", { name: "Save balance" }).click();
   await page.getByRole("button", { name: "Transactions", exact: true }).click();
   const adjustment = page.locator(".payment-activity>article").filter({ hasText: "Sample Rewards Card" }).first();
   await expect(adjustment).toContainText("Balance adjustment");
@@ -112,7 +112,7 @@ test("create a household plan, record payment, change strategy and restore a bac
   await page.getByRole("button", { name: "Debts", exact: true }).click();
   await page.getByRole("button", { name: "Update balance for Test card 1", exact: true }).filter({ visible: true }).click();
   await page.getByRole("dialog").getByLabel(/New current balance/).fill("850");
-  await page.getByRole("button", { name: "Confirm balance update" }).click();
+  await page.getByRole("button", { name: "Save balance" }).click();
   await expect(page.getByRole("dialog")).toHaveCount(0);
   await page.getByRole("button", { name: "Budget", exact: true }).click();
   await page.locator(".budget-section-card").filter({has:page.getByText("Income",{exact:true})}).locator(":scope > summary").click();
@@ -316,7 +316,7 @@ test("Costco interest starts next cycle, survives refresh, and reconciles withou
   await card.getByRole("button", {name:"Update balance for Costco",exact:true}).click();
   await dialog.getByLabel("New current balance").fill("10260.00");
   await dialog.getByLabel("Effective date").fill("2026-11-03");
-  await dialog.getByRole("button", {name:"Confirm balance update"}).click();
+  await dialog.getByRole("button", {name:"Save balance"}).click();
   await expect(card.locator(".simple-balance")).toHaveText("$10,260.00");
   await page.reload();
   await expect(card.locator(".simple-balance")).toHaveText("$10,260.00");
@@ -443,7 +443,7 @@ test("a named lender adjustment uses its signed amount without another ledger de
  await page.goto("/");await page.locator('input[type="file"]').setInputFiles({name:"signed-adjustment.json",mimeType:"application/json",buffer:Buffer.from(JSON.stringify(fixture))});
  const card=page.locator(".balance-first-cards>article").filter({hasText:"Sample Rewards Card"});
  await card.getByRole("button",{name:"Update balance for Sample Rewards Card",exact:true}).click();
- const dialog=page.getByRole("dialog");await dialog.getByLabel("New current balance").fill("2517.71");await dialog.getByRole("button",{name:"Confirm balance update"}).click();
+ const dialog=page.getByRole("dialog");await dialog.getByLabel("New current balance").fill("2517.71");await dialog.getByRole("button",{name:"Save balance"}).click();
  await page.getByRole("button",{name:"Transactions",exact:true}).click();
  const entry=page.locator(".payment-activity>article");await entry.locator(".transaction-edit-surface").click();
  await expect(dialog.getByLabel("Transaction amount",{exact:true})).toHaveValue("+66.96");

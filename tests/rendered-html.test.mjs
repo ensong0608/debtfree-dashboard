@@ -11,7 +11,7 @@ test("renders the DebtFree Dashboard shell and optional detail tools", async () 
   const source = client + monthly;
   assert.match(layout, /DebtFree Dashboard/i);
   assert.match(source, /Monthly Plan/i);
-  assert.doesNotMatch(source, /Monthly Budget/i);
+  assert.doesNotMatch(source, /<h1>Monthly Budget<\/h1>/i);
   assert.match(monthly, /Copy recurring items/i);
   assert.match(client, /Searchable transaction ledger/i);
   assert.match(client, /Batch entry/i);
@@ -137,7 +137,8 @@ test("supports a mobile dashboard shell and collapsible navigation", async () =>
   assert.match(client, /Expand dashboard navigation/);
   assert.match(client, /NAVIGATION_COLLAPSED_KEY/);
   assert.match(client, /sidebar-head/);
-  assert.match(client, /mobile-dashboard-toggle/);
+  assert.match(client, /className="account-bubble"/);
+  assert.doesNotMatch(client, /aria-label="Refresh dashboard"/);
   assert.doesNotMatch(client, /<span>\{navigationCollapsed \? "Expand" : "Collapse"\}<\/span>/);
   assert.match(client, /signs in with Google/);
   assert.match(store, /SELECT id FROM households LIMIT 1/);

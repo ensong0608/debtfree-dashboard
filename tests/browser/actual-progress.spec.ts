@@ -29,7 +29,7 @@ test("six-month debt activity counts payments and actual progress stays fixed af
  await page.getByRole("button",{name:"Close activity",exact:true}).click();
  await page.getByRole("button",{name:"More",exact:true}).click();
  await page.getByRole("button",{name:"Progress",exact:true}).filter({visible:true}).click();
- await expect(page.locator(".topbar")).toContainText("Progress");
+ await expect(page.locator(".page-heading")).toContainText("Progress");
  await expect(page.locator(".actual-progress-summary")).toContainText("$1,000.00");
  await expect(page.locator(".actual-progress-summary")).toContainText("$650.00");
  await expect(page.locator(".actual-progress-summary")).toContainText("$350.00");

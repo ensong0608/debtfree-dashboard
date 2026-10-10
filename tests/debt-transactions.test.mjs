@@ -97,3 +97,21 @@ test("signed lender adjustment changes offset only; payment confirmation is expl
  const payload=createDashboardPayload(null,{...state,balanceAdjustments:state.adjustments,monthlyBudgets:{},payees:[],snapshots:[],extra:0,strategy:"avalanche",planning:createEmptyPlannedPayoff()});
  assert.equal(parseDashboardJson(JSON.stringify(createDashboardBackup(payload))).payload.balanceAdjustments[0].title,input.title);
 });
+
+test('balance-update reporting classification changes no balances and survives backup validation',async()=>{
+ const {parseDashboardContract}=await import('../app/dashboard-data.ts');
+ const {readFileSync}=await import('node:fs');
+ const backup=parseDashboardContract(JSON.parse(readFileSync(new URL('fixtures/legacy-v0.json',import.meta.url),'utf8')));
+ const a={...backup.payload.accounts[0],id:'classify',balance:1000,balanceOffset:0};
+ let state={accounts:[a],transactions:[],adjustments:[]};
+ state=changeDebtEntry(state,{action:'save',draft:{accountId:a.id,kind:'adjustment',amount:66.96,direction:'increase',date:'2026-10-10',note:'',title:'Grocery',reportKind:'purchase'}},undefined,'2026-10-10T12:00:00Z','grocery');
+ const before=transactionAdjustedAccounts(state.accounts,state.transactions)[0].balance;
+ state=changeDebtEntry(state,{action:'save',id:'adjustment:grocery',draft:{accountId:a.id,kind:'adjustment',amount:66.96,direction:'increase',date:'2026-10-10',note:'',title:'Grocery',reportKind:'interest'}});
+ assert.equal(transactionAdjustedAccounts(state.accounts,state.transactions)[0].balance,before);
+ assert.equal(paymentActivity(state.transactions,state.adjustments)[0].kind,'interest');
+ state=changeDebtEntry(state,{action:'save',draft:{accountId:a.id,kind:'adjustment',amount:50,direction:'decrease',date:'2026-10-10',note:'',reportKind:'credit',confirmAsPayment:false}},undefined,'2026-10-10T12:00:00Z','refund');
+ assert.equal(confirmedPaymentTotal(state.transactions,state.adjustments,'2026-10'),0);
+ backup.payload.accounts=state.accounts;backup.payload.transactions=state.transactions;backup.payload.balanceAdjustments=state.adjustments;
+ assert.deepEqual(parseDashboardContract(backup).payload.balanceAdjustments,state.adjustments);
+ assert.throws(()=>changeDebtEntry(state,{action:'save',id:'adjustment:refund',draft:{accountId:a.id,kind:'adjustment',amount:50,direction:'decrease',date:'2026-10-10',note:'',reportKind:'purchase'}}),/direction/);
+});

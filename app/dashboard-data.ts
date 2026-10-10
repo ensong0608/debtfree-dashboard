@@ -127,6 +127,7 @@ export type BalanceAdjustment = OwnershipMetadata & {
   note?: string;
   title?: string;
   creator?: DebtAuditCreator;
+  reportKind?: "purchase" | "interest" | "fee" | "credit";
   confirmedPayment?: { confirmedAt: string; creator?: DebtAuditCreator };
   deletedAt?: string | null;
   updatedAt?: string;
@@ -726,6 +727,11 @@ function validateBalanceAdjustment(value: unknown, path: string, issues: string[
   if (hasOwn(item, "title")) requiredString(item.title, path + ".title", issues, true);
   if (hasOwn(item, "note")) requiredString(item.note, path + ".note", issues, true);
   if (hasOwn(item, "creator")) validateCreator(item.creator, path + ".creator", issues);
+  if (hasOwn(item, "reportKind")) {
+    enumValue(item.reportKind, new Set(["purchase", "interest", "fee", "credit"]), path + ".reportKind", issues);
+    if (item.reportKind === "credit" ? !(Number(item.difference) < 0) : !(Number(item.difference) > 0)) issues.push(path + ".reportKind does not match the balance direction.");
+    if (hasOwn(item, "confirmedPayment")) issues.push(path + ".reportKind cannot also be a payment.");
+  }
   if (hasOwn(item, "confirmedPayment")) {
     const confirmation = requiredRecord(item.confirmedPayment, path + ".confirmedPayment", issues);
     if (confirmation) {

@@ -24,6 +24,7 @@ function monthLabel(month: string) {
 
 
 type Props = {
+  payoffAmount: number;
   month: string;
   hasMonth: boolean;
   previousHasItems: boolean;
@@ -53,6 +54,9 @@ export default function MonthlyPlanPage(props: Props) {
     { id: "spending", title: "Spending", items: items.filter((item) => !isPlannedIncome(item) && isRecurringPlannedItem(item)), kind: "expense" as CashflowKind, empty: "Add essential bills and regular household spending." },
     { id: "adjustments", title: "One-time", items: items.filter((item) => !isRecurringPlannedItem(item)), kind: "purchase" as CashflowKind, empty: "Add income or spending that applies only to this month." },
   ];
+  const income = round(items.filter(isPlannedIncome).reduce((sum, item) => sum + item.amount, 0));
+  const spending = round(items.filter(item => !isPlannedIncome(item)).reduce((sum, item) => sum + item.amount, 0));
+  const left = round(income - spending);
   const accountNames = new Map(accounts.map((account) => [account.id, account.name]));
 
   return <div className="screen monthly-plan-screen">
@@ -60,6 +64,7 @@ export default function MonthlyPlanPage(props: Props) {
 
     <section className="month-switcher" aria-label="Select plan month"><button type="button" onClick={() => props.onMonth(shiftMonth(month, -1))} aria-label="Previous month">&lsaquo;</button><div><strong>{monthLabel(month)}</strong></div><button type="button" onClick={() => props.onMonth(shiftMonth(month, 1))} aria-label="Next month">&rsaquo;</button><button className="today-month" type="button" disabled={isCurrent} onClick={() => props.onMonth(currentMonthKey())}>This month</button></section>
 
+    {hasMonth && <section className="budget-summary" aria-label="Monthly budget summary"><dl><div><dt>Income</dt><dd>{currency.format(income)}</dd></div><div><dt>Planned spending</dt><dd>{currency.format(spending)}</dd></div><div className="budget-left"><dt>Left after planned spending</dt><dd>{currency.format(left)}</dd></div></dl><div className="budget-commitment"><span>Payoff commitment</span><strong>{currency.format(props.payoffAmount)}</strong></div><div className="budget-after"><span>After payoff commitment</span><strong>{currency.format(round(left - props.payoffAmount))}</strong></div></section>}
     {!hasMonth ? <section className="month-start-card"><span>New month</span><h2>Set up {monthLabel(month)}</h2><p>Copy recurring items from last month or start clean. One-time adjustments are never copied.</p><div>{previousHasItems && <button className="primary" type="button" onClick={props.onCopyPrevious}>Copy recurring items</button>}<button className="secondary" type="button" onClick={props.onStartBlank}>Start with no entries</button></div></section> : <>
       <section className="monthly-plan-groups budget-section-cards" aria-label="Planned entries">{groups.map(group => <details className="budget-section-card" key={group.id} open={group.id === "spending"}><summary><div className="budget-category-heading"><span className={`budget-category-icon ${group.id}`}><OutlineIcon name={group.id === "income" ? "money" : group.id === "spending" ? "cart" : "calendar"}/></span><div><strong>{group.title}</strong><b>{currency.format(round(group.items.reduce((sum,item) => sum + (group.id === "adjustments" && isPlannedIncome(item) ? -item.amount : item.amount),0)))}</b></div></div><i className="budget-collapse" aria-hidden="true"><OutlineIcon name="chevron"/></i></summary>{group.items.length ? <div className="monthly-plan-items">{group.items.map(item => { const spent=spentForPlannedItem(item.id,reports,month,true);const remaining=round(item.amount-spent);return <div className="planned-entry-row clean-budget-row" key={item.id}><button type="button" aria-label={`Edit ${item.name}`} onClick={()=>props.onEdit(item)}><i className="budget-row-icon"><OutlineIcon name={group.id === "income" ? "money" : /housing|mortgage|hoa/i.test(item.category + " " + item.name) ? "home" : /transport|car|honda|auto/i.test(item.category + " " + item.name) ? "car" : "receipt"}/></i><span><strong>{item.name}</strong><small>{item.category}{item.paymentMethod === "credit" ? ` · ${accountNames.get(item.creditAccountId) ?? "Credit card"}` : ""}</small>{!isPlannedIncome(item) && spent > 0 && <small>Paid {currency.format(spent)} · Remaining {currency.format(remaining)}</small>}</span><b>{group.id === "adjustments" && isPlannedIncome(item) ? "+" : ""}{currency.format(item.amount)}</b><OutlineIcon name="chevron"/></button></div>;})}</div> : <p className="monthly-plan-empty">{group.empty}</p>}</details>)}</section>
     </>}

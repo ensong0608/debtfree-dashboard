@@ -10,7 +10,7 @@ test('reference layout handles narrow screens, large balances, long names and la
  await page.goto('/');await page.locator('input[type=file]').setInputFiles({name:'visual-fixture.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(fixture))});
  for(const width of [320,360,390,430,820,1440]){
   await page.setViewportSize({width,height:900});
-  await expect(page.locator('.topbar')).toContainText('Debts');
+  await expect(page.locator('.page-heading')).toContainText('Debts');
   await expect(page.locator('.debt-reduction-track').first()).toHaveAttribute('aria-valuenow','17.7');
   const check=async()=>{
    expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1)).toBe(true);
@@ -25,7 +25,7 @@ test('reference layout handles narrow screens, large balances, long names and la
   await page.getByRole('button',{name:'Debts',exact:true}).click();
  }
  await page.setViewportSize({width:390,height:844});
- await page.addStyleTag({content:'.topbar>div:first-child strong{font-size:32px}.compact-debt-identity h2{font-size:24px!important}.compact-debt-identity .simple-balance{font-size:28px!important}.compact-debt-identity{flex-wrap:wrap}.bottom-action-bar>button{font-size:22px}'});
+ await page.addStyleTag({content:'.page-heading h1{font-size:32px}.compact-debt-identity h2{font-size:24px!important}.compact-debt-identity .simple-balance{font-size:28px!important}.compact-debt-identity{flex-wrap:wrap}.bottom-action-bar>button{font-size:22px}'});
  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1)).toBe(true);
  const axe=await new AxeBuilder({page}).include('.debts-screen').include('.bottom-action-bar').withRules(['color-contrast']).analyze();expect(axe.violations).toEqual([]);
 });
