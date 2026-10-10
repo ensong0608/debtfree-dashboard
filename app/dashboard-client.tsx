@@ -380,7 +380,7 @@ export default function DashboardClient({ user }: { user: DashboardUser }) {
   useEffect(() => {
     if (deviceOnly || !loaded) return;
     let cancelled = false;
-    const canApply = () => !cancelled && document.visibilityState === "visible" && !document.querySelector('[aria-modal="true"]') && !document.activeElement?.matches("input, select, textarea, [contenteditable=true]");
+    const canApply = () => !cancelled && document.visibilityState === "visible" && !document.querySelector('[aria-modal="true"], .allocation-minimum button[type="submit"]') && !document.activeElement?.matches("input, select, textarea, [contenteditable=true]");
     const refresh = async () => {
       if (!canApply() || localError || deviceSaveStatus !== "synced") return;
       try {
