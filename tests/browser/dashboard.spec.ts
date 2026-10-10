@@ -52,7 +52,7 @@ test("Payments connects lender updates and recorded payments without a second de
   await page.getByRole("button", { name: "Transactions", exact: true }).click();
   await expect(page.locator(".simple-total>strong")).toHaveText("$250.00");
   await page.locator(".payment-activity>article").filter({ hasText: "Balance update" }).locator(".transaction-edit-surface").click();
-  await dialog.getByRole("radio",{name:"Reconciliation adjustment",exact:true}).check();
+  await dialog.getByRole("radio",{name:"Balance correction",exact:true}).check();
   await dialog.getByRole("button", { name: "Save transaction", exact: true }).click();
   await expect(page.locator(".simple-total>strong")).toHaveText("$100.00");
   await page.getByRole("button", { name: "Debts", exact: true }).click();
@@ -69,7 +69,7 @@ test("phone navigation and long account names fit 360, 390, and 430px", async ({
   await page.locator('input[type="file"]').setInputFiles({ name: "phone-fixture.json", mimeType: "application/json", buffer: Buffer.from(JSON.stringify(fixture)) });
   for (const width of [360, 390, 430]) {
     await page.setViewportSize({ width, height: 844 });
-    await expect(page.locator(".save-state")).toBeVisible();
+    await expect(page.getByRole("button",{name:"Open My Account",exact:true})).toBeVisible();
     const boxes = await page.locator('nav[aria-label="Primary navigation"] button').evaluateAll(buttons => buttons.map(button => ({ y: button.getBoundingClientRect().y, height: button.getBoundingClientRect().height })));
     expect(boxes).toHaveLength(4);
     expect(new Set(boxes.map(box => Math.round(box.y))).size).toBe(1);
@@ -223,8 +223,8 @@ test("duplicate payments can be deleted, cancelled, and restored from Payments",
  await page.getByRole("dialog").getByRole("button",{name:"Confirm delete",exact:true}).click();
  await expect(page.locator(".simple-total>strong")).toHaveText("$100.00");
  await expect(page.locator(".payment-activity>article")).toHaveCount(1);
- await expect(page.getByRole("button",{name:"Refresh dashboard",exact:true})).toBeEnabled();
- await page.getByRole("button",{name:"Refresh dashboard",exact:true}).click();
+ await expect(page.getByRole("button",{name:"Refresh dashboard",exact:true})).toHaveCount(0);
+ await page.reload();
  const card=page.locator(".balance-first-cards>article").filter({hasText:"Sample Rewards Card"});
  await expect(card.locator(".simple-balance")).toHaveText("$2,350.75");
  await page.getByRole("button",{name:"Transactions",exact:true}).click();
@@ -315,7 +315,7 @@ test("Costco interest starts next cycle, survives refresh, and reconciles withou
   await page.getByRole("button", { name: "Debts", exact: true }).click();
   await card.getByRole("button", {name:"Update balance for Costco",exact:true}).click();
   await dialog.getByLabel("New current balance").fill("10260.00");
-  await dialog.getByLabel("Effective date").fill("2026-11-03");
+  await dialog.getByLabel("Date",{exact:true}).fill("2026-11-03");
   await dialog.getByRole("button", {name:"Save balance"}).click();
   await expect(card.locator(".simple-balance")).toHaveText("$10,260.00");
   await page.reload();
@@ -356,7 +356,8 @@ test("Debts can scroll to Wells Fargo on a desktop with many accounts", async ({
     const visible=await button.evaluate(el=>{const box=el.getBoundingClientRect();return box.top>=0&&box.bottom<=innerHeight;});
     expect(visible).toBe(true);
     await button.click();
-    await expect(page.getByRole("dialog",{name:"Update Wells Fargo balance"})).toBeVisible();
+    await expect(page.getByRole("dialog",{name:"Update balance",exact:true})).toBeVisible();
+    await expect(page.getByRole("dialog")).toContainText("Wells Fargo");
     await page.getByRole("button",{name:"Cancel",exact:true}).click();
   }
 });
@@ -371,7 +372,8 @@ test("Transactions can add, edit, remove and restore purchases and balance adjus
   await page.getByRole("button",{name:"Add record",exact:true}).click();
   await dialog.getByLabel("Card used",{exact:true}).selectOption("account-card-1");
   await dialog.getByLabel("What’s it for?",{exact:true}).fill("SFC Henderson grocery run");
-  await expect(dialog.getByLabel("Transaction type",{exact:true})).toHaveCount(0);
+  await expect(dialog.getByLabel("Transaction type",{exact:true})).toHaveValue("purchase");
+  await expect(dialog.getByLabel("Transaction type",{exact:true}).locator("option")).toHaveCount(4);
   await expect(dialog.getByLabel("Adjustment direction",{exact:true})).toHaveCount(0);
   await dialog.getByLabel("Transaction amount",{exact:true}).fill("+66.96");
   await dialog.locator(".compose-notes>summary").click();
@@ -395,8 +397,10 @@ test("Transactions can add, edit, remove and restore purchases and balance adjus
   let entry=page.locator(".payment-activity>article").filter({hasText:"Purchase"});
   await expect(entry).toContainText("+$66.96");
   await expect(entry.locator("details")).toHaveCount(1);
-  await expect(entry.locator(".transaction-delete-x")).toHaveText("Delete transaction");
-  await expect(entry.locator(".transaction-captured")).toContainText("$2,450.75 → $2,517.71");
+  await expect(entry.locator(".transaction-delete-x")).toHaveText("×");
+  await expect(entry.locator(".transaction-delete-x")).toHaveAccessibleName("Delete transaction of $66.96 for Sample Rewards Card");
+  await expect(entry.locator(".transaction-captured")).toHaveCount(0);
+  await expect(entry.locator(".transaction-secondary")).toContainText("$2,450.75 → $2,517.71");
   await expect(entry.getByText("SFC Henderson grocery run",{exact:true})).toBeVisible();
   if(testInfo.project.name === "phone") { await entry.scrollIntoViewIfNeeded(); await page.screenshot({path:"outputs/named-transaction-card-430.png"}); }
   await expect(page.locator(".simple-total>strong")).toHaveText("$0.00");
