@@ -1967,7 +1967,8 @@ button:focus-visible,summary:focus-visible,input:focus-visible,select:focus-visi
 .plan-screen>.plan-purpose{justify-content:flex-start}
 .page-body>.page-heading:has(h1){max-width:1450px}
 .page-body:has(.plan-screen)>.page-heading{max-width:780px}
-.page-body:has(.actual-progress-screen)>.page-heading{max-width:1000px}
+.page-body:has(.actual-progress-screen)>.page-heading,.page-body:has(.transactions-screen)>.page-heading{max-width:1000px}
+.page-body:has(.monthly-plan-screen)>.page-heading{max-width:960px}
 .budget-summary{padding:18px;border:1px solid var(--line);border-radius:16px;background:white;margin:14px 0}
 .budget-summary dl{display:grid;gap:12px;margin:0}
 .budget-summary dl>div,.budget-commitment,.budget-after{display:flex;align-items:baseline;justify-content:space-between;gap:16px;font-size:14px}
@@ -2033,3 +2034,14 @@ button:focus-visible,summary:focus-visible,input:focus-visible,select:focus-visi
  .schedule-milestone{margin:12px 0 0;padding:10px;background:#e7f5ee;border-radius:8px;color:#166149;font-size:13px}
 }
 @media(max-width:359px){.page-heading{padding-inline:12px}.budget-summary{padding:14px}.budget-summary dd{font-size:17px}.recorded-account-values{gap:6px}.recorded-account-values dd{font-size:13px}}
+
+/* Keep action targets clear of amounts and chart captions compact. */
+.transactions-screen .payment-activity>.clean-transaction-card{padding:0 44px 0 0}
+.actual-progress-screen .progress-story .snapshot-chart-labels strong{font-size:12px;line-height:1.4;white-space:nowrap}
+.plan-screen .extra-control>div input{font-size:28px!important;line-height:1.25}
+.transaction-compose>header h2,.account-activity-modal>header h2{font-weight:700}
+.schedule-month h3{font-weight:650}
+.scenario-comparison strong>small{display:block;font-size:12px;font-weight:400;margin-top:6px;color:#526073}
+.plan-screen>.plan-commitment{display:grid;grid-template-columns:minmax(0,1fr) auto;column-gap:12px;align-items:start}
+.plan-commitment>span,.plan-commitment>strong,.plan-commitment>p{grid-column:1;min-width:0;overflow-wrap:anywhere}
+.plan-commitment>.edit-saved-plan{grid-column:2;grid-row:1/4;min-height:44px;border:1px solid #a6afba;border-radius:8px;padding:8px 12px;background:white;font-size:13px;align-self:start}
