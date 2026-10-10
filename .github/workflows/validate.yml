@@ -18,8 +18,7 @@ jobs:
         with:
           name: dashboard-ui-verification
           path: |
-            ../refined-screens/*.png
-            ../implemented-screens/*.png
+            outputs/ui-verification/
             .wrangler/browser-results/
           include-hidden-files: true
           retention-days: 7

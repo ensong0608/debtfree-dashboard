@@ -11,7 +11,7 @@ test('everyday workflows keep independent targets, linked balances, Undo, and te
  await page.goto('/');await page.locator('input[type=file]').setInputFiles({name:'disposable-usability.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(fixture))});
  const card=page.locator('.compact-debt-card').filter({hasText:'Everyday Card'});
  await expect(card.locator('.simple-balance')).toHaveText('$5,000.00');
- const screenshot=async(name:string)=>{mkdirSync('../implemented-screens',{recursive:true});await page.screenshot({path:`../implemented-screens/${info.project.name}-${name}.png`,fullPage:false});};
+ const screenshot=async(name:string)=>{mkdirSync('outputs/ui-verification/implemented',{recursive:true});await page.screenshot({path:`outputs/ui-verification/implemented/${info.project.name}-${name}.png`,fullPage:false});};
  await screenshot('debts');
  await card.getByRole('button',{name:'Edit debt details for Everyday Card'}).press('Enter');
  await expect(page.getByRole('dialog').getByRole('heading')).toHaveText('Everyday Card');

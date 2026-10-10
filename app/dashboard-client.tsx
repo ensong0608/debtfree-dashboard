@@ -302,6 +302,8 @@ export default function DashboardClient({ user }: { user: DashboardUser }) {
   const [deviceSaveStatus, setDeviceSaveStatus] = useState<SyncStatus>("connecting");
   const paymentSubmitted = useRef(false);
   const balanceExpected = useRef<number | null>(null);
+  const contentRef = useRef<HTMLDivElement>(null);
+  useEffect(() => { contentRef.current?.scrollTo({ top: 0 }); }, [page]);
   const primaryPage = NAV_ITEMS.some(item => item.id === page) ? page : "more";
   const deviceOnly = user.email === "Local device storage only";
   const isViewer = !deviceOnly && (!canEditCloud || householdRole === "viewer");
@@ -1017,7 +1019,7 @@ export default function DashboardClient({ user }: { user: DashboardUser }) {
     </aside>
 
     <main className="main-area">
-      <div className="page-body" role="region" aria-label="Dashboard content" tabIndex={0}>
+      <div ref={contentRef} className="page-body" role="region" aria-label="Dashboard content" tabIndex={0}>
         <div className="page-heading">
           <h1>{ALL_NAV_ITEMS.find((item) => item.id === page)?.label}</h1>
           <button className="account-bubble" type="button" onClick={() => setPage("profile")} aria-label="Open My Account">{user.displayName.split(/\s+/).filter(Boolean).map(part => part[0]).slice(0,2).join("").toUpperCase()}<span className={`sync-dot ${deviceOnly ? deviceSaveStatus : cloudStatus}`} aria-hidden="true"/></button>
