@@ -18,7 +18,7 @@ export type PlanMonth = {
   nonAmortizingAccountIds: string[];
 };
 
-export type PlanContext = { monthlyCommitment?: number; paymentCap?: number; paid?: Record<string, number>; minimumPaid?: Record<string, number>; minimumTargets?: Record<string, number> };
+export type PlanContext = { monthlyCommitment?: number; paymentCap?: number; paid?: Record<string, number>; minimumPaid?: Record<string, number>; minimumTargets?: Record<string, number>; reserveMinimums?: boolean };
 
 export type LinkedCardExpenses = Record<string, number>;
 
@@ -111,9 +111,14 @@ export function calculatePlan(
   actualizedLinkedCardExpenses: LinkedCardExpenses = {},
   context: PlanContext = {},
 ): PayoffPlan {
-  const active = accounts.filter((account) => account.balance > 0 || (linkedCardExpenses[account.id] ?? 0) > 0 || (linkedCardPurchases[account.id] ?? 0) > 0);
-  const balances = new Map(active.map((account) => [account.id, account.balance]));
-  const monthly = context.monthlyCommitment ?? active.reduce((sum, account) => sum + effectiveMinimum(account) + (linkedCardExpenses[account.id] ?? 0), 0) + extra;
+  // Legacy saved custom settings remain readable; current forecasts use avalanche.
+  if (strategy === "custom") strategy = "avalanche";
+  if (strategy !== "avalanche" && strategy !== "snowball") throw new Error("Choose avalanche or snowball.");
+  if (!Number.isFinite(extra) || extra < 0 || (context.monthlyCommitment !== undefined && (!Number.isFinite(context.monthlyCommitment) || context.monthlyCommitment < 0))) throw new Error("Enter a valid monthly amount.");
+  const reserveMinimums = context.reserveMinimums !== false;
+  const active = accounts.filter((account) => !account.archivedAt && (account.balance > 0 || (linkedCardExpenses[account.id] ?? 0) > 0 || (linkedCardPurchases[account.id] ?? 0) > 0));
+  const balances = new Map(active.map((account) => [account.id, round(account.balance)]));
+  const monthly = round(context.monthlyCommitment ?? active.reduce((sum, account) => sum + effectiveMinimum(account) + (linkedCardExpenses[account.id] ?? 0), 0) + extra);
   const paidThisMonth = Object.values(context.paid ?? {}).reduce((sum, value) => sum + value, 0);
   const oneTimePurchaseTotal = active.reduce((sum, account) => sum + (linkedCardPurchases[account.id] ?? 0), 0);
   const cardChargeForMonth = (accountId: string, month: number) => (
@@ -127,7 +132,7 @@ export function calculatePlan(
   const promoMinimumFallbackIds = active.filter((account) => hasPromoTerms(account) && account.postPromoMinimum <= 0).map((account) => account.id);
   const emptyResult = { months, totalInterest, monthly, peakMonthly, stalled: false, nonAmortizingAccountIds: [] as string[], promoMinimumFallbackIds };
   if (!active.length) return emptyResult;
-  if (monthly <= 0 && oneTimePurchaseTotal <= 0) return { ...emptyResult, stalled: true, nonAmortizingAccountIds: active.map((account) => account.id) };
+  if (monthly <= 0 && oneTimePurchaseTotal <= 0 && (!reserveMinimums || context.paymentCap === undefined)) return { ...emptyResult, stalled: true, nonAmortizingAccountIds: active.map((account) => account.id) };
 
   for (let month = 1; month <= PAYOFF_PLAN_MONTH_LIMIT; month++) {
     const before = new Map(balances);
@@ -141,29 +146,29 @@ export function calculatePlan(
       const balance = balances.get(account.id) ?? 0;
       if (balance <= 0) return;
       const apr = forecastApr(account, month, calculationDate);
-      const charge = balance * forecastMonthlyRate(account, month, calculationDate);
+      const charge = round(balance * forecastMonthlyRate(account, month, calculationDate));
       aprs[account.id] = apr;
       interestByAccount[account.id] = charge;
-      balances.set(account.id, balance + charge);
-      interest += charge;
+      balances.set(account.id, round(balance + charge));
+      interest = round(interest + charge);
     });
-    totalInterest += interest;
+    totalInterest = round(totalInterest + interest);
 
     active.forEach((account) => {
       const cardCharge = cardChargeForMonth(account.id, month);
       if (cardCharge <= 0) return;
-      balances.set(account.id, (balances.get(account.id) ?? 0) + cardCharge);
+      balances.set(account.id, round((balances.get(account.id) ?? 0) + cardCharge));
     });
 
     let requiredMinimumTotal = 0;
     active.forEach((account) => {
       const balance = balances.get(account.id) ?? 0;
       if (balance <= 0) return;
-      const minimum = Math.max(0, (month === 1 ? context.minimumTargets?.[account.id] ?? forecastMinimum(account, balance, month, calculationDate) : forecastMinimum(account, balance, month, calculationDate)) - (month === 1 ? context.minimumPaid?.[account.id] ?? 0 : 0));
+      const minimum = reserveMinimums ? round(Math.max(0, (month === 1 ? context.minimumTargets?.[account.id] ?? forecastMinimum(account, balance, month, calculationDate) : forecastMinimum(account, balance, month, calculationDate)) - (month === 1 ? context.minimumPaid?.[account.id] ?? 0 : 0))) : 0;
       minimums[account.id] = minimum;
       requiredMinimumTotal += (context.paymentCap === undefined ? minimum : Math.min(minimum, balance)) + cardChargeForMonth(account.id, month);
     });
-    const plannedMonthly = Math.max(0, monthly + (month === 1 ? oneTimePurchaseTotal - paidThisMonth : 0));
+    const plannedMonthly = round(Math.max(0, monthly + (month === 1 ? oneTimePurchaseTotal - paidThisMonth : 0)));
     if (context.paymentCap !== undefined && round(requiredMinimumTotal) > round(context.paymentCap)) throw new Error(`Enter at least $${round(requiredMinimumTotal).toFixed(2)} to cover minimums in ${forecastMonthKey(month, calculationDate)}.`);
     const requiredMonthly = context.paymentCap === undefined ? Math.max(plannedMonthly, round(requiredMinimumTotal)) : plannedMonthly;
     const minimumIncrease = round(Math.max(0, requiredMonthly - monthly));
@@ -173,28 +178,26 @@ export function calculatePlan(
     active.forEach((account) => {
       const balance = balances.get(account.id) ?? 0;
       const scheduledPayment = (minimums[account.id] ?? 0) + cardChargeForMonth(account.id, month);
-      const payment = Math.min(scheduledPayment, balance, available);
+      const payment = round(Math.min(scheduledPayment, balance, available));
       if (payment > 0) {
-        balances.set(account.id, balance - payment);
+        balances.set(account.id, round(balance - payment));
         payments[account.id] = payment;
-        available -= payment;
+        available = round(available - payment);
       }
     });
 
     const priority = [...active]
       .filter((account) => account.payoffMode !== "minimum-only" && (balances.get(account.id) ?? 0) > PAYOFF_BALANCE_EPSILON)
-      .sort((a, b) => strategy === "custom"
-        ? (a.customOrder ?? Number.MAX_SAFE_INTEGER) - (b.customOrder ?? Number.MAX_SAFE_INTEGER)
-        : strategy === "avalanche"
+      .sort((a, b) => strategy === "avalanche"
           ? effectiveForecastApr(b, month, calculationDate) - effectiveForecastApr(a, month, calculationDate) || (balances.get(a.id) ?? 0) - (balances.get(b.id) ?? 0)
           : (balances.get(a.id) ?? 0) - (balances.get(b.id) ?? 0) || effectiveForecastApr(b, month, calculationDate) - effectiveForecastApr(a, month, calculationDate));
     priority.forEach((account) => {
       const balance = balances.get(account.id) ?? 0;
-      const payment = Math.min(balance, available);
+      const payment = round(Math.min(balance, available));
       if (payment > 0) {
-        balances.set(account.id, balance - payment);
-        payments[account.id] = (payments[account.id] ?? 0) + payment;
-        available -= payment;
+        balances.set(account.id, round(balance - payment));
+        payments[account.id] = round((payments[account.id] ?? 0) + payment);
+        available = round(available - payment);
       }
     });
 
@@ -205,12 +208,12 @@ export function calculatePlan(
       const cost = (interestByAccount[account.id] ?? 0) + cardChargeForMonth(account.id, month);
       return (payments[account.id] ?? 0) <= cost + PAYOFF_BALANCE_EPSILON && ending >= starting - PAYOFF_BALANCE_EPSILON;
     }).map((account) => account.id);
-    const remaining = [...balances.values()].reduce((sum, balance) => sum + balance, 0);
+    const remaining = round([...balances.values()].reduce((sum, balance) => sum + balance, 0));
     const paidOff = active.filter((account) => (before.get(account.id) ?? 0) > 0 && (balances.get(account.id) ?? 0) <= PAYOFF_BALANCE_EPSILON).map((account) => account.name);
     months.push({
       month,
       interest,
-      paid: Object.values(payments).reduce((sum, payment) => sum + payment, 0),
+      paid: round(Object.values(payments).reduce((sum, payment) => sum + payment, 0)),
       remaining,
       requiredMonthly,
       minimumIncrease,

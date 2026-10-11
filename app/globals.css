@@ -2045,3 +2045,17 @@ button:focus-visible,summary:focus-visible,input:focus-visible,select:focus-visi
 .plan-screen>.plan-commitment{display:grid;grid-template-columns:minmax(0,1fr) auto;column-gap:12px;align-items:start}
 .plan-commitment>span,.plan-commitment>strong,.plan-commitment>p{grid-column:1;min-width:0;overflow-wrap:anywhere}
 .plan-commitment>.edit-saved-plan{grid-column:2;grid-row:1/4;min-height:44px;border:1px solid #a6afba;border-radius:8px;padding:8px 12px;background:white;font-size:13px;align-self:start}
+
+/* Every mobile form uses the available screen, including the keyboard viewport. */
+@media(max-width:700px){
+ .modal-backdrop:has(>.modal){top:var(--dialog-viewport-top,0px);bottom:auto;height:var(--dialog-viewport-height,100dvh);padding:0;place-items:stretch}
+ .modal-backdrop>.modal{width:100%;max-width:none;height:100%;max-height:100%;margin:0;border:0;border-radius:0;overscroll-behavior:contain;scroll-padding:16px}
+ .modal-backdrop>.modal>header{padding-top:calc(16px + env(safe-area-inset-top))}
+ .modal-backdrop>.modal>header>button{width:44px;height:44px}
+ .modal-backdrop>.modal input:not([type=radio]):not([type=checkbox]),.modal-backdrop>.modal select,.modal-backdrop>.modal textarea{font-size:16px}
+ .modal-backdrop>.modal>footer{padding-bottom:calc(12px + env(safe-area-inset-bottom))}
+}
+/* Compact persistence state stays beside account access without widening titles. */
+.page-heading{position:relative;padding-bottom:24px}
+.save-status{position:absolute;right:28px;bottom:4px;font-size:12px;line-height:16px;color:#475569}
+@media(max-width:700px){.page-heading{padding-bottom:24px}.save-status{right:16px}}

@@ -103,7 +103,7 @@ test("strategy comparison returns all outcomes, recommendation savings, and neve
   const originalAccounts = structuredClone(accounts);
   const savedStrategy = "custom";
   const result = buildStrategyComparison(accounts, 250, ["low", "high"], {}, {}, CALCULATION_DATE);
-  assert.deepEqual(result.comparisons.map((item) => item.strategy), ["avalanche", "snowball", "custom"]);
+  assert.deepEqual(result.comparisons.map((item) => item.strategy), ["avalanche", "snowball"]);
   result.comparisons.forEach((item) => {
     assert.ok(item.plan.months.length > 0);
     assert.ok(item.firstTarget);

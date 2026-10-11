@@ -1,3 +1,4 @@
+import { reportServerFailure } from "./safe-monitoring.ts";
 import { readBoundedBody, requireWriteRevision, RequestError } from "./request-safety.ts";
 
 import { dashboardDataErrorMessage, parseHouseholdWriteJson, serializeDashboardBackup } from "./dashboard-data.ts";
@@ -35,13 +36,26 @@ async function PUT(request: Request) {
   catch (error) {
     return Response.json({ error: dashboardDataErrorMessage(error) }, { status: error instanceof RequestError ? error.status : 400 });
   }
+  const serialized = serializeDashboardBackup(contract);
   const now = Date.now();
   const result = await context.db.prepare("UPDATE household_state SET payload = ?, revision = revision + 1, updated_by = ?, updated_at = ? WHERE household_id = ? AND revision = ?")
-    .bind(serializeDashboardBackup(contract), context.user.email, now, context.member.household_id, revision).run();
-  if (result.meta.changes !== 1) return Response.json({ error: "Another session changed this household. Review the latest data before saving." }, { status: 409 });
+    .bind(serialized, context.user.email, now, context.member.household_id, revision).run();
+  if (result.meta.changes !== 1) {
+    // An acknowledged write may have lost its response. Identical retry is a
+    // read of that same revision, never a second financial mutation.
+    const persisted = await context.db.prepare("SELECT payload, revision, updated_by FROM household_state WHERE household_id = ?")
+      .bind(context.member.household_id).first<{ payload: string; revision: number; updated_by: string }>();
+    if (persisted?.revision === revision + 1 && persisted.updated_by === context.user.email && persisted.payload === serialized) {
+      return Response.json({ ok: true, revision: persisted.revision }, { headers: { "cache-control": "no-store" } });
+    }
+    return Response.json({ error: "Another session changed this household. Review the latest data before saving." }, { status: 409 });
+  }
   await context.db.prepare("UPDATE households SET updated_at = ? WHERE id = ?").bind(now, context.member.household_id).run();
   return Response.json({ ok: true, revision: revision + 1 }, { headers: { "cache-control": "no-store" } });
 }
 
-return { GET, PUT };
+return {
+  GET: async () => { try { return await GET(); } catch { reportServerFailure("household_read_failed"); return Response.json({ error: "Household unavailable. Try again." }, { status: 503 }); } },
+  PUT: async (request: Request) => { try { return await PUT(request); } catch { reportServerFailure("household_write_failed"); return Response.json({ error: "Save unavailable. Your changes are retained." }, { status: 503 }); } },
+};
 }

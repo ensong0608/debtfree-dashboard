@@ -2,17 +2,28 @@ import type { DebtAccount, LedgerTransaction, PayoffSnapshot } from "./dashboard
 import { postedMovement } from "./payment-overlap.ts";
 import { round } from "./payoff-engine.ts";
 
+export function moneyCents(value: number) {
+  const cents = Math.round(value * 100);
+  if (!Number.isFinite(value) || !Number.isSafeInteger(cents)) throw new Error("Amount exceeds the supported range.");
+  return cents;
+}
+
+export function accountLedgerBalance(account: DebtAccount, transactions: LedgerTransaction[]) {
+  const anchor = account.reconciliation;
+  const covered = new Set(anchor?.coveredTransactionIds);
+  const movements = transactions.filter(t => t.accountId === account.id && !t.deletedAt && (!anchor || (
+      !covered.has(t.id) && t.date >= anchor.date && (anchor.coveredTransactionIds !== undefined || t.date > anchor.date || t.createdAt > anchor.createdAt)
+    ))).reduce((sum, t) => sum + moneyCents(postedMovement(t)), 0);
+  const base = anchor ? moneyCents(anchor.balance) + moneyCents(account.balanceOffset ?? 0) - moneyCents(anchor.offset) : moneyCents(account.balance) + moneyCents(account.balanceOffset ?? 0);
+  if (!Number.isSafeInteger(base + movements)) throw new Error("Balance exceeds the supported range.");
+  return (base + movements) / 100;
+}
+
 export function transactionAdjustedAccounts(openingAccounts: DebtAccount[], transactions: LedgerTransaction[], _detailedSpendingTracking = true) {
   void _detailedSpendingTracking; // Kept for existing callers; visibility never changes posted balances.
-  const movementByAccount = new Map<string, number>();
-  transactions.filter((transaction) => !transaction.deletedAt).forEach((transaction) => {
-    const movement = postedMovement(transaction);
-    movementByAccount.set(transaction.accountId, (movementByAccount.get(transaction.accountId) ?? 0) + movement);
+  return openingAccounts.map((account) => {
+    return { ...account, balance: Math.max(0, accountLedgerBalance(account, transactions)) };
   });
-  return openingAccounts.map((account) => ({
-    ...account,
-    balance: Math.max(0, round(account.balance + (account.balanceOffset ?? 0) + (movementByAccount.get(account.id) ?? 0))),
-  }));
 }
 
 export function buildProgressBalanceView(openingAccounts: DebtAccount[], transactions: LedgerTransaction[], snapshots: PayoffSnapshot[], detailedSpendingTracking = true) {

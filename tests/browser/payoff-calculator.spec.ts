@@ -21,6 +21,12 @@ test("calculator uses only the entered amount and preserves balances and Budget"
   await page.getByLabel("Total monthly debt payment", { exact: true }).fill("5000");
   await expect(page.locator(".plan-hero")).toContainText("4 months");
   await expect(page.locator(".plan-table tbody tr")).toHaveCount(4);
+  await expect(page.locator(".minimum-budget-hint")).toContainText("minimums are not reserved");
+  await page.getByLabel("Total monthly debt payment", { exact: true }).fill("1000");
+  await expect(page.locator(".plan-hero")).toContainText("20 months");
+  await expect(page.getByRole("button", { name: "Use this in my plan", exact: true })).toBeDisabled();
+  await expect(page.getByRole("alert")).toHaveCount(0);
+  await page.getByLabel("Total monthly debt payment", { exact: true }).fill("5000");
   await expect(page.getByRole("button", { name: "Custom", exact: true })).toHaveCount(0);
   await expect(page.getByRole("button", { name: /Show all|Show fewer/ })).toHaveCount(0);
   await expect(page.getByText("Enter a monthly amount to see how long it could take to pay off your current debts.", { exact: true })).toHaveCount(0);

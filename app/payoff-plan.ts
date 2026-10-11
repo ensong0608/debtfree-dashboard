@@ -71,7 +71,6 @@ export function buildStrategyComparison(
 ) {
   const orderedAccounts = accountsWithCustomDebtOrder(accounts, customDebtOrder);
   const strategies: PayoffStrategy[] = ["avalanche", "snowball"];
-  if (customDebtOrder.length > 0) strategies.push("custom");
   const results = strategies.map((strategy) => {
     const plan = calculatePlan(orderedAccounts, extra, strategy, linkedCardExpenses, linkedCardPurchases, calculationDate, actualizedLinkedCardExpenses, context);
     const effectiveAprs = Object.fromEntries(orderedAccounts.map((account) => [account.id, effectiveForecastApr(account, 1, calculationDate)]));

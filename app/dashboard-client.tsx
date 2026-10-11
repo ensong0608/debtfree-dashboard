@@ -249,8 +249,8 @@ const ADVANCED_NAV_ITEMS: { id: PageId; label: string; icon: string }[] = [
 ];
 const ALL_NAV_ITEMS = [...NAV_ITEMS, ...MORE_NAV_ITEMS, ...ADVANCED_NAV_ITEMS];
 
-export default function DashboardClient({ user }: { user: DashboardUser }) {
-  const repository = useMemo(() => createBrowserDataRepository(hasMeaningfulData), []);
+export default function DashboardClient({ user, householdId }: { user: DashboardUser; householdId?: string }) {
+  const repository = useMemo(() => createBrowserDataRepository(hasMeaningfulData, undefined, householdId ? user.email + ":" + householdId : undefined), [user.email, householdId]);
   useDialogFocus();
   const cloudWritesEnabled = useRef(false);
   const sync = useRef<HouseholdSync | null>(null);
@@ -306,7 +306,17 @@ export default function DashboardClient({ user }: { user: DashboardUser }) {
   useEffect(() => { contentRef.current?.scrollTo({ top: 0 }); }, [page]);
   const primaryPage = NAV_ITEMS.some(item => item.id === page) ? page : "more";
   const deviceOnly = user.email === "Local device storage only";
-  const isViewer = !deviceOnly && (!canEditCloud || householdRole === "viewer");
+  const [online, setOnline] = useState(true);
+  useEffect(() => {
+    const update = () => setOnline(navigator.onLine);
+    update(); window.addEventListener("online", update); window.addEventListener("offline", update);
+    return () => { window.removeEventListener("online", update); window.removeEventListener("offline", update); };
+  }, []);
+  const isViewer = !deviceOnly && (!online || !canEditCloud || householdRole === "viewer");
+  const updateCloudStatus = useCallback((status: SyncStatus) => {
+    setCloudStatus(status);
+    if (status === "unauthorized") setCanEditCloud(false);
+  }, []);
   const auditCreator = deviceOnly ? undefined : { email: user.email, displayName: user.displayName };
 
   const applyDashboardPayload = useCallback((contract: DashboardBackup) => {
@@ -345,7 +355,7 @@ export default function DashboardClient({ user }: { user: DashboardUser }) {
         const tabKey = "debtfree-outbox-tab";
         let tabId = sessionStorage.getItem(tabKey);
         if (!tabId) { tabId = crypto.randomUUID(); sessionStorage.setItem(tabKey, tabId); }
-        const controller = new HouseholdSync({ storage: localStorage, key: "debtfree-outbox:" + user.email + ":" + tabId, status: setCloudStatus });
+        const controller = new HouseholdSync({ storage: localStorage, key: "debtfree-outbox:" + user.email + ":" + householdId + ":" + tabId, status: updateCloudStatus });
         sync.current = controller;
         const { remote, contract } = await controller.load();
         if (cancelled) return;
@@ -366,7 +376,7 @@ export default function DashboardClient({ user }: { user: DashboardUser }) {
     };
     void load();
     return () => { cancelled = true; sync.current?.dispose(); };
-  }, [applyDashboardPayload, deviceOnly, repository, user.email]);
+  }, [applyDashboardPayload, deviceOnly, repository, user.email, householdId, updateCloudStatus]);
 
   const refreshHousehold = useCallback(async () => {
     if (!sync.current) { window.location.reload(); return; }
@@ -375,7 +385,7 @@ export default function DashboardClient({ user }: { user: DashboardUser }) {
       setHouseholdRole(remote.role); setHouseholdMembers(remote.members); setCanEditCloud(remote.role !== "viewer");
       if (contract) applyDashboardPayload(contract);
       await sync.current.flush();
-    } catch { setCloudStatus("error"); }
+    } catch { setCanEditCloud(false); }
   }, [applyDashboardPayload]);
   useEffect(() => {
     if (deviceOnly || !loaded) return;
@@ -389,7 +399,7 @@ export default function DashboardClient({ user }: { user: DashboardUser }) {
         if (!result || !canApply()) return;
         setHouseholdRole(result.remote.role); setHouseholdMembers(result.remote.members); setCanEditCloud(result.remote.role !== "viewer");
         if (result.contract) applyDashboardPayload(result.contract);
-      } catch { if (!cancelled) setCloudStatus("error"); }
+      } catch { /* Sync retains precise access/failure status and pending data. */ }
     };
     const resume = () => { void refresh(); };
     window.addEventListener("online", resume);
@@ -653,7 +663,7 @@ export default function DashboardClient({ user }: { user: DashboardUser }) {
       setTransactions(next.transactions);
       setUndoEntry({before:{accounts,transactions,adjustments:balanceAdjustments},after:JSON.stringify(next)});
       setPaymentRequest(null);
-      setDebtActionMessage(moneyPrecise.format(transaction.amount) + " payment recorded for " + account.name + ". Balance: " + moneyPrecise.format(transaction.balanceBefore ?? account.balance) + " to " + moneyPrecise.format(transaction.balanceAfter ?? 0) + ".");
+      setDebtActionMessage(moneyPrecise.format(transaction.amount) + " payment pending save for " + account.name + ". Balance: " + moneyPrecise.format(transaction.balanceBefore ?? account.balance) + " to " + moneyPrecise.format(transaction.balanceAfter ?? 0) + ".");
       return true;
     } catch (error) {
       if (error instanceof Error) setDebtActionMessage(error.message);
@@ -670,9 +680,7 @@ export default function DashboardClient({ user }: { user: DashboardUser }) {
     }
     try {
       const checked = reconcileInterest(storedAccount, transactions, draft.date);
-      const result = currentAccount.balance === draft.balance && checked.account.interestAutomation?.enabled
-        ? { account: checked.account, adjustment: null }
-        : createBalanceAdjustment({ storedAccount: checked.account, currentBalance: currentAccount.balance, nextBalance: draft.balance, date: draft.date, note: draft.note, creator: auditCreator });
+      const result = createBalanceAdjustment({ storedAccount: checked.account, currentBalance: currentAccount.balance, nextBalance: draft.balance, date: draft.date, note: draft.note, creator: auditCreator, transactions: checked.transactions });
       if (result.adjustment && result.adjustment.difference < 0) {
         if (draft.decreaseKind === "payment") result.adjustment.confirmedPayment = { confirmedAt: new Date().toISOString(), ...(auditCreator ? { creator: auditCreator } : {}) };
         else if (draft.decreaseKind === "credit") result.adjustment.reportKind = "credit";
@@ -760,15 +768,22 @@ export default function DashboardClient({ user }: { user: DashboardUser }) {
     const payload = createDashboardPayload(dashboardContract.current?.payload, { accounts, monthlyBudgets, payees, transactions, snapshots, extra, strategy, planning, balanceAdjustments, monthlyPlan, customDebtOrder });
     const backup = createDashboardBackup(payload, dashboardContract.current);
     dashboardContract.current = backup;
-    const url = URL.createObjectURL(new Blob([await repository.exportData(backup)], { type: "application/json" }));
+    let exported = await repository.exportData(backup);
+    const savedHousehold = !deviceOnly && cloudStatus === "synced" && !sync.current?.pending;
+    if (savedHousehold) {
+      const response = await fetch("/api/household/export", { cache: "no-store" });
+      if (!response.ok) { setTransferMessage("Could not export saved household. Retry or export pending changes."); return; }
+      exported = await response.text();
+    }
+    const url = URL.createObjectURL(new Blob([exported], { type: "application/json" }));
     const link = document.createElement("a");
     link.href = url;
-    link.download = `debtfree-dashboard-full-backup-${dateInputValue()}.json`;
+    link.download = `debtfree-${savedHousehold ? "household-backup" : "device-recovery"}-${dateInputValue()}.json`;
     document.body.appendChild(link);
     link.click();
     link.remove();
     URL.revokeObjectURL(url);
-    setTransferMessage("Full backup downloaded. Keep this JSON file private because it contains your financial data.");
+    setTransferMessage(savedHousehold ? "Saved household exported. Keep this file private." : "Device recovery exported. May include unsaved changes.");
   };
 
   const importDashboardBackup = async (file: File, mode: ImportMode) => {
@@ -869,7 +884,7 @@ export default function DashboardClient({ user }: { user: DashboardUser }) {
         if (!existingPayee) setPayees((current) => [...current, payee]);
         setTransactions((current) => [...current, transaction]);
         setTransactionModalOpen(false);
-        setDebtActionMessage(moneyPrecise.format(transaction.amount) + " payment recorded for " + account.name + ". Balance: " + moneyPrecise.format(transaction.balanceBefore ?? account.balance) + " to " + moneyPrecise.format(transaction.balanceAfter ?? 0) + ".");
+        setDebtActionMessage(moneyPrecise.format(transaction.amount) + " payment pending save for " + account.name + ". Balance: " + moneyPrecise.format(transaction.balanceBefore ?? account.balance) + " to " + moneyPrecise.format(transaction.balanceAfter ?? 0) + ".");
       } catch (error) {
         if (error instanceof Error) setDebtActionMessage(error.message);
       }
@@ -1023,11 +1038,13 @@ export default function DashboardClient({ user }: { user: DashboardUser }) {
         <div className="page-heading">
           <h1>{ALL_NAV_ITEMS.find((item) => item.id === page)?.label}</h1>
           <button className="account-bubble" type="button" onClick={() => setPage("profile")} aria-label="Open My Account">{user.displayName.split(/\s+/).filter(Boolean).map(part => part[0]).slice(0,2).join("").toUpperCase()}<span className={`sync-dot ${deviceOnly ? deviceSaveStatus : cloudStatus}`} aria-hidden="true"/></button>
-          <span className="sr-only" role="status">{deviceOnly ? deviceSaveStatus === "synced" ? "Saved on device" : "Saving on device" : cloudStatus === "synced" ? "Household saved" : cloudStatus === "conflict" ? "Save conflict" : cloudStatus === "error" ? "Cloud save unavailable" : "Saving"}</span>
+          <span className="save-status" role="status">{deviceOnly ? deviceSaveStatus === "synced" ? "Saved on device" : "Saving on device" : cloudStatus === "synced" && deviceSaveStatus === "synced" ? "Saved" : cloudStatus === "conflict" ? "Save conflict" : cloudStatus === "error" ? "Save failed" : cloudStatus === "unauthorized" ? "Sign in required" : "Saving"}</span>
         </div>
         {localError && <section role="alert" className="viewer-notice">{localError}<button onClick={() => void exportDashboardBackup()}>Export backup</button></section>}
         {!deviceOnly && (cloudStatus === "error" || cloudStatus === "conflict") && <section role="alert" className="viewer-notice"><strong>{cloudStatus === "conflict" ? "Another session changed this household. Your changes are retained." : "Cloud access or saving is unavailable. Pending changes are retained."}</strong><button onClick={() => void refreshHousehold()}>Retry connection</button><button onClick={() => void exportDashboardBackup()}>Export my changes</button>{cloudStatus === "conflict" && <button onClick={() => { void (async () => { if (!confirm("Load the latest household data? Your current changes will be kept as a recovery checkpoint.")) return; try { if (dashboardContract.current) await repository.checkpoint(dashboardContract.current); const loaded = await sync.current?.useCloud(); if (loaded?.contract) applyDashboardPayload(loaded.contract); } catch { setLocalError("Could not load the household. Export your changes before continuing."); } })(); }}>Load latest household</button>}</section>}
-        {isViewer && <section className="viewer-notice" role="status"><strong>Viewer access</strong><span>You can review this household dashboard, but only the owner and admins can make changes.</span></section>}
+        {!deviceOnly && !online && <section className="viewer-notice" role="status">Offline. Reconnect to edit. Pending changes are kept.</section>}
+        {!deviceOnly && cloudStatus === "unauthorized" && <section className="viewer-notice" role="alert">Session expired. Pending changes are kept. <a href="/auth/login">Sign in</a></section>}
+        {isViewer && householdRole === "viewer" && <section className="viewer-notice" role="status"><strong>Viewer access</strong><span>You can review this household dashboard, but only the owner and admins can make changes.</span></section>}
         {page === "more" && <div className="screen more-screen"><h1 className="sr-only">More</h1><section className="more-links" aria-label="More tools">{MORE_NAV_ITEMS.map(item => <button key={item.id} type="button" onClick={() => setPage(item.id)}>{item.label}<span aria-hidden="true">›</span></button>)}<button type="button" onClick={() => setPage("profile")}>Import & export backups<span aria-hidden="true">›</span></button></section><details className="more-advanced"><summary>Advanced tools</summary><div className="more-links">{ADVANCED_NAV_ITEMS.filter(item => item.id !== "history" || detailedSpendingTracking).map(item => <button key={item.id} type="button" onClick={() => setPage(item.id)}>{item.label}<span aria-hidden="true">›</span></button>)}</div></details></div>}
         {undoEntry && <div className="entry-undo" role="status"><span>{debtActionMessage}</span><button type="button" className="secondary" disabled={isViewer} onClick={() => { if (JSON.stringify({accounts,transactions,adjustments:balanceAdjustments}) !== undoEntry.after) {setDebtActionMessage("Newer changes exist. Use transaction history to correct this entry.");setUndoEntry(null);return;} const undone=undoDebtEntry(undoEntry.before,{accounts,transactions,adjustments:balanceAdjustments});setAccounts(undone.accounts);setTransactions(undone.transactions);setBalanceAdjustments(undone.adjustments);setUndoEntry(null);setDebtActionMessage("Entry undone."); }}>Undo</button></div>}
         {page === "payments" && <PaymentsPage readOnly={isViewer} accounts={calculatedAccounts} transactions={transactions} adjustments={balanceAdjustments} message={undoEntry ? "" : debtActionMessage} onConfirm={confirmBalancePayment} onUndoConfirmation={undoBalancePayment} storedAccounts={accounts} onChange={changeTransactionEntry} onDialog={setDebtEntryOpen}/>}

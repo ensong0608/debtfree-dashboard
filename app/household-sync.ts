@@ -1,6 +1,6 @@
 import { parseDashboardContract, type DashboardBackup } from "./dashboard-data.ts";
 
-export type SyncStatus = "connecting" | "saving" | "synced" | "error" | "conflict";
+export type SyncStatus = "connecting" | "saving" | "synced" | "error" | "conflict" | "unauthorized";
 export type RemoteHousehold = { householdName: string; role: "owner" | "admin" | "viewer"; payload: unknown; revision: number; members: { email: string; display_name: string | null; role: "owner" | "admin" | "viewer"; status: "active" | "invited" }[] };
 type Pending = { revision: number; contract: DashboardBackup };
 export const payloadFingerprint = (data: DashboardBackup) => JSON.stringify(data.payload);
@@ -31,7 +31,7 @@ export class HouseholdSync {
   async load() {
     if (this.inFlight) throw new Error("A save is still in progress. Retry shortly.");
     const response = await this.request("/api/household", { cache: "no-store" });
-    if (!response.ok) { this.writable = false; throw new Error("Could not verify household access. Your pending changes are retained."); }
+    if (!response.ok) { this.writable = false; this.options.status(response.status === 401 || response.status === 403 ? "unauthorized" : "error"); throw new Error("Could not verify household access. Your pending changes are retained."); }
     const remote = await response.json() as RemoteHousehold;
     const cloud = remote.payload === null ? null : parseDashboardContract(remote.payload, "Household dashboard");
     return this.acceptRemote(remote, cloud);
@@ -43,7 +43,11 @@ export class HouseholdSync {
     const generation = this.generation;
     try {
       const response = await this.request("/api/household", { cache: "no-store" });
-      if (!response.ok) throw new Error("Could not refresh household.");
+      if (!response.ok) {
+        if (response.status === 401 || response.status === 403) { this.writable = false; this.options.status("unauthorized"); }
+        else this.options.status("error");
+        throw new Error("Could not refresh household.");
+      }
       const remote = await response.json() as RemoteHousehold;
       const cloud = remote.payload === null ? null : parseDashboardContract(remote.payload, "Household dashboard");
       if (this.pending || this.inFlight || this.generation !== generation || !canApply()) return null;
@@ -80,7 +84,7 @@ export class HouseholdSync {
     try {
       const response = await this.request("/api/household", { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify({ payload: sent.contract, revision: sent.revision }) });
       if (response.status === 409) { this.conflict = true; this.options.status("conflict"); return; }
-      if (!response.ok) { if (response.status === 401 || response.status === 403) this.writable = false; throw new Error("Sync failed"); }
+      if (!response.ok) { if (response.status === 401 || response.status === 403) { this.writable = false; this.options.status("unauthorized"); } throw new Error("Sync failed"); }
       const result = await response.json() as { revision: number };
       this.revision = result.revision;
       this.accepted = payloadFingerprint(sent.contract);
@@ -92,7 +96,7 @@ export class HouseholdSync {
         this.pending.revision = result.revision;
         this.options.storage.setItem(this.options.key, JSON.stringify(this.pending));
       }
-    } catch { this.options.status("error"); }
+    } catch { if (this.writable) this.options.status("error"); }
     finally { this.inFlight = false; }
     if (this.pending && this.pending !== sent) await this.flush();
   }

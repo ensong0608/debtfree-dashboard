@@ -26,12 +26,23 @@ export type OwnershipMetadata = {
   updatedBy?: string;
 };
 
+export type BalanceReconciliation = {
+  adjustmentId: string;
+  balance: number;
+  date: string;
+  createdAt: string;
+  offset: number;
+  coveredTransactionIds?: string[];
+  previous?: BalanceReconciliation;
+};
+
 export type DebtAccount = OwnershipMetadata & {
   id: string;
   name: string;
   type: DebtType;
   balance: number;
   balanceOffset?: number;
+  reconciliation?: BalanceReconciliation;
   baselineBalance?: number;
   apr: number;
   interestFee: number;
@@ -117,6 +128,7 @@ export type LedgerTransaction = OwnershipMetadata & {
 };
 
 export type BalanceAdjustment = OwnershipMetadata & {
+  reconciliationAnchor?: BalanceReconciliation;
   id: string;
   accountId: string;
   date: string;
@@ -579,7 +591,10 @@ function requiredNumber(value: unknown, path: string, issues: string[], integer 
     issues.push(`${path} must be a finite number.`);
     return;
   }
+  if (/\.(balance|balanceBefore|balanceAfter|baselineBalance|amount|minimum|interestFee|creditLimit|postPromoMinimum|monthlyTakeHome)$/.test(path) && Math.abs(value * 100 - Math.round(value * 100)) > 0.000001) issues.push(`${path} must have at most two decimal places.`);
+  if (/\.(apr|postPromoApr)$/.test(path) && value > 100) issues.push(`${path} must be at most 100.`);
   if (value < 0) issues.push(`${path} must be zero or greater.`);
+  if (!Number.isSafeInteger(Math.round(value * 100))) issues.push(`${path} exceeds the supported numeric range.`);
   if (integer && !Number.isInteger(value)) issues.push(`${path} must be a whole number.`);
 }
 function requiredBoolean(value: unknown, path: string, issues: string[]) {
@@ -607,6 +622,19 @@ function validateArchiveEvent(value: unknown, path: string, issues: string[]) {
   requiredString(event.createdAt, path + ".createdAt", issues);
   if (hasOwn(event, "creator")) validateCreator(event.creator, path + ".creator", issues);
 }
+function validateReconciliation(value: unknown, path: string, issues: string[], depth = 0) {
+  if (depth > 100) { issues.push(path + " contains too many reconciliation revisions."); return; }
+  const item = requiredRecord(value, path, issues);
+  if (!item) return;
+  requiredString(item.adjustmentId, path + ".adjustmentId", issues);
+  requiredNumber(item.balance, path + ".balance", issues);
+  if (typeof item.date !== "string" || !validDate(item.date)) issues.push(path + ".date must be a valid date.");
+  if (typeof item.createdAt !== "string" || !Number.isFinite(Date.parse(item.createdAt))) issues.push(path + ".createdAt must be a valid timestamp.");
+  if (typeof item.offset !== "number" || !Number.isFinite(item.offset) || !Number.isSafeInteger(Math.round(item.offset * 100))) issues.push(path + ".offset must be a supported finite amount.");
+  if (item.coveredTransactionIds !== undefined && (!Array.isArray(item.coveredTransactionIds) || item.coveredTransactionIds.some(id => typeof id !== "string"))) issues.push(path + ".coveredTransactionIds must contain IDs.");
+  if (item.previous !== undefined) validateReconciliation(item.previous, path + ".previous", issues, depth + 1);
+}
+
 function validateAccount(value: unknown, path: string, issues: string[]) {
   const item = requiredRecord(value, path, issues);
   if (!item) return;
@@ -614,6 +642,7 @@ function validateAccount(value: unknown, path: string, issues: string[]) {
   requiredString(item.name, `${path}.name`, issues);
   enumValue(item.type, debtTypes, `${path}.type`, issues);
   requiredNumber(item.balance, `${path}.balance`, issues);
+  if (item.reconciliation !== undefined) validateReconciliation(item.reconciliation, path + ".reconciliation", issues);
   if (item.balanceOffset !== undefined && (typeof item.balanceOffset !== "number" || !Number.isFinite(item.balanceOffset))) issues.push(`${path}.balanceOffset must be finite.`);
   if (item.baselineBalance !== undefined) requiredNumber(item.baselineBalance, `${path}.baselineBalance`, issues);
   requiredNumber(item.apr, `${path}.apr`, issues);
@@ -715,6 +744,7 @@ function validateTransaction(value: unknown, path: string, issues: string[]) {
 function validateBalanceAdjustment(value: unknown, path: string, issues: string[]) {
   const item = requiredRecord(value, path, issues);
   if (!item) return;
+  if (item.reconciliationAnchor !== undefined) validateReconciliation(item.reconciliationAnchor, path + ".reconciliationAnchor", issues);
   requiredString(item.id, path + ".id", issues);
   requiredString(item.accountId, path + ".accountId", issues);
   requiredString(item.date, path + ".date", issues);

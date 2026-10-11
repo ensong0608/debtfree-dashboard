@@ -83,14 +83,10 @@ test("preserves snowball ordering, higher-APR tie-breaking, and stable exact tie
   assert.deepEqual(exactTie.months[0].payments, { first: 100, second: 50 });
 });
 
-test("applies extra money in the saved custom payoff order", () => {
-  const ordered = plan([
-    account("first", { balance: 500, apr: 29, customOrder: 2 }),
-    account("second", { balance: 500, apr: 10, customOrder: 0 }),
-    account("third", { balance: 500, apr: 20, customOrder: 1 }),
-  ], 100, "custom");
-
-  assert.deepEqual(ordered.months[0].payments, { first: 50, second: 150, third: 50 });
+test("legacy custom settings remain readable through avalanche without custom ordering", () => {
+  const debts = [account("high", { apr: 24, customOrder: 1 }), account("low", { apr: 12, customOrder: 0 })];
+  assert.deepEqual(plan(debts, 100, "custom"), plan(debts, 100, "avalanche"));
+  assert.throws(() => plan(debts, 100, "invalid"), /avalanche or snowball/);
 });
 
 test("preserves minimum-only debts and leaves unused rollover unavailable to them", () => {
@@ -156,15 +152,15 @@ test("preserves final partial payments", () => {
   assert.equal(individualPayoffMonths(account("single", { balance: 110 }), CALCULATION_DATE), 3);
 });
 
-test("preserves interest calculations and cent rounding", () => {
+test("rounds every projected month and cumulative interest to cents", () => {
   const debt = account("single", { balance: 1200, apr: 12, minimum: 100 });
   const result = plan([debt]);
 
   assert.equal(monthlyInterest(debt), 12);
   assert.equal(result.months[0].interest, 12);
-  assert.equal(result.months[1].interest, 11.120000000000001);
+  assert.equal(result.months[1].interest, 11.12);
   assert.equal(result.months[1].balances.single, 1023.12);
-  assert.equal(result.totalInterest, 84.77913218705311);
+  assert.equal(result.totalInterest, 84.78);
   assert.equal(round(1.005), 1.01);
   assert.equal(round(10.004), 10);
 });
@@ -176,7 +172,7 @@ test("preserves actual-interest-fee calibration against the opening balance", ()
 
   assert.equal(monthlyInterest(calibrated), 12);
   assert.equal(result.months[0].interest, 12);
-  assert.equal(result.months[1].interest, 11.120000000000001);
+  assert.equal(result.months[1].interest, 11.12);
   assert.equal(result.months[0].aprs.single, 24);
   assert.equal(aprOnly.months[0].interest, 24);
 });
@@ -285,7 +281,7 @@ test("preserves the 1,200-month long-plan limit", () => {
   assert.deepEqual(result.nonAmortizingAccountIds, ["long"]);
 });
 
-test("matches the anonymized representative golden projection", async () => {
+test("matches the anonymized representative projection with monthly cent rounding", async () => {
   const fixture = JSON.parse(await readFile(new URL("./fixtures/legacy-v0.json", import.meta.url), "utf8"));
   const result = plan(
     fixture.accounts,
@@ -328,7 +324,7 @@ test("matches the anonymized representative golden projection", async () => {
       .map((month) => ({ month: month.month, paidOff: month.paidOff })),
   }, {
     months: 77,
-    totalInterest: 2210.136757793166,
+    totalInterest: 2210.18,
     monthly: 494.75,
     peakMonthly: 674.75,
     stalled: false,
@@ -337,7 +333,7 @@ test("matches the anonymized representative golden projection", async () => {
     firstThree: [
       {
         month: 1,
-        interest: 88.89999999999999,
+        interest: 88.9,
         paid: 674.75,
         remaining: 8964.9,
         requiredMonthly: 674.75,
@@ -347,9 +343,9 @@ test("matches the anonymized representative golden projection", async () => {
       },
       {
         month: 2,
-        interest: 84.68573778435172,
+        interest: 84.68,
         paid: 494.75,
-        remaining: 8674.835737784353,
+        remaining: 8674.83,
         requiredMonthly: 494.75,
         minimumIncrease: 0,
         payments: { "account-card-1": 380, "account-loan-1": 114.75 },
@@ -357,33 +353,33 @@ test("matches the anonymized representative golden projection", async () => {
       },
       {
         month: 3,
-        interest: 80.40382162968012,
+        interest: 80.4,
         paid: 494.75,
-        remaining: 8380.489559414033,
+        remaining: 8380.48,
         requiredMonthly: 494.75,
         minimumIncrease: 0,
         payments: { "account-card-1": 380, "account-loan-1": 114.75 },
-        balances: { "account-card-1": 1785.9, "account-loan-1": 6594.59 },
+        balances: { "account-card-1": 1785.89, "account-loan-1": 6594.59 },
       },
     ],
     lastTwo: [
       {
         month: 76,
-        interest: 1.0721777957938197,
+        interest: 1.07,
         paid: 234.75,
-        remaining: 42.27531172944029,
+        remaining: 42.32,
         requiredMonthly: 494.75,
         payments: { "account-card-1": 120, "account-loan-1": 114.75 },
-        balances: { "account-card-1": 0, "account-loan-1": 42.28 },
+        balances: { "account-card-1": 0, "account-loan-1": 42.32 },
         paidOff: [],
       },
       {
         month: 77,
-        interest: 0.290642768139902,
-        paid: 162.5659544975802,
+        interest: 0.29,
+        paid: 162.61,
         remaining: 0,
         requiredMonthly: 494.75,
-        payments: { "account-card-1": 120, "account-loan-1": 42.565954497580194 },
+        payments: { "account-card-1": 120, "account-loan-1": 42.61 },
         balances: { "account-card-1": 0, "account-loan-1": 0 },
         paidOff: ["Sample Personal Loan"],
       },

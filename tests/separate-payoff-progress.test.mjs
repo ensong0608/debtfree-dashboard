@@ -18,8 +18,8 @@ test("separate plan reserves every minimum inside the entered total, then follow
   assert.ok(result.plan.months.every(m => m.paid <= 7000 && m.requiredMonthly === 7000));
   assert.deepEqual(accounts, original);
   const calculator = calculatePayoffCalculator(accounts, 7000, "custom", ["one", "two"], date);
-  assert.equal(calculator.months[0].payments.one, 6100);
-  assert.equal(calculator.months[0].payments.two ?? 0, 900);
+  assert.equal(calculator.months[0].payments.one, 7000);
+  assert.equal(calculator.months[0].payments.two ?? 0, 0);
 });
 
 test("plan rejects insufficient and missing minimums without raising the saved payment", () => {
@@ -33,8 +33,8 @@ test("plan rejects insufficient and missing minimums without raising the saved p
 test("total-budget plan applies selected strategy consistently and excludes archived debts", () => {
   const result = calculateMinimumPayoffPlan([account("one"), account("two", { payoffMode: "minimum-only" }), account("archived", { archivedAt: "2026-10-01", minimum: 10000 })], 7000, "custom", ["two", "one"], date);
   assert.equal(result.error, "");
-  assert.equal(result.plan.months[0].payments.two, 6100);
-  assert.equal(result.plan.months[0].payments.one, 900);
+  assert.equal(result.plan.months[0].payments.two, 900);
+  assert.equal(result.plan.months[0].payments.one, 6100);
   assert.equal(result.plan.months[0].payments.archived, undefined);
 });
 

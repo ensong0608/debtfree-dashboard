@@ -15,7 +15,8 @@ test("real SQL revision guard permits only one concurrent writer and enforces ro
   let role = "owner"; let signedIn = true;
   const api = createHouseholdApi(async () => signedIn ? { db, member: { household_id: "h", role }, user: { email: "test@example.test" } } : null, async () => []);
   const put = (revision, contract = fixture()) => api.PUT(new Request("http://localhost/api/household", { method: "PUT", body: JSON.stringify({ revision, payload: contract }) }));
-  const outcomes = await Promise.all([put(0), put(0)]); assert.deepEqual(outcomes.map(r => r.status).sort(), [200,409]);
+  const different = fixture(); different.payload.extra = 42;
+  const outcomes = await Promise.all([put(0), put(0, different)]); assert.deepEqual(outcomes.map(r => r.status).sort(), [200,409]);
   role = "viewer"; assert.equal((await put(1)).status, 403);
   signedIn = false; assert.equal((await api.GET()).status, 401); assert.equal((await put(1)).status, 401);
   signedIn = true; role = "admin"; assert.equal((await put(1)).status, 200);
