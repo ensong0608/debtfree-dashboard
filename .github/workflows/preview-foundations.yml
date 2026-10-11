@@ -70,8 +70,16 @@ jobs:
         run: |
           node --input-type=module <<'NODE'
           const origin='https://debtfree-dashboard-foundations-test.ensong0608.workers.dev';
-          const login=await fetch(origin+'/auth/login');
-          if(!login.ok || !(await login.text()).includes('Sign in with Google')) throw new Error('Preview login failed');
+          let ready=false;
+          for(let attempt=0;attempt<6;attempt++) {
+            try {
+              const login=await fetch(origin+'/auth/login',{cache:'no-store',signal:AbortSignal.timeout(5000)});
+              ready=login.ok && (await login.text()).includes('Sign in with Google');
+            } catch { /* Allow bounded deployment propagation/network readiness. */ }
+            if(ready) break;
+            if(attempt<5) await new Promise(resolve=>setTimeout(resolve,3000));
+          }
+          if(!ready) throw new Error('Preview login did not become ready');
           for(const path of ['/api/household','/api/household/export']) {
             const response=await fetch(origin+path,{redirect:'manual'});
             if(![401,403].includes(response.status)) throw new Error('Preview unauthenticated data denial failed');

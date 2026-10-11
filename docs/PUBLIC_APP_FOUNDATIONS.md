@@ -104,3 +104,13 @@ Saved reference inspected: `DebtFree debts, transactions, and budget screens(1).
 Last completed milestone: financial engine, API retry/isolation/recovery, payoff semantics and mobile emulation validation. Stage 2 live auth/IAM and Stage 3 real session/partner checks are still outstanding, so Stage 6 is NOT started.
 Next actionable step: fix repository Cloudflare token authorization, rerun preview workflow, configure dedicated test auth/preview callback and synthetic household members, then execute real two-household/session/partner tests. Do not switch preview binding to production or enable public signup to bypass this gate.
 No SQL production migration required. Keep PR draft until release gates in PUBLIC_APP_RELEASE_PLAN.md pass.
+
+
+## Preview retry — 2026-10-11 (supersedes prior permission blocker)
+- After token permissions were updated, run 38183471606 attempt 2 passed full validation (238 Node tests; 85 browser checks, 2 skipped), isolated D1 provisioning, initial test-schema migration and preview deployment.
+- Preview URL: https://debtfree-dashboard-foundations-test.ensong0608.workers.dev
+- Cloudflare Worker version: bc9a000a-4600-430b-ae75-69f9779fd771.
+- The immediate post-deployment login probe failed. Independent fresh probes afterward confirmed HTTP 200 with Google sign-in and HTTP 401 for both `/api/household` and `/api/household/export`. Deployment readiness timing is a plausible cause; no authenticated login is claimed verified.
+- Workflow login verification now retries briefly with a strict bound, then still fails if readiness is absent. Data denial remains mandatory. Its verification script was run directly against the deployed preview and passed.
+- Cloudflare D1-creation permission blocker is RESOLVED. Production Worker/D1/data remain untouched; test database starts empty and no financial records were copied from production.
+- Next actionable step: configure test Google identity/household membership and verify preview OAuth callback, then test two unrelated households, session expiration/logout/switching and partner sync. Public signup remains closed. Stage 6 remains gated; physical-device QA and legacy reconciliation review still outstanding.
