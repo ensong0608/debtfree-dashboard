@@ -92,5 +92,15 @@ Live unauthenticated `/api/household` returned 401 with `Sign in required` on 20
 - Reconciliation history now uses linear `previousAdjustmentId` references, not repeated embedded chains. 120 consecutive updates export/reload; deleting latest anchors skips deleted/moved predecessors, and earlier statement offsets absorb covered corrections.
 - Calculator CSV/Excel/PDF label the scenario pool and no reserved minimums. Plan report labels unchanged.
 - Initial CI run 38182425792: full `npm run validate` succeeded, including 85 browser checks; preview resource setup failed HTTP 401 on the D1 API request. Schema initialization and deployment were skipped. No preview URL exists yet.
-- Exact next infrastructure dependency: repair/replace repository `CLOUDFLARE_API_TOKEN` with access to enumerate/create an isolated D1 database and deploy the isolated preview Worker in account `005a72abf0c701cfc067867e4f3ba034`. Do not grant browser access to the token or point the preview at production D1. No token contents were read or logged.
-- Final code review additions passed 238 Node tests, lint/typecheck locally; final CI to run on follow-up commit. Stage 6 stays gated.
+- Exact next infrastructure dependency: repair/replace repository `CLOUDFLARE_API_TOKEN` with permission to create an isolated D1 database and deploy the isolated preview Worker in account `005a72abf0c701cfc067867e4f3ba034`. Do not grant browser access to the token or point the preview at production D1. No token contents were read or logged.
+- Final code review additions passed 238 Node tests, lint/typecheck and Worker dry-run locally. Final source commit 6b471733a46d290031be7fa14a83e81a5a5e9a72 passed full CI validation (including browser checks) in run 38183064927. Stage 6 stays gated.
+
+
+## Final handoff
+Final source CI: https://github.com/ensong0608/debtfree-dashboard/actions/runs/38183064927
+`npm run validate` PASSED on final source. Preview setup failed on `POST /d1/database` (creating the isolated test database) with HTTP 401, Cloudflare code 10000; initialization/deployment skipped. No test database or Worker deployment was created by these failed requests. Production was untouched throughout.
+Saved reference inspected: `DebtFree debts, transactions, and budget screens(1).png` (October 7 concept); illustrative amounts were not imported. Current explicit preferences and latest UI remain authoritative; no claim of pixel matching all later screenshots.
+
+Last completed milestone: financial engine, API retry/isolation/recovery, payoff semantics and mobile emulation validation. Stage 2 live auth/IAM and Stage 3 real session/partner checks are still outstanding, so Stage 6 is NOT started.
+Next actionable step: fix repository Cloudflare token authorization, rerun preview workflow, configure dedicated test auth/preview callback and synthetic household members, then execute real two-household/session/partner tests. Do not switch preview binding to production or enable public signup to bypass this gate.
+No SQL production migration required. Keep PR draft until release gates in PUBLIC_APP_RELEASE_PLAN.md pass.
