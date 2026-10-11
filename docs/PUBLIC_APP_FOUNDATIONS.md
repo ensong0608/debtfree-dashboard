@@ -114,3 +114,9 @@ No SQL production migration required. Keep PR draft until release gates in PUBLI
 - Workflow login verification now retries briefly with a strict bound, then still fails if readiness is absent. Data denial remains mandatory. Its verification script was run directly against the deployed preview and passed.
 - Cloudflare D1-creation permission blocker is RESOLVED. Production Worker/D1/data remain untouched; test database starts empty and no financial records were copied from production.
 - Next actionable step: configure test Google identity/household membership and verify preview OAuth callback, then test two unrelated households, session expiration/logout/switching and partner sync. Public signup remains closed. Stage 6 remains gated; physical-device QA and legacy reconciliation review still outstanding.
+
+
+## Preview account enablement — 2026-10-11
+The user selected their Google account for preview access. The workflow reads a protected GitHub repository secret `PREVIEW_OWNER_EMAIL` and installs it as the isolated Worker's `HOUSEHOLD_OWNER_EMAIL` secret. No plaintext email or email-derived identifier is published in source. Existing app authentication/bootstrap code is unchanged: first verified sign-in by the selected owner creates an empty test household; other identities cannot bootstrap.
+
+Dependency: the user must add the `PREVIEW_OWNER_EMAIL` repository secret; connected GitHub tools cannot manage repository secrets. Owner access is NOT yet enabled. Once set, rerun preview workflow; the secret is installed only on `debtfree-dashboard-foundations-test`, not production. No invitations/messages or financial data copies. OAuth initiation already requested the exact preview callback and redirected to Google; actual completed sign-in/session and owner household creation remain unverified.

@@ -66,6 +66,21 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
         run: npm run deploy
+      - name: Configure private preview owner access
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+          PREVIEW_OWNER_EMAIL: ${{ secrets.PREVIEW_OWNER_EMAIL }}
+        run: |
+          if [ -z "$PREVIEW_OWNER_EMAIL" ]; then
+            echo "PREVIEW_OWNER_EMAIL repository secret is required for preview access."
+            exit 1
+          fi
+          node --input-type=module <<'NODE'
+          const email=process.env.PREVIEW_OWNER_EMAIL?.trim().toLowerCase();
+          if(!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw new Error('Preview owner secret must contain a valid email');
+          NODE
+          printf '%s\n' "$PREVIEW_OWNER_EMAIL" | npx wrangler secret put HOUSEHOLD_OWNER_EMAIL --name debtfree-dashboard-foundations-test --config wrangler.jsonc
       - name: Verify login and API denial
         run: |
           node --input-type=module <<'NODE'
