@@ -4,11 +4,26 @@ export type PayoffReportScheduleRow = { month: string; focusDebt: string; minimu
 export type PayoffReportTransaction = { date: string; merchant: string; account: string; type: string; category: string; memo: string; amount: number; status: string };
 export type PayoffReportSnapshot = { month: string; capturedAt: string; totalBalance: number; monthlyInterest: number; activeAccountCount: number; projectedDebtFree: string; note: string; accounts: { name: string; type: string; balance: number; apr: number }[] };
 export type PayoffReportData = {
+  calculationMode?: "calculator" | "plan";
   generatedAt: string; budgetMonth: string; strategy: string; projectedDebtFree: string; monthsToPayoff: number; stalled: boolean;
   startingDebt: number; monthlyPlan: number; estimatedInterest: number; extraPayment: number; totalIncome: number; totalExpenses: number;
   totalBudget: number; monthlySurplus: number; totalMinimums: number; availableExtra: number; cashflow: PayoffReportCashflow[];
   accounts: PayoffReportAccount[]; schedule: PayoffReportScheduleRow[]; transactions: PayoffReportTransaction[]; snapshots: PayoffReportSnapshot[];
 };
+
+/** Export labels describe how the pool was allocated, not posted financial activity. */
+export function payoffReportLabels(report: Pick<PayoffReportData, "calculationMode">) {
+  const scenario = report.calculationMode === "calculator";
+  return {
+    monthly: scenario ? "Monthly scenario payment" : "Monthly payoff plan",
+    minimums: scenario ? "Reserved minimums (none)" : "Debt minimums",
+    accountMinimum: scenario ? "Reserved minimum (none)" : "Minimum",
+    scheduleMinimum: scenario ? "Reserved minimums (none)" : "Minimum payments",
+    extra: scenario ? "Scenario allocation" : "Extra payment",
+    available: scenario ? "Scenario payment pool" : "Available extra",
+    explanation: scenario ? "Scenario only; minimum payments are not reserved." : "Minimum payments are reserved before extra allocations.",
+  };
+}
 
 type CellValue = string | number | null;
 type StyledCell = { value: CellValue; style: number };
@@ -51,16 +66,17 @@ function spendingCategoryTotals(report: PayoffReportData) {
   return [...totals.entries()].sort((a, b) => b[1] - a[1]);
 }
 export function buildPayoffCsv(report: PayoffReportData) {
+  const labels = payoffReportLabels(report);
   const rows: string[] = [];
   const section = (title: string) => { if (rows.length) rows.push(""); rows.push(csvRow([title])); };
   section("DEBTFREE PAYOFF REPORT");
   [
-    ["Generated", report.generatedAt], ["Budget month", report.budgetMonth], ["Strategy", report.strategy],
+    ["Generated", report.generatedAt], ...(report.calculationMode === "calculator" ? [["Calculation", labels.explanation]] : []), ["Budget month", report.budgetMonth], ["Strategy", report.strategy],
     ["Projection status", report.stalled ? "Needs adjustment" : "On track"], ["Projected debt-free", report.projectedDebtFree],
-    ["Months to payoff", report.monthsToPayoff], ["Starting debt", report.startingDebt], ["Monthly payoff plan", report.monthlyPlan],
-    ["Estimated interest", report.estimatedInterest], ["Extra payment", report.extraPayment], ["Total income", report.totalIncome],
+    ["Months to payoff", report.monthsToPayoff], ["Starting debt", report.startingDebt], [labels.monthly, report.monthlyPlan],
+    ["Estimated interest", report.estimatedInterest], [labels.extra, report.extraPayment], ["Total income", report.totalIncome],
     ["Total expenses", report.totalExpenses], ["Total budget / set-asides", report.totalBudget],
-    ["Monthly surplus before debt minimums", report.monthlySurplus], ["Debt minimums", report.totalMinimums], ["Available extra", report.availableExtra],
+    ["Monthly surplus before debt minimums", report.monthlySurplus], [labels.minimums, report.totalMinimums], [labels.available, report.availableExtra],
   ].forEach((row) => rows.push(csvRow(row as CellValue[])));
 
   section("MONTHLY PLAN BREAKDOWN");
@@ -75,12 +91,12 @@ export function buildPayoffCsv(report: PayoffReportData) {
   categoryTotals(report).forEach(([category, amount]) => rows.push(csvRow([category, amount, report.totalIncome > 0 ? amount / report.totalIncome : 0])));
 
   section("DEBT ACCOUNTS");
-  rows.push(csvRow(["Account", "Type", "Balance", "APR", "Monthly interest", "Minimum", "Linked card expenses", "Planned monthly payment", "Payoff mode", "Credit limit", "Utilization", "Due date", "Projected payoff"]));
+  rows.push(csvRow(["Account", "Type", "Balance", "APR", "Monthly interest", labels.accountMinimum, "Linked card expenses", "Planned monthly payment", "Payoff mode", "Credit limit", "Utilization", "Due date", "Projected payoff"]));
   report.accounts.forEach((account) => rows.push(csvRow([account.name, account.type, account.balance, account.apr, account.monthlyInterest, account.minimumPayment, account.linkedCardExpenses, account.plannedMonthlyPayment, account.payoffMode, account.creditLimit, account.utilization ?? "", account.dueDate, account.projectedPayoff])));
 
   section("PAYOFF SCHEDULE");
   const scheduleAccounts = report.accounts.filter((account) => account.balance > 0).map((account) => account.name);
-  rows.push(csvRow(["Month", ...scheduleAccounts.flatMap((name) => [`${name} payment`, `${name} ending balance`]), "Total paid", "Interest", "Remaining", "Milestone", "Focus debt", "Minimum payments", "Extra payment"]));
+  rows.push(csvRow(["Month", ...scheduleAccounts.flatMap((name) => [`${name} payment`, `${name} ending balance`]), "Total paid", "Interest", "Remaining", "Milestone", "Focus debt", labels.scheduleMinimum, labels.extra]));
   report.schedule.forEach((entry) => {
     const accountMap = new Map(entry.accounts.map((account) => [account.name, account]));
     rows.push(csvRow([entry.month, ...scheduleAccounts.flatMap((name) => [accountMap.get(name)?.payment ?? 0, accountMap.get(name)?.endingBalance ?? 0]), entry.totalPaid, entry.interest, entry.remaining, entry.milestone, entry.focusDebt, entry.minimumPayments, entry.extraPayment]));
@@ -177,15 +193,16 @@ function tableSheet(name: string, subtitle: string, headers: string[], rows: (Ce
 }
 
 function reportSheets(report: PayoffReportData): SheetSpec[] {
+  const labels = payoffReportLabels(report);
   const categories = spendingCategoryTotals(report);
   const overviewRows: (CellValue | StyledCell)[][] = [
     [styled("DebtFree household payoff report", 1)],
-    [styled(`Generated ${report.generatedAt} | Budget month ${report.budgetMonth} | ${report.strategy} strategy`, 2)], [],
+    [styled(`Generated ${report.generatedAt} | Budget month ${report.budgetMonth} | ${report.strategy} strategy${report.calculationMode === "calculator" ? " | Scenario: no minimums reserved" : ""}`, 2)], [],
     [styled("PLAN AT A GLANCE", 3)],
     [styled("Starting debt", 8), styled(report.startingDebt, 9), styled("Projected debt-free", 8), styled(report.projectedDebtFree, 10), styled("Months to payoff", 8), styled(report.monthsToPayoff, 10), styled("Status", 8), styled(report.stalled ? "Needs adjustment" : "On track", 10)],
-    [styled("Monthly payoff plan", 8), styled(report.monthlyPlan, 9), styled("Estimated interest", 8), styled(report.estimatedInterest, 9), styled("Extra payment", 8), styled(report.extraPayment, 9), styled("Available extra", 8), styled(report.availableExtra, 9)], [],
+    [styled(labels.monthly, 8), styled(report.monthlyPlan, 9), styled("Estimated interest", 8), styled(report.estimatedInterest, 9), styled(labels.extra, 8), styled(report.extraPayment, 9), styled(labels.available, 8), styled(report.availableExtra, 9)], [],
     [styled("MONTHLY CASH FLOW", 3)],
-    [styled("Income", 4), styled("Expenses", 4), styled("Budget / set-asides", 4), styled("Surplus before minimums", 4), styled("Debt minimums", 4), styled("Available extra", 4)],
+    [styled("Income", 4), styled("Expenses", 4), styled("Budget / set-asides", 4), styled("Surplus before minimums", 4), styled(labels.minimums, 4), styled(labels.available, 4)],
     [styled(report.totalIncome, 9), styled(report.totalExpenses, 9), styled(report.totalBudget, 9), styled(report.monthlySurplus, 9), styled(report.totalMinimums, 9), styled(report.availableExtra, 9)], [],
     [styled("EXPENSE CATEGORY BREAKDOWN", 3)],
     [styled("Category", 4), styled("Amount", 4), styled("Share of expenses", 4)],
@@ -206,14 +223,14 @@ function reportSheets(report: PayoffReportData): SheetSpec[] {
   const monthly = tableSheet("Monthly Plan", `${report.budgetMonth} income, recurring planned spending, and one-time adjustments`, ["Type", "Name", "Category", "Payment method", "Linked account", "Amount"], monthlyRows, [14, 28, 22, 18, 26, 16]);
 
   const accountRows = report.accounts.map((account, index) => [styled(account.name, index % 2 ? 13 : 7), styled(account.type, 13), styled(account.balance, index % 2 ? 5 : 14), styled(account.apr, 6), styled(account.monthlyInterest, 5), styled(account.minimumPayment, 5), styled(account.linkedCardExpenses, 5), styled(account.plannedMonthlyPayment, 5), styled(account.payoffMode, 15), styled(account.creditLimit, 5), styled(account.utilization ?? 0, 6), styled(account.dueDate, 13), styled(account.projectedPayoff, 15)]);
-  const accounts = tableSheet("Debt Accounts", "Balances include active ledger entries; payments include linked card expenses", ["Account", "Type", "Balance", "APR", "Monthly interest", "Minimum", "Linked expenses", "Planned payment", "Payoff mode", "Credit limit", "Utilization", "Due date", "Projected payoff"], accountRows, [26, 18, 16, 12, 16, 15, 16, 17, 18, 16, 13, 15, 18], true);
+  const accounts = tableSheet("Debt Accounts", "Balances include active ledger entries; payments include linked card expenses", ["Account", "Type", "Balance", "APR", "Monthly interest", labels.accountMinimum, "Linked expenses", "Planned payment", "Payoff mode", "Credit limit", "Utilization", "Due date", "Projected payoff"], accountRows, [26, 18, 16, 12, 16, 15, 16, 17, 18, 16, 13, 15, 18], true);
 
   const activeNames = report.accounts.filter((account) => account.balance > 0).map((account) => account.name);
   const scheduleRows = report.schedule.map((entry, index) => {
     const accountMap = new Map(entry.accounts.map((account) => [account.name, account]));
     return [styled(entry.month, index % 2 ? 13 : 7), ...activeNames.flatMap((name) => [styled(accountMap.get(name)?.payment ?? 0, index % 2 ? 5 : 14), styled(accountMap.get(name)?.endingBalance ?? 0, index % 2 ? 5 : 14)]), styled(entry.totalPaid, 5), styled(entry.interest, 5), styled(entry.remaining, 5), styled(entry.milestone, 15), styled(entry.focusDebt, 15), styled(entry.minimumPayments, 5), styled(entry.extraPayment, 5)];
   });
-  const scheduleHeaders = ["Month", ...activeNames.flatMap((name) => [`${name} payment`, `${name} balance`]), "Total paid", "Interest", "Remaining", "Milestone", "Focus debt", "Minimum payments", "Extra payment"];
+  const scheduleHeaders = ["Month", ...activeNames.flatMap((name) => [`${name} payment`, `${name} balance`]), "Total paid", "Interest", "Remaining", "Milestone", "Focus debt", labels.scheduleMinimum, labels.extra];
   const schedule = tableSheet("Payoff Schedule", `Complete ${report.strategy} schedule with monthly payments and ending balances`, scheduleHeaders, scheduleRows, [14, ...activeNames.flatMap(() => [16, 16]), 16, 15, 16, 28, 24, 17, 16], true);
 
   const transactionRows = report.transactions.map((transaction, index) => [styled(transaction.date, index % 2 ? 13 : 7), styled(transaction.merchant, 15), styled(transaction.account, 15), styled(transaction.type, 13), styled(transaction.category, 13), styled(transaction.memo, 15), styled(transaction.amount, index % 2 ? 5 : 14), styled(transaction.status, 13)]);
@@ -297,6 +314,7 @@ function drawPdfKpi(doc: PdfDocument, x: number, y: number, width: number, label
 }
 
 export async function exportPayoffPdf(report: PayoffReportData) {
+  const labels = payoffReportLabels(report);
   const [{ jsPDF }, autoTableModule] = await Promise.all([import("jspdf"), import("jspdf-autotable")]);
   const autoTable = autoTableModule.default;
   const doc = new jsPDF({ orientation: "landscape", unit: "mm", format: "letter", compress: true });
@@ -306,11 +324,11 @@ export async function exportPayoffPdf(report: PayoffReportData) {
   doc.setTextColor(...NAVY);
   doc.setFont("helvetica", "bold");
   doc.setFontSize(24);
-  doc.text("Your complete payoff plan", 10, 25);
+  doc.text(report.calculationMode === "calculator" ? "Your payoff scenario" : "Your complete payoff plan", 10, 25);
   doc.setFont("helvetica", "normal");
   doc.setFontSize(9);
   doc.setTextColor(111, 124, 143);
-  doc.text(`${report.budgetMonth} household plan | ${report.strategy} strategy | Generated ${report.generatedAt}`, 10, 32);
+  doc.text(`${report.budgetMonth} ${report.calculationMode === "calculator" ? "scenario (minimums not reserved)" : "household plan"} | ${report.strategy} strategy | Generated ${report.generatedAt}`, 10, 32);
 
   const gap = 4;
   const cardWidth = (pageWidth - 20 - gap * 3) / 4;
@@ -321,7 +339,7 @@ export async function exportPayoffPdf(report: PayoffReportData) {
   drawPdfKpi(doc, 10, 65, cardWidth, "Income", money(report.totalIncome), GREEN);
   drawPdfKpi(doc, 10 + cardWidth + gap, 65, cardWidth, "Expenses", money(report.totalExpenses), ORANGE);
   drawPdfKpi(doc, 10 + (cardWidth + gap) * 2, 65, cardWidth, "Budget / set-asides", money(report.totalBudget), VIOLET);
-  drawPdfKpi(doc, 10 + (cardWidth + gap) * 3, 65, cardWidth, "Available extra", money(report.availableExtra), BLUE);
+  drawPdfKpi(doc, 10 + (cardWidth + gap) * 3, 65, cardWidth, labels.available, money(report.availableExtra), BLUE);
 
   doc.setTextColor(...NAVY);
   doc.setFont("helvetica", "bold");
@@ -361,15 +379,15 @@ export async function exportPayoffPdf(report: PayoffReportData) {
   doc.setFontSize(8);
   [
     `${report.monthsToPayoff} projected months to payoff`,
-    `${money(report.totalMinimums)} in debt minimums`,
-    `${money(report.extraPayment)} manually assigned extra`,
+    report.calculationMode === "calculator" ? "No minimum payments reserved" : `${money(report.totalMinimums)} in debt minimums`,
+    `${money(report.extraPayment)} ${report.calculationMode === "calculator" ? "scenario allocation" : "manually assigned extra"}`,
     report.stalled ? "Payments must increase to outpace interest" : "Current plan reaches a projected finish line",
   ].forEach((note, index) => doc.text(`- ${note}`, pageWidth - 87, 116 + index * 7));
 
   doc.addPage();
   let y = pdfTable(doc, autoTable, "Monthly budget breakdown", ["Type", "Name", "Category", "Payment method", "Linked account", "Amount"], report.cashflow.map((item) => [item.type, item.name, item.category, item.paymentMethod, item.linkedAccount, money(item.amount)]));
-  y = pdfTable(doc, autoTable, "Debt accounts", ["Account", "Type", "Balance", "APR", "Interest / mo.", "Minimum", "Linked expenses", "Planned payment", "Projected payoff"], report.accounts.map((account) => [account.name, account.type, money(account.balance), percent(account.apr), money(account.monthlyInterest), money(account.minimumPayment), money(account.linkedCardExpenses), money(account.plannedMonthlyPayment), account.projectedPayoff]), y + 10);
-  y = pdfTable(doc, autoTable, "Month-by-month payoff schedule", ["Month", "Focus debt", "Minimums", "Extra", "Interest", "Total paid", "Ending balance"], report.schedule.map((entry) => [entry.month, entry.focusDebt, money(entry.minimumPayments), money(entry.extraPayment), money(entry.interest), money(entry.totalPaid), money(entry.remaining)]), y + 10);
+  y = pdfTable(doc, autoTable, "Debt accounts", ["Account", "Type", "Balance", "APR", "Interest / mo.", labels.accountMinimum, "Linked expenses", "Planned payment", "Projected payoff"], report.accounts.map((account) => [account.name, account.type, money(account.balance), percent(account.apr), money(account.monthlyInterest), money(account.minimumPayment), money(account.linkedCardExpenses), money(account.plannedMonthlyPayment), account.projectedPayoff]), y + 10);
+  y = pdfTable(doc, autoTable, "Month-by-month payoff schedule", ["Month", "Focus debt", labels.scheduleMinimum, labels.extra, "Interest", "Total paid", "Ending balance"], report.schedule.map((entry) => [entry.month, entry.focusDebt, money(entry.minimumPayments), money(entry.extraPayment), money(entry.interest), money(entry.totalPaid), money(entry.remaining)]), y + 10);
 
   report.accounts.filter((account) => account.balance > 0).forEach((account) => {
     const rows = report.schedule.map((entry) => ({ entry, detail: entry.accounts.find((item) => item.name === account.name) }))

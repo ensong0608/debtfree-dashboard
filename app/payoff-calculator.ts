@@ -13,7 +13,7 @@ export function updatePayoffMinimum(accounts: DebtAccount[], id: string, minimum
 /** A standalone forecast: the entered amount is the entire monthly payment pool. */
 export function calculatePayoffCalculator(accounts: DebtAccount[], amount: number, strategy: PayoffStrategy, customOrder: string[] = [], date = new Date()) {
   void customOrder;
-  if (!Number.isFinite(amount) || amount < 0) throw new Error("Enter a valid monthly amount.");
+  if (!Number.isFinite(amount) || amount < 0 || !Number.isSafeInteger(Math.round(amount * 100))) throw new Error("Enter a valid monthly amount.");
   const inputs = accounts.filter(account => !account.archivedAt && account.balance > 0).map(account => ({...account, payoffMode: "priority" as const}));
   return calculatePlan(inputs, 0, strategy === "snowball" ? "snowball" : "avalanche", {}, {}, date, {}, { monthlyCommitment: Math.max(0, round(amount)), paymentCap: Math.max(0, round(amount)), reserveMinimums: false });
 }
@@ -22,7 +22,7 @@ export function calculatePayoffCalculator(accounts: DebtAccount[], amount: numbe
 export function calculateMinimumPayoffPlan(accounts: DebtAccount[], amount: number, strategy: PayoffStrategy, customOrder: string[] = [], date = new Date()) {
   const inputs = accountsWithCustomDebtOrder(accounts.filter(account => !account.archivedAt && account.balance > 0).map(account => ({...account, payoffMode: "priority" as const})), customOrder);
   const missing = inputs.filter(account => account.minimumMode === "manual" && account.minimum <= 0);
-  if (!Number.isFinite(amount) || amount < 0) return { error: "Enter a valid monthly amount.", plan: null };
+  if (!Number.isFinite(amount) || amount < 0 || !Number.isSafeInteger(Math.round(amount * 100))) return { error: "Enter a valid monthly amount.", plan: null };
   const monthly = round(amount);
   if (missing.length) return { error: `Set a minimum payment for ${missing.map(a => a.name).join(", ")}.`, plan: null };
   try {

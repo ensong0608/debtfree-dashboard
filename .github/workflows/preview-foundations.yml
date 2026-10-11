@@ -38,7 +38,7 @@ jobs:
               ...(body ? {body:JSON.stringify(body)} : {}),
             });
             const payload = await response.json();
-            if (!response.ok || !payload.success) throw new Error('Preview resource request failed: HTTP ' + response.status);
+            if (!response.ok || !payload.success) throw new Error('Preview resource request failed for ' + path + ': HTTP ' + response.status + '; codes=' + (payload.errors ?? []).map(e => e.code).join(','));
             return payload.result;
           }
           const databases = await api('/d1/database?per_page=100');

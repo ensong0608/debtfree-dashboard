@@ -34,7 +34,7 @@ test('Calculator below minimums remains a scenario; Plan requires funded minimum
  assert.match(calculateMinimumPayoffPlan(debts,0,'snowball',[],date).error,/200.00/);
 });
 test('negative and non-finite amounts are rejected before projection',()=>{
- for(const amount of [-1,NaN,Infinity]) {
+ for(const amount of [-1,NaN,Infinity,Number.MAX_VALUE,Number.MAX_SAFE_INTEGER]) {
   assert.throws(()=>calculatePayoffCalculator([account('a')],amount,'avalanche',[],date),/valid monthly/);
   assert.match(calculateMinimumPayoffPlan([account('a')],amount,'avalanche',[],date).error,/valid monthly/);
  }
@@ -67,4 +67,10 @@ test('changing balance, APR, minimum and visual hiding affects only intended for
  assert.ok(calculateMinimumPayoffPlan([{...original,balance:1500}],80,'avalanche',[],date).plan.months.length>baseline.months.length);
  assert.ok(calculateMinimumPayoffPlan([{...original,apr:24}],80,'avalanche',[],date).plan.totalInterest>baseline.totalInterest);
  assert.match(calculateMinimumPayoffPlan([{...original,minimum:100}],80,'avalanche',[],date).error,/100.00/);
+});
+
+test('fractional-cent scenario inputs round consistently with monthly totals',()=>{
+ const plan=calculatePayoffCalculator([account('a',{balance:10})],3.005,'avalanche',[],date);
+ assert.equal(plan.monthly,3.01);
+ assert.equal(plan.months[0].paid,3.01);
 });

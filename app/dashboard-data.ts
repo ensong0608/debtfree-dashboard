@@ -28,6 +28,8 @@ export type OwnershipMetadata = {
 
 export type BalanceReconciliation = {
   adjustmentId: string;
+  accountId?: string;
+  previousAdjustmentId?: string;
   balance: number;
   date: string;
   createdAt: string;
@@ -627,6 +629,8 @@ function validateReconciliation(value: unknown, path: string, issues: string[], 
   const item = requiredRecord(value, path, issues);
   if (!item) return;
   requiredString(item.adjustmentId, path + ".adjustmentId", issues);
+  if (item.accountId !== undefined) requiredString(item.accountId, path + ".accountId", issues);
+  if (item.previousAdjustmentId !== undefined) requiredString(item.previousAdjustmentId, path + ".previousAdjustmentId", issues);
   requiredNumber(item.balance, path + ".balance", issues);
   if (typeof item.date !== "string" || !validDate(item.date)) issues.push(path + ".date must be a valid date.");
   if (typeof item.createdAt !== "string" || !Number.isFinite(Date.parse(item.createdAt))) issues.push(path + ".createdAt must be a valid timestamp.");

@@ -318,6 +318,7 @@ export default function DashboardClient({ user, householdId }: { user: Dashboard
     if (status === "unauthorized") setCanEditCloud(false);
   }, []);
   const auditCreator = deviceOnly ? undefined : { email: user.email, displayName: user.displayName };
+  const visibleDebtActionMessage = /pending save/i.test(debtActionMessage) && deviceSaveStatus === "synced" && (deviceOnly || cloudStatus === "synced") ? "" : debtActionMessage;
 
   const applyDashboardPayload = useCallback((contract: DashboardBackup) => {
     dashboardContract.current = contract;
@@ -370,7 +371,7 @@ export default function DashboardClient({ user, householdId }: { user: Dashboard
       } catch {
         if (!cancelled) {
           if (sync.current?.pending) applyDashboardPayload(sync.current.pending.contract);
-          setCloudStatus("error"); setCanEditCloud(false);
+          setCloudStatus(current => current === "unauthorized" ? current : "error"); setCanEditCloud(false);
         }
       } finally { if (!cancelled) setLoaded(true); }
     };
@@ -560,6 +561,7 @@ export default function DashboardClient({ user, householdId }: { user: Dashboard
     setCashflowModalOpen(true);
   };
   const saveCashflow = () => {
+    if (isViewer) return;
     if (!cashflowDraft.name.trim() || cashflowDraft.amount <= 0) return;
     const normalized = { ...cashflowDraft, name: cashflowDraft.name.trim(), creditAccountId: (cashflowDraft.kind === "expense" || cashflowDraft.kind === "purchase") && cashflowDraft.paymentMethod === "credit" ? cashflowDraft.creditAccountId : "" };
     if (editingCashflowId) setCashflowItems((current) => current.map((item) => item.id === editingCashflowId ? { ...item, ...normalized } : item));
@@ -567,6 +569,7 @@ export default function DashboardClient({ user, householdId }: { user: Dashboard
     setCashflowModalOpen(false);
   };
   const removeCashflow = () => {
+    if (isViewer) return;
     if (!editingCashflowId) return;
     const item = cashflowItems.find((entry) => entry.id === editingCashflowId);
     if (confirm(`Remove ${item?.name ?? "this planned entry"}?`)) {
@@ -595,6 +598,7 @@ export default function DashboardClient({ user, householdId }: { user: Dashboard
     setAccounts((current) => current.map((account) => account.id === id && account.balance > 0 ? { ...account, payoffMode: account.payoffMode === "minimum-only" ? "priority" : "minimum-only" } : account));
   };
   const saveAccount = () => {
+    if (isViewer) return;
     if (!draft.name.trim()) return;
     if (draft.interestAutomation && (!validDate(draft.interestAutomation.coveredThrough) || !draft.interestAutomation.coveredThrough.endsWith("-02") || draft.interestAutomation.coveredThrough > householdDate())) return;
     if (editingId) setAccounts((current) => current.map((account) => account.id !== editingId ? account : {
@@ -621,6 +625,7 @@ export default function DashboardClient({ user, householdId }: { user: Dashboard
     setModalOpen(false);
   };
   const removeAccount = () => {
+    if (isViewer) return;
     if (!editingId) return;
     const account = accounts.find((item) => item.id === editingId);
     if (confirm("Permanently delete " + (account?.name ?? "this debt account") + "? Payment, adjustment, and snapshot references will remain for audit, but the debt details cannot be restored.")) {
@@ -723,7 +728,7 @@ export default function DashboardClient({ user, householdId }: { user: Dashboard
       setUndoEntry({before:state, after:JSON.stringify(next)});
       setAccounts(next.accounts); setTransactions(next.transactions); setBalanceAdjustments(next.adjustments);
       if (!deviceOnly) setCloudStatus("saving");
-      setDebtActionMessage(command.action === "save" ? "Saved. Balance: " + moneyPrecise.format(transactionAdjustedAccounts(next.accounts, next.transactions).find(a=>a.id===command.draft?.accountId)?.balance ?? 0) : command.action === "delete" ? "Transaction deleted and its balance change reversed. You can restore it from Deleted transactions." : "Transaction restored. Its balance change was applied once.");
+      setDebtActionMessage(command.action === "save" ? "Pending save. Balance: " + moneyPrecise.format(transactionAdjustedAccounts(next.accounts, next.transactions).find(a=>a.id===command.draft?.accountId)?.balance ?? 0) : command.action === "delete" ? "Deletion pending save. The record remains in Deleted transactions." : "Restoration pending save.");
       return null;
     } catch (error) { return error instanceof Error ? error.message : "Could not save this transaction."; }
   };
@@ -771,7 +776,9 @@ export default function DashboardClient({ user, householdId }: { user: Dashboard
     let exported = await repository.exportData(backup);
     const savedHousehold = !deviceOnly && cloudStatus === "synced" && !sync.current?.pending;
     if (savedHousehold) {
-      const response = await fetch("/api/household/export", { cache: "no-store" });
+      let response: Response;
+      try { response = await fetch("/api/household/export", { cache: "no-store" }); }
+      catch { setTransferMessage("Export unavailable. Reconnect and retry."); return; }
       if (!response.ok) { setTransferMessage("Could not export saved household. Retry or export pending changes."); return; }
       exported = await response.text();
     }
@@ -787,6 +794,7 @@ export default function DashboardClient({ user, householdId }: { user: Dashboard
   };
 
   const importDashboardBackup = async (file: File, mode: ImportMode) => {
+    if (isViewer) return;
     setTransferMessage("");
     try {
       const incoming = await repository.importData(await file.text());
@@ -806,6 +814,7 @@ export default function DashboardClient({ user, householdId }: { user: Dashboard
   };
 
   const resetDashboardData = async () => {
+    if (isViewer) return;
     setTransferMessage("");
     try {
       const payload = createDashboardPayload(null, {
@@ -872,6 +881,7 @@ export default function DashboardClient({ user, householdId }: { user: Dashboard
     setTransactionModalOpen(true);
   };
   const saveTransaction = () => {
+    if (isViewer) return;
     if (!transactionDraft.accountId || !transactionDraft.date || transactionDraft.amount <= 0 || (transactionDraft.type !== "payment" && !transactionDraft.payeeName.trim())) return;
     const now = new Date().toISOString();
     if (transactionDraft.type === "payment" && !editingTransactionId) {
@@ -921,7 +931,7 @@ export default function DashboardClient({ user, householdId }: { user: Dashboard
       });
       setTransactions((current) => [...current.map((transaction) => transaction.id === original.id ? correction.original : transaction), correction.replacement]);
       setAuditTransactionId(null);
-      setDebtActionMessage("Payment correction saved for " + original.payeeName + ". The original audit record was retained as replaced, and the balance reflects the corrected payment exactly once.");
+      setDebtActionMessage("Payment correction pending save for " + original.payeeName + ". The original audit record was retained as replaced, and the balance reflects the corrected payment exactly once.");
       return true;
     } catch (error) {
       if (error instanceof Error) setDebtActionMessage(error.message);
@@ -929,6 +939,7 @@ export default function DashboardClient({ user, householdId }: { user: Dashboard
     }
   };
   const softDeleteTransaction = (id: string) => {
+    if (isViewer) return;
     if (!confirm("Move this transaction to deleted items? You can restore it later.")) return;
     const now = new Date().toISOString();
     setTransactions((current) => current.map((transaction) => transaction.id === id ? { ...transaction, deletedAt: now, updatedAt: now } : transaction));
@@ -1046,7 +1057,7 @@ export default function DashboardClient({ user, householdId }: { user: Dashboard
         {!deviceOnly && cloudStatus === "unauthorized" && <section className="viewer-notice" role="alert">Session expired. Pending changes are kept. <a href="/auth/login">Sign in</a></section>}
         {isViewer && householdRole === "viewer" && <section className="viewer-notice" role="status"><strong>Viewer access</strong><span>You can review this household dashboard, but only the owner and admins can make changes.</span></section>}
         {page === "more" && <div className="screen more-screen"><h1 className="sr-only">More</h1><section className="more-links" aria-label="More tools">{MORE_NAV_ITEMS.map(item => <button key={item.id} type="button" onClick={() => setPage(item.id)}>{item.label}<span aria-hidden="true">›</span></button>)}<button type="button" onClick={() => setPage("profile")}>Import & export backups<span aria-hidden="true">›</span></button></section><details className="more-advanced"><summary>Advanced tools</summary><div className="more-links">{ADVANCED_NAV_ITEMS.filter(item => item.id !== "history" || detailedSpendingTracking).map(item => <button key={item.id} type="button" onClick={() => setPage(item.id)}>{item.label}<span aria-hidden="true">›</span></button>)}</div></details></div>}
-        {undoEntry && <div className="entry-undo" role="status"><span>{debtActionMessage}</span><button type="button" className="secondary" disabled={isViewer} onClick={() => { if (JSON.stringify({accounts,transactions,adjustments:balanceAdjustments}) !== undoEntry.after) {setDebtActionMessage("Newer changes exist. Use transaction history to correct this entry.");setUndoEntry(null);return;} const undone=undoDebtEntry(undoEntry.before,{accounts,transactions,adjustments:balanceAdjustments});setAccounts(undone.accounts);setTransactions(undone.transactions);setBalanceAdjustments(undone.adjustments);setUndoEntry(null);setDebtActionMessage("Entry undone."); }}>Undo</button></div>}
+        {undoEntry && <div className="entry-undo" role="status"><span>{visibleDebtActionMessage}</span><button type="button" className="secondary" disabled={isViewer} onClick={() => { if (JSON.stringify({accounts,transactions,adjustments:balanceAdjustments}) !== undoEntry.after) {setDebtActionMessage("Newer changes exist. Use transaction history to correct this entry.");setUndoEntry(null);return;} const undone=undoDebtEntry(undoEntry.before,{accounts,transactions,adjustments:balanceAdjustments});setAccounts(undone.accounts);setTransactions(undone.transactions);setBalanceAdjustments(undone.adjustments);setUndoEntry(null);setDebtActionMessage("Entry undone."); }}>Undo</button></div>}
         {page === "payments" && <PaymentsPage readOnly={isViewer} accounts={calculatedAccounts} transactions={transactions} adjustments={balanceAdjustments} message={undoEntry ? "" : debtActionMessage} onConfirm={confirmBalancePayment} onUndoConfirmation={undoBalancePayment} storedAccounts={accounts} onChange={changeTransactionEntry} onDialog={setDebtEntryOpen}/>}
         <fieldset className="viewer-readonly-surface" disabled={isViewer && page !== "accounts"}>
 
@@ -1057,7 +1068,7 @@ export default function DashboardClient({ user, householdId }: { user: Dashboard
         {page === "calculator" && <PayoffCalculatorPage savedAmount={monthlyPlan.payoffPlanAmount ?? 0} accounts={payoffAccounts} amount={calculatorScenario?.amount ?? monthlyPlan.payoffPlanAmount ?? monthlyPlan.calculatorAmount ?? extra} strategy={calculatorScenario?.strategy ?? monthlyPlan.payoffPlanStrategy ?? "avalanche"} customDebtOrder={[]} onAmount={amount => setCalculatorScenario(current => ({amount, strategy: current?.strategy ?? monthlyPlan.payoffPlanStrategy ?? "avalanche"}))} onStrategy={strategy => setCalculatorScenario(current => ({amount: current?.amount ?? monthlyPlan.payoffPlanAmount ?? extra, strategy}))} onUsePlan={() => { if (isViewer) return; setMonthlyPlan(current => ({...current, payoffPlanAmount: calculatorScenario?.amount ?? monthlyPlan.payoffPlanAmount ?? monthlyPlan.calculatorAmount ?? extra, payoffPlanStrategy: calculatorScenario?.strategy ?? monthlyPlan.payoffPlanStrategy ?? "avalanche"})); setPage("plan"); }} readOnly={isViewer} onAccounts={() => setPage("accounts")}/>}
         {page === "plan" && <PayoffCalculatorPage minimumsIncluded accounts={payoffAccounts} transactions={transactions} adjustments={balanceAdjustments} onPayment={openRecommendedPayment} amount={monthlyPlan.payoffPlanAmount ?? 0} strategy={monthlyPlan.payoffPlanStrategy ?? "avalanche"} customDebtOrder={[]} onAmount={payoffPlanAmount => setMonthlyPlan(current => ({ ...current, payoffPlanAmount }))} onStrategy={payoffPlanStrategy => setMonthlyPlan(current => ({ ...current, payoffPlanStrategy }))} readOnly={isViewer} onMinimum={(id, minimum) => { if (!isViewer) setAccounts(current => updatePayoffMinimum(current, id, minimum)); }} onAccounts={() => setPage("accounts")}/>}
         {page === "snapshots" && <ActualProgressPage readOnly={isViewer} accounts={accounts} removedAccounts={monthlyPlan.removedProgressAccounts} startingBalance={monthlyPlan.progressStartingBalance} transactions={transactions} adjustments={balanceAdjustments} snapshots={snapshots} loans={monthlyPlan.loanTrackers ?? []} onLoanSnapshot={()=>{if(isViewer)return;setMonthlyPlan(current=>({...current,loanTrackers:(current.loanTrackers??[]).map(loan=>({...loan,history:[...loan.history,{date:loan.asOf,amount:loan.remainingAmount,balanceKind:loan.balanceKind,recordedAt:new Date().toISOString()}]}))}));} } onCapture={captureSnapshot} onUpdateNote={updateSnapshotNote} onDelete={removeSnapshot} onActivity={() => setPage("payments")} onAccounts={() => setPage("accounts")}/>}
-        {page === "profile" && <ProfilePage user={user} householdName={householdName} role={householdRole} members={householdMembers} cloudStatus={cloudStatus} deviceOnly={deviceOnly} transferMessage={transferMessage} onExportBackup={exportDashboardBackup} onImportBackup={importDashboardBackup} onReset={resetDashboardData} onRecover={async () => { try { const checkpoint = await repository.loadCheckpoint(); if (!checkpoint) { setTransferMessage("No recovery checkpoint is available."); return; } if (!confirm("Restore the saved recovery checkpoint? Current data will be saved as the automatic backup.")) return; await repository.saveHousehold(checkpoint); applyDashboardPayload(checkpoint); } catch (error) { setTransferMessage(dashboardDataErrorMessage(error)); } }} onInvite={inviteMember} onRemove={removeAdmin}/>}
+        {page === "profile" && <ProfilePage user={user} householdName={householdName} role={householdRole} members={householdMembers} cloudStatus={cloudStatus} deviceOnly={deviceOnly} transferMessage={transferMessage} onExportBackup={exportDashboardBackup} onImportBackup={importDashboardBackup} onReset={resetDashboardData} onRecover={async () => { if (isViewer) return; try { const checkpoint = await repository.loadCheckpoint(); if (!checkpoint) { setTransferMessage("No recovery checkpoint is available."); return; } if (!confirm("Restore the saved recovery checkpoint? Current data will be saved as the automatic backup.")) return; await repository.saveHousehold(checkpoint); applyDashboardPayload(checkpoint); } catch (error) { setTransferMessage(dashboardDataErrorMessage(error)); } }} onInvite={inviteMember} onRemove={removeAdmin}/>}
         {page === "utilization" && <UtilizationPage accounts={calculatedAccounts} onEditAccount={openEdit}/>}
         {page === "stats" && <DebtInsightsPage accounts={calculatedAccounts} onPlan={()=>setPage("calculator")} onProgress={()=>setPage("snapshots")}/>}
         </fieldset>
@@ -1067,13 +1078,13 @@ export default function DashboardClient({ user, householdId }: { user: Dashboard
       {page === "monthly" && !cashflowModalOpen && <section className="bottom-action-bar budget-add-bar" aria-label="Add a budget entry"><button type="button" className="income-action" disabled={isViewer} onClick={() => openNewCashflow("income")}>Income +</button><button type="button" className="expense-action" disabled={isViewer} onClick={() => openNewCashflow("expense")}>Spending +</button><button type="button" className="purchase-action" aria-label="One-time +" disabled={isViewer} onClick={() => openNewCashflow("purchase")}>One-time +</button></section>}
     </main>
 
-    {!isViewer && newRecordOpen && <DebtEntryDialog state={{accounts, transactions, adjustments:balanceAdjustments}} command={{action:"save"}} readOnly={isViewer} onSave={changeTransactionEntry} onClose={() => { setNewRecordOpen(false); setDebtEntryOpen(false); }}/>}
-    {!isViewer && modalOpen && <AccountModal draft={draft} editing={Boolean(editingId)} autoFocusField={accountAutoFocus} onChange={setDraft} onClose={() => setModalOpen(false)} onSave={saveAccount} onRemove={removeAccount}/>}
-    {!isViewer && paymentAccount && paymentRequest && <PaymentModal key={paymentAccount.id + paymentRequest.suggestedAmount} accounts={calculatedAccounts.filter(a => !a.archivedAt)} onAccountChange={id => openRecommendedPayment(id, 0)} error={debtActionMessage} account={paymentAccount} transactions={transactions} adjustments={balanceAdjustments} suggestedAmount={paymentRequest.suggestedAmount} onClose={() => setPaymentRequest(null)} onSave={recordPayment}/>}
-    {!isViewer && auditTransaction && <PaymentCorrectionModal key={auditTransaction.id + auditTransaction.updatedAt} transaction={auditTransaction} accountWithoutOriginal={auditAccountWithoutOriginal} onClose={() => setAuditTransactionId(null)} onSave={correctDebtPayment}/> }
-    {!isViewer && balanceAccount && <BalanceUpdateModal key={balanceAccount.id} error={debtActionMessage} account={balanceAccount} onClose={() => setBalanceAccountId(null)} onSave={updateAccountBalance}/>}
-    {!isViewer && cashflowModalOpen && <CashflowModal draft={cashflowDraft} editing={Boolean(editingCashflowId)} accounts={calculatedAccounts} onChange={setCashflowDraft} onClose={() => setCashflowModalOpen(false)} onSave={saveCashflow} onRemove={removeCashflow}/>}
-    {!isViewer && detailedSpendingTracking && transactionModalOpen && <TransactionModal draft={transactionDraft} editing={Boolean(editingTransactionId)} accounts={calculatedAccounts} payees={payees} plannedItems={planningCashflowItems} onChange={setTransactionDraft} onClose={() => setTransactionModalOpen(false)} onSave={saveTransaction} onRemove={() => editingTransactionId && softDeleteTransaction(editingTransactionId)}/>}
+    {householdRole !== "viewer" && newRecordOpen && <DebtEntryDialog state={{accounts, transactions, adjustments:balanceAdjustments}} command={{action:"save"}} readOnly={isViewer} onSave={changeTransactionEntry} onClose={() => { setNewRecordOpen(false); setDebtEntryOpen(false); }}/>}
+    {householdRole !== "viewer" && modalOpen && <AccountModal draft={draft} editing={Boolean(editingId)} autoFocusField={accountAutoFocus} onChange={setDraft} onClose={() => setModalOpen(false)} onSave={saveAccount} onRemove={removeAccount}/>}
+    {householdRole !== "viewer" && paymentAccount && paymentRequest && <PaymentModal key={paymentAccount.id + paymentRequest.suggestedAmount} accounts={calculatedAccounts.filter(a => !a.archivedAt)} onAccountChange={id => openRecommendedPayment(id, 0)} error={visibleDebtActionMessage} account={paymentAccount} transactions={transactions} adjustments={balanceAdjustments} suggestedAmount={paymentRequest.suggestedAmount} onClose={() => setPaymentRequest(null)} onSave={recordPayment}/>}
+    {householdRole !== "viewer" && auditTransaction && <PaymentCorrectionModal key={auditTransaction.id + auditTransaction.updatedAt} transaction={auditTransaction} accountWithoutOriginal={auditAccountWithoutOriginal} onClose={() => setAuditTransactionId(null)} onSave={correctDebtPayment}/> }
+    {householdRole !== "viewer" && balanceAccount && <BalanceUpdateModal key={balanceAccount.id} error={visibleDebtActionMessage} account={balanceAccount} onClose={() => setBalanceAccountId(null)} onSave={updateAccountBalance}/>}
+    {householdRole !== "viewer" && cashflowModalOpen && <CashflowModal draft={cashflowDraft} editing={Boolean(editingCashflowId)} accounts={calculatedAccounts} onChange={setCashflowDraft} onClose={() => setCashflowModalOpen(false)} onSave={saveCashflow} onRemove={removeCashflow}/>}
+    {householdRole !== "viewer" && detailedSpendingTracking && transactionModalOpen && <TransactionModal draft={transactionDraft} editing={Boolean(editingTransactionId)} accounts={calculatedAccounts} payees={payees} plannedItems={planningCashflowItems} onChange={setTransactionDraft} onClose={() => setTransactionModalOpen(false)} onSave={saveTransaction} onRemove={() => editingTransactionId && softDeleteTransaction(editingTransactionId)}/>}
     {!isViewer && detailedSpendingTracking && payeeModalOpen && <PayeeModal payees={payees} onAdd={addPayee} onRename={renamePayee} onDelete={deletePayee} onClose={() => setPayeeModalOpen(false)}/>}
   </div>;
 }

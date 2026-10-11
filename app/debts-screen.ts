@@ -186,7 +186,7 @@ export function createBalanceAdjustment(input: BalanceAdjustmentInput) {
   const offset = cents((input.storedAccount.balanceOffset ?? 0) + balanceAfter - balanceBefore);
   const account = {
     ...input.storedAccount,
-    reconciliation: { adjustmentId, balance: balanceAfter, date: input.date, createdAt, offset, ...(input.transactions ? { coveredTransactionIds: input.transactions.filter(t => t.accountId === input.storedAccount.id).map(t => t.id) } : {}), ...(input.storedAccount.reconciliation ? { previous: input.storedAccount.reconciliation } : {}) },
+    reconciliation: { adjustmentId, accountId: input.storedAccount.id, balance: balanceAfter, date: input.date, createdAt, offset, ...(input.transactions ? { coveredTransactionIds: input.transactions.filter(t => t.accountId === input.storedAccount.id).map(t => t.id) } : {}), ...(input.storedAccount.reconciliation ? { previousAdjustmentId: input.storedAccount.reconciliation.adjustmentId } : {}) },
     baselineBalance: input.storedAccount.baselineBalance ?? input.storedAccount.balance,
     balanceOffset: cents((input.storedAccount.balanceOffset ?? 0) + balanceAfter - balanceBefore),
   };

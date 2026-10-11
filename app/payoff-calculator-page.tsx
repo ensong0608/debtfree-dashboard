@@ -29,8 +29,8 @@ export default function PayoffCalculatorPage({ accounts, amount, strategy, custo
     catch (error) { return { error: error instanceof Error ? error.message : "Check the monthly payment amount.", plan: null }; }
   }, [minimumsIncluded, minimumResult, accounts, amount, selectedStrategy, calculationDate]);
   const plan = useMemo(() => scenarioResult?.plan ?? { monthly: amount, months: [], totalInterest: 0, stalled: true, peakMonthly: amount, nonAmortizingAccountIds: [], promoMinimumFallbackIds: [] } as ReturnType<typeof calculatePayoffCalculator>, [scenarioResult, amount]);
-  const minimumPaid = (month: typeof plan.months[number]) => round(active.reduce((sum,a) => sum + Math.min(month.payments[a.id] ?? 0, month.minimums[a.id] ?? 0), 0));
-  const firstMinimums = plan.months[0] ? minimumPaid(plan.months[0]) : round(active.reduce((sum,a)=>sum+forecastMinimum(a,a.balance*(1+forecastMonthlyRate(a,1,calculationDate)),1,calculationDate),0));
+  const minimumPaid = (month: typeof plan.months[number]) => minimumsIncluded ? round(active.reduce((sum,a) => sum + Math.min(month.payments[a.id] ?? 0, month.minimums[a.id] ?? 0), 0)) : 0;
+  const firstMinimums = !minimumsIncluded ? 0 : plan.months[0] ? minimumPaid(plan.months[0]) : round(active.reduce((sum,a)=>sum+forecastMinimum(a,a.balance*(1+forecastMonthlyRate(a,1,calculationDate)),1,calculationDate),0));
   const monthLabel = (month: number) => new Date(forecastMonthKey(month, calculationDate) + "-01T12:00:00").toLocaleDateString("en-US", { month: "long", year: "numeric" });
   const allocationAccounts = accounts.filter(a => !a.archivedAt && (a.balance > 0 || confirmedPaymentTotal(transactions, adjustments, forecastMonthKey(1, calculationDate), a.id) > 0));
   const remainingPayments = round(allocationAccounts.reduce((sum, a) => sum + Math.max(0, round((plan.months[0]?.payments[a.id] ?? 0) - confirmedPaymentTotal(transactions, adjustments, forecastMonthKey(1, calculationDate), a.id))), 0));
@@ -39,6 +39,7 @@ export default function PayoffCalculatorPage({ accounts, amount, strategy, custo
   const exportReport = async (format: "csv" | "excel" | "pdf") => {
     setExporting(true); setExportError("");
     const report: PayoffReportData = {
+      calculationMode: minimumsIncluded ? "plan" : "calculator",
       generatedAt: calculationDate.toISOString(), budgetMonth: monthLabel(1), strategy: label(selectedStrategy), projectedDebtFree: plan.stalled ? "No payoff at this amount" : monthLabel(plan.months.length), monthsToPayoff: plan.months.length, stalled: plan.stalled,
       startingDebt, monthlyPlan: amount, estimatedInterest: round(plan.totalInterest), extraPayment: Math.max(0, round(amount - firstMinimums)),
       totalIncome: 0, totalExpenses: 0, totalBudget: 0, monthlySurplus: 0, totalMinimums: firstMinimums, availableExtra: Math.max(0, round(amount - firstMinimums)), cashflow: [],

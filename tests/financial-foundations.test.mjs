@@ -59,3 +59,35 @@ test('moving covered history to another debt preserves the old statement and app
  assert.equal(values[0].balance,10075.60);
  assert.equal(values[1].balance,500);
 });
+test('120 lender updates export linearly and deleting latest anchors skips an earlier deleted statement',()=>{
+ let state=initial;
+ for(let i=0;i<120;i++) {
+   const date=new Date(Date.UTC(2026,9,4+i)).toISOString().slice(0,10);
+   state=reconcile(state,10000-i,'statement-'+i,date);
+ }
+ assert.ok(state.adjustments.every(a=>!a.reconciliationAnchor.previous));
+ assert.equal(state.accounts[0].reconciliation.previousAdjustmentId,'statement-118');
+ const payload=createDashboardPayload(null,{accounts:state.accounts,transactions:state.transactions,balanceAdjustments:state.adjustments,payees:[],snapshots:[],monthlyBudgets:{},extra:0,strategy:'avalanche',planning:createEmptyPlannedPayoff()});
+ const serialized=JSON.stringify(createDashboardBackup(payload));
+ assert.ok(serialized.length<150000,serialized.length);
+ const restored=parseDashboardJson(serialized).payload;
+ state={accounts:restored.accounts,transactions:restored.transactions,adjustments:restored.balanceAdjustments};
+ state=changeDebtEntry(state,{action:'delete',id:'adjustment:statement-117'});
+ assert.equal(balance(state),9881);
+ for(const [id,expected] of [['statement-119',9882],['statement-118',9884],['statement-116',9885]]) {
+   state=changeDebtEntry(state,{action:'delete',id:'adjustment:'+id});
+   assert.equal(balance(state),expected,id);
+ }
+ assert.equal(state.accounts[0].reconciliation.adjustmentId,'statement-115');
+});
+test('returning to an earlier statement preserves corrections to activity already covered by that statement',()=>{
+ let state=changeDebtEntry(initial,{action:'save',draft:{accountId:account.id,kind:'adjustment',amount:10,date:'2026-10-03',direction:'increase',note:''}},undefined,'2026-10-03T12:00:00Z','historical-adjustment');
+ state=reconcile(state,10000,'first','2026-10-04');
+ state=reconcile(state,9900,'second','2026-10-05');
+ state=changeDebtEntry(state,{action:'delete',id:'adjustment:historical-adjustment'});
+ assert.equal(balance(state),9900);
+ state=changeDebtEntry(state,{action:'delete',id:'adjustment:second'});
+ assert.equal(balance(state),10000);
+ state=changeDebtEntry(state,{action:'restore',id:'adjustment:historical-adjustment'});
+ assert.equal(balance(state),10000);
+});
