@@ -168,3 +168,13 @@ Next after this batch: select/provision additional Google test identities in sep
 - User-reported Android/Brave onboarding scroll passes. Remaining physical keyboard/large-text/screen-reader testing remains open.
 - Last completed batch: expected-session isolation guard, durable explicit outbox recovery, truthful restore/reset saving status, stale-read/disposal/ACK protections, synthetic integration/browser tests and live owner persistence/export/logout/re-login.
 - Next actionable dependency: select an additional Google test account for an unrelated preview household and a partner test identity; provision them under controlled private test access, then verify real cross-household API denial and partner refresh/reconnect/expiry. Do not open signup, use a runtime auth bypass, or send messages to bypass the gate. Stage 6 remains unimplemented.
+
+
+## Private unrelated-household fixture — 2026-10-14
+- User selected the second Google test identity. Neither the email nor an email-derived identifier is committed in source. No invitation/message is authorized or sent.
+- Added private CI provisioning using protected repository secret PREVIEW_ISOLATION_EMAIL. It is restricted to the preview branch, exact Cloudflare account, named preview D1, and rejects the production DB ID. No runtime authentication bypass or public registration changes.
+- Creates only a new empty isolation household, active owner membership and NULL/revision-0 state using a parameterized D1 REST batch. Existing membership is never moved/upgraded; existing household/state rows are never updated/deleted/reset. Already-configured retries preserve saved progress.
+- Ten synthetic SQLite fixture tests pass: primary household data/history preservation, empty second-household creation, retry safety, production/resource guard, invalid/missing configuration, member/collision refusal and rollback of a concurrent membership collision. Real D1 provisioning remains unverified until CI runs with the protected secret.
+- Fixture job follows full preview validation/deployment. A missing secret fails before any fixture resource request; the deployed preview stays usable. Connected GitHub tools cannot create repository secrets.
+- Exact next user dependency: add repository Actions secret PREVIEW_ISOLATION_EMAIL with the selected test email. Then rerun only the failed isolation-fixture job. Once provisioned, verify actual Google sign-in into that separate empty household and run live cross-household session/API checks. Do not add the selected identity to the existing preview household for this isolation test.
+- No SQL schema migration or production release is required.

@@ -109,3 +109,19 @@ jobs:
             .wrangler/browser-results/
             outputs/ui-verification/
           include-hidden-files: true
+  isolation-fixture:
+    needs: preview
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Provision private unrelated test household
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+          PREVIEW_OWNER_EMAIL: ${{ secrets.PREVIEW_OWNER_EMAIL }}
+          PREVIEW_ISOLATION_EMAIL: ${{ secrets.PREVIEW_ISOLATION_EMAIL }}
+        run: node scripts/provision-preview-isolation.mjs
