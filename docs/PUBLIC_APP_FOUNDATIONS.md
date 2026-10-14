@@ -120,3 +120,10 @@ No SQL production migration required. Keep PR draft until release gates in PUBLI
 The user selected their Google account for preview access. The workflow reads a protected GitHub repository secret `PREVIEW_OWNER_EMAIL` and installs it as the isolated Worker's `HOUSEHOLD_OWNER_EMAIL` secret. No plaintext email or email-derived identifier is published in source. Existing app authentication/bootstrap code is unchanged: first verified sign-in by the selected owner creates an empty test household; other identities cannot bootstrap.
 
 Dependency: the user must add the `PREVIEW_OWNER_EMAIL` repository secret; connected GitHub tools cannot manage repository secrets. Owner access is NOT yet enabled. Once set, rerun preview workflow; the secret is installed only on `debtfree-dashboard-foundations-test`, not production. No invitations/messages or financial data copies. OAuth initiation already requested the exact preview callback and redirected to Google; actual completed sign-in/session and owner household creation remain unverified.
+
+
+## Preview access retry and calendar correction — 2026-10-14
+- User confirmed the protected preview owner secret is saved. Retry run 38185939814 attempt 2 stopped in validation before secret installation/deployment: nine browser failures exposed inconsistent browser-local versus Pacific household dates around UTC midnight.
+- Fixed new balance/payment date defaults and current-month selection to use the existing Pacific household calendar, matching transaction entry and automatic interest. Saved dates, settings, financial records and production are untouched.
+- Added a synthetic browser regression at the UTC/Pacific month boundary: lender reconciliation, payment and purchase must share October 31 and persist the correct balance after reload in desktop/tablet/phone.
+- Validation and preview secret installation pending this commit's CI. Actual Google sign-in, callback/session and empty owner household creation remain unverified. No SQL migration required by this correction.

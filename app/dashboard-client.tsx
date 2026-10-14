@@ -120,12 +120,10 @@ const DEBT_TYPES: DebtType[] = ["Credit card", "Personal loan", "Auto loan", "St
 const moneyPrecise = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const number = (value: string) => Math.max(0, Number.isFinite(Number(value)) ? Number(value) : 0);
 function currentMonthKey() {
-  const date = new Date();
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
+  return householdDate().slice(0, 7);
 }
 function dateInputValue() {
-  const date = new Date();
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+  return householdDate();
 }
 function shiftMonth(month: string, offset: number) {
   const [year, index] = month.split("-").map(Number);
