@@ -4,6 +4,7 @@ export type PayoffReportScheduleRow = { month: string; focusDebt: string; minimu
 export type PayoffReportTransaction = { date: string; merchant: string; account: string; type: string; category: string; memo: string; amount: number; status: string };
 export type PayoffReportSnapshot = { month: string; capturedAt: string; totalBalance: number; monthlyInterest: number; activeAccountCount: number; projectedDebtFree: string; note: string; accounts: { name: string; type: string; balance: number; apr: number }[] };
 export type PayoffReportData = {
+  monthLimitReached?: boolean;
   calculationMode?: "calculator" | "plan";
   generatedAt: string; budgetMonth: string; strategy: string; projectedDebtFree: string; monthsToPayoff: number; stalled: boolean;
   startingDebt: number; monthlyPlan: number; estimatedInterest: number; extraPayment: number; totalIncome: number; totalExpenses: number;
@@ -72,8 +73,8 @@ export function buildPayoffCsv(report: PayoffReportData) {
   section("DEBTFREE PAYOFF REPORT");
   [
     ["Generated", report.generatedAt], ...(report.calculationMode === "calculator" ? [["Calculation", labels.explanation]] : []), ["Budget month", report.budgetMonth], ["Strategy", report.strategy],
-    ["Projection status", report.stalled ? "Needs adjustment" : "On track"], ["Projected debt-free", report.projectedDebtFree],
-    ["Months to payoff", report.monthsToPayoff], ["Starting debt", report.startingDebt], [labels.monthly, report.monthlyPlan],
+    ["Projection status", report.monthLimitReached ? "Projection limit reached" : report.stalled ? "Needs adjustment" : "On track"], ["Projected debt-free", report.projectedDebtFree],
+    ["Months to payoff", report.stalled ? null : report.monthsToPayoff], ["Starting debt", report.startingDebt], [labels.monthly, report.monthlyPlan],
     ["Estimated interest", report.estimatedInterest], [labels.extra, report.extraPayment], ["Total income", report.totalIncome],
     ["Total expenses", report.totalExpenses], ["Total budget / set-asides", report.totalBudget],
     ["Monthly surplus before debt minimums", report.monthlySurplus], [labels.minimums, report.totalMinimums], [labels.available, report.availableExtra],
@@ -199,7 +200,7 @@ function reportSheets(report: PayoffReportData): SheetSpec[] {
     [styled("DebtFree household payoff report", 1)],
     [styled(`Generated ${report.generatedAt} | Budget month ${report.budgetMonth} | ${report.strategy} strategy${report.calculationMode === "calculator" ? " | Scenario: no minimums reserved" : ""}`, 2)], [],
     [styled("PLAN AT A GLANCE", 3)],
-    [styled("Starting debt", 8), styled(report.startingDebt, 9), styled("Projected debt-free", 8), styled(report.projectedDebtFree, 10), styled("Months to payoff", 8), styled(report.monthsToPayoff, 10), styled("Status", 8), styled(report.stalled ? "Needs adjustment" : "On track", 10)],
+    [styled("Starting debt", 8), styled(report.startingDebt, 9), styled("Projected debt-free", 8), styled(report.projectedDebtFree, 10), styled("Months to payoff", 8), styled(report.stalled ? null : report.monthsToPayoff, 10), styled("Status", 8), styled(report.monthLimitReached ? "Projection limit reached" : report.stalled ? "Needs adjustment" : "On track", 10)],
     [styled(labels.monthly, 8), styled(report.monthlyPlan, 9), styled("Estimated interest", 8), styled(report.estimatedInterest, 9), styled(labels.extra, 8), styled(report.extraPayment, 9), styled(labels.available, 8), styled(report.availableExtra, 9)], [],
     [styled("MONTHLY CASH FLOW", 3)],
     [styled("Income", 4), styled("Expenses", 4), styled("Budget / set-asides", 4), styled("Surplus before minimums", 4), styled(labels.minimums, 4), styled(labels.available, 4)],
@@ -378,10 +379,10 @@ export async function exportPayoffPdf(report: PayoffReportData) {
   doc.setFont("helvetica", "normal");
   doc.setFontSize(8);
   [
-    `${report.monthsToPayoff} projected months to payoff`,
+    report.stalled ? "Payoff time unavailable" : `${report.monthsToPayoff} projected months to payoff`,
     report.calculationMode === "calculator" ? "No minimum payments reserved" : `${money(report.totalMinimums)} in debt minimums`,
     `${money(report.extraPayment)} ${report.calculationMode === "calculator" ? "scenario allocation" : "manually assigned extra"}`,
-    report.stalled ? "Payments must increase to outpace interest" : "Current plan reaches a projected finish line",
+    report.monthLimitReached ? "Payoff exceeds the projection limit" : report.stalled ? "Payments must increase to outpace interest" : "Current plan reaches a projected finish line",
   ].forEach((note, index) => doc.text(`- ${note}`, pageWidth - 87, 116 + index * 7));
 
   doc.addPage();

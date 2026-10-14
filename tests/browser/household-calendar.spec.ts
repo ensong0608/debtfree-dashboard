@@ -46,4 +46,15 @@ test("lender balances, payments and activity share the household date across UTC
   await expect(card.locator(".simple-balance")).toHaveText("$1,075.00");
   await page.reload();
   await expect(card.locator(".simple-balance")).toHaveText("$1,075.00");
+  await page.getByRole("button", { name: "More", exact: true }).click();
+  await page.getByRole("button", { name: "Progress", exact: true }).filter({ visible: true }).click();
+  await expect(page.locator(".actual-progress-summary")).toContainText("$1,075.00");
+  await expect(page.locator(".progress-month-highlights")).toContainText("October 2026");
+  await page.getByRole("button", { name: "More", exact: true }).click();
+  await page.getByRole("button", { name: "Payoff Plan", exact: true }).click();
+  await page.getByLabel("Total monthly debt payment", { exact: true }).fill("100");
+  const allocation = page.getByRole("region", { name: "Monthly payment allocation" });
+  await expect(allocation.getByRole("heading", { name: "October 2026", exact: true })).toBeVisible();
+  await allocation.getByRole("tab", { name: "Recorded", exact: true }).click();
+  await expect(allocation.locator(".recorded-summary")).toContainText("$50.00");
 });

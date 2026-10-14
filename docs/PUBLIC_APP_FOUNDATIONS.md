@@ -185,3 +185,18 @@ Next after this batch: select/provision additional Google test identities in sep
 - Separate isolation-fixture job 115701049208 FAILED during configuration validation because PREVIEW_ISOLATION_EMAIL was unavailable; owner-secret installation succeeded in the preview job. The guard runs before any fixture resource request. No second household/member rows were created by this attempt. Existing preview and production financial records were not modified.
 - The selected test identity is NOT enabled yet. Required next action: user saves PREVIEW_ISOLATION_EMAIL as a protected repository Actions secret. Coordinator then reruns only the failed fixture job, checks safe D1 provisioning, and continues real second-account preview sign-in. No public signup, real invitations or production deployment.
 - Live direct authenticated API verification remains a separate dependency: this cloud browser previously blocked direct API navigation and its security restriction must not be bypassed. Synthetic direct-request/SQLite isolation tests passed; real two-household API/session behavior is not claimed verified.
+
+## Stage 4 follow-up — October 13, 2026 (Pacific)
+
+Stage 2 is paused at the user's request until tomorrow. The unrelated-household provisioning job now requires an explicit workflow dispatch with `provision_isolation_fixture=true`; ordinary preview pushes perform validation/deployment only. The protected `PREVIEW_ISOLATION_EMAIL` dependency remains outstanding. No isolation fixture or production changes are part of this follow-up.
+
+Reviewed existing Stage 4 source/tests before editing. Existing coverage already proves Calculator versus Plan pool semantics, minimum reservation/rejection, zero APR, reallocation, final partial payments, cent conservation, hidden/archived debts, starting snapshot preservation, removed-account retention, and escrow/principal separation. Independent read-only audit found the same calendar gap; coordinator reviewed its reproduction and owns all changes.
+
+- [x] Share the existing Pacific household date across Progress/activity, payoff schedule months, and inclusive promotional end dates. This fixes October transactions disappearing from current-month totals on a device already in November. Stored dates/settings/history remain unchanged.
+- [x] Distinguish a projection capped at 1,200 months from an immediately non-amortizing scenario; retain every calculated month.
+- [x] Leave stopped exports' months-to-payoff blank in CSV/Excel/PDF, rather than claiming the number of evaluated rows is a completed payoff time. Limit status has distinct compact wording.
+- [x] Local lint, typecheck, diff check, and 276 Node tests pass. New synthetic tests cover cap/nonpayoff wording, export preservation, Pacific boundaries and leap-February promo day clamping. Existing inclusive promo test now uses explicit instants on the intended Pacific dates.
+- [ ] CI browser checks/build/dry-run/preview deployment for this follow-up (pending at commit).
+- [ ] Physical-device/accessibility review remains Stage 5 work; browser regressions are emulation only.
+
+No schema migration, production data write, snapshot replacement, or public signup change is required. Next independent work after this preview validation: Stage 5 large-text, mobile input/touch/focus/navigation checks. Resume Stage 2 private identity setup only when the user resumes it; then explicitly dispatch its fixture job after saving the protected second test-email secret. Stage 6 stays gated.

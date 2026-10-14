@@ -1,3 +1,4 @@
+import { householdDate, householdMonthOffset } from "./household-date.ts";
 import type { DebtAccount, PayoffStrategy } from "./dashboard-data";
 
 export const PAYOFF_PLAN_MONTH_LIMIT = 1200;
@@ -23,6 +24,7 @@ export type PlanContext = { monthlyCommitment?: number; paymentCap?: number; pai
 export type LinkedCardExpenses = Record<string, number>;
 
 export type PayoffPlan = {
+  monthLimitReached?: boolean;
   paymentsAlreadyApplied?: boolean;
   months: PlanMonth[];
   totalInterest: number;
@@ -54,10 +56,7 @@ export function monthlyInterest(account: DebtAccount) {
 }
 
 export function forecastMonthKey(month: number, calculationDate: Date = new Date()) {
-  const date = new Date(calculationDate);
-  date.setDate(1);
-  date.setMonth(date.getMonth() + month - 1);
-  return date.getFullYear() + "-" + String(date.getMonth() + 1).padStart(2, "0");
+  return householdMonthOffset(month - 1, calculationDate);
 }
 
 export function hasPromoTerms(account: DebtAccount) {
@@ -65,11 +64,11 @@ export function hasPromoTerms(account: DebtAccount) {
 }
 
 export function promoIsActive(account: DebtAccount, month: number, calculationDate: Date = new Date()) {
-  const date = new Date(calculationDate);
-  const day = date.getDate();
-  date.setDate(1); date.setMonth(date.getMonth() + month - 1);
-  date.setDate(Math.min(day, new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate()));
-  const dateKey = date.getFullYear() + "-" + String(date.getMonth() + 1).padStart(2, "0") + "-" + String(date.getDate()).padStart(2, "0");
+  const day = Number(householdDate(calculationDate).slice(8));
+  const monthKey = forecastMonthKey(month, calculationDate);
+  const [year, value] = monthKey.split("-").map(Number);
+  const lastDay = new Date(Date.UTC(year, value, 0)).getUTCDate();
+  const dateKey = monthKey + "-" + String(Math.min(day, lastDay)).padStart(2, "0");
   return hasPromoTerms(account) && dateKey <= account.promoEndDate;
 }
 
@@ -232,5 +231,11 @@ export function calculatePlan(
     }
   }
   const nonAmortizingAccountIds = active.filter((account) => (balances.get(account.id) ?? 0) > PAYOFF_BALANCE_EPSILON).map((account) => account.id);
-  return { paymentsAlreadyApplied: Boolean(context.paid), months, totalInterest, monthly, peakMonthly, stalled: true, nonAmortizingAccountIds, promoMinimumFallbackIds };
+  return { monthLimitReached: true, paymentsAlreadyApplied: Boolean(context.paid), months, totalInterest, monthly, peakMonthly, stalled: true, nonAmortizingAccountIds, promoMinimumFallbackIds };
+}
+
+export function payoffOutcome(plan: Pick<PayoffPlan, "stalled" | "monthLimitReached" | "months">) {
+  if (plan.monthLimitReached) return { title: `Beyond ${PAYOFF_PLAN_MONTH_LIMIT.toLocaleString("en-US")} months`, detail: "Payoff exceeds the projection limit." };
+  if (plan.stalled) return { title: "No payoff at this amount", detail: "Increase the amount to outpace interest." };
+  return { title: `${plan.months.length} months`, detail: "" };
 }

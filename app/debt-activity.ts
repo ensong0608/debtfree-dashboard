@@ -1,3 +1,4 @@
+import { householdMonthOffset } from "./household-date.ts";
 import type { BalanceAdjustment, DebtAccount, LedgerTransaction, PayoffSnapshot, RemovedProgressAccount } from "./dashboard-data.ts";
 import { paymentActivity } from "./payments.ts";
 import { transactionAdjustedAccounts } from "./progress-balances.ts";
@@ -5,10 +6,7 @@ import { debtDisplayPlacement } from "./debts-screen.ts";
 import { round } from "./payoff-engine.ts";
 
 export function recentDebtMonths(date = new Date()) {
-  return Array.from({ length: 6 }, (_, index) => {
-    const month = new Date(date.getFullYear(), date.getMonth() - index, 1);
-    return `${month.getFullYear()}-${String(month.getMonth() + 1).padStart(2, "0")}`;
-  });
+  return Array.from({ length: 6 }, (_, index) => householdMonthOffset(-index, date));
 }
 export function buildDebtActivity(accountId: string, transactions: LedgerTransaction[], adjustments: BalanceAdjustment[], date = new Date()) {
   const entries = paymentActivity(transactions, adjustments).filter(entry => entry.accountId === accountId);

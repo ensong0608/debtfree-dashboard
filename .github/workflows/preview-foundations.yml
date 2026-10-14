@@ -3,6 +3,11 @@ on:
   push:
     branches: [codex/public-app-foundations-20261011]
   workflow_dispatch:
+    inputs:
+      provision_isolation_fixture:
+        description: Provision the private unrelated household (Stage 2)
+        type: boolean
+        default: false
 permissions:
   contents: read
 concurrency:
@@ -110,6 +115,7 @@ jobs:
             outputs/ui-verification/
           include-hidden-files: true
   isolation-fixture:
+    if: github.event_name == 'workflow_dispatch' && inputs.provision_isolation_fixture
     needs: preview
     runs-on: ubuntu-latest
     timeout-minutes: 5

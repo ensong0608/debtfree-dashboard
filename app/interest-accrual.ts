@@ -1,3 +1,5 @@
+import { householdDate } from "./household-date.ts";
+export { householdDate } from "./household-date.ts";
 import type { DebtAccount, LedgerTransaction } from "./dashboard-data.ts";
 import { transactionAdjustedAccounts } from "./progress-balances.ts";
 import { round } from "./payoff-engine.ts";
@@ -7,9 +9,6 @@ import { round } from "./payoff-engine.ts";
 export const COSTCO_ESTIMATED_APR = (3040 * 18.99 + 7438.18 * 22.99) / (3040 + 7438.18);
 export type InterestAutomation = { enabled: boolean; coveredThrough: string; estimatedApr: number };
 export type InterestEstimate = { cycle: string; periodStart: string; days: number; estimatedApr: number; reconciledAt?: string };
-export function householdDate(now = new Date()) {
-  return new Intl.DateTimeFormat("en-CA", { timeZone: "America/Los_Angeles", year: "numeric", month: "2-digit", day: "2-digit" }).format(now);
-}
 export function validDate(value: string) {
   return /^\d{4}-\d{2}-\d{2}$/.test(value) && value >= "2000-01-01" && Number.isFinite(Date.parse(value + "T12:00:00Z")) && new Date(value + "T12:00:00Z").toISOString().slice(0, 10) === value;
 }

@@ -18,8 +18,8 @@ The payoff projection was initially extracted into `app/payoff-engine.ts` withou
 
 ## Date and floating-point assumptions
 
-- Tests pass a local `Date` fixed to August 15, 2026. Production omits the parameter and retains `new Date()` as the default.
-- Forecast month keys use the calculation date's local year and month. Promotion boundaries compare `YYYY-MM` strings and are inclusive of the saved end month.
+- Tests pass a local `Date` fixed to August 15, 2026. Production omits the parameter and uses the current instant with the Pacific household calendar.
+- Forecast month keys and promotion dates use the existing Pacific household calendar, independent of the device timezone. Promotion boundaries compare `YYYY-MM-DD` dates and include the saved end date; shorter months clamp the modeled day to their last day.
 - Currency display and selected stored balances use the existing `Math.round((value + Number.EPSILON) * 100) / 100` helper. Each money operation is rounded to cents; APR/rate calculations retain rate precision.
 
 ## Phase 6 planned-versus-actual correction
@@ -36,3 +36,5 @@ Phase 6 preserves all recurring linked-card behavior for unmatched planned entri
 - Archived debts are excluded from payoff forecasts. Debt-screen visibility alone does not alter forecast membership. Existing house/car LoanTrackers remain separate from these card/other projections; mortgage payment splitting subtracts escrow before calculating principal reduction.
 - All projected months remain accessible; a shrinking projection stops at payoff or the 1,200-month limit. A capped or non-amortizing projection has no completed payoff date.
 - Existing starting Progress totals, saved dates, and snapshots are not changed by forecast corrections. Monthly cent rounding can change a projected result by cents compared with the previous fractional-cent estimate.
+
+A projection that reaches 1,200 months while still shrinking reports the projection limit, rather than claiming that payments cannot outpace interest. Stopped exports leave months to payoff empty and retain every evaluated schedule row.
