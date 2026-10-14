@@ -24,7 +24,8 @@ Existing: revision-checked whole-state writes, deterministic monthly estimate ID
 Existing: server-verified Google identity, server-selected household membership, owner/admin/viewer roles, no public onboarding.
 - [x] Unrelated household direct API isolation tests with synthetic identities and real SQL.
 - [x] Inspect all routes and client credential exposure.
-- [ ] Verify deployed identity/session and production DB permissions (requires authenticated Cloudflare/Supabase test access).
+- [x] Preview owner Google sign-in, saved-payload reload/export, logout/re-login verified in live browser (2026-10-14); no record edits.
+- [ ] Live unrelated-household/partner sessions, session expiry and production DB permissions remain unverified.
 - [x] Public signup stays closed. No production schema/data changes.
 
 ## Stage 3 — saving/recovery
@@ -155,5 +156,15 @@ Initial dependency (resolved 2026-10-14): user added the `PREVIEW_OWNER_EMAIL` r
 - Local full Node suite, lint/typecheck and exact preview CI validation/deployment are being recorded below. No SQL migration required.
 
 ### Exact live verification dependency
-The current preview shares the existing Supabase auth project and safely uses a separate D1. The connected tools cannot establish additional Google test sessions or inspect Supabase account settings/D1 IAM directly. Live two-household checks need two verified Google test identities in separate preview households, plus a partner identity in one household, and authenticated browser/API sessions for each. Current private bootstrap permits one household; do not open signup or add a runtime bypass to manufacture these sessions. Provision test memberships only after explicit test identities are selected; send no invitations/emails.
-Next after this batch: validate real preview owner persistence/export/logout/relogin, provision separate synthetic test household identities safely, then run live direct API isolation and partner sync/expiry tests. Stage 6 remains gated. Production release still requires approval and the release-plan backup/recovery gates.
+The current preview shares the existing Supabase auth project and safely uses a separate D1. The live browser verified the selected owner session, export, logout and re-login. Additional test identities are not yet selected/provisioned; Supabase account settings and D1 IAM were not inspected directly. Live two-household checks need two verified Google test identities in separate preview households, plus a partner identity in one household, and authenticated browser/API sessions for each. Current private bootstrap permits one household; do not open signup or add a runtime bypass to manufacture these sessions. Provision test memberships only after explicit test identities are selected; send no invitations/emails.
+Next after this batch: select/provision additional Google test identities in separate preview households safely, then run live direct API isolation and partner sync/expiry tests. Owner persistence/export/logout/relogin has passed. Stage 6 remains gated. Production release still requires approval and the release-plan backup/recovery gates.
+
+
+## Session/recovery validation and handoff — 2026-10-14
+- Final source: b9c144d71fb14d4fa8b5a8a03f7df842b15a742e. Full validation and preview deployment PASSED: https://github.com/ensong0608/debtfree-dashboard/actions/runs/38508880994 . Lint/typecheck, 262 Node tests, 97 browser checks (2 skipped), Worker dry-run; all new closed-tab/reconnect browser regressions passed.
+- Preview source Worker version: 0064a952-c669-4a0b-9255-8311547a2b63. Protected owner secret installation and live login/anonymous API-denial smoke checks passed. No new SQL migration. Production Worker/D1/data untouched.
+- Live browser: selected owner reached the preview; authenticated export produced a valid version-6 backup. Two further exports after reload and logout/re-login had deeply identical persisted payloads, including financial/history collections. No exported values, email, derived identifiers or private downloads were added to source. No financial operations, reset, restore or member changes were submitted in the live preview. Restoration continues to be tested with synthetic data in isolated SQLite.
+- Sign out visibly returned to login, and Google re-login visibly restored owner access. This verifies that session path, not real token expiration/revocation across unrelated accounts. Direct API navigation after logout was blocked by the browser client/security policy; no workaround was attempted and that live API check is NOT claimed passed. CI unauthenticated API denial remains separately verified.
+- User-reported Android/Brave onboarding scroll passes. Remaining physical keyboard/large-text/screen-reader testing remains open.
+- Last completed batch: expected-session isolation guard, durable explicit outbox recovery, truthful restore/reset saving status, stale-read/disposal/ACK protections, synthetic integration/browser tests and live owner persistence/export/logout/re-login.
+- Next actionable dependency: select an additional Google test account for an unrelated preview household and a partner test identity; provision them under controlled private test access, then verify real cross-household API denial and partner refresh/reconnect/expiry. Do not open signup, use a runtime auth bypass, or send messages to bypass the gate. Stage 6 remains unimplemented.
