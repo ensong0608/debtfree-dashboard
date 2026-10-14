@@ -109,7 +109,7 @@ export default function OnboardingFlow({ planning, importMessage, onPlanningChan
     if (file) void onImport(file).finally(() => { input.value = ""; });
   };
 
-  return <main className="onboarding-shell">
+  return <main className="onboarding-shell" aria-label="Household setup" tabIndex={0}>
     <header className="onboarding-brand"><span>DF</span><div><strong>DebtFree</strong><small>Household payoff setup</small></div></header>
     <section className="onboarding-card" aria-labelledby="onboarding-title">
       <div className="onboarding-progress" aria-label={"Step " + step + " of 5"}>

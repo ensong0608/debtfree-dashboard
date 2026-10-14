@@ -130,3 +130,11 @@ Initial dependency (resolved 2026-10-14): user added the `PREVIEW_OWNER_EMAIL` r
 - Cloudflare confirmed successful installation of the protected owner secret. Live preview login readiness and anonymous household/export denial checks passed. Deployed source Worker version: e6f96f33-c809-465c-b24f-a18c563af63e (secret upload follows source deployment).
 - Actual Google sign-in, callback/session and empty owner household creation remain unverified. Next action: selected owner opens preview and completes Google sign-in; confirm it returns to the preview with an empty household. Then provision isolated synthetic identities/households for live isolation/session/partner QA before Stage 6.
 - No SQL migration required by this correction; production Worker/D1/data/settings were untouched. Preview only uses its separate test D1; no production data copies or real invitations.
+
+
+## Mobile onboarding scroll — 2026-10-14
+- User confirmed preview Google sign-in now reaches onboarding after fixing the Supabase callback allowlist. Previous populated screen was a redirect to production, not evidence of shared financial data.
+- User reported onboarding cannot scroll to bottom with two income sources on Android/Brave. Root cause: onboarding only had a minimum height and grew beyond the viewport, while body scrolling is intentionally disabled.
+- Bound onboarding to the dynamic viewport height with internal vertical scrolling and a keyboard-focusable, named main region. No changes to financial values, saved drafts, snapshots, database schema, or production deployment.
+- Added synthetic browser coverage for two incomes at 360/390/430px, a shortened keyboard-style viewport, wheel/keyboard scrolling, reachable Continue, preserved input and progression to debt setup.
+- Validation/preview deployment pending CI. Physical Android/Brave retest remains required; keyboard check uses viewport emulation.
