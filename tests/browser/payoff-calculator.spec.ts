@@ -56,7 +56,7 @@ test("long shrinking scenarios retain all months and distinguish the projection 
   fixture.accounts = [{ ...fixture.accounts[0], id:"limit-card", name:"Synthetic limit card", balance:2000, baselineBalance:2000, apr:0, interestFee:0, minimum:1, minimumMode:"manual", promoEndDate:"", postPromoApr:0 }];
   fixture.transactions = [];
   fixture.snapshots = [];
-  fixture.monthlyPlan = { months:{}, calculatorAmount:1 };
+  fixture.monthlyPlan = { months:{}, detailedSpendingTracking:false, calculatorAmount:1 };
   await page.goto("/");
   await page.locator('input[type="file"]').setInputFiles({name:"limit-test.json",mimeType:"application/json",buffer:Buffer.from(JSON.stringify(fixture))});
   await page.getByRole("button",{name:"More",exact:true}).click();
