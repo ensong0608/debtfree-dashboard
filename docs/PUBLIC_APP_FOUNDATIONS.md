@@ -30,7 +30,8 @@ Existing: server-verified Google identity, server-selected household membership,
 ## Stage 3 — saving/recovery
 Existing: compact status, serialized pending outbox, revision conflict, form-safe background refresh, versioned backup import/export.
 - [x] Retry and recovery tests; export/restore synthetic history.
-- [ ] Account switching/logout/session expiry checks and safe local state isolation.
+- [x] Synthetic account-switch/session rejection, durable draft recovery and household scope integration tests.
+- [ ] Real Google logout/expiry/switching and signed-in multi-device checks.
 - [ ] Authenticated preview partner refresh/reconnect checks.
 
 ## Stage 4 — progress/payoff
@@ -52,7 +53,7 @@ No real invitations, public signup or irreversible deletion activation.
 
 ## Release and handoff
 - [x] Full lint/typecheck/tests/Worker dry-run.
-- [ ] Preview deployment on isolated test DB, with synthetic data and test auth only.
+- [x] Preview deployed on isolated D1; synthetic automated data only, owner Google sign-in user-confirmed. Real multi-account verification remains a separate gate.
 - [x] Commit/push draft PR #4; release summary and rollback plan.
 
 Production migration: none planned at inspection; do not apply any remote migration without recoverable backup and tested restore.
@@ -142,3 +143,17 @@ Initial dependency (resolved 2026-10-14): user added the `PREVIEW_OWNER_EMAIL` r
 - Local lint/typecheck passed; local browser checks could not start due to runtime network-interface error and blocked Chromium download, so browser validation relied on CI.
 - First test draft failed only an exact money-label locator, corrected before successful validation/deployment; no failed version was deployed.
 - Next action: reopen the preview on Android/Brave, confirm two-income setup scrolls to Continue and proceeds to debt setup. Physical keyboard/touch QA still remains; automated keyboard checks use viewport emulation. Continue live household isolation/session/partner tests afterward; Stage 6 stays gated.
+
+
+## Household session and recovery work — 2026-10-14
+- User confirmed mobile onboarding scrolling works on Android/Brave. Broader physical-device QA remains open.
+- Reproduced account-switch overwrite with real SQLite: old A page could PUT into newly signed-in B household at the same revision. Fixed expected identity+household scope guards on reads, writes, export and member operations, always compared with server-verified context. Client scope never authorizes or selects a household. Old preview pages must reopen to supply new write headers.
+- Outboxes remain per tab to avoid draft collisions; new tabs discover same-identity/same-household unsaved drafts and offer explicit recovery. Restored drafts retain their original revision, so newer partner history causes a conflict instead of silent replacement. Source outbox is cleared only after acknowledgment and only if unchanged.
+- Failed Load latest retains the original outbox until an authorized read succeeds. Disposed controllers cannot stage or announce late responses. Invalid save acknowledgment retains the durable draft and reports failure.
+- Import/reset messages stay pending until cloud acknowledgment; reset keeps a recovery checkpoint. Settings mutations reflect effective offline/session read-only status. No actual reset/import of user financial data was performed.
+- Added delegated tests reviewed by coordinator: real SQL account-switch isolation and actual sync-controller/API retry/concurrency/recovery integration. Added browser storage close/reopen and reconnect/partner checks using synthetic transport; these are NOT real Google-session tests. No runtime auth bypass, new public route or production change.
+- Local full Node suite, lint/typecheck and exact preview CI validation/deployment are being recorded below. No SQL migration required.
+
+### Exact live verification dependency
+The current preview shares the existing Supabase auth project and safely uses a separate D1. The connected tools cannot establish additional Google test sessions or inspect Supabase account settings/D1 IAM directly. Live two-household checks need two verified Google test identities in separate preview households, plus a partner identity in one household, and authenticated browser/API sessions for each. Current private bootstrap permits one household; do not open signup or add a runtime bypass to manufacture these sessions. Provision test memberships only after explicit test identities are selected; send no invitations/emails.
+Next after this batch: validate real preview owner persistence/export/logout/relogin, provision separate synthetic test household identities safely, then run live direct API isolation and partner sync/expiry tests. Stage 6 remains gated. Production release still requires approval and the release-plan backup/recovery gates.

@@ -24,7 +24,7 @@ function setup() {
   },async()=>[]);
   return {sqlite,apiFor,db};
 }
-const request=(contract,revision=0)=>new Request('http://localhost/api/household?household_id=b',{method:'PUT',body:JSON.stringify({payload:contract,revision,household_id:'b'})});
+const request=(contract,revision=0,id="a")=>new Request('http://localhost/api/household?household_id=b',{method:'PUT',headers:{'x-debtfree-identity':id+'@example.test','x-debtfree-household':id},body:JSON.stringify({payload:contract,revision,household_id:'b'})});
 test('direct API ignores forged household ID; stranger denied; read/write and export contents isolated',async()=>{
   const {sqlite,apiFor}=setup(); try {
     const a=apiFor('a@example.test'),b=apiFor('b@example.test'),stranger=apiFor('outsider@example.test');
@@ -71,14 +71,14 @@ test('persisted export preserves history and saved snapshot/date; restore into a
  const {sqlite,apiFor,db}=setup(); const target=setup(); try {
    const contract=fixture(); contract.payload.monthlyPlan={...contract.payload.monthlyPlan, progressStartingBalance:61871.72};
    await apiFor('a@example.test').PUT(request(contract));
-   const exportA=createHouseholdExport(async()=>({db,member:{household_id:'a'}}));
-   const exportB=createHouseholdExport(async()=>({db,member:{household_id:'b'}}));
+   const exportA=createHouseholdExport(async()=>({db,user:{email:'a@example.test'},member:{household_id:'a'}}));
+   const exportB=createHouseholdExport(async()=>({db,user:{email:'b@example.test'},member:{household_id:'b'}}));
    assert.equal((await exportB()).status,404);
    assert.equal((await createHouseholdExport(async()=>null)()).status,401);
    const response=await exportA(); assert.equal(response.status,200); assert.equal(response.headers.get('cache-control'),'private, no-store');
    const exported=parseDashboardContract(JSON.parse(await response.text()));
    assert.deepEqual(exported.payload,contract.payload);
-   assert.equal((await target.apiFor('b@example.test').PUT(request(exported))).status,200);
+   assert.equal((await target.apiFor('b@example.test').PUT(request(exported,0,"b"))).status,200);
    assert.deepEqual((await (await target.apiFor('b@example.test').GET()).json()).payload.payload,contract.payload);
  }finally{sqlite.close();target.sqlite.close();}
 });

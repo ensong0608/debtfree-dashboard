@@ -37,6 +37,8 @@ import { createBrowserDataRepository } from "./data-repository";
 import { initialCommitment, paymentContext } from "./payment-context";
 import { seedMonthlyPlan } from "./onboarding-plan";
 import { HouseholdSync, type SyncStatus } from "./household-sync";
+import { householdSessionHeaders } from "./household-session-scope";
+import { householdOutboxPrefix, householdRecoveryDrafts, type HouseholdRecoveryDraft } from "./household-recovery";
 import { useDialogFocus } from "./use-dialog-focus";
 import DataSafetyPanel from "./data-safety-panel";
 import { resolveDashboardImport, type ImportMode } from "./data-transfer";
@@ -252,6 +254,11 @@ export default function DashboardClient({ user, householdId }: { user: Dashboard
   useDialogFocus();
   const cloudWritesEnabled = useRef(false);
   const sync = useRef<HouseholdSync | null>(null);
+  const sessionScope = useMemo(() => ({ identity: user.email, householdId: householdId ?? "" }), [user.email, householdId]);
+  const sessionHeaders = useMemo(() => householdSessionHeaders(sessionScope), [sessionScope]);
+  const [recoveryDrafts, setRecoveryDrafts] = useState<HouseholdRecoveryDraft[]>([]);
+  const [selectedRecovery, setSelectedRecovery] = useState(0);
+  const pendingTransferMessage = useRef<string | null>(null);
   const [canEditCloud, setCanEditCloud] = useState(false);
   const [localError, setLocalError] = useState("");
   const dashboardContract = useRef<DashboardBackup | null>(null);
@@ -354,12 +361,14 @@ export default function DashboardClient({ user, householdId }: { user: Dashboard
         const tabKey = "debtfree-outbox-tab";
         let tabId = sessionStorage.getItem(tabKey);
         if (!tabId) { tabId = crypto.randomUUID(); sessionStorage.setItem(tabKey, tabId); }
-        const controller = new HouseholdSync({ storage: localStorage, key: "debtfree-outbox:" + user.email + ":" + householdId + ":" + tabId, status: updateCloudStatus });
+        const outboxKey = householdOutboxPrefix(sessionScope) + tabId;
+        const controller = new HouseholdSync({ storage: localStorage, key: outboxKey, scope: sessionScope, status: updateCloudStatus });
         sync.current = controller;
         const { remote, contract } = await controller.load();
         if (cancelled) return;
         setHouseholdName(remote.householdName); setHouseholdRole(remote.role); setHouseholdMembers(remote.members);
         setCanEditCloud(remote.role !== "viewer");
+        setRecoveryDrafts(householdRecoveryDrafts(localStorage, sessionScope, outboxKey, contract));
         if (contract) applyDashboardPayload(contract);
         else if (remote.payload === null && remote.revision === 0 && remote.role === "owner" && localContract && hasMeaningfulData(localContract.payload)) {
           applyDashboardPayload(localContract); controller.stage(localContract);
@@ -375,7 +384,13 @@ export default function DashboardClient({ user, householdId }: { user: Dashboard
     };
     void load();
     return () => { cancelled = true; sync.current?.dispose(); };
-  }, [applyDashboardPayload, deviceOnly, repository, user.email, householdId, updateCloudStatus]);
+  }, [applyDashboardPayload, deviceOnly, repository, user.email, householdId, sessionScope, updateCloudStatus]);
+
+  useEffect(() => {
+    if (pendingTransferMessage.current && deviceSaveStatus === "synced" && (deviceOnly || cloudStatus === "synced") && !sync.current?.pending) {
+      setTransferMessage(pendingTransferMessage.current); pendingTransferMessage.current = null;
+    }
+  }, [cloudStatus, deviceSaveStatus, deviceOnly]);
 
   const refreshHousehold = useCallback(async () => {
     if (!sync.current) { window.location.reload(); return; }
@@ -531,13 +546,13 @@ export default function DashboardClient({ user, householdId }: { user: Dashboard
   const auditTransaction = auditTransactionId ? transactions.find((transaction) => transaction.id === auditTransactionId) ?? null : null;
   const auditAccountWithoutOriginal = auditTransaction ? transactionAdjustedAccounts(accounts, transactions.filter((transaction) => transaction.id !== auditTransaction.id), detailedSpendingTracking).find((account) => account.id === auditTransaction.accountId) ?? null : null;
   const inviteMember = async (email: string, role: Exclude<HouseholdRole, "owner">) => {
-    const response = await fetch("/api/household/members", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ email, role }) });
+    const response = await fetch("/api/household/members", { method: "POST", headers: { ...sessionHeaders, "content-type": "application/json" }, body: JSON.stringify({ email, role }) });
     const data = await response.json() as { members?: HouseholdMember[]; error?: string };
     if (!response.ok) throw new Error(data.error ?? "The household member could not be added");
     if (data.members) setHouseholdMembers(data.members);
   };
   const removeAdmin = async (email: string) => {
-    const response = await fetch("/api/household/members?email=" + encodeURIComponent(email), { method: "DELETE" });
+    const response = await fetch("/api/household/members?email=" + encodeURIComponent(email), { method: "DELETE", headers: sessionHeaders });
     const data = await response.json() as { members?: HouseholdMember[]; error?: string };
     if (!response.ok) throw new Error(data.error ?? "The admin could not be removed");
     if (data.members) setHouseholdMembers(data.members);
@@ -775,7 +790,7 @@ export default function DashboardClient({ user, householdId }: { user: Dashboard
     const savedHousehold = !deviceOnly && cloudStatus === "synced" && !sync.current?.pending;
     if (savedHousehold) {
       let response: Response;
-      try { response = await fetch("/api/household/export", { cache: "no-store" }); }
+      try { response = await fetch("/api/household/export", { cache: "no-store", headers: sessionHeaders }); }
       catch { setTransferMessage("Export unavailable. Reconnect and retry."); return; }
       if (!response.ok) { setTransferMessage("Could not export saved household. Retry or export pending changes."); return; }
       exported = await response.text();
@@ -802,10 +817,13 @@ export default function DashboardClient({ user, householdId }: { user: Dashboard
       const contract = resolveDashboardImport(currentContract, incoming, mode);
       await repository.checkpoint(currentContract);
       await repository.saveHousehold(contract);
+      if (!deviceOnly) setCloudStatus("saving");
       cloudWritesEnabled.current = true;
       applyDashboardPayload(contract);
       const { payload } = contract;
-      setTransferMessage(`Full backup ${mode === "merge" ? "merged" : "restored"}: ${payload.accounts.length} debts, ${payload.transactions.length} transactions, ${payload.snapshots.length} snapshots, and ${Object.keys(payload.monthlyBudgets).length} plan months.`);
+      const success = `Full backup ${mode === "merge" ? "merged" : "restored"}: ${payload.accounts.length} debts, ${payload.transactions.length} transactions, ${payload.snapshots.length} snapshots, and ${Object.keys(payload.monthlyBudgets).length} plan months.`;
+      pendingTransferMessage.current = deviceOnly ? null : success;
+      setTransferMessage(deviceOnly ? success : "Restore pending save.");
     } catch (error) {
       setTransferMessage(`Import failed: ${dashboardDataErrorMessage(error)}`);
     }
@@ -829,11 +847,14 @@ export default function DashboardClient({ user, householdId }: { user: Dashboard
         customDebtOrder: [],
       });
       const contract = createDashboardBackup(payload);
-      await repository.resetHousehold();
+      if (dashboardContract.current) await repository.checkpoint(dashboardContract.current);
+      await repository.saveHousehold(contract);
+      if (!deviceOnly) setCloudStatus("saving");
       cloudWritesEnabled.current = true;
       applyDashboardPayload(contract);
       setSelectedMonth(currentMonthKey());
-      setTransferMessage("Dashboard data reset. Account access was kept.");
+      pendingTransferMessage.current = deviceOnly ? null : "Dashboard data reset. Recovery checkpoint kept.";
+      setTransferMessage(deviceOnly ? "Dashboard data reset. Recovery checkpoint kept." : "Reset pending save.");
     } catch (error) {
       setTransferMessage(`Reset failed: ${dashboardDataErrorMessage(error)}`);
     }
@@ -1025,7 +1046,7 @@ export default function DashboardClient({ user, householdId }: { user: Dashboard
     setPage("accounts");
   };
   if (!loaded) return <main className="onboarding-shell onboarding-loading" role="status"><div><span>DF</span><strong>Loading your household.</strong></div></main>;
-  if (!isViewer && shouldShowOnboarding({ accounts, monthlyBudgets, payees, transactions, snapshots, extra, strategy, planning })) {
+  if (!isViewer && !recoveryDrafts.length && shouldShowOnboarding({ accounts, monthlyBudgets, payees, transactions, snapshots, extra, strategy, planning })) {
     return <OnboardingFlow
       planning={planning}
       importMessage={transferMessage}
@@ -1050,6 +1071,13 @@ export default function DashboardClient({ user, householdId }: { user: Dashboard
           <span className="save-status" role="status">{deviceOnly ? deviceSaveStatus === "synced" ? "Saved on device" : "Saving on device" : cloudStatus === "synced" && deviceSaveStatus === "synced" ? "Saved" : cloudStatus === "conflict" ? "Save conflict" : cloudStatus === "error" ? "Save failed" : cloudStatus === "unauthorized" ? "Sign in required" : "Saving"}</span>
         </div>
         {localError && <section role="alert" className="viewer-notice">{localError}<button onClick={() => void exportDashboardBackup()}>Export backup</button></section>}
+        {recoveryDrafts.length > 0 && <section role="alert" className="viewer-notice">Unsaved changes on this device.
+          <select aria-label="Unsaved draft" value={selectedRecovery} onChange={event => setSelectedRecovery(Number(event.target.value))}>{recoveryDrafts.map((draft, index) => <option key={draft.key} value={index}>Draft {index + 1} · {new Date(draft.contract.exportedAt).toLocaleString()}</option>)}</select>
+          <button disabled={isViewer} onClick={() => { try {
+            const draft = recoveryDrafts[selectedRecovery]; if (!draft || !sync.current) return;
+            sync.current.recoverDraft(draft); applyDashboardPayload(draft.contract); setRecoveryDrafts([]);
+          } catch { setLocalError("Resolve current changes before restoring this draft."); } }}>Restore unsaved draft</button>
+        </section>}
         {!deviceOnly && (cloudStatus === "error" || cloudStatus === "conflict") && <section role="alert" className="viewer-notice"><strong>{cloudStatus === "conflict" ? "Another session changed this household. Your changes are retained." : "Cloud access or saving is unavailable. Pending changes are retained."}</strong><button onClick={() => void refreshHousehold()}>Retry connection</button><button onClick={() => void exportDashboardBackup()}>Export my changes</button>{cloudStatus === "conflict" && <button onClick={() => { void (async () => { if (!confirm("Load the latest household data? Your current changes will be kept as a recovery checkpoint.")) return; try { if (dashboardContract.current) await repository.checkpoint(dashboardContract.current); const loaded = await sync.current?.useCloud(); if (loaded?.contract) applyDashboardPayload(loaded.contract); } catch { setLocalError("Could not load the household. Export your changes before continuing."); } })(); }}>Load latest household</button>}</section>}
         {!deviceOnly && !online && <section className="viewer-notice" role="status">Offline. Reconnect to edit. Pending changes are kept.</section>}
         {!deviceOnly && cloudStatus === "unauthorized" && <section className="viewer-notice" role="alert">Session expired. Pending changes are kept. <a href="/auth/login">Sign in</a></section>}
@@ -1066,7 +1094,7 @@ export default function DashboardClient({ user, householdId }: { user: Dashboard
         {page === "calculator" && <PayoffCalculatorPage savedAmount={monthlyPlan.payoffPlanAmount ?? 0} accounts={payoffAccounts} amount={calculatorScenario?.amount ?? monthlyPlan.payoffPlanAmount ?? monthlyPlan.calculatorAmount ?? extra} strategy={calculatorScenario?.strategy ?? monthlyPlan.payoffPlanStrategy ?? "avalanche"} customDebtOrder={[]} onAmount={amount => setCalculatorScenario(current => ({amount, strategy: current?.strategy ?? monthlyPlan.payoffPlanStrategy ?? "avalanche"}))} onStrategy={strategy => setCalculatorScenario(current => ({amount: current?.amount ?? monthlyPlan.payoffPlanAmount ?? extra, strategy}))} onUsePlan={() => { if (isViewer) return; setMonthlyPlan(current => ({...current, payoffPlanAmount: calculatorScenario?.amount ?? monthlyPlan.payoffPlanAmount ?? monthlyPlan.calculatorAmount ?? extra, payoffPlanStrategy: calculatorScenario?.strategy ?? monthlyPlan.payoffPlanStrategy ?? "avalanche"})); setPage("plan"); }} readOnly={isViewer} onAccounts={() => setPage("accounts")}/>}
         {page === "plan" && <PayoffCalculatorPage minimumsIncluded accounts={payoffAccounts} transactions={transactions} adjustments={balanceAdjustments} onPayment={openRecommendedPayment} amount={monthlyPlan.payoffPlanAmount ?? 0} strategy={monthlyPlan.payoffPlanStrategy ?? "avalanche"} customDebtOrder={[]} onAmount={payoffPlanAmount => setMonthlyPlan(current => ({ ...current, payoffPlanAmount }))} onStrategy={payoffPlanStrategy => setMonthlyPlan(current => ({ ...current, payoffPlanStrategy }))} readOnly={isViewer} onMinimum={(id, minimum) => { if (!isViewer) setAccounts(current => updatePayoffMinimum(current, id, minimum)); }} onAccounts={() => setPage("accounts")}/>}
         {page === "snapshots" && <ActualProgressPage readOnly={isViewer} accounts={accounts} removedAccounts={monthlyPlan.removedProgressAccounts} startingBalance={monthlyPlan.progressStartingBalance} transactions={transactions} adjustments={balanceAdjustments} snapshots={snapshots} loans={monthlyPlan.loanTrackers ?? []} onLoanSnapshot={()=>{if(isViewer)return;setMonthlyPlan(current=>({...current,loanTrackers:(current.loanTrackers??[]).map(loan=>({...loan,history:[...loan.history,{date:loan.asOf,amount:loan.remainingAmount,balanceKind:loan.balanceKind,recordedAt:new Date().toISOString()}]}))}));} } onCapture={captureSnapshot} onUpdateNote={updateSnapshotNote} onDelete={removeSnapshot} onActivity={() => setPage("payments")} onAccounts={() => setPage("accounts")}/>}
-        {page === "profile" && <ProfilePage user={user} householdName={householdName} role={householdRole} members={householdMembers} cloudStatus={cloudStatus} deviceOnly={deviceOnly} transferMessage={transferMessage} onExportBackup={exportDashboardBackup} onImportBackup={importDashboardBackup} onReset={resetDashboardData} onRecover={async () => { if (isViewer) return; try { const checkpoint = await repository.loadCheckpoint(); if (!checkpoint) { setTransferMessage("No recovery checkpoint is available."); return; } if (!confirm("Restore the saved recovery checkpoint? Current data will be saved as the automatic backup.")) return; await repository.saveHousehold(checkpoint); applyDashboardPayload(checkpoint); } catch (error) { setTransferMessage(dashboardDataErrorMessage(error)); } }} onInvite={inviteMember} onRemove={removeAdmin}/>}
+        {page === "profile" && <ProfilePage readOnly={isViewer} user={user} householdName={householdName} role={householdRole} members={householdMembers} cloudStatus={cloudStatus} deviceOnly={deviceOnly} transferMessage={transferMessage} onExportBackup={exportDashboardBackup} onImportBackup={importDashboardBackup} onReset={resetDashboardData} onRecover={async () => { if (isViewer) return; try { const checkpoint = await repository.loadCheckpoint(); if (!checkpoint) { setTransferMessage("No recovery checkpoint is available."); return; } if (!confirm("Restore the saved recovery checkpoint? Current data will be saved as the automatic backup.")) return; await repository.saveHousehold(checkpoint); applyDashboardPayload(checkpoint); } catch (error) { setTransferMessage(dashboardDataErrorMessage(error)); } }} onInvite={inviteMember} onRemove={removeAdmin}/>}
         {page === "utilization" && <UtilizationPage accounts={calculatedAccounts} onEditAccount={openEdit}/>}
         {page === "stats" && <DebtInsightsPage accounts={calculatedAccounts} onPlan={()=>setPage("calculator")} onProgress={()=>setPage("snapshots")}/>}
         </fieldset>
@@ -1410,7 +1438,7 @@ function AccountsPage({
     <div role="tabpanel" id="loans-panel" aria-labelledby="loans-tab" hidden={debtTab !== "loans"}>{loanPanel}</div>
   </div>;
 }
-function ProfilePage({ user, householdName, role, members, cloudStatus, deviceOnly, transferMessage, onExportBackup, onImportBackup, onReset, onRecover, onInvite, onRemove }: { user: DashboardUser; householdName: string; role: HouseholdRole; members: HouseholdMember[]; cloudStatus: CloudStatus; deviceOnly: boolean; transferMessage: string; onExportBackup: () => Promise<void>; onImportBackup: (file: File, mode: ImportMode) => Promise<void>; onReset: () => Promise<void>; onRecover: () => Promise<void>; onInvite: (email: string, role: Exclude<HouseholdRole, "owner">) => Promise<void>; onRemove: (email: string) => Promise<void> }) {
+function ProfilePage({ readOnly, user, householdName, role, members, cloudStatus, deviceOnly, transferMessage, onExportBackup, onImportBackup, onReset, onRecover, onInvite, onRemove }: { readOnly: boolean; user: DashboardUser; householdName: string; role: HouseholdRole; members: HouseholdMember[]; cloudStatus: CloudStatus; deviceOnly: boolean; transferMessage: string; onExportBackup: () => Promise<void>; onImportBackup: (file: File, mode: ImportMode) => Promise<void>; onReset: () => Promise<void>; onRecover: () => Promise<void>; onInvite: (email: string, role: Exclude<HouseholdRole, "owner">) => Promise<void>; onRemove: (email: string) => Promise<void> }) {
   const [email, setEmail] = useState("");
   const [accessRole, setAccessRole] = useState<Exclude<HouseholdRole, "owner">>("admin");
   const [message, setMessage] = useState("");
@@ -1466,11 +1494,11 @@ function ProfilePage({ user, householdName, role, members, cloudStatus, deviceOn
       </article>
       {!deviceOnly && <article className="roles-card household-card">
         <div className="card-head"><div><span>{householdName}</span><strong>Household members</strong></div></div>
-        {role === "owner" && <div className="invite-admin"><label><span>Member email and access</span><div><input type="email" value={email} placeholder="member@example.com" onChange={(event) => setEmail(event.target.value)}/><select aria-label="Household access role" value={accessRole} onChange={(event) => setAccessRole(event.target.value as Exclude<HouseholdRole, "owner">)}><option value="admin">Admin</option><option value="viewer">Viewer</option></select><button className="primary" type="button" disabled={working || !email.trim()} onClick={invite}>Add member</button></div><small>Admins can edit the shared dashboard. Viewers can only review it. Each member signs in with Google using their authorized email.</small></label></div>}
+        {role === "owner" && <div className="invite-admin"><label><span>Member email and access</span><div><input type="email" value={email} placeholder="member@example.com" onChange={(event) => setEmail(event.target.value)}/><select aria-label="Household access role" value={accessRole} onChange={(event) => setAccessRole(event.target.value as Exclude<HouseholdRole, "owner">)}><option value="admin">Admin</option><option value="viewer">Viewer</option></select><button className="primary" type="button" disabled={readOnly || working || !email.trim()} onClick={invite}>Add member</button></div><small>Admins can edit the shared dashboard. Viewers can only review it. Each member signs in with Google using their authorized email.</small></label></div>}
         {message && <p className="share-message">{message}</p>}
-        <div className="member-list">{members.map((member) => <div className="member-row" key={member.email}><div><strong>{member.display_name || member.email}</strong><small>{member.display_name ? member.email : member.status === "invited" ? "Waiting for first sign-in" : "Household member"}</small></div><span className={member.status}>{member.role}</span>{role === "owner" && member.role !== "owner" ? <button type="button" disabled={working} onClick={() => remove(member.email)}>Remove</button> : <i/>}</div>)}</div>
+        <div className="member-list">{members.map((member) => <div className="member-row" key={member.email}><div><strong>{member.display_name || member.email}</strong><small>{member.display_name ? member.email : member.status === "invited" ? "Waiting for first sign-in" : "Household member"}</small></div><span className={member.status}>{member.role}</span>{role === "owner" && member.role !== "owner" ? <button type="button" disabled={readOnly || working} onClick={() => remove(member.email)}>Remove</button> : <i/>}</div>)}</div>
       </article>}
-      <DataSafetyPanel deviceOnly={deviceOnly} isViewer={role === "viewer"} transferMessage={transferMessage} onExport={onExportBackup} onImport={onImportBackup} onReset={onReset} onRecover={onRecover}/>
+      <DataSafetyPanel deviceOnly={deviceOnly} isViewer={readOnly} transferMessage={transferMessage} onExport={onExportBackup} onImport={onImportBackup} onReset={onReset} onRecover={onRecover}/>
     </section>
   </div>;
 }
