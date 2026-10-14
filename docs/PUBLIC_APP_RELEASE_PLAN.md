@@ -22,3 +22,9 @@ This is a draft preview release, not approval to deploy production.
 - A code-only rollback is suitable before any new financial writes. After writes, validate original/current export in isolated DB and retain every transaction/audit revision before choosing a recovery path.
 - Never delete/recreate production D1 or import a stale backup over newer household activity without deliberate reviewed reconciliation.
 - Preview failure requires no production rollback: preview Worker/DB are separate and production remains untouched.
+
+## Stage 4 follow-up release behavior
+
+The established Pacific household calendar now controls current activity/Progress months, recurring due-date defaults, debt payoff labels and promotional forecast dates on every device. This can correct displayed forecast months/rates near Pacific midnight; no saved due day, snapshot date, account term or financial history is rewritten. Forecasts that reach the 1,200-month limit retain their complete schedules and have distinct wording. Stopped exports leave months to payoff blank; they do not imply a completed payoff time.
+
+No SQL migration or data rollback is required for these display/calendar corrections. Continue to follow the anchor-aware rollback restrictions above for the broader foundations branch. Household isolation provisioning now requires explicit manual workflow dispatch with its Stage 2 boolean input; ordinary preview pushes skip that job while Stage 2 is paused.

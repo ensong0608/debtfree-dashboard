@@ -196,7 +196,7 @@ Reviewed existing Stage 4 source/tests before editing. Existing coverage already
 - [x] Distinguish a projection capped at 1,200 months from an immediately non-amortizing scenario; retain every calculated month.
 - [x] Leave stopped exports' months-to-payoff blank in CSV/Excel/PDF, rather than claiming the number of evaluated rows is a completed payoff time. Limit status has distinct compact wording.
 - [x] Local lint, typecheck, diff check, and 276 Node tests pass. New synthetic tests cover cap/nonpayoff wording, export preservation, Pacific boundaries and leap-February promo day clamping. Existing inclusive promo test now uses explicit instants on the intended Pacific dates.
-- [ ] CI browser checks/build/dry-run/preview deployment for this follow-up (pending at commit).
+- [x] CI browser checks/build/dry-run/preview deployment for this follow-up (final results below).
 - [ ] Physical-device/accessibility review remains Stage 5 work; browser regressions are emulation only.
 
 No schema migration, production data write, snapshot replacement, or public signup change is required. Next independent work after this preview validation: Stage 5 large-text, mobile input/touch/focus/navigation checks. Resume Stage 2 private identity setup only when the user resumes it; then explicitly dispatch its fixture job after saving the protected second test-email secret. Stage 6 stays gated.
@@ -204,3 +204,13 @@ No schema migration, production data write, snapshot replacement, or public sign
 Stage 4 calendar completion: default recurring due dates, debt-card payoff labels and legacy Home summaries also share the Pacific calendar. Saved due-day values stay intact; a synthetic frozen-clock test verifies October 31, November 30, then December 31. The additional regression passes (277 Node checks including the prior full run).
 
 Initial Stage 4 CI source f4555c6: 276 Node tests and 97 browser checks passed; three viewport cases of the new long-projection regression failed before navigation because its synthetic import omitted required detailedSpendingTracking. Corrected the fixture (no app/import validation weakening). Latest calendar-completion source 7e0a1b1 also requires this test-only correction before final preview validation.
+
+### Validated Stage 4 handoff — October 13, 2026 (Pacific)
+
+- Final tested source: `e2f4a91acb57e4321ec45083e5ab90e007557fd5` on `codex/public-app-foundations-20261011`; draft PR #4.
+- Preview run `38520027932`, job `115709333922`: SUCCESS. Lint/typecheck, 277 Node tests, 100 browser checks (2 existing skips), exact Worker dry-run, isolated deployment, private owner-secret configuration, login readiness and anonymous API/export denial passed. Both independent Validate dashboard runs for this source also passed.
+- Deployed source Worker version: `358be7b0-3369-4c1d-93c9-4af33a26c0e5` at https://debtfree-dashboard-foundations-test.ensong0608.workers.dev/ . Schema step reported no migrations to apply. No new SQL migration is required.
+- Isolation-fixture job `115711629086`: intentionally SKIPPED on push. Stage 2 remains paused; no unrelated test household was provisioned. Use manual workflow dispatch with `provision_isolation_fixture=true` only when Stage 2 resumes and its protected secret is supplied.
+- Browser/calendar/long-schedule checks are CI emulation with synthetic imports, not physical device, live Google partner, expiration or production-data verification. No live financial edits or production deployment performed in this follow-up.
+- Last completed independent milestone: Stage 4 follow-up corrections and preview validation. Next actionable independent step: Stage 5 keyboard tab navigation (Debt category and Planned/Recorded role=tab widgets lack roving tabindex and Arrow/Home/End behavior), then global 200% text resizing, non-navigation touch-target dimensions, reverse/nested dialog focus and broader page/dialog accessibility checks. Existing 320–430px layouts, selected larger text, forward focus trapping, Escape restoration and shortened viewports already have tests; extend gaps rather than recreating them. Physical screen-reader/keyboard/text-size checks remain unverified.
+- Stage 2 real two-household/session/IAM checks and Stage 3 live partner/expiry checks remain dependencies; Stage 6 is still gated. Current saved starting snapshot/date and all production financial data remain untouched.
