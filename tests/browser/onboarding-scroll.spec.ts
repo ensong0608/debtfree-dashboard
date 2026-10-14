@@ -5,10 +5,10 @@ test("onboarding scrolls to Continue with multiple income sources and a short ph
   await page.goto("/");
   await page.getByRole("button", { name: "Start my payoff plan", exact: true }).click();
   await page.getByLabel("Income source name", { exact: true }).fill("Test salary A");
-  await page.getByLabel("Monthly take-home amount", { exact: true }).fill("2000");
+  await page.getByLabel(/Monthly take-home amount/).fill("2000");
   await page.getByRole("button", { name: "+ Add another income source", exact: true }).click();
   await page.getByLabel("Income source name", { exact: true }).nth(1).fill("Test salary B");
-  await page.getByLabel("Monthly take-home amount", { exact: true }).nth(1).fill("1000");
+  await page.getByLabel(/Monthly take-home amount/).nth(1).fill("1000");
   const setup = page.getByRole("main", { name: "Household setup", exact: true });
   const next = page.getByRole("button", { name: "Continue", exact: true });
   for (const viewport of [
@@ -33,7 +33,7 @@ test("onboarding scrolls to Continue with multiple income sources and a short ph
     await page.keyboard.press("Control+End");
     await expect.poll(() => setup.evaluate(el => Math.abs(el.scrollHeight - el.clientHeight - el.scrollTop))).toBeLessThan(2);
     await expect(page.getByLabel("Income source name", { exact: true }).nth(1)).toHaveValue("Test salary B");
-    await expect(page.getByLabel("Monthly take-home amount", { exact: true }).nth(1)).toHaveValue("1000");
+    await expect(page.getByLabel(/Monthly take-home amount/).nth(1)).toHaveValue("1000");
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
   }
   await next.click();
