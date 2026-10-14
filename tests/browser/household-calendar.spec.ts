@@ -10,7 +10,7 @@ test("lender balances, payments and activity share the household date across UTC
   const fixture = JSON.parse(readFileSync(path.resolve("tests/fixtures/legacy-v0.json"), "utf8"));
   fixture.accounts = [{
     ...fixture.accounts[0], name: "Calendar card", balance: 1000, baselineBalance: 1000,
-    apr: 0, interestFee: 0, minimum: 50, minimumMode: "manual",
+    apr: 0, interestFee: 0, minimum: 50, minimumMode: "manual", dueDate: "2026-01-31",
     promoEndDate: "", postPromoApr: 0, archivedAt: null,
   }];
   fixture.transactions = [];
@@ -26,6 +26,7 @@ test("lender balances, payments and activity share the household date across UTC
   const card = page.locator(".balance-first-cards>article").filter({ hasText: "Calendar card" });
   const dialog = page.getByRole("dialog");
   await expect(card.locator(".simple-balance")).toHaveText("$1,000.00");
+  await expect(card.locator(".compact-due")).toContainText("10/31/2026");
   await card.getByRole("button", { name: "Update balance for Calendar card", exact: true }).click();
   await expect(dialog.getByLabel("Date", { exact: true })).toHaveValue("2026-10-31");
   await dialog.getByLabel("New current balance").fill("1100");

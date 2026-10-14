@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { recurringDueDate } from '../app/recurring-due-date.ts';
 import { householdDate } from '../app/household-date.ts';
 import { forecastMonthKey, promoIsActive, payoffOutcome } from '../app/payoff-engine.ts';
 import { calculatePayoffCalculator } from '../app/payoff-calculator.ts';
@@ -54,4 +55,13 @@ test('promotion dates clamp to February and follow Pacific midnight across DST',
     assert.equal(forecastMonthKey(1,new Date(instant)),expected);
     assert.equal(recentDebtMonths(new Date(instant))[0],expected);
   }
+});
+
+
+test('default due month shares the calendar without changing the saved recurring day', t => {
+  t.mock.timers.enable({ apis:['Date'], now:new Date('2026-11-01T00:30:00Z') });
+  const saved = '2026-01-31';
+  assert.equal(recurringDueDate(saved), '2026-10-31');
+  assert.equal(recurringDueDate(saved, '2026-11'), '2026-11-30');
+  assert.equal(recurringDueDate(saved, '2026-12'), '2026-12-31');
 });

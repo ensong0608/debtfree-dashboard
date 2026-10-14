@@ -1,4 +1,5 @@
 "use client";
+import { householdMonthOffset } from "./household-date";
 
 import { recurringDueDate } from "./recurring-due-date";
 import { entryHistory } from "./entry-history";
@@ -220,10 +221,8 @@ function formatDate(value: string) {
   return new Date(year, month - 1, day).toLocaleDateString("en-US", { month: "2-digit", day: "2-digit", year: "numeric" });
 }
 function monthAfter(offset: number) {
-  const date = new Date();
-  date.setDate(1);
-  date.setMonth(date.getMonth() + offset);
-  return date.toLocaleDateString("en-US", { month: "short", year: "numeric" });
+  const date = new Date(householdMonthOffset(offset) + "-01T12:00:00Z");
+  return date.toLocaleDateString("en-US", { timeZone: "UTC", month: "short", year: "numeric" });
 }
 function strategyLabel(strategy: PayoffStrategy) {
   if (strategy === "avalanche") return "Avalanche";

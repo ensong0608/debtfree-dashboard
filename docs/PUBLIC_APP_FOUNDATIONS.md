@@ -200,3 +200,5 @@ Reviewed existing Stage 4 source/tests before editing. Existing coverage already
 - [ ] Physical-device/accessibility review remains Stage 5 work; browser regressions are emulation only.
 
 No schema migration, production data write, snapshot replacement, or public signup change is required. Next independent work after this preview validation: Stage 5 large-text, mobile input/touch/focus/navigation checks. Resume Stage 2 private identity setup only when the user resumes it; then explicitly dispatch its fixture job after saving the protected second test-email secret. Stage 6 stays gated.
+
+Stage 4 calendar completion: default recurring due dates, debt-card payoff labels and legacy Home summaries also share the Pacific calendar. Saved due-day values stay intact; a synthetic frozen-clock test verifies October 31, November 30, then December 31. The additional regression passes (277 Node checks including the prior full run).

@@ -1,3 +1,5 @@
+import { householdDate, householdMonthOffset } from "./household-date.ts";
+import { recurringDueDate } from "./recurring-due-date.ts";
 import type { DebtAccount, LedgerTransaction, PayoffSnapshot, PayoffStrategy, PlannedPayoffData } from "./dashboard-data.ts";
 import { effectiveMinimum, forecastMonthKey, round, type PayoffPlan } from "./payoff-engine.ts";
 import { payoffPriority } from "./debts-screen.ts";
@@ -73,7 +75,7 @@ type HomeDashboardInput = {
 };
 
 function localDateKey(date: Date) {
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+  return householdDate(date);
 }
 
 function currentMonthKey(date: Date) {
@@ -84,19 +86,11 @@ function nextMonthlyDate(value: string, calculationDate: Date, unpaid = false) {
   const parts = value.split("-").map(Number);
   if (parts.length !== 3 || parts.some((part) => !Number.isFinite(part))) return null;
   const day = Math.max(1, Math.min(31, parts[2]));
-  let year = calculationDate.getFullYear();
-  let month = calculationDate.getMonth();
-  const occurrence = () => {
-    const lastDay = new Date(year, month + 1, 0).getDate();
-    return new Date(year, month, Math.min(day, lastDay), 12);
-  };
-  let next = occurrence();
-  if (!unpaid && localDateKey(next) < localDateKey(calculationDate)) {
-    month += 1;
-    if (month > 11) { month = 0; year += 1; }
-    next = occurrence();
-  }
-  return localDateKey(next);
+  const saved = `2000-01-${String(day).padStart(2, "0")}`;
+  const occurrence = recurringDueDate(saved, householdMonthOffset(0, calculationDate));
+  return !unpaid && occurrence < householdDate(calculationDate)
+    ? recurringDueDate(saved, householdMonthOffset(1, calculationDate))
+    : occurrence;
 }
 
 function projectedPayoffMonth(plan: PayoffPlan, accountId: string, calculationDate: Date) {
