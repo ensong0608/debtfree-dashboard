@@ -15,6 +15,7 @@ export class HouseholdSync {
   pending: Pending | null = null;
   private inFlight = false;
   private refreshing = false;
+  private loading = false;
   private generation = 0;
   private writable = false;
   private conflict = false;
@@ -55,14 +56,18 @@ export class HouseholdSync {
   }
   async load() {
     if (this.disposed) throw new Error("This dashboard is closed.");
-    if (this.inFlight) throw new Error("A save is still in progress. Retry shortly.");
-    const { remote, cloud } = await this.readRemote();
-    if (this.disposed) throw new Error("This dashboard is closed.");
-    return this.acceptRemote(remote, cloud);
+    if (this.inFlight || this.loading || this.refreshing) throw new Error("A save or read is still in progress. Retry shortly.");
+    this.loading = true;
+    const generation = this.generation;
+    try {
+      const { remote, cloud } = await this.readRemote();
+      if (this.disposed || this.inFlight || generation !== this.generation) throw new Error("The dashboard changed while loading. Your changes are retained.");
+      return this.acceptRemote(remote, cloud);
+    } finally { this.loading = false; }
   }
   /** Background reads never replace edits made while the request was outstanding. */
   async refresh(canApply: () => boolean = () => true) {
-    if (this.disposed || this.refreshing || this.inFlight || this.pending || !canApply()) return null;
+    if (this.disposed || this.loading || this.refreshing || this.inFlight || this.pending || !canApply()) return null;
     this.refreshing = true;
     const generation = this.generation;
     try {
@@ -143,14 +148,17 @@ export class HouseholdSync {
   }
   /** Caller must checkpoint local data and obtain an explicit user choice first. */
   async useCloud() {
-    if (this.disposed || this.inFlight || this.refreshing) throw new Error("Wait for the current save to finish.");
+    if (this.disposed || this.inFlight || this.loading || this.refreshing) throw new Error("Wait for the current save to finish.");
+    this.loading = true;
     const generation = this.generation;
-    const { remote, cloud } = await this.readRemote();
-    if (this.disposed || this.inFlight || this.generation !== generation) throw new Error("Changes are still being saved.");
-    this.options.storage.removeItem(this.options.key);
-    this.pending = null;
-    this.conflict = false;
-    return this.acceptRemote(remote, cloud);
+    try {
+      const { remote, cloud } = await this.readRemote();
+      if (this.disposed || this.inFlight || this.generation !== generation) throw new Error("Changes are still being saved.");
+      this.options.storage.removeItem(this.options.key);
+      this.pending = null;
+      this.conflict = false;
+      return this.acceptRemote(remote, cloud);
+    } finally { this.loading = false; }
   }
   dispose() { this.disposed = true; clearTimeout(this.timer); }
 }

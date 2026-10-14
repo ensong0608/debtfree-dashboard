@@ -244,3 +244,12 @@ test('changed household in a background response revokes access without acceptin
   assert.equal(a.sync.pending, null);
   assert.equal(env.saved().revision, 0);
 });
+
+test('manual reload cannot replace a newer committed edit with a delayed stale read',async t=>{
+ const env=setup(t),request=env.requestFor(owner),started=deferred(),release=deferred();let hold=false;
+ const a=env.controller(owner,{request:async(url,init)=>{const response=await request(url,init);if(hold&&init?.method!=='PUT'){started.resolve();await release.promise;}return response;}});
+ const loaded=await a.sync.load();hold=true;const reading=a.sync.load();await started.promise;
+ await assert.rejects(a.sync.load(),/progress/);assert.equal(await a.sync.refresh(),null);
+ a.sync.stage(edit(loaded,987));await a.sync.flush();release.resolve();
+ await assert.rejects(reading,/changed/);assert.equal(a.sync.revision,1);assert.equal(env.saved().contract.payload.extra,987);assert.equal(a.states.at(-1),'synced');
+});
