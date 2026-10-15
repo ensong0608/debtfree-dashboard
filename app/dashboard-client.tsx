@@ -1102,7 +1102,7 @@ export default function DashboardClient({ user, householdId }: { user: Dashboard
         </fieldset>
       </div>
       {page === "payments" && !debtEntryOpen && <section className="bottom-action-bar transaction-add-bar" aria-label="Add a record"><button type="button" aria-label="Add record" disabled={isViewer || !accounts.length} onClick={() => { setNewRecordOpen(true); setDebtEntryOpen(true); }}>Transaction +</button></section>}
-      {page === "accounts" && !debtEntryOpen && <section className="bottom-action-bar debt-add-bar" aria-label="Add a debt"><button type="button" disabled={isViewer} onClick={openNew}>Debt +</button></section>}
+      {page === "accounts" && <section hidden={debtEntryOpen} className="bottom-action-bar debt-add-bar" aria-label="Add a debt"><button type="button" disabled={isViewer} onClick={openNew}>Debt +</button></section>}
       {page === "monthly" && !cashflowModalOpen && <section className="bottom-action-bar budget-add-bar" aria-label="Add a budget entry"><button type="button" className="income-action" disabled={isViewer} onClick={() => openNewCashflow("income")}>Income +</button><button type="button" className="expense-action" disabled={isViewer} onClick={() => openNewCashflow("expense")}>Spending +</button><button type="button" className="purchase-action" aria-label="One-time +" disabled={isViewer} onClick={() => openNewCashflow("purchase")}>One-time +</button></section>}
     </main>
 
