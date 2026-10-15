@@ -5,6 +5,32 @@ Base: `35917dc` (`codex/mobile-payments-budget`, current PR #2 head).
 Production remains unchanged. Never deploy this branch to production automatically.
 Coordinator owns APIs, sync, migration decisions and this checklist. Financial and payoff work have separate file owners.
 
+## Current checkpoint — October 15, 2026 (supersedes older next-action notes)
+
+- Inspected clean remote head `ae16626f25ac0b2dbe5b7b3573239186c22eb941`, full branch/PR stack, migration, auth/context/export/sync implementations, existing synthetic recovery tests and preview workflow. PR #4 remains draft against `codex/mobile-payments-budget`; PRs #2/#1 remain the production stack. No newer remote implementation was found at inspection.
+- User-reported verification: Stage 2 and Stage 4 looked good; Stage 3 partner updates, unsaved-input preservation and reconnect looked good; Google account chooser now works. These do **not** establish independently tested direct-API isolation, every switching boundary, expiry/revocation, production IAM or physical accessibility.
+- Added `npm run test:recovery` to mandatory validation: actual Wrangler local D1 SQL exports restored into a separate disposable database, with exact comparison of every household/member/state column and serialized payload. Covers owner/admin/invited-viewer metadata, two households (including empty state), revision 7, original Progress starting amount and saved snapshot date, deleted transaction history, and an unlinked house loan/history. `foreign_key_check` and D1-supported `quick_check` must pass. Only repository synthetic fixtures are used; no remote database/config input is accepted.
+- Drill found that a default local dump interleaves child table creation/inserts before the parent exists. The drill exports complete tables parent-first, preserves foreign-key enforcement, and fails on unreviewed application-table additions. See release plan for the consistency limitation; this does not validate a production or remote D1 restore.
+- Added read-only Cloudflare deployment/auth/binding inspection to preview CI. Only metadata is requested; no SQL or production financial payload is read. No secret values/settings are logged. Inspection failure is nonblocking for preview deployment but remains a release blocker; full account IAM/token-policy inspection is explicitly outside its evidence.
+- Live preview browser reached Google’s actual account chooser in this session (previous 502/refused-connection limitation did not recur). Secure account-selection request timed out; no completed sign-in or authenticated API access was established. No credentials were exposed or authentication bypassed. A saved Google browser account is not proof of approved household membership.
+- Local lint/typecheck, application build, Worker dry-run, resource-inspection tests and local D1 recovery passed. Full CI browser/deployment verification for this batch is pending. Local Playwright Chromium install returned a truncated archive, so local browser verification is unavailable.
+- No app UI, payoff semantics, saved household data, public signup or SQL migration changed. Existing loan validator compatibility/anchor-aware rollback restrictions remain applicable.
+
+### Gate status and exact next steps
+
+| Gate | Evidence / dependency |
+| --- | --- |
+| Independent authenticated cross-household GET/PUT/export denial | Open: two approved Google identities must complete sign-in in the agent test environment; then use their real sessions against preview direct requests. Synthetic adapters remain supporting evidence only. |
+| Expiration/revocation and every account-switch/draft boundary | Open: real sessions and controlled expiry/revocation in test auth. User chooser confirmation is recorded separately. |
+| Partner synchronization | User-reported good; synthetic SQLite/sync integration already passes. Independently authenticated live partner test still needs approved sessions. |
+| Recovery | Local Wrangler D1 SQL restore now validated, in addition to existing JSON/API recovery tests. Remote D1 restore and consistent private production backup remain prerequisites before production migration/release. |
+| Production resource/IAM inspection | Read-only CI metadata inspection added; record live result below. Full principal/token permissions still need account administration access. |
+| Legacy reconciliation review | Open: requires a private recoverable production export. Do not copy it into test fixtures, guess historic anchors, alter balances or replace saved starting amount/date. |
+| Physical accessibility | Open: actual phone/keyboard/OS text-size/screen-reader access. Browser emulation is not equivalent. |
+| Stage 6 | Remains gated on the required preceding checks; no new signup, invitation, household deletion or lifecycle implementation activated. |
+
+Last completed local milestone: SQL backup/restore validation and read-only resource-inspection implementation. Resumed local verification: lint/typecheck, all 289 Node tests and the isolated SQL recovery drill passed. Next independent action: validate/deploy this exact commit through preview CI, review metadata inspection evidence, then resume approved real-session isolation/expiry checks. Do not ask the user to repeat previously confirmed usability checks.
+
 ## Inspection
 - [x] Read AGENTS.md; user preview-only release instructions override older production rule.
 - [x] Clean checkout; inspected main, remote branches, recent commits and open draft PRs #1/#2.
