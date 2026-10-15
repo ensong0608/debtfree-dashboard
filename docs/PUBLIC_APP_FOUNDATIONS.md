@@ -43,7 +43,8 @@ Existing: starting snapshot preserved, archive history, loan tracker separates e
 
 ## Stage 5 — mobile
 Existing: Helvetica/light UI, account bubble, no refresh button, full-screen mobile forms/activity, card-tap edit and activity arrow.
-- [ ] Narrow screens, text scaling, labels/focus/touch targets; distinguish emulation from physical device.
+- [x] Automated narrow-screen/text scaling, labels, keyboard/focus and touch-target checks; synthetic browser emulation.
+- [ ] Physical-device and screen-reader verification; real keyboard/OS text settings remain unverified.
 
 ## Stage 6 — gated
 Not started until prior checks pass, especially authenticated household isolation.
@@ -263,9 +264,18 @@ Unified-loan final source `9fb00013411ab7c92bb14219e92d69462eb33d64` passed inde
 User explicitly removed + Track loan in favor of Debt +, then authorized the next independent stage. Stage 2/3 live isolation/session dependencies still block Stage 6; proceeding with independent Stage 5 rather than opening signup.
 - [x] Removed redundant + Track loan control, retained editing/payment/activity for saved loans; updated existing browser workflow to enter through Debt +.
 - [x] Added roving tab stops and ArrowLeft/ArrowRight/Home/End selection for Debt category and Planned/Recorded tablists.
-- [ ] Validate keyboard focus wrapping, reverse modal focus, touch targets and global 200% text on narrow layouts using synthetic data.
-- [ ] Full validation/build/dry-run and preview deploy; production untouched.
+- [x] Validate keyboard focus wrapping, reverse modal focus, touch targets and global 200% text on narrow layouts using synthetic data.
+- [x] Full validation/build/dry-run and preview deploy; production untouched.
 
 Stage 5 implementation review: independent read-only review found no code/selector regressions. Strengthened large-text tests to inspect container/control overflow and scroll/bound the final schedule card above navigation. Text test doubles actual stylesheet font sizes (including px-based declarations), not browser/CSS zoom. Local lint/typecheck and 281 Node tests pass; preview browser/build/dry-run/deployment checks pending. Loan-form close control now meets a 44px target; intrinsic wrapping prevents enlarged titles/nav/currency text from pushing controls away. Existing saved data and calculator/plan semantics are unchanged.
 
 Stage 5 first CI: 281 Node and 109 browser checks passed, including doubled-text overflow/schedule bounds and tab navigation. The reverse-focus regression exposed a real issue: switching to loan entry unmounted Debt +, leaving the stored focus return target disconnected. The debt add bar now remains mounted but hidden during entry, preserving the original trigger for focus restoration. No test was weakened. Deployment was skipped on the failed run.
+
+
+### Stage 5 follow-up validation and handoff
+
+- Tested/deployed source: `ee4daa33687d8c2e35b029c691b08062c0711191` on `codex/public-app-foundations-20261011`, draft PR #4. Preview run `38681866800`, job `116247981718`: SUCCESS. Lint/typecheck, 281 Node tests, 112 browser checks (2 existing skips), bundle build and exact Worker dry-run passed. Reverse-focus regression now passes across all three browser projects; no test was weakened.
+- Preview deployment, private owner-secret configuration, login readiness and anonymous API/export denial passed. Source Worker version: `4b8d0448-b461-4c55-83ca-2f116948e484`; URL https://debtfree-dashboard-foundations-test.ensong0608.workers.dev/ . Schema step reported no migrations to apply; no SQL migration was added. Isolation fixture job `116250111272` intentionally skipped on ordinary push.
+- Debt + is now the sole debt creation entry. Existing loan editing/payment/activity remain available. Added tab keyboard navigation, 44px loan-close target, enlarged-text wrapping and focus restoration after loan entry. Synthetic 200% text tests inspect internal overflow and ensure the final schedule month is accessible above navigation. These are browser emulation results, not physical-device or screen-reader verification.
+- Last completed milestone: this Stage 5 accessibility batch, validated and deployed to preview. No production deployment, financial-data mutation, starting snapshot/date replacement or invitation occurred. Existing migration/compatible-validator rollback plan remains in PUBLIC_APP_RELEASE_PLAN.md; this UI batch needs no data migration.
+- Next actionable step: resume live Stage 2 with authenticated access to the independently provisioned test household, verify empty onboarding and actual cross-household read/write/export denial, then partner sync and session expiration/revocation/account switching. Google OAuth in this cloud browser previously returned 502/connection refused; user-PC sign-in does not authenticate this session. Production IAM and legacy reconciliation review remain release dependencies. Complete physical keyboard/mobile/OS text/screen-reader checks when hardware is available. Stage 6 remains gated; public signup stays closed.
