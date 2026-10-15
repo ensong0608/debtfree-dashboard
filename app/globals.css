@@ -2071,3 +2071,8 @@ button:focus-visible,summary:focus-visible,input:focus-visible,select:focus-visi
 }
 .loan-modal [aria-invalid="true"]{border-color:#b42318;outline-color:#b42318}
 .loan-modal label>.form-error{display:block;margin-top:4px}
+/* Let enlarged text reflow without moving the primary controls off-screen. */
+.page-heading h1,.plan-purpose,.allocation-card header h3{min-width:0;overflow-wrap:anywhere}
+.debt-total-summary strong,.compact-debt-identity .simple-balance,.compact-debt-meta dd,.actual-progress-summary dd{overflow-wrap:anywhere}
+.sidebar .nav-item span{overflow-wrap:anywhere}
+.loan-modal form>header>button{min-width:44px;min-height:44px;flex:none}

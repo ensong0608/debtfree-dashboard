@@ -1,4 +1,5 @@
 "use client";
+import { navigateTabs } from "./tab-navigation";
 import { useMemo, useRef, useState } from "react";
 import type { BalanceAdjustment, LedgerTransaction, DebtAccount, PayoffStrategy } from "./dashboard-data";
 import { calculatePayoffCalculator, calculateMinimumPayoffPlan } from "./payoff-calculator";
@@ -64,7 +65,7 @@ export default function PayoffCalculatorPage({ accounts, amount, strategy, custo
     {!minimumsIncluded&&<div className="scenario-actions"><button className="primary calculate-scenario" type="button" onClick={()=>{setCalculationDate(new Date());resultRef.current?.scrollIntoView({behavior:"smooth",block:"start"});}}>Calculate scenario</button><button type="button" className="secondary use-plan" disabled={readOnly||!active.length||amount<=0||Boolean(minimumResult?.error)||plan.stalled} onClick={onUsePlan}>Use this in my plan</button><small>Trying a scenario does not change your saved plan.</small></div>}
     {minimumsIncluded && allocationAccounts.length > 0 && <section className="payment-allocation" aria-label="Monthly payment allocation">
       <header><h2>{monthLabel(1)}</h2></header>
-      <div className="allocation-tabs" role="tablist" aria-label="Plan payment view"><button type="button" id="planned-tab" role="tab" aria-selected={allocationView==="planned"} aria-controls="allocation-panel" onClick={()=>setAllocationView("planned")}>Planned</button><button type="button" id="recorded-tab" role="tab" aria-selected={allocationView==="recorded"} aria-controls="allocation-panel" onClick={()=>setAllocationView("recorded")}>Recorded</button></div>
+      <div className="allocation-tabs" role="tablist" aria-label="Plan payment view"><button type="button" id="planned-tab" role="tab" tabIndex={allocationView === "planned" ? 0 : -1} onKeyDown={navigateTabs} aria-selected={allocationView==="planned"} aria-controls="allocation-panel" onClick={()=>setAllocationView("planned")}>Planned</button><button type="button" id="recorded-tab" role="tab" tabIndex={allocationView === "recorded" ? 0 : -1} onKeyDown={navigateTabs} aria-selected={allocationView==="recorded"} aria-controls="allocation-panel" onClick={()=>setAllocationView("recorded")}>Recorded</button></div>
       {allocationView === "recorded" && <dl className="recorded-summary"><div><dt>Recorded</dt><dd>{money.format(recordedPayments)}</dd></div><div><dt>Remaining planned</dt><dd>{minimumResult?.error ? "—" : money.format(remainingPayments)}</dd></div></dl>}
       <div className="allocation-cards" id="allocation-panel" role="tabpanel" aria-labelledby={allocationView==="planned"?"planned-tab":"recorded-tab"}>{allocationAccounts.map(account => {
         const payment = minimumResult?.plan?.months[0]?.payments[account.id];

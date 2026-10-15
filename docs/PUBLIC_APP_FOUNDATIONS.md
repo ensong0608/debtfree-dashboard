@@ -257,3 +257,13 @@ Unified-loan final source `9fb00013411ab7c92bb14219e92d69462eb33d64` passed inde
 - New regression proves direct house/car entry, name/balance carry-over, specific error messages and focus, optional Budget, mobile fullscreen geometry, reload persistence, and preservation of original card/starting Progress totals. Synthetic phone screenshot was visually inspected. Physical-device verification of this new form is still pending; live Google/partner/session/IAM Stage 2/3 gates remain open.
 - Last completed milestone: unified Debt + house/car entry and actionable loan validation, deployed to preview. Next user check: use Debt + in preview, select House loan or Car loan, try Save with missing required fields, then save a synthetic loan and verify its House & car category. Existing generic Auto loan/Other entries are not silently converted or deleted, avoiding ledger/snapshot damage.
 - Next coordinator work: continue live Stage 2 isolation checks when signed-in access is available, then the previously recorded Stage 5 keyboard/text/touch/focus work. Stage 6/public signup and production release remain gated. For rollback after saving unlinked loans, retain a compatible validator or forward-fix as documented in PUBLIC_APP_RELEASE_PLAN.md; do not delete data to satisfy older validators.
+
+## Stage 5 follow-up — single debt entry and accessibility
+
+User explicitly removed + Track loan in favor of Debt +, then authorized the next independent stage. Stage 2/3 live isolation/session dependencies still block Stage 6; proceeding with independent Stage 5 rather than opening signup.
+- [x] Removed redundant + Track loan control, retained editing/payment/activity for saved loans; updated existing browser workflow to enter through Debt +.
+- [x] Added roving tab stops and ArrowLeft/ArrowRight/Home/End selection for Debt category and Planned/Recorded tablists.
+- [ ] Validate keyboard focus wrapping, reverse modal focus, touch targets and global 200% text on narrow layouts using synthetic data.
+- [ ] Full validation/build/dry-run and preview deploy; production untouched.
+
+Stage 5 implementation review: independent read-only review found no code/selector regressions. Strengthened large-text tests to inspect container/control overflow and scroll/bound the final schedule card above navigation. Text test doubles actual stylesheet font sizes (including px-based declarations), not browser/CSS zoom. Local lint/typecheck and 281 Node tests pass; preview browser/build/dry-run/deployment checks pending. Loan-form close control now meets a 44px target; intrinsic wrapping prevents enlarged titles/nav/currency text from pushing controls away. Existing saved data and calculator/plan semantics are unchanged.

@@ -1,4 +1,5 @@
 "use client";
+import { navigateTabs } from "./tab-navigation";
 import { householdMonthOffset } from "./household-date";
 
 import { recurringDueDate } from "./recurring-due-date";
@@ -1359,7 +1360,7 @@ function AccountsPage({
     {importMessage && <p className={importMessage.startsWith("Import failed") ? "import-message error" : "import-message"}>{importMessage}</p>}
     {actionMessage && <p className="debt-action-message" role="status" aria-live="polite">{actionMessage}</p>}
     <section className="simple-total debt-total-summary"><span>Total debt</span><strong>{moneyPrecise.format(debtTab === "accounts" ? totalBalance : loans.reduce((sum, loan) => sum + loan.remainingAmount, 0))}</strong><small>{debtTab === "accounts" ? "Cards & other" : "House & car"}</small></section>
-    <div className="debt-tabs" role="tablist" aria-label="Debt category"><button type="button" role="tab" id="accounts-tab" aria-controls="accounts-panel" aria-selected={debtTab === "accounts"} onClick={() => setDebtTab("accounts")}>Cards &amp; other</button><button type="button" role="tab" id="loans-tab" aria-controls="loans-panel" aria-selected={debtTab === "loans"} onClick={() => setDebtTab("loans")}>House &amp; car</button></div>
+    <div className="debt-tabs" role="tablist" aria-label="Debt category"><button type="button" role="tab" id="accounts-tab" tabIndex={debtTab === "accounts" ? 0 : -1} onKeyDown={navigateTabs} aria-controls="accounts-panel" aria-selected={debtTab === "accounts"} onClick={() => setDebtTab("accounts")}>Cards &amp; other</button><button type="button" role="tab" id="loans-tab" tabIndex={debtTab === "loans" ? 0 : -1} onKeyDown={navigateTabs} aria-controls="loans-panel" aria-selected={debtTab === "loans"} onClick={() => setDebtTab("loans")}>House &amp; car</button></div>
     <div role="tabpanel" id="accounts-panel" aria-labelledby="accounts-tab" hidden={debtTab !== "accounts"}>
     <button type="button" className="secondary" disabled={readOnly} aria-pressed={arranging} onClick={() => setArranging(!arranging)}>{arranging ? "Done arranging" : "Arrange debts"}</button>
     {displayGroups.filter(group => group.accounts.length).map(({group, accounts: groupAccounts}) => <section className="household-debt-group" key={group} aria-label={`${group} debts`}><h2>{group} <small>{moneyPrecise.format(groupAccounts.reduce((sum, account) => sum + account.balance, 0))}</small></h2><div className="balance-first-cards">{groupAccounts.map((account, index) => {

@@ -26,13 +26,13 @@ export default function LoanProgressPanel({ loans, items, onChange, onDialog, in
     window.addEventListener('keydown', escape);
     return () => window.removeEventListener('keydown', escape);
   }, [draft, paymentDraft, onDialog]);
-  const open = (loan?: LoanTracker) => {
-    setError(''); setFieldErrors({}); setSourceLoan(loan ?? null);
-    setDraft(loan ? { ...loan } : { id: crypto.randomUUID(), name: '', kind: 'house', originalAmount: 0, remainingAmount: Number.NaN, balanceKind: 'principal', asOf: householdDate(), budgetItemId: '', budgetItemName: '', history: [] });
+  const open = (loan: LoanTracker) => {
+    setError(''); setFieldErrors({}); setSourceLoan(loan);
+    setDraft({ ...loan });
     onDialog(true);
   };
   return <section className="loan-progress-section" aria-labelledby={editorOnly ? undefined : "loan-progress-title"}>
-    {!editorOnly && <><header><div><h2 id="loan-progress-title">House & car</h2><p>Loan progress · monthly payments linked to Budget</p></div><button className="secondary" type="button" onClick={() => open()} disabled={readOnly}>+ Track loan</button></header>
+    {!editorOnly && <><header><div><h2 id="loan-progress-title">House & car</h2><p>Loan progress · monthly payments linked to Budget</p></div></header>
     <div className="loan-progress-grid">{loans.map(loan => {
       const progress = loanProgress(loan), payment = linkedLoanPayment(loan, items), approximate = loan.balanceKind === 'payoff';
       let split = null;
