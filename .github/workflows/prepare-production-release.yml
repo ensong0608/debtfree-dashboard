@@ -1,0 +1,32 @@
+name: Prepare private production recovery backup
+on:
+  push:
+    branches: [codex/production-release-20261015]
+    paths: [.github/workflows/prepare-production-release.yml, scripts/prepare-production-backup.mjs, config/recovery-release-20261015.pub.pem]
+permissions:
+  contents: read
+concurrency:
+  group: cloudflare-production
+  cancel-in-progress: false
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - name: Export, restore privately and encrypt recovery copy
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+        run: node scripts/prepare-production-backup.mjs
+      - uses: actions/upload-artifact@v4
+        with:
+          name: encrypted-production-recovery
+          path: outputs/private-release/production-backup.encrypted.json
+          retention-days: 7
+          if-no-files-found: error
