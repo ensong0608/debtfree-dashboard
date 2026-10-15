@@ -11,11 +11,11 @@ test('Debt + adds house and car loans directly with actionable validation and no
   await page.getByRole('button',{name:'Debt +',exact:true}).click();
   await page.getByLabel('Account name',{exact:true}).fill('Synthetic home');
   await page.getByLabel('Current balance').fill('80000');
-  await page.getByLabel('Debt type',{exact:true}).selectOption({label:'House loan'});
+  await page.getByLabel('Debt type').selectOption({label:'House loan'});
   const dialog=page.getByRole('dialog',{name:'Loan progress',exact:true});
   await expect(dialog.getByLabel('Loan name',{exact:true})).toHaveValue('Synthetic home');
   await expect(dialog.getByLabel('Remaining amount',{exact:true})).toHaveValue('80000');
-  await expect(dialog.getByLabel('Loan category',{exact:true})).toHaveValue('house');
+  await expect(dialog.getByLabel('Loan category')).toHaveValue('house');
   const save=dialog.getByRole('button',{name:'Save loan',exact:true});
   await expect(save).toBeEnabled();
   await save.click();
@@ -39,8 +39,8 @@ test('Debt + adds house and car loans directly with actionable validation and no
   await expect(page.getByRole('article',{name:'Synthetic home loan progress',exact:true})).toContainText('House loan');
   await page.getByRole('button',{name:'Debt +',exact:true}).click();
   await page.getByLabel('Account name',{exact:true}).fill('Synthetic car');
-  await page.getByLabel('Debt type',{exact:true}).selectOption({label:'Car loan'});
-  await expect(dialog.getByLabel('Loan category',{exact:true})).toHaveValue('car');
+  await page.getByLabel('Debt type').selectOption({label:'Car loan'});
+  await expect(dialog.getByLabel('Loan category')).toHaveValue('car');
   await save.click();
   await expect(dialog.getByText('Enter a remaining amount of $0 or more.',{exact:true})).toBeVisible();
   await dialog.getByLabel('Original loan amount',{exact:true}).fill('25000');
@@ -52,7 +52,7 @@ test('Debt + adds house and car loans directly with actionable validation and no
   await page.getByRole('tab',{name:'House & car',exact:true}).click();
   await expect(page.locator('.loan-progress-card')).toHaveCount(2);
   await page.getByRole('button',{name:'Update Synthetic home loan',exact:true}).click();
-  await expect(dialog.getByLabel('Monthly payment from Budget (optional)',{exact:true})).toHaveValue('');
+  await expect(dialog.getByLabel('Monthly payment from Budget (optional)')).toHaveValue('');
   await dialog.getByRole('button',{name:'Cancel',exact:true}).click();
   await page.getByRole('button',{name:'More',exact:true}).click();
   await page.getByRole('button',{name:'Progress',exact:true}).filter({visible:true}).click();
