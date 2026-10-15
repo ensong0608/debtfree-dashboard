@@ -2,8 +2,16 @@
 
 Branch: `codex/public-app-foundations-20261011`
 Base: `35917dc` (`codex/mobile-payments-budget`, current PR #2 head).
-Production remains unchanged. Never deploy this branch to production automatically.
+The user approved promotion of the tested foundations to the existing private production app on October 15, 2026. Current release source and evidence are tracked in PRIVATE_PRODUCTION_RELEASE_20261015.md on codex/production-release-20261015. Public signup/Stage 6 remain gated; earlier preview-only notes below are historical.
 Coordinator owns APIs, sync, migration decisions and this checklist. Financial and payoff work have separate file owners.
+
+## Private production promotion — superseding release checkpoint
+
+The user requested the tested improvements on the real existing-household app and explicitly approved the encrypted recovery destination. Production publication is complete: source `42172ca746f17a854ab064740c1ab90f60ec437d`, Worker version `24f06427-0cbe-49b6-b5c8-b52d37eb2c59`, successful run `38773041808`/job `116557256609`. Lint/typecheck, 291 Node tests, SQL recovery, 112 browser checks (2 existing skips), exact Worker dry-run, fresh encrypted backup, stored-row preservation, login/chooser/callback/PKCE and anonymous household/export denial passed. Actual production SQL was restored privately in SQLite; saved contracts, original starting Progress/snapshots and legacy displayed balances passed read-only compatibility review. Every persisted household/member/state column matched before and after the final deployment. No migration or financial write/import/reset ran.
+
+The live signed-in production household loaded, and house/car Debt + choices and empty-loan validation were verified without creating a record. Private-app fixes now start from `codex/production-release-20261015`; exact backup/rollback/release evidence is in `docs/PRIVATE_PRODUCTION_RELEASE_20261015.md`. The original foundations preview keeps its separate D1 database. Older preview-only/production-untouched entries below describe their historical batches.
+
+This private-use release does not pass the remaining public-launch gates: two-session direct-API isolation, controlled expiry/revocation/all switching boundaries, independent partner sync, full IAM, remote D1/Time Travel restoration and physical accessibility. Stage 6/public signup remain gated. Next public-foundations action remains an authorized two-session direct-request test runner; do not repeat user-confirmed usability checks or treat the private release as permission to activate signup.
 
 ## Current checkpoint — October 15, 2026 (supersedes older next-action notes)
 
@@ -25,7 +33,7 @@ Coordinator owns APIs, sync, migration decisions and this checklist. Financial a
 | Partner synchronization | User-reported good; synthetic SQLite/sync integration already passes. Independently authenticated live partner test still needs approved sessions. |
 | Recovery | Local Wrangler D1 SQL restore now validated, in addition to existing JSON/API recovery tests. Remote D1 restore and consistent private production backup remain prerequisites before production migration/release. |
 | Production resource/IAM inspection | Read-only CI metadata inspection PASSED in run 38754352950: expected production D1/auth bindings and separate preview D1 confirmed. Full principal/token permissions still need account administration access. |
-| Legacy reconciliation review | Open: requires a private recoverable production export. Do not copy it into test fixtures, guess historic anchors, alter balances or replace saved starting amount/date. |
+| Legacy reconciliation review | Read-only review of the private production backup passed for the release: candidate displayed balances exactly match existing offset/history calculations, stored balances and original Progress/snapshots remain unchanged. No historical anchors guessed or transactions reclassified. Do not copy production data into test fixtures. |
 | Physical accessibility | Open: actual phone/keyboard/OS text-size/screen-reader access. Browser emulation is not equivalent. |
 | Stage 6 | Remains gated on the required preceding checks; no new signup, invitation, household deletion or lifecycle implementation activated. |
 

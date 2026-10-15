@@ -1,6 +1,6 @@
 # Foundations release and rollback plan
 
-This is a draft preview release, not approval to deploy production.
+Public-launch gates below remain open. The user separately approved the existing-household private production release on October 15, 2026, including the encrypted recovery destination. See PRIVATE_PRODUCTION_RELEASE_20261015.md for exact release, backup and preservation evidence; this approval does not open public signup or activate Stage 6.
 
 ## Before production approval
 - Pass lint, types, all Node tests, browser suite and exact Worker dry-run for final commit.

@@ -26,3 +26,9 @@ Cloudflare Workers is the sole production hosting target. The production Worker 
 - Progress must preserve its first recorded starting total in `monthlyPlan.progressStartingBalance`. Later snapshots, balance edits, and removed accounts must not replace or hide that starting amount. Do not invent a starting date when none is saved.
 
 - Debt + is the single creation entry point for every debt type, including house/car loans. Do not restore the removed + Track loan control.
+
+## Current production source
+
+- The private household app was promoted from the tested public-app foundations on October 15, 2026, with user approval. Continue from `codex/production-release-20261015`; consult `docs/PRIVATE_PRODUCTION_RELEASE_20261015.md` for the exact validated/deployed commit, Worker version and recovery evidence. `main` and the older PR stack are not the current deployed source. Do not publish an older branch over this release.
+- Requested private-app fixes should reach the real app after validation, as the user directed. Public signup and Stage 6 lifecycle activation remain gated; a private-use release does not establish public-launch readiness. Keep preview financial data isolated and never copy it into production.
+- Preserve the reconciliation-anchor and optional-loan-validator compatibility rules when fixing or rolling back. Use the approved encrypted backup/recovery workflow, never put financial payloads/private keys in repository content or logs, and verify stored production rows after publishing.
