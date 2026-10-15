@@ -279,3 +279,13 @@ Stage 5 first CI: 281 Node and 109 browser checks passed, including doubled-text
 - Debt + is now the sole debt creation entry. Existing loan editing/payment/activity remain available. Added tab keyboard navigation, 44px loan-close target, enlarged-text wrapping and focus restoration after loan entry. Synthetic 200% text tests inspect internal overflow and ensure the final schedule month is accessible above navigation. These are browser emulation results, not physical-device or screen-reader verification.
 - Last completed milestone: this Stage 5 accessibility batch, validated and deployed to preview. No production deployment, financial-data mutation, starting snapshot/date replacement or invitation occurred. Existing migration/compatible-validator rollback plan remains in PUBLIC_APP_RELEASE_PLAN.md; this UI batch needs no data migration.
 - Next actionable step: resume live Stage 2 with authenticated access to the independently provisioned test household, verify empty onboarding and actual cross-household read/write/export denial, then partner sync and session expiration/revocation/account switching. Google OAuth in this cloud browser previously returned 502/connection refused; user-PC sign-in does not authenticate this session. Production IAM and legacy reconciliation review remain release dependencies. Complete physical keyboard/mobile/OS text/screen-reader checks when hardware is available. Stage 6 remains gated; public signup stays closed.
+
+
+## Stage 3 follow-up — Google account selection
+
+User reports Stages 2/4 and Stage 3 partner update/draft/reconnection checks look good. Record these as user-reported checks, not independent live/API/IAM verification. Account switching is not passed: after logout, Google reuses its previous incognito-session identity.
+
+- [x] Inspected clean branch, AGENTS, current remote head, auth/login/logout/callback flow and existing auth tests. Sign-out uses local Supabase scope; login did not request Google's account chooser.
+- [x] Google OAuth now requests `prompt=select_account` on every explicit sign-in. Preview-specific callback, PKCE, origin checks, server membership validation and local sign-out behavior stay intact. No financial/state/schema changes or public signup.
+- [ ] Run auth regression, full validation and preview deployment; then record evidence.
+- [ ] Live Google chooser and switching between the two test identities need verification after deployment; do not infer these from synthetic route tests. Production IAM, independent direct-API isolation/session-expiration checks and physical accessibility remain outstanding.
