@@ -10,7 +10,7 @@ test('Debt + adds house and car loans directly with actionable validation and no
   await page.locator('input[type=file]').setInputFiles({name:'unified-synthetic.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(fixture))});
   await page.getByRole('button',{name:'Debt +',exact:true}).click();
   await page.getByLabel('Account name',{exact:true}).fill('Synthetic home');
-  await page.getByLabel('Current balance',{exact:true}).fill('80000');
+  await page.getByLabel('Current balance').fill('80000');
   await page.getByLabel('Debt type',{exact:true}).selectOption({label:'House loan'});
   const dialog=page.getByRole('dialog',{name:'Loan progress',exact:true});
   await expect(dialog.getByLabel('Loan name',{exact:true})).toHaveValue('Synthetic home');

@@ -243,3 +243,5 @@ User reported no housing choice from Debt +, too many steps to track a house/car
 - [ ] CI full browser suite, Worker dry-run and preview deployment pending. New browser regression covers direct house/car creation, actionable validation/focus, viewport size, no Budget prerequisite, reload and preservation of card/starting progress totals; synthetic screenshots only.
 
 Stage 2 live cross-household/session checks remain unfinished. No real data import, member change, message, production write or public signup change is included here. Next: finish preview validation and record deployment evidence, then continue outstanding authorized Stage 2 and mobile accessibility checks.
+
+Unified-loan first CI: 280 Node tests and 100 existing browser checks passed. New regression stopped before loan selection because it used an exact Current balance label lookup while the shared currency field label includes its prefix. Corrected only the selector; no application validation weakened. Deployment stayed gated on the failed run.
