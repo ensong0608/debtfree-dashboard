@@ -2059,3 +2059,15 @@ button:focus-visible,summary:focus-visible,input:focus-visible,select:focus-visi
 .page-heading{position:relative;padding-bottom:24px}
 .save-status{position:absolute;right:28px;bottom:4px;font-size:12px;line-height:16px;color:#475569}
 @media(max-width:700px){.page-heading{padding-bottom:24px}.save-status{right:16px}}
+
+@media(max-width:700px){
+ .modal-backdrop:has(.loan-modal){padding:0;place-items:stretch;top:var(--dialog-viewport-top,0px);height:var(--dialog-viewport-height,100dvh);bottom:auto}
+ .modal.loan-modal{width:100%;max-width:none;height:100%;max-height:100%;border-radius:0;display:flex;flex-direction:column;overflow:hidden}
+ .loan-modal>form{display:flex;flex-direction:column;min-height:0;height:100%}
+ .loan-modal form>header,.loan-modal form>footer{flex:none}
+ .loan-modal form>.form-grid{flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain;scroll-padding:16px}
+ .loan-modal form>footer{padding-bottom:calc(16px + env(safe-area-inset-bottom))}
+ .loan-modal form>footer button{min-height:48px}
+}
+.loan-modal [aria-invalid="true"]{border-color:#b42318;outline-color:#b42318}
+.loan-modal label>.form-error{display:block;margin-top:4px}

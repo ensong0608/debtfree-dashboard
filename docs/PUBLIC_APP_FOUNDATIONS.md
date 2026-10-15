@@ -228,3 +228,18 @@ User resumed Stage 2 and confirmed the test email was saved on GitHub. Inspected
 - [ ] Real two-household read/write/export denial, live partner sync, real session expiry/revocation and production IAM remain unverified. Synthetic API/SQLite tests do not establish these live properties. Public signup and Stage 6 remain gated.
 
 Current next action: independent PC browser QA with the configured second Google test account at the verified preview origin. It should remain on the foundations-test host and reach empty onboarding for its own household. Do not import/copy existing household finances or add the second identity to the primary household. Then continue authorized live isolation/session checks when authenticated browser access is available. Production data and saved starting snapshot/date were not changed. Branch remains codex/public-app-foundations-20261011, draft PR #4; deployed source remains e2f4a91 (Stage 4), and no new SQL migration is required.
+
+## Unified Debt + loan entry — October 14, 2026 (Pacific)
+
+User reported no housing choice from Debt +, too many steps to track a house/car loan, and a disabled Save button with no indication of missing fields.
+
+- [x] Inspect current implementation, clean branch/remote/PR, instructions and existing loan tests; preserve saved accounts, balances, snapshots, Budget links and loan histories.
+- [x] Debt + now offers House loan and Car loan. Selecting one reuses the same loan editor as Track loan, carrying entered name/balance/APR; successful creation selects House & car automatically. Existing generic Auto loan accounts remain editable in their existing representation; no financial migration/reclassification is performed.
+- [x] Budget linking is optional for loan creation/editing. JSON contract accepts both link strings empty, still rejects incomplete pairs/types; existing linked loans keep ID/name matching. No D1 schema migration.
+- [x] Save loan stays usable for authorized online users; missing/invalid name, original/remaining amount, balance date, APR or escrow gets an announced error and field-specific description/invalid marker. First invalid field receives focus. Blank remaining balance is distinct from explicitly entered zero. Money is normalized to cents before save; stale existing-loan edits are rejected.
+- [x] Mobile loan forms fill the visual viewport with scrollable fields and visible footer. Fixed per-lender new-loan preset removed; existing saved terms are preserved. Updated the old synthetic amortization UI test to enter its own test terms explicitly.
+- [x] Independent read-only review found a possible offline unmount losing local loan input. Corrected by keeping the editor mounted for its authorized role and disabling Save through readOnly. Existing household/sync revision/session protections remain in force.
+- [x] Local lint/typecheck, diff check and 280 Node tests pass. New tests exercise missing/invalid fields, optional Budget linking, complete/incomplete contract roundtrip, zero terms and unsupported money/date values. One old calendar regression fixture now specifies the intended Pacific offset rather than depending on the host timezone.
+- [ ] CI full browser suite, Worker dry-run and preview deployment pending. New browser regression covers direct house/car creation, actionable validation/focus, viewport size, no Budget prerequisite, reload and preservation of card/starting progress totals; synthetic screenshots only.
+
+Stage 2 live cross-household/session checks remain unfinished. No real data import, member change, message, production write or public signup change is included here. Next: finish preview validation and record deployment evidence, then continue outstanding authorized Stage 2 and mobile accessibility checks.

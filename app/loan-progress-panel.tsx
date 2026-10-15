@@ -4,15 +4,18 @@ import { useEffect, useState } from 'react';
 import type { CashflowItem } from './dashboard-data';
 import { linkedLoanPayment, loanProgress, loanPaymentSplit, recordLoanPayment, type LoanTracker } from './loan-progress';
 import { householdDate } from './interest-accrual';
+import { loanEntryErrors, type LoanEntryField } from './loan-entry';
 const money = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' });
 
-export default function LoanProgressPanel({ loans, items, onChange, onDialog, readOnly = false }: {
-  readOnly?: boolean; loans: LoanTracker[]; items: CashflowItem[]; onChange: (loans: LoanTracker[]) => void; onDialog: (open: boolean) => void;
+export default function LoanProgressPanel({ loans, items, onChange, onDialog, initialDraft, editorOnly = false, readOnly = false }: {
+  initialDraft?: LoanTracker; editorOnly?: boolean; readOnly?: boolean; loans: LoanTracker[]; items: CashflowItem[]; onChange: (loans: LoanTracker[]) => void; onDialog: (open: boolean) => void;
 }) {
   const [activityLoan,setActivityLoan]=useState<LoanTracker|null>(null);
-  const [draft, setDraft] = useState<LoanTracker | null>(null);
+  const [draft, setDraft] = useState<LoanTracker | null>(initialDraft ?? null);
   const [paymentDraft, setPaymentDraft] = useState<{ loan: LoanTracker; amount: number; extra: number; date: string } | null>(null);
   const [error, setError] = useState('');
+  const [fieldErrors, setFieldErrors] = useState<Partial<Record<LoanEntryField, string>>>({});
+  const [sourceLoan, setSourceLoan] = useState<LoanTracker | null>(null);
   let paymentPreview = null;
   try { if (paymentDraft) paymentPreview = loanPaymentSplit(paymentDraft.loan, paymentDraft.amount, paymentDraft.extra); } catch {}
   const expenses = items.filter(item => item.kind !== 'income');
@@ -24,11 +27,12 @@ export default function LoanProgressPanel({ loans, items, onChange, onDialog, re
     return () => window.removeEventListener('keydown', escape);
   }, [draft, paymentDraft, onDialog]);
   const open = (loan?: LoanTracker) => {
-    setDraft(loan ? { ...loan } : { id: crypto.randomUUID(), name: '', kind: 'house', originalAmount: 0, remainingAmount: 0, balanceKind: 'principal', asOf: householdDate(), budgetItemId: '', budgetItemName: '', history: [] });
+    setError(''); setFieldErrors({}); setSourceLoan(loan ?? null);
+    setDraft(loan ? { ...loan } : { id: crypto.randomUUID(), name: '', kind: 'house', originalAmount: 0, remainingAmount: Number.NaN, balanceKind: 'principal', asOf: householdDate(), budgetItemId: '', budgetItemName: '', history: [] });
     onDialog(true);
   };
-  return <section className="loan-progress-section" aria-labelledby="loan-progress-title">
-    <header><div><h2 id="loan-progress-title">House & car</h2><p>Loan progress · monthly payments linked to Budget</p></div><button className="secondary" type="button" onClick={() => open()} disabled={readOnly}>+ Track loan</button></header>
+  return <section className="loan-progress-section" aria-labelledby={editorOnly ? undefined : "loan-progress-title"}>
+    {!editorOnly && <><header><div><h2 id="loan-progress-title">House & car</h2><p>Loan progress · monthly payments linked to Budget</p></div><button className="secondary" type="button" onClick={() => open()} disabled={readOnly}>+ Track loan</button></header>
     <div className="loan-progress-grid">{loans.map(loan => {
       const progress = loanProgress(loan), payment = linkedLoanPayment(loan, items), approximate = loan.balanceKind === 'payoff';
       let split = null;
@@ -44,7 +48,7 @@ export default function LoanProgressPanel({ loans, items, onChange, onDialog, re
         {!split && <button className="primary" type="button" disabled={readOnly || loan.remainingAmount<=0} onClick={() => {setError('');setPaymentDraft({loan,amount:payment?.amount??0,extra:0,date:householdDate()});onDialog(true);}}>Payment</button>}
         <button className="secondary" type="button" disabled={readOnly} aria-label={`Update ${loan.name} loan`} onClick={() => open(loan)}>Balance</button></div>
       </article>;
-    })}</div>
+    })}</div></>}
     {activityLoan&&<div className="modal-backdrop account-activity-backdrop"><section className="modal account-activity-modal" role="dialog" aria-modal="true" aria-label={`Activity for ${activityLoan.name}`}><header><h2>{activityLoan.name}</h2><button type="button" aria-label="Close activity" onClick={()=>setActivityLoan(null)}>×</button></header><LoanActivityPanel expanded loan={activityLoan}/></section></div>}
     {paymentDraft && <div className="modal-backdrop"><section className="modal loan-modal" role="dialog" aria-modal="true" aria-labelledby="loan-payment-title"><form onSubmit={event => {
       event.preventDefault();
@@ -61,26 +65,35 @@ export default function LoanProgressPanel({ loans, items, onChange, onDialog, re
       {paymentPreview && <div className="wide loan-payment-preview"><p>Interest: {money.format(paymentPreview.interest)} · Escrow: {money.format(paymentPreview.escrow)}</p><p>Principal deducted: {money.format(paymentPreview.principal + paymentPreview.extraPrincipal)}</p><p>New balance: <strong>{money.format(paymentPreview.remainingAmount)}</strong></p><p>Total paid: {money.format(paymentPreview.total)}. This does not add another Budget expense.</p></div>}
       {error && <p className="wide form-error" role="alert">{error}</p>}
     </div><footer><button className="secondary" type="button" onClick={() => { setPaymentDraft(null); onDialog(false); }}>Cancel</button><button className="primary" type="submit" disabled={!paymentPreview}>Confirm payment</button></footer></form></section></div>}
-    {draft && <div className="modal-backdrop"><section className="modal loan-modal" role="dialog" aria-modal="true" aria-labelledby="loan-dialog-title"><form onSubmit={event => {
+    {draft && <div className="modal-backdrop"><section className="modal loan-modal" role="dialog" aria-modal="true" aria-labelledby="loan-dialog-title"><form noValidate onSubmit={event => {
       event.preventDefault();
       if (readOnly) return;
+      const errors = loanEntryErrors(draft);
+      setFieldErrors(errors);
+      const first = Object.keys(errors)[0];
+      if (first) { (event.currentTarget.elements.namedItem(first) as HTMLElement | null)?.focus(); return; }
       const existing = loans.find(loan => loan.id === draft.id);
+      if (sourceLoan && JSON.stringify(existing) !== JSON.stringify(sourceLoan)) { setError('This loan changed. Reopen it to review the latest balance.'); return; }
+      const cents = (value: number) => Math.round((value + Number.EPSILON) * 100) / 100;
+      const normalized = { ...draft, originalAmount: cents(draft.originalAmount), remainingAmount: cents(draft.remainingAmount), ...(draft.escrow === undefined ? {} : { escrow: cents(draft.escrow) }) };
       const changed = !existing || existing.remainingAmount !== draft.remainingAmount || existing.asOf !== draft.asOf || existing.balanceKind !== draft.balanceKind;
-      const saved = { ...draft, name: draft.name.trim(), history: changed ? [...draft.history, { date: draft.asOf, amount: draft.remainingAmount, balanceKind: draft.balanceKind, recordedAt: new Date().toISOString() }] : draft.history };
+      const saved = { ...normalized, name: draft.name.trim(), history: changed ? [...draft.history, { date: draft.asOf, amount: normalized.remainingAmount, balanceKind: draft.balanceKind, recordedAt: new Date().toISOString() }] : draft.history };
       onChange(existing ? loans.map(loan => loan.id === saved.id ? saved : loan) : [...loans, saved]); close();
     }}><header><h2 id="loan-dialog-title">Loan progress</h2><button type="button" aria-label="Close loan form" onClick={close}>×</button></header>
       <div className="form-grid">
-        <label className="wide">Loan name<input required maxLength={100} value={draft.name} onChange={e => setDraft({ ...draft, name: e.target.value })}/></label>
+        <label className="wide">Loan name<input autoFocus name="name" aria-label="Loan name" aria-describedby={fieldErrors.name ? "loan-error-name" : undefined} aria-invalid={Boolean(fieldErrors.name)} required maxLength={100} value={draft.name} onChange={e => setDraft({ ...draft, name: e.target.value })}/>{fieldErrors.name && <small className="form-error" id="loan-error-name">{fieldErrors.name}</small>}</label>
         <label>Loan category<select value={draft.kind} onChange={e => setDraft({ ...draft, kind: e.target.value as LoanTracker['kind'] })}><option value="house">House</option><option value="car">Car</option></select></label>
-        <label>Original loan amount<input type="number" required min="0.01" step="0.01" value={draft.originalAmount || ''} onChange={e => setDraft({ ...draft, originalAmount: Number(e.target.value) })}/></label>
-        <label>Remaining amount<input type="number" required min="0" step="0.01" value={draft.remainingAmount} onChange={e => setDraft({ ...draft, remainingAmount: Number(e.target.value) })}/></label>
+        <label>Original loan amount<input name="originalAmount" aria-label="Original loan amount" aria-describedby={fieldErrors.originalAmount ? "loan-error-originalAmount" : undefined} aria-invalid={Boolean(fieldErrors.originalAmount)} type="number" required min="0.01" step="0.01" value={draft.originalAmount || ''} onChange={e => setDraft({ ...draft, originalAmount: Number(e.target.value) })}/>{fieldErrors.originalAmount && <small className="form-error" id="loan-error-originalAmount">{fieldErrors.originalAmount}</small>}</label>
+        <label>Remaining amount<input name="remainingAmount" aria-label="Remaining amount" aria-describedby={fieldErrors.remainingAmount ? "loan-error-remainingAmount" : undefined} aria-invalid={Boolean(fieldErrors.remainingAmount)} type="number" required min="0" step="0.01" value={Number.isFinite(draft.remainingAmount) ? draft.remainingAmount : ''} onChange={e => setDraft({ ...draft, remainingAmount: e.target.value === '' ? Number.NaN : Number(e.target.value) })}/>{fieldErrors.remainingAmount && <small className="form-error" id="loan-error-remainingAmount">{fieldErrors.remainingAmount}</small>}</label>
         <label>Balance type<select value={draft.balanceKind} onChange={e => setDraft({ ...draft, balanceKind: e.target.value as LoanTracker['balanceKind'] })}><option value="principal">Principal balance</option><option value="payoff">Payoff quote</option></select></label>
-        <label>Balance date<input type="date" required max={householdDate()} value={draft.asOf} onChange={e => setDraft({ ...draft, asOf: e.target.value })}/></label>
-        <label>Annual interest rate (%)<input type="number" min="0" max="100" step="0.001" value={draft.apr ?? ''} onChange={e => setDraft({ ...draft, apr: e.target.value === '' ? undefined : Number(e.target.value) })}/></label>
-        <label>Monthly escrow<input type="number" min="0" step="0.01" value={draft.escrow ?? ''} onChange={e => setDraft({ ...draft, escrow: e.target.value === '' ? undefined : Number(e.target.value) })}/></label>
-        {draft.kind === 'house' && <button className="secondary wide" type="button" onClick={() => setDraft({ ...draft, apr: 3.625, escrow: 618.37, principalAndInterest: 1592.53 })}>Use Pennymac terms · 3.625% APR · $618.37 escrow</button>}
-        <label className="wide">Monthly payment from Budget<select required value={linkedLoanPayment(draft, items)?.id ?? ''} onChange={e => { const item = expenses.find(item => item.id === e.target.value); if (item) setDraft({ ...draft, budgetItemId: item.id, budgetItemName: item.name }); }}><option value="">Select budget bill</option>{expenses.map(item => <option value={item.id} key={item.id}>{item.name} · {money.format(item.amount)}</option>)}</select></label>
-      </div><footer><button className="secondary" type="button" onClick={close}>Cancel</button><button className="primary" type="submit" disabled={!draft.name.trim()}>Save loan</button></footer>
+        <label>Balance date<input name="asOf" aria-label="Balance date" aria-describedby={fieldErrors.asOf ? "loan-error-asOf" : undefined} aria-invalid={Boolean(fieldErrors.asOf)} type="date" required max={householdDate()} value={draft.asOf} onChange={e => setDraft({ ...draft, asOf: e.target.value })}/>{fieldErrors.asOf && <small className="form-error" id="loan-error-asOf">{fieldErrors.asOf}</small>}</label>
+        <label>Annual interest rate (%)<input name="apr" aria-label="Annual interest rate (%)" aria-describedby={fieldErrors.apr ? "loan-error-apr" : undefined} aria-invalid={Boolean(fieldErrors.apr)} type="number" min="0" max="100" step="0.001" value={draft.apr ?? ''} onChange={e => setDraft({ ...draft, apr: e.target.value === '' ? undefined : Number(e.target.value) })}/>{fieldErrors.apr && <small className="form-error" id="loan-error-apr">{fieldErrors.apr}</small>}</label>
+        <label>Monthly escrow<input name="escrow" aria-label="Monthly escrow" aria-describedby={fieldErrors.escrow ? "loan-error-escrow" : undefined} aria-invalid={Boolean(fieldErrors.escrow)} type="number" min="0" step="0.01" value={draft.escrow ?? ''} onChange={e => setDraft({ ...draft, escrow: e.target.value === '' ? undefined : Number(e.target.value) })}/>{fieldErrors.escrow && <small className="form-error" id="loan-error-escrow">{fieldErrors.escrow}</small>}</label>
+
+        <label className="wide">Monthly payment from Budget (optional)<select value={linkedLoanPayment(draft, items)?.id ?? ''} onChange={e => { const item = expenses.find(item => item.id === e.target.value); setDraft({ ...draft, budgetItemId: item?.id ?? '', budgetItemName: item?.name ?? '' }); }}><option value="">No Budget link</option>{expenses.map(item => <option value={item.id} key={item.id}>{item.name} · {money.format(item.amount)}</option>)}</select></label>
+        {Object.keys(fieldErrors).length > 0 && <div className="wide form-error" role="alert">Check the highlighted fields.</div>}
+        {error && <p className="wide form-error" role="alert">{error}</p>}
+      </div><footer><button className="secondary" type="button" onClick={close}>Cancel</button><button className="primary" type="submit" disabled={readOnly}>Save loan</button></footer>
     </form></section></div>}
   </section>;
 }

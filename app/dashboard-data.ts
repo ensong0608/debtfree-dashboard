@@ -885,7 +885,9 @@ function validateMonthlyPlan(value: unknown, path: string, issues: string[]) {
       const p = path + ".loanTrackers[" + i + "]";
       const loan = requiredRecord(raw, p, issues);
       if (!loan) return;
-      for (const key of ["id", "name", "budgetItemId", "budgetItemName"]) requiredString(loan[key], p + "." + key, issues);
+      for (const key of ["id", "name"]) requiredString(loan[key], p + "." + key, issues);
+      for (const key of ["budgetItemId", "budgetItemName"]) requiredString(loan[key], p + "." + key, issues, true);
+      if (typeof loan.budgetItemId === "string" && typeof loan.budgetItemName === "string" && Boolean(loan.budgetItemId.trim()) !== Boolean(loan.budgetItemName.trim())) issues.push(p + ".budgetItemId and budgetItemName must both be set or both be empty.");
       if (typeof loan.id === "string") { if (ids.has(loan.id)) issues.push(p + ".id is duplicated."); ids.add(loan.id); }
       enumValue(loan.kind, new Set(["house", "car"]), p + ".kind", issues);
       enumValue(loan.balanceKind, new Set(["principal", "payoff"]), p + ".balanceKind", issues);

@@ -16,7 +16,8 @@ test('loans persist, use Budget payments, and do not change existing debt balanc
   await dialog.getByLabel('Original loan amount').fill('100000');
   await dialog.getByLabel('Remaining amount').fill('80000');
   await dialog.getByLabel('Monthly payment from Budget').selectOption('home-bill');
-  await dialog.getByRole('button', { name:/Use Pennymac terms/ }).click();
+  await dialog.getByLabel('Annual interest rate (%)').fill('3.625');
+  await dialog.getByLabel('Monthly escrow').fill('618.37');
   await dialog.getByRole('button', { name:'Save loan' }).click();
   const card = page.getByRole('article', { name:'Home loan progress' });
   await expect(card).toContainText('20.00% paid down');

@@ -6,7 +6,7 @@ const account={id:"card",name:"Citi1",balance:1000,baselineBalance:1000,balanceO
 const transaction=(id,type,amount,extra={})=>({id,accountId:"card",date:"2026-10-05",createdAt:"2026-10-05T12:00:00",type,amount,payeeName:"Card",memo:"",category:"Debt payment",...extra});
 const adjustment={id:"adjustment",accountId:"card",date:"2026-10-06",createdAt:"2026-10-06T12:00:00",difference:-150,balanceBefore:900,balanceAfter:750};
 test("six months include empty months and rollover across years",()=>{
- assert.deepEqual(recentDebtMonths(new Date("2026-02-01T12:00:00")),["2026-02","2026-01","2025-12","2025-11","2025-10","2025-09"]);
+ assert.deepEqual(recentDebtMonths(new Date("2026-02-01T12:00:00-08:00")),["2026-02","2026-01","2025-12","2025-11","2025-10","2025-09"]);
 });
 test("counts two payments and confirmed updates once, retaining increases and manual reductions",()=>{
  const transactions=[transaction("p1","payment",100),transaction("p2","payment",200),transaction("interest","fee",30),transaction("deleted","payment",500,{deletedAt:"2026-10-06"}),transaction("old","payment",40,{date:"2026-03-01"})];
