@@ -1,7 +1,7 @@
 name: Deploy Cloudflare dashboard
 on:
   push:
-    branches: [codex/supabase-google-login, codex/mobile-payments-budget]
+    branches: [codex/supabase-google-login, codex/mobile-payments-budget, codex/production-release-20261015]
     paths: [.github/workflows/deploy-cloudflare.yml, "app/**", "tests/**"]
   workflow_dispatch:
 permissions:
@@ -46,6 +46,19 @@ jobs:
           console.log('Current production deployment IDs: ' + deploymentState.deployments.map(d => d.id).join(', '));
           console.log('Confirmed existing production Worker and D1. No database migration is needed.');
           NODE
+      - name: Prepare immediate pre-release encrypted recovery copy
+        if: github.ref == 'refs/heads/codex/production-release-20261015'
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+        run: node scripts/prepare-production-backup.mjs
+      - uses: actions/upload-artifact@v4
+        if: github.ref == 'refs/heads/codex/production-release-20261015'
+        with:
+          name: encrypted-production-recovery
+          path: outputs/private-release/production-backup.encrypted.json
+          retention-days: 7
+          if-no-files-found: error
       - name: Configure production authentication
         run: |
           node --input-type=module <<'NODE'
@@ -65,16 +78,34 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
         run: npm run deploy
+      - name: Verify stored production rows unchanged
+        if: github.ref == 'refs/heads/codex/production-release-20261015'
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+        run: node scripts/production-preservation.mjs
       - name: Check Google login and protected household data
         run: |
           node --input-type=module <<'NODE'
           const origin = 'https://debtfree-dashboard.ensong0608.workers.dev';
-          const response = await fetch(origin + '/', { redirect: 'manual' });
-          const location = response.headers.get('location') ?? '';
-          if (![302,303,307].includes(response.status) || new URL(location, origin).pathname !== '/auth/login') throw new Error('Expected application login redirect; HTTP ' + response.status);
-          const login = await fetch(origin + '/auth/login');
-          if (!login.ok || !(await login.text()).includes('Sign in with Google')) throw new Error('Google login is unavailable');
-          const data = await fetch(origin + '/api/household', { redirect: 'manual' });
-          if (![401,403].includes(data.status)) throw new Error('Unauthenticated household data must be denied');
+          let ready=false;
+          for(let attempt=0;attempt<6;attempt++) {
+            try {
+              const response=await fetch(origin+'/',{redirect:'manual',signal:AbortSignal.timeout(5000)});
+              const location=response.headers.get('location')??'';
+              const login=await fetch(origin+'/auth/login',{signal:AbortSignal.timeout(5000)});
+              ready=[302,303,307].includes(response.status) && new URL(location,origin).pathname==='/auth/login' && login.ok && (await login.text()).includes('Sign in with Google');
+            } catch { /* bounded propagation/network readiness */ }
+            if(ready) break;
+            if(attempt<5) await new Promise(resolve=>setTimeout(resolve,3000));
+          }
+          if(!ready) throw new Error('Production Google login did not become ready');
+          for(const path of ['/api/household','/api/household/export']) {
+            const data=await fetch(origin+path,{redirect:'manual',signal:AbortSignal.timeout(10000)});
+            if(![401,403].includes(data.status)) throw new Error('Unauthenticated household data must be denied');
+          }
+          const signin=await fetch(origin+'/auth/google',{method:'POST',headers:{Origin:origin},redirect:'manual',signal:AbortSignal.timeout(10000)});
+          const authorization=new URL(signin.headers.get('location')??'/',origin);
+          if(signin.status!==303 || authorization.origin!=='https://acpderotiyoecmwwyfsu.supabase.co' || authorization.pathname!=='/auth/v1/authorize' || authorization.searchParams.get('provider')!=='google' || authorization.searchParams.get('prompt')!=='select_account' || authorization.searchParams.get('redirect_to')!==origin+'/auth/callback' || authorization.searchParams.get('code_challenge_method')!=='s256' || !authorization.searchParams.get('code_challenge')) throw new Error('Production Google account-choice/PKCE/callback configuration failed');
           console.log('Production Google login responds; household data requires authentication.');
           NODE

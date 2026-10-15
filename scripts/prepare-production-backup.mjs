@@ -5,6 +5,7 @@ import { join, resolve } from 'node:path';
 import { createCipheriv, randomBytes, publicEncrypt, constants, createHash } from 'node:crypto';
 import { parseDashboardContract } from '../app/dashboard-data.ts';
 import { inspectReleaseResources } from './inspect-release-resources.mjs';
+import { fingerprintRows } from './production-preservation.mjs';
 import { PREVIEW_ACCOUNT } from './provision-preview-isolation.mjs';
 
 // Read-only production export. No migrations, imports, financial writes or deploy.
@@ -63,6 +64,7 @@ print(json.dumps(rows))
   const encrypted=Buffer.concat([cipher.update(envelope),cipher.final()]);
   const wrapped=publicEncrypt({key:await readFile('config/recovery-release-20261015.pub.pem'),padding:constants.RSA_PKCS1_OAEP_PADDING,oaepHash:'sha256'},key);
   await mkdir('outputs/private-release',{recursive:true});
+  await writeFile('outputs/private-release/state-fingerprints.json',JSON.stringify(fingerprintRows(rows)));
   await writeFile('outputs/private-release/production-backup.encrypted.json',JSON.stringify({format:'debtfree-release-backup-v1',algorithm:'RSA-OAEP-SHA256+AES-256-GCM',key:wrapped.toString('base64'),iv:iv.toString('base64'),tag:cipher.getAuthTag().toString('base64'),ciphertext:encrypted.toString('base64')}));
   key.fill(0); envelope.fill(0);
   console.log('Production full SQL export restored privately in SQLite; integrity, foreign keys, all stored contracts and original Progress snapshots passed. Encrypted backup prepared. No production writes or financial payloads logged.');
