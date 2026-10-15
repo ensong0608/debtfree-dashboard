@@ -1,3 +1,4 @@
+# Approved private production release: back up and verify stored rows before reporting success.
 name: Deploy Cloudflare dashboard
 on:
   push:
