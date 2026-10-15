@@ -109,7 +109,7 @@ test("Phases 11 through 16 remain explicit in the source and responsive UI", asy
   ]);
   ["householdId?: string", "memberId?: string", "createdBy?: string", "updatedBy?: string"].forEach((field) => assert.ok(contract.includes(field), `Missing ownership field: ${field}`));
   ["loadHousehold", "saveHousehold", "exportData", "importData", "resetHousehold"].forEach((method) => assert.ok(repository.includes(method), `Missing repository method: ${method}`));
-  assert.match(client, /createBrowserDataRepository\(hasMeaningfulData\)/);
+  assert.match(client, /createBrowserDataRepository\(hasMeaningfulData,/);
   assert.doesNotMatch(client, /localStorage\.(getItem|setItem)\(STORAGE_/);
   ["Debts", "Monthly records", "Transactions", "Snapshots", "Import version", "Replace current data", "Merge with current data", "Clearing browser data may remove", "Type RESET to confirm"].forEach((label) => assert.ok(safety.includes(label), `Missing data-safety UI: ${label}`));
   assert.match(client, /const plan = useMemo\(\(\) => calculatePlan/);

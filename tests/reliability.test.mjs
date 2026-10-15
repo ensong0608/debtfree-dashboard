@@ -51,11 +51,11 @@ test("signed correction reconciles below posted charges and survives export", ()
 test("recorded payoff preserves commitment and current payments are not requested twice", () => {
   const a = account({ balance: 100 }); const b = account({ id: "b", balance: 1000 });
   const payments = [payment()]; const adjusted = transactionAdjustedAccounts([a,b], payments);
-  const plan = calculatePlan(adjusted, 100, "avalanche", {}, {}, new Date(2026,8,13), {}, paymentContext(payments, "2026-09", 300));
+  const plan = calculatePlan(adjusted, 100, "avalanche", {}, {}, new Date("2026-09-13T19:00:00Z"), {}, paymentContext(payments, "2026-09", 300));
   assert.equal(plan.monthly, 300); assert.equal(plan.months[0].paid, 200); assert.equal(plan.months[1].paid, 300);
   const solo = account(); const current = transactionAdjustedAccounts([solo], payments);
-  const soloPlan = calculatePlan(current, 0, "avalanche", {}, {}, new Date(2026,8,13), {}, paymentContext(payments, "2026-09", 100));
-  const home = buildHomeDashboard({ accounts: current, openingAccounts: [solo], plan: soloPlan, extra: 0, strategy: "avalanche", planning: createEmptyPlannedPayoff(), snapshots: [], transactions: payments, calculationDate: new Date(2026,8,13) });
+  const soloPlan = calculatePlan(current, 0, "avalanche", {}, {}, new Date("2026-09-13T19:00:00Z"), {}, paymentContext(payments, "2026-09", 100));
+  const home = buildHomeDashboard({ accounts: current, openingAccounts: [solo], plan: soloPlan, extra: 0, strategy: "avalanche", planning: createEmptyPlannedPayoff(), snapshots: [], transactions: payments, calculationDate: new Date("2026-09-13T19:00:00Z") });
   assert.equal(home.nextPayment, null); assert.equal(soloPlan.months[0].paid, 0); assert.equal(soloPlan.stalled, false);
 });
 
@@ -78,9 +78,9 @@ test("imports reject duplicate identities and impossible calendar dates", () => 
 
 test("promo rate switches after its exact inclusive expiration day", () => {
   const a = account({ promoEndDate: "2026-09-13", postPromoApr: 30 });
-  assert.equal(forecastApr(a, 1, new Date(2026,8,12)), 0);
-  assert.equal(forecastApr(a, 1, new Date(2026,8,13)), 0);
-  assert.equal(forecastApr(a, 1, new Date(2026,8,14)), 30);
+  assert.equal(forecastApr(a, 1, new Date("2026-09-12T19:00:00Z")), 0);
+  assert.equal(forecastApr(a, 1, new Date("2026-09-13T19:00:00Z")), 0);
+  assert.equal(forecastApr(a, 1, new Date("2026-09-14T19:00:00Z")), 30);
 });
 
 test("onboarding seeds income, expenses and buffer without replacing existing months", () => {
@@ -148,7 +148,7 @@ test("historical minimum targets survive payoff and current minimum changes", ()
 });
 
 test("saved first-month minimum does not shrink after a partial payment", () => {
-  const plan = calculatePlan([account({ balance: 950, minimum: 100 })], 0, "avalanche", {}, {}, new Date(2026,8,14), {}, { monthlyCommitment: 100, paid: { a: 50 }, minimumPaid: { a: 50 }, minimumTargets: { a: 100 } });
+  const plan = calculatePlan([account({ balance: 950, minimum: 100 })], 0, "avalanche", {}, {}, new Date("2026-09-14T19:00:00Z"), {}, { monthlyCommitment: 100, paid: { a: 50 }, minimumPaid: { a: 50 }, minimumTargets: { a: 100 } });
   assert.equal(plan.months[0].payments.a, 50);
   assert.equal(plan.months[1].payments.a, 100);
 });
@@ -172,7 +172,7 @@ test("already-paid records update spending and minimums without mutating the led
  assert.equal(calculateMonthlyPlan([],[],"2026-09",{safetyBuffer:0,debtPaymentTarget:100,settlements:entries},true).spent,500);
  assert.equal(spentForPlannedItem("rent",reports,"2026-09",true),500);
  assert.equal(spentForPlannedItem("rent",reports,"2026-10",true),0);
- const plan=calculatePlan([account()],0,"avalanche",{},{},new Date(2026,8,14),{},paymentContext(reports,"2026-09",100));
+ const plan=calculatePlan([account()],0,"avalanche",{},{},new Date("2026-09-14T19:00:00Z"),{},paymentContext(reports,"2026-09",100));
  assert.equal(plan.months[0].payments.a ?? 0,0);
  assert.equal(plan.months[1].payments.a,100);
  assert.equal(debtPaymentProgress([account()],{a:100},reports,"2026-09",{a:100})[0].remaining,0);

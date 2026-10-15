@@ -1,3 +1,4 @@
+import { householdDate } from "./household-date.ts";
 import { postedMovement } from "./payment-overlap.ts";
 import type { DebtAccount, LedgerTransaction, PayoffSnapshot } from "./dashboard-data.ts";
 import { forecastMonthKey, round, type PayoffPlan } from "./payoff-engine.ts";
@@ -28,7 +29,7 @@ type ProgressReportInput = {
 };
 
 function localMonthKey(date: Date) {
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
+  return householdDate(date).slice(0, 7);
 }
 
 function monthIndex(month: string) {

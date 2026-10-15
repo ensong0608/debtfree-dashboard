@@ -768,7 +768,7 @@ textarea:focus-visible{outline:3px solid rgba(22,119,255,.22);outline-offset:2px
 .invite-admin select { min-width:0; height:41px; padding:0 10px; border:1px solid var(--line); border-radius:9px; background:white; color:var(--ink); font-size:12px; }
 @media(max-width:700px){.viewer-notice{align-items:flex-start;flex-direction:column;gap:3px}.invite-admin label>div{grid-template-columns:1fr}.invite-admin button{min-height:44px}}
 /* Guided payoff-plan onboarding */
-.onboarding-shell{min-height:100dvh;overflow-x:hidden;overflow-y:auto;padding:28px;background:radial-gradient(circle at 12% 8%,#e8f6ff 0,transparent 32%),linear-gradient(145deg,#f7fafc,#eef5f8);color:var(--ink)}
+.onboarding-shell{height:100dvh;min-height:0;overflow-x:hidden;overflow-y:auto;scroll-padding:16px;padding:28px;background:radial-gradient(circle at 12% 8%,#e8f6ff 0,transparent 32%),linear-gradient(145deg,#f7fafc,#eef5f8);color:var(--ink)}
 .onboarding-brand{width:min(1100px,100%);display:flex;align-items:center;gap:10px;margin:0 auto 18px}.onboarding-brand>span,.onboarding-loading span{width:40px;height:40px;display:grid;place-items:center;border-radius:12px;background:var(--blue);color:white;font-size:12px;font-weight:900}.onboarding-brand strong,.onboarding-brand small{display:block}.onboarding-brand strong{font-size:14px}.onboarding-brand small{margin-top:2px;color:var(--muted);font-size:10px}
 .onboarding-card{width:min(1100px,100%);min-width:0;margin:auto;overflow:hidden;border:1px solid #d4e1e9;border-radius:22px;background:white;box-shadow:0 24px 70px rgba(27,55,76,.13)}
 .onboarding-progress{display:flex;align-items:center;justify-content:space-between;gap:20px;padding:18px 28px;border-bottom:1px solid var(--line);background:#fbfcfe}.onboarding-progress>span{color:var(--blue);font-size:11px;font-weight:850;text-transform:uppercase;letter-spacing:.08em}.onboarding-progress ol{display:flex;align-items:center;gap:0;margin:0;padding:0;list-style:none}.onboarding-progress li{position:relative;width:54px;color:#9ba7b6;font-size:10px;font-weight:850;text-align:center}.onboarding-progress li:before{position:absolute;top:50%;right:34px;left:-20px;height:2px;background:#dfe6ec;content:""}.onboarding-progress li:first-child:before{display:none}.onboarding-progress li i{position:relative;z-index:1;width:20px;height:20px;display:block;margin:auto;border:2px solid #d6dfe7;border-radius:50%;background:white}.onboarding-progress li.active{color:var(--blue)}.onboarding-progress li.active:before,.onboarding-progress li.active i{border-color:var(--blue);background:var(--blue)}.onboarding-progress li.active i:after{position:absolute;inset:5px;border-radius:50%;background:white;content:""}
@@ -2045,3 +2045,34 @@ button:focus-visible,summary:focus-visible,input:focus-visible,select:focus-visi
 .plan-screen>.plan-commitment{display:grid;grid-template-columns:minmax(0,1fr) auto;column-gap:12px;align-items:start}
 .plan-commitment>span,.plan-commitment>strong,.plan-commitment>p{grid-column:1;min-width:0;overflow-wrap:anywhere}
 .plan-commitment>.edit-saved-plan{grid-column:2;grid-row:1/4;min-height:44px;border:1px solid #a6afba;border-radius:8px;padding:8px 12px;background:white;font-size:13px;align-self:start}
+
+/* Every mobile form uses the available screen, including the keyboard viewport. */
+@media(max-width:700px){
+ .modal-backdrop:has(>.modal){top:var(--dialog-viewport-top,0px);bottom:auto;height:var(--dialog-viewport-height,100dvh);padding:0;place-items:stretch}
+ .modal-backdrop>.modal{width:100%;max-width:none;height:100%;max-height:100%;margin:0;border:0;border-radius:0;overscroll-behavior:contain;scroll-padding:16px}
+ .modal-backdrop>.modal>header{padding-top:calc(16px + env(safe-area-inset-top))}
+ .modal-backdrop>.modal>header>button{width:44px;height:44px}
+ .modal-backdrop>.modal input:not([type=radio]):not([type=checkbox]),.modal-backdrop>.modal select,.modal-backdrop>.modal textarea{font-size:16px}
+ .modal-backdrop>.modal>footer{padding-bottom:calc(12px + env(safe-area-inset-bottom))}
+}
+/* Compact persistence state stays beside account access without widening titles. */
+.page-heading{position:relative;padding-bottom:24px}
+.save-status{position:absolute;right:28px;bottom:4px;font-size:12px;line-height:16px;color:#475569}
+@media(max-width:700px){.page-heading{padding-bottom:24px}.save-status{right:16px}}
+
+@media(max-width:700px){
+ .modal-backdrop:has(.loan-modal){padding:0;place-items:stretch;top:var(--dialog-viewport-top,0px);height:var(--dialog-viewport-height,100dvh);bottom:auto}
+ .modal.loan-modal{width:100%;max-width:none;height:100%;max-height:100%;border-radius:0;display:flex;flex-direction:column;overflow:hidden}
+ .loan-modal>form{display:flex;flex-direction:column;min-height:0;height:100%}
+ .loan-modal form>header,.loan-modal form>footer{flex:none}
+ .loan-modal form>.form-grid{flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain;scroll-padding:16px}
+ .loan-modal form>footer{padding-bottom:calc(16px + env(safe-area-inset-bottom))}
+ .loan-modal form>footer button{min-height:48px}
+}
+.loan-modal [aria-invalid="true"]{border-color:#b42318;outline-color:#b42318}
+.loan-modal label>.form-error{display:block;margin-top:4px}
+/* Let enlarged text reflow without moving the primary controls off-screen. */
+.page-heading h1,.plan-purpose,.allocation-card header h3{min-width:0;overflow-wrap:anywhere}
+.debt-total-summary strong,.compact-debt-identity .simple-balance,.compact-debt-meta dd,.actual-progress-summary dd{overflow-wrap:anywhere}
+.sidebar .nav-item span{overflow-wrap:anywhere}
+.loan-modal form>header>button{min-width:44px;min-height:44px;flex:none}

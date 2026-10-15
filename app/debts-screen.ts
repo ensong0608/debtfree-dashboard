@@ -163,6 +163,7 @@ export type BalanceAdjustmentInput = {
   storedAccount: DebtAccount;
   currentBalance: number;
   nextBalance: number;
+  transactions?: LedgerTransaction[];
   date: string;
   note?: string;
   createdAt?: string;
@@ -174,17 +175,24 @@ export function createBalanceAdjustment(input: BalanceAdjustmentInput) {
   if (!Number.isFinite(input.nextBalance) || input.nextBalance < 0) {
     throw new DebtBalanceError("Current balance must be $0.00 or greater.");
   }
+  if (!Number.isFinite(input.currentBalance) || input.currentBalance < 0) throw new DebtBalanceError("Enter a valid current balance.");
+  if (cents(input.nextBalance) !== input.nextBalance || !Number.isSafeInteger(Math.round(input.nextBalance * 100))) throw new DebtBalanceError("Enter a balance with at most two decimal places.");
   const balanceBefore = cents(input.currentBalance);
   const balanceAfter = cents(input.nextBalance);
   if (!/^\d{4}-\d{2}-\d{2}$/.test(input.date) || new Date(input.date + "T12:00:00Z").toISOString().slice(0, 10) !== input.date) throw new DebtBalanceError("Enter a valid balance effective date.");
+  if (input.storedAccount.reconciliation && input.date < input.storedAccount.reconciliation.date) throw new DebtBalanceError("Use a date on or after the latest lender balance.");
   const createdAt = input.createdAt ?? new Date().toISOString();
+  const adjustmentId = input.id ?? crypto.randomUUID();
+  const offset = cents((input.storedAccount.balanceOffset ?? 0) + balanceAfter - balanceBefore);
   const account = {
     ...input.storedAccount,
+    reconciliation: { adjustmentId, accountId: input.storedAccount.id, balance: balanceAfter, date: input.date, createdAt, offset, ...(input.transactions ? { coveredTransactionIds: input.transactions.filter(t => t.accountId === input.storedAccount.id).map(t => t.id) } : {}), ...(input.storedAccount.reconciliation ? { previousAdjustmentId: input.storedAccount.reconciliation.adjustmentId } : {}) },
     baselineBalance: input.storedAccount.baselineBalance ?? input.storedAccount.balance,
     balanceOffset: cents((input.storedAccount.balanceOffset ?? 0) + balanceAfter - balanceBefore),
   };
   const adjustment: BalanceAdjustment = {
-    id: input.id ?? crypto.randomUUID(),
+    id: adjustmentId,
+    reconciliationAnchor: account.reconciliation,
     accountId: input.storedAccount.id,
     date: input.date,
     balanceBefore,

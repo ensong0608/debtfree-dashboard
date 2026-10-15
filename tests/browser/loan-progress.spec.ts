@@ -10,13 +10,16 @@ test('loans persist, use Budget payments, and do not change existing debt balanc
   await page.locator('input[type="file"]').setInputFiles({ name:'loan-fixture.json', mimeType:'application/json', buffer:Buffer.from(JSON.stringify(fixture)) });
   const before = await page.locator('.simple-total>strong').innerText();
   await page.getByRole('tab',{name:'House & car',exact:true}).click();
-  await page.getByRole('button', { name:'+ Track loan', exact:true }).click();
+  await expect(page.getByRole('button', { name:'+ Track loan', exact:true })).toHaveCount(0);
+  await page.getByRole('button', { name:'Debt +', exact:true }).click();
+  await page.getByLabel('Debt type').selectOption({label:'House loan'});
   const dialog = page.getByRole('dialog', { name:'Loan progress' });
   await dialog.getByLabel('Loan name', { exact:true }).fill('Home');
   await dialog.getByLabel('Original loan amount').fill('100000');
   await dialog.getByLabel('Remaining amount').fill('80000');
   await dialog.getByLabel('Monthly payment from Budget').selectOption('home-bill');
-  await dialog.getByRole('button', { name:/Use Pennymac terms/ }).click();
+  await dialog.getByLabel('Annual interest rate (%)').fill('3.625');
+  await dialog.getByLabel('Monthly escrow').fill('618.37');
   await dialog.getByRole('button', { name:'Save loan' }).click();
   const card = page.getByRole('article', { name:'Home loan progress' });
   await expect(card).toContainText('20.00% paid down');

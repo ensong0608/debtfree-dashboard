@@ -36,15 +36,19 @@ function readContract(storage: StorageAdapter, key: string, label: string) {
 export function createBrowserDataRepository(
   isMeaningful: (payload: DashboardPayload) => boolean,
   storageFactory: () => StorageAdapter = () => window.localStorage,
+  scope?: string,
 ): DataRepository {
+  // Legacy device-only storage is retained for explicit recovery. Signed-in
+  // users never read or adopt another identity's unscoped browser cache.
+  const key = (base: string) => scope ? base + ":" + encodeURIComponent(scope) : base;
   return {
     async loadHousehold() {
       const storage = storageFactory();
       let primary: DashboardBackup | null = null;
       let backup: DashboardBackup | null = null;
-      try { primary = readContract(storage, DASHBOARD_STORAGE_KEY, "Saved dashboard"); }
+      try { primary = readContract(storage, key(DASHBOARD_STORAGE_KEY), "Saved dashboard"); }
       catch { /* A damaged primary can be recovered from the automatic backup. */ }
-      try { backup = readContract(storage, DASHBOARD_BACKUP_STORAGE_KEY, "Saved dashboard backup"); }
+      try { backup = readContract(storage, key(DASHBOARD_BACKUP_STORAGE_KEY), "Saved dashboard backup"); }
       catch { /* A damaged backup should not block a valid primary. */ }
       if (primary) return { contract: primary, recoveredFromBackup: false };
       if (backup && isMeaningful(backup.payload)) return { contract: backup, recoveredFromBackup: true };
@@ -55,20 +59,20 @@ export function createBrowserDataRepository(
       const storage = storageFactory();
       const serialized = serializeDashboardBackup(data);
       try {
-        const previous = readContract(storage, DASHBOARD_STORAGE_KEY, "Saved dashboard");
+        const previous = readContract(storage, key(DASHBOARD_STORAGE_KEY), "Saved dashboard");
         const previousSerialized = previous ? serializeDashboardBackup(previous) : null;
         if (previous && previousSerialized !== null && JSON.stringify(previous.payload) !== JSON.stringify(data.payload) && isMeaningful(previous.payload)) {
-          storage.setItem(DASHBOARD_BACKUP_STORAGE_KEY, previousSerialized);
+          storage.setItem(key(DASHBOARD_BACKUP_STORAGE_KEY), previousSerialized);
         }
       } catch { /* A damaged previous draft should not block the current safe save. */ }
-      storage.setItem(DASHBOARD_STORAGE_KEY, serialized);
+      storage.setItem(key(DASHBOARD_STORAGE_KEY), serialized);
     },
 
     async checkpoint(data) {
-      storageFactory().setItem(DASHBOARD_CHECKPOINT_STORAGE_KEY, serializeDashboardBackup(data));
+      storageFactory().setItem(key(DASHBOARD_CHECKPOINT_STORAGE_KEY), serializeDashboardBackup(data));
     },
     async loadCheckpoint() {
-      return readContract(storageFactory(), DASHBOARD_CHECKPOINT_STORAGE_KEY, "Recovery checkpoint");
+      return readContract(storageFactory(), key(DASHBOARD_CHECKPOINT_STORAGE_KEY), "Recovery checkpoint");
     },
 
     async exportData(data) {
@@ -81,9 +85,9 @@ export function createBrowserDataRepository(
 
     async resetHousehold() {
       const storage = storageFactory();
-      storage.removeItem(DASHBOARD_STORAGE_KEY);
-      storage.removeItem(DASHBOARD_BACKUP_STORAGE_KEY);
-      storage.removeItem(DASHBOARD_CHECKPOINT_STORAGE_KEY);
+      storage.removeItem(key(DASHBOARD_STORAGE_KEY));
+      storage.removeItem(key(DASHBOARD_BACKUP_STORAGE_KEY));
+      storage.removeItem(key(DASHBOARD_CHECKPOINT_STORAGE_KEY));
     },
   };
 }

@@ -1,4 +1,5 @@
 import { readBoundedBody } from "@/app/request-safety";
+import { checkHouseholdSession } from "@/app/household-session-scope";
 import { householdContext, listMembers, normalizeEmail, type HouseholdRole } from "../store";
 
 export const dynamic = "force-dynamic";
@@ -9,6 +10,8 @@ const inviteRoles = new Set<HouseholdRole>(["admin", "viewer"]);
 export async function POST(request: Request) {
   const context = await householdContext();
   if (!context) return Response.json({ error: "Sign in required" }, { status: 401 });
+  const changed = checkHouseholdSession(request, context, true);
+  if (changed) return changed;
   if (context.member.role !== "owner") return Response.json({ error: "Only the household owner can add members" }, { status: 403 });
   const body = await readBoundedBody(request, 8192).then(JSON.parse).catch(() => null) as { email?: string; role?: HouseholdRole } | null;
   if (typeof body?.email !== "string") return Response.json({ error: "Enter a valid email address" }, { status: 400 });
@@ -21,7 +24,7 @@ export async function POST(request: Request) {
   if (existing && existing.household_id !== context.member.household_id) return Response.json({ error: "That email already belongs to another household" }, { status: 409 });
   const now = Date.now();
   if (existing) {
-    await context.db.prepare("UPDATE household_members SET role = ?, updated_at = ? WHERE email = ?").bind(role, now, email).run();
+    await context.db.prepare("UPDATE household_members SET role = ?, updated_at = ? WHERE household_id = ? AND email = ? AND role != 'owner'").bind(role, now, context.member.household_id, email).run();
   } else {
     await context.db.prepare("INSERT INTO household_members (email, household_id, display_name, role, status, invited_by, created_at, updated_at) VALUES (?, ?, NULL, ?, 'invited', ?, ?, ?)")
       .bind(email, context.member.household_id, role, context.user.email, now, now).run();
@@ -32,6 +35,8 @@ export async function POST(request: Request) {
 export async function DELETE(request: Request) {
   const context = await householdContext();
   if (!context) return Response.json({ error: "Sign in required" }, { status: 401 });
+  const changed = checkHouseholdSession(request, context, true);
+  if (changed) return changed;
   if (context.member.role !== "owner") return Response.json({ error: "Only the household owner can remove members" }, { status: 403 });
   const email = normalizeEmail(new URL(request.url).searchParams.get("email") ?? "");
   if (!email || email === context.user.email) return Response.json({ error: "The household owner cannot be removed" }, { status: 400 });

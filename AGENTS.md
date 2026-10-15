@@ -24,3 +24,5 @@ Cloudflare Workers is the sole production hosting target. The production Worker 
 - Keep the Progress snapshot controls and saved snapshot list directly visible. Do not hide the snapshot feature inside nested dropdowns.
 
 - Progress must preserve its first recorded starting total in `monthlyPlan.progressStartingBalance`. Later snapshots, balance edits, and removed accounts must not replace or hide that starting amount. Do not invent a starting date when none is saved.
+
+- Debt + is the single creation entry point for every debt type, including house/car loans. Do not restore the removed + Track loan control.

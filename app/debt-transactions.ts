@@ -1,7 +1,7 @@
-import type { BalanceAdjustment, DebtAccount, DebtAuditCreator, LedgerTransaction, PaymentKind } from "./dashboard-data.ts";
-import { transactionAdjustedAccounts } from "./progress-balances.ts";
+import type { BalanceAdjustment, BalanceReconciliation, DebtAccount, DebtAuditCreator, LedgerTransaction, PaymentKind } from "./dashboard-data.ts";
+import { accountLedgerBalance, transactionAdjustedAccounts } from "./progress-balances.ts";
 import { validDate } from "./interest-accrual.ts";
-import { postedMovement, validatePaymentLinks, type PaymentLink } from "./payment-overlap.ts";
+import { validatePaymentLinks, type PaymentLink } from "./payment-overlap.ts";
 import { round } from "./payoff-engine.ts";
 
 export type EntryKind = "payment" | "purchase" | "interest" | "fee" | "adjustment";
@@ -22,6 +22,19 @@ export function signedEntryDraft(original: LedgerTransaction | BalanceAdjustment
   const transaction = original && !adjustment ? original as LedgerTransaction : undefined;
   const kind: EntryKind = adjustment ? "adjustment" : signed < 0 ? "payment" : transaction?.interestEstimate || transaction?.category === "Interest" && transaction.type === "fee" ? "interest" : transaction?.type === "fee" ? "fee" : "purchase";
   return { accountId: input.accountId, title: input.title.trim(), amount: Math.abs(signed), date: input.date, note: input.note, kind, direction: signed < 0 ? "decrease" : "increase", ...(adjustment ? { confirmAsPayment: Boolean((original as BalanceAdjustment).confirmedPayment) && signed < 0 } : {}), ...(transaction?.credit === true && signed < 0 ? { credit: true } : {}), ...(transaction?.paymentKind && signed < 0 ? { paymentKind: transaction.paymentKind } : {}) };
+}
+
+function previousReconciliation(anchor: BalanceReconciliation, adjustments: BalanceAdjustment[], accountId: string): BalanceReconciliation | undefined {
+  const seen = new Set([anchor.adjustmentId]);
+  let candidate = anchor.previousAdjustmentId ? adjustments.find(a => a.id === anchor.previousAdjustmentId)?.reconciliationAnchor : anchor.previous;
+  while (candidate) {
+    if (seen.has(candidate.adjustmentId)) throw new Error("Reconciliation history contains a cycle.");
+    seen.add(candidate.adjustmentId);
+    const source = adjustments.find(a => a.id === candidate!.adjustmentId);
+    if (source && !source.deletedAt && source.accountId === accountId && (!candidate.accountId || candidate.accountId === accountId)) return candidate;
+    candidate = candidate.previousAdjustmentId ? adjustments.find(a => a.id === candidate!.previousAdjustmentId)?.reconciliationAnchor : candidate.previous;
+  }
+  return undefined;
 }
 
 /** One mutation path for both previews and commits. Adjustment offsets remain separate from ledger movements. */
@@ -48,8 +61,6 @@ export function changeDebtEntry(state: EntryState, command: EntryCommand, creato
   if (!state.accounts.some(a => a.id === accountId) || original && !state.accounts.some(a => a.id === original.accountId)) throw new Error("This debt was removed. Restore the debt from a backup before changing its balance history.");
   const before = transactionAdjustedAccounts(state.accounts, state.transactions);
   const current = before.find(a => a.id === accountId)!;
-  const oldMovement = transaction && !transaction.deletedAt ? (postedMovement(transaction)) : adjustment && !adjustment.deletedAt ? adjustment.difference : 0;
-  if (command.action === "save" && !draft!.includedIn && !transaction?.includedIn && (draft!.kind === "payment" || draft!.confirmAsPayment) && draft!.amount > current.balance - (original?.accountId === accountId ? oldMovement : 0)) throw new Error("Payment cannot exceed the available debt balance.");
   // Keep prior versions as audit metadata. None are applied as additional movements.
   const revision = original ? { ...original, revisions: undefined } : undefined;
   if (revision) delete revision.revisions;
@@ -61,13 +72,38 @@ export function changeDebtEntry(state: EntryState, command: EntryCommand, creato
     const previous = adjustment && !adjustment.deletedAt ? adjustment.difference : 0;
     const difference = command.action === "save" ? entryMovement(draft!) : adjustment!.difference;
     const applied = command.action === "delete" ? 0 : difference;
-    accounts = state.accounts.map(a => ({ ...a, balanceOffset: round((a.balanceOffset ?? 0) - (adjustment?.accountId === a.id ? previous : 0) + (a.id === accountId ? applied : 0)) }));
+    accounts = state.accounts.map(a => {
+      const delta = round(-(adjustment?.accountId === a.id ? previous : 0) + (a.id === accountId ? applied : 0));
+      if (command.action === "restore" && adjustment?.reconciliationAnchor && (!adjustment.reconciliationAnchor.accountId || adjustment.reconciliationAnchor.accountId === a.id) && adjustment.accountId === a.id && (!a.reconciliation || adjustment.createdAt >= a.reconciliation.createdAt)) return { ...a, balanceOffset: round((a.balanceOffset ?? 0) + delta), reconciliation: adjustment.reconciliationAnchor };
+      const reconciliation = a.reconciliation;
+      if (!reconciliation) return { ...a, balanceOffset: round((a.balanceOffset ?? 0) + delta) };
+      if (adjustment?.id === reconciliation.adjustmentId) {
+        return { ...a, balanceOffset: round((a.balanceOffset ?? 0) + delta), reconciliation: command.action === "delete" || command.action === "save" && accountId !== adjustment.accountId ? previousReconciliation(reconciliation, state.adjustments, a.id) : { ...reconciliation, date: command.action === "save" ? draft!.date : reconciliation.date, balance: round(reconciliation.balance + delta), offset: round(reconciliation.offset + delta) } };
+      }
+      // Corrections to activity covered by a later lender statement retain that statement's balance.
+      const covered = adjustment && (adjustment.date < reconciliation.date || adjustment.date === reconciliation.date && adjustment.createdAt <= reconciliation.createdAt);
+      return { ...a, balanceOffset: round((a.balanceOffset ?? 0) + delta), reconciliation: covered ? { ...reconciliation, offset: round(reconciliation.offset + delta) } : reconciliation };
+    });
     const after = transactionAdjustedAccounts(accounts, transactions).find(a => a.id === accountId)!;
     const updated: BalanceAdjustment = command.action === "save" ? { ...adjustment, ...audit, id: adjustment?.id ?? newId, accountId, date: draft!.date, difference, balanceBefore: current.balance, balanceAfter: after.balance, note: draft!.note.trim(), ...(draft!.title !== undefined ? { title: draft!.title.trim() } : {}), createdAt: adjustment?.createdAt ?? now, updatedAt: now, deletedAt: null, ...(creator && !adjustment ? { creator } : {}) } : { ...adjustment!, ...audit, deletedAt: command.action === "delete" ? now : null, updatedAt: now };
     if (command.action === "save" && draft!.confirmAsPayment === true && difference < 0) updated.confirmedPayment ??= { confirmedAt: now, ...(creator ? { creator } : {}) };
     if (difference >= 0 || command.action === "save" && draft!.confirmAsPayment === false) delete updated.confirmedPayment;
     if (command.action === "save") { if (draft!.reportKind) updated.reportKind = draft!.reportKind; else delete updated.reportKind; }
-    adjustments = adjustment ? state.adjustments.map(a => a.id === adjustment.id ? updated : a) : [...state.adjustments, updated];
+    // Update saved anchor offsets as well as the current account anchor. References remain linear,
+    // and returning to an older statement must continue to absorb covered history corrections.
+    adjustments = (adjustment ? state.adjustments.map(a => a.id === adjustment.id ? updated : a) : [...state.adjustments, updated]).map(entry => {
+      const anchor = entry.reconciliationAnchor;
+      if (!anchor) return entry;
+      const sourceAccountId = anchor.accountId ?? entry.accountId;
+      const delta = round(-(adjustment?.accountId === sourceAccountId ? previous : 0) + (sourceAccountId === accountId ? applied : 0));
+      if (anchor.adjustmentId === adjustment?.id) {
+        if (command.action !== "save" || accountId !== sourceAccountId) return entry;
+        return { ...entry, reconciliationAnchor: { ...anchor, date: draft!.date, balance: round(anchor.balance + delta), offset: round(anchor.offset + delta) } };
+      }
+      const covered = adjustment && (adjustment.date < anchor.date || adjustment.date === anchor.date && adjustment.createdAt <= anchor.createdAt);
+      return covered ? { ...entry, reconciliationAnchor: { ...anchor, offset: round(anchor.offset + delta) } } : entry;
+    });
+
   } else {
     const type = draft?.kind === "payment" ? "payment" : draft?.kind === "purchase" ? "charge" : "fee";
     const updated: LedgerTransaction = command.action === "save" ? { ...transaction, ...audit, id: transaction?.id ?? newId, accountId, date: draft!.date, amount: draft!.amount, type, ...(draft!.includedIn ? { includedIn: draft!.includedIn } : {}), category: draft!.kind === "interest" ? "Interest" : draft!.kind === "fee" ? "Fees" : transaction?.type === type && transaction.category !== "Interest" && transaction.category !== "Fees" ? transaction.category || (type === "payment" ? "Debt payment" : "Purchases") : type === "payment" ? "Debt payment" : "Purchases", memo: draft!.note.trim(), ...(draft!.title !== undefined ? { title: draft!.title.trim() } : {}), payeeId: transaction?.payeeId ?? "", payeeName: transaction?.payeeName ?? current.name, createdAt: transaction?.createdAt ?? now, updatedAt: now, deletedAt: null, ...(creator && !transaction ? { creator } : {}) } : { ...transaction!, ...audit, deletedAt: command.action === "delete" ? now : null, updatedAt: now };
@@ -95,8 +131,7 @@ export function changeDebtEntry(state: EntryState, command: EntryCommand, creato
   }
   validatePaymentLinks(transactions, adjustments);
   for (const account of accounts) {
-    const posted = transactions.filter(t => t.accountId === account.id && !t.deletedAt).reduce((sum,t) => sum + postedMovement(t), 0);
-    if (round(account.balance + (account.balanceOffset ?? 0) + posted) < 0) throw new Error("This change would exceed an account’s debt balance. Reconcile its lender balance before correcting or restoring this entry.");
+    if (accountLedgerBalance(account, transactions) < 0) throw new Error("This change would exceed an account’s debt balance. Reconcile its lender balance before correcting or restoring this entry.");
   }
   const after = transactionAdjustedAccounts(accounts, transactions);
   const movement = [...new Set([accountId, original?.accountId].filter((id): id is string => Boolean(id)))].map(id => ({ accountId: id, before: before.find(a => a.id === id)!.balance, after: after.find(a => a.id === id)!.balance }));

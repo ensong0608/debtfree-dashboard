@@ -32,6 +32,15 @@ export function useDialogFocus() {
       else if (returnTo?.isConnected) returnTo.focus();
     };
     const keydown = (event: KeyboardEvent) => {
+      if (current && event.key === "Escape") {
+        const close = current.querySelector<HTMLButtonElement>('header > button[aria-label^="Close"], button[data-dialog-close]');
+        if (close && !close.disabled) {
+          event.preventDefault();
+          event.stopPropagation();
+          close.click();
+        }
+        return;
+      }
       if (!current || event.key !== "Tab") return;
       const items = focusable(current);
       const index = items.indexOf(document.activeElement as HTMLElement);
@@ -45,8 +54,8 @@ export function useDialogFocus() {
       if (current && !current.contains(document.activeElement)) (focusable(current)[0] ?? current).focus(); };
     const observer = new MutationObserver(update);
     observer.observe(document.body, { childList: true, subtree: true });
-    document.addEventListener("keydown", keydown);
+    document.addEventListener("keydown", keydown, true);
     document.addEventListener("focusin", focusin);
-    return () => { observer.disconnect(); document.removeEventListener("keydown", keydown); document.removeEventListener("focusin", focusin); viewport?.removeEventListener("resize", resize); viewport?.removeEventListener("scroll", resize); document.documentElement.style.removeProperty("--dialog-viewport-top"); document.documentElement.style.removeProperty("--dialog-viewport-height"); };
+    return () => { observer.disconnect(); document.removeEventListener("keydown", keydown, true); document.removeEventListener("focusin", focusin); viewport?.removeEventListener("resize", resize); viewport?.removeEventListener("scroll", resize); document.documentElement.style.removeProperty("--dialog-viewport-top"); document.documentElement.style.removeProperty("--dialog-viewport-height"); };
   }, []);
 }

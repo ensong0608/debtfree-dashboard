@@ -105,7 +105,7 @@ export default function DataSafetyPanel(props: {
     {!props.isViewer && <div className="reset-data-row"><div><strong>Reset dashboard data</strong><p>Remove debts, plans, transactions, snapshots, and settings while keeping your account access.</p></div><button className="danger" type="button" onClick={() => setResetOpen(true)}>Reset data</button></div>}
     {resetOpen && <div className="reset-confirmation" role="dialog" aria-modal="true" aria-labelledby="reset-data-title">
       <h3 id="reset-data-title">Reset the complete dashboard?</h3>
-      <p>This clears the current dashboard and its automatic device backup. Export first if you may need this information later.</p>
+      <p>A recovery checkpoint is kept. Export first if you may need this information later.</p>
       <label><span>Type RESET to confirm</span><input value={resetText} autoComplete="off" onChange={(event) => setResetText(event.target.value)}/></label>
       <div><button className="secondary" type="button" disabled={working} onClick={() => { setResetOpen(false); setResetText(""); }}>Cancel</button><button className="danger" type="button" disabled={working || resetText !== "RESET"} onClick={() => void confirmReset()}>{working ? "Resetting..." : "Reset dashboard"}</button></div>
     </div>}

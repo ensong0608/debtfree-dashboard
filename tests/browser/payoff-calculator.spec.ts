@@ -21,6 +21,12 @@ test("calculator uses only the entered amount and preserves balances and Budget"
   await page.getByLabel("Total monthly debt payment", { exact: true }).fill("5000");
   await expect(page.locator(".plan-hero")).toContainText("4 months");
   await expect(page.locator(".plan-table tbody tr")).toHaveCount(4);
+  await expect(page.locator(".minimum-budget-hint")).toContainText("minimums are not reserved");
+  await page.getByLabel("Total monthly debt payment", { exact: true }).fill("1000");
+  await expect(page.locator(".plan-hero")).toContainText("20 months");
+  await expect(page.getByRole("button", { name: "Use this in my plan", exact: true })).toBeDisabled();
+  await expect(page.getByRole("alert")).toHaveCount(0);
+  await page.getByLabel("Total monthly debt payment", { exact: true }).fill("5000");
   await expect(page.getByRole("button", { name: "Custom", exact: true })).toHaveCount(0);
   await expect(page.getByRole("button", { name: /Show all|Show fewer/ })).toHaveCount(0);
   await expect(page.getByText("Enter a monthly amount to see how long it could take to pay off your current debts.", { exact: true })).toHaveCount(0);
@@ -42,4 +48,26 @@ test("calculator uses only the entered amount and preserves balances and Budget"
   await expect(page.getByLabel("Total monthly debt payment", { exact: true })).toHaveValue(String(fixture.extra));
   await page.getByRole("button", { name: "Debts", exact: true }).click();
   await expect(page.locator(".simple-total")).toContainText("$20,000.00");
+});
+
+
+test("long shrinking scenarios retain all months and distinguish the projection limit", async ({ page }) => {
+  const fixture = JSON.parse(readFileSync("tests/fixtures/legacy-v0.json", "utf8"));
+  fixture.accounts = [{ ...fixture.accounts[0], id:"limit-card", name:"Synthetic limit card", balance:2000, baselineBalance:2000, apr:0, interestFee:0, minimum:1, minimumMode:"manual", promoEndDate:"", postPromoApr:0 }];
+  fixture.transactions = [];
+  fixture.snapshots = [];
+  fixture.monthlyPlan = { months:{}, detailedSpendingTracking:false, calculatorAmount:1 };
+  await page.goto("/");
+  await page.locator('input[type="file"]').setInputFiles({name:"limit-test.json",mimeType:"application/json",buffer:Buffer.from(JSON.stringify(fixture))});
+  await page.getByRole("button",{name:"More",exact:true}).click();
+  await page.getByRole("button",{name:"Payoff Calculator",exact:true}).click();
+  await expect(page.locator(".plan-hero")).toContainText("Beyond 1,200 months");
+  await expect(page.locator(".plan-hero")).toContainText("Payoff exceeds the projection limit.");
+  await expect(page.locator(".plan-table tbody tr")).toHaveCount(1200);
+  await expect(page.locator(".mobile-payoff-schedule .schedule-month")).toHaveCount(1200);
+  await expect(page.locator(".plan-table tbody tr").last()).toContainText("$800.00");
+  const lastMonth = page.viewportSize()!.width < 640 ? page.locator(".mobile-payoff-schedule .schedule-month").last() : page.locator(".plan-table tbody tr").last();
+  await lastMonth.scrollIntoViewIfNeeded();
+  await expect(lastMonth).toContainText("$800.00");
+  await expect(page.getByRole("button",{name:"Use this in my plan",exact:true})).toBeDisabled();
 });
