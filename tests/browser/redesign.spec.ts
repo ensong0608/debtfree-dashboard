@@ -16,7 +16,16 @@ test('approved main tabs and secondary pages remain usable with synthetic data',
  const screenshot=async(name:string)=>{await page.locator('.page-body').evaluate(el=>{el.scrollTop=0;});await page.screenshot({path:`${output}/${info.project.name}-${name}.png`,fullPage:true});expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1)).toBe(true);const body=page.locator('.page-body');await body.evaluate(el=>{el.scrollTop=el.scrollHeight;});await page.screenshot({path:`${output}/${info.project.name}-${name}-bottom.png`});await body.evaluate(el=>{el.scrollTop=0;});};
  for(const width of info.project.name==='phone'?[360,390,430]:info.project.name==='tablet'?[768]:[1440]){
   await page.setViewportSize({width,height:900});
-  for(const name of ['Debts','Transactions','Budget','More']){await page.getByRole('button',{name,exact:true}).click();await screenshot(`${width}-${name.toLowerCase()}`);}
+  for(const name of ['Debts','Transactions','Budget','More']){await page.getByRole('button',{name,exact:true}).click();await screenshot(`${width}-${name.toLowerCase()}`);
+   if(name==='Debts') {
+    const identity=page.locator('.compact-debt-identity').first();
+    const heading=await identity.locator('h2').boundingBox(),amount=await identity.locator('.simple-balance').boundingBox();
+    expect(Math.abs(heading!.y-amount!.y)).toBeLessThan(8);
+    expect(heading!.x+heading!.width).toBeLessThanOrEqual(amount!.x);
+    const payment=page.locator('.compact-debt-actions .primary').first();
+    expect(await payment.evaluate(el=>parseFloat(getComputedStyle(el).borderRadius))).toBeLessThanOrEqual(10);
+   }
+   const contrast=await new AxeBuilder({page}).include('.page-heading').include('.screen').include('.bottom-action-bar').withRules(['color-contrast']).analyze();expect(contrast.violations).toEqual([]);}
  }
  for(const name of ['Payoff Calculator','Payoff Plan','Progress','Settings','Credit Utilization','Stats & Projections']){
   await page.getByRole('button',{name:'More',exact:true}).click();await page.getByRole('button',{name,exact:true}).click();

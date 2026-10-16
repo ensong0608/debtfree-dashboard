@@ -1,7 +1,7 @@
 name: Redesign visual review
 on:
   push:
-    branches: [codex/visual-redesign-20261016]
+    branches: [codex/visual-redesign-20261016, codex/reference-fidelity-20261016]
 permissions:
   contents: read
 concurrency:

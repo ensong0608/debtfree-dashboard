@@ -14,7 +14,7 @@ test('Progress matches the summary-first design and mobile entry choices never o
  const screenshot=async(name:string)=>{mkdirSync('outputs/ui-verification/refined',{recursive:true});await page.screenshot({path:`outputs/ui-verification/refined/${info.project.name}-${name}.png`});};
  const card=page.locator('.compact-debt-card').filter({hasText:'Everyday Card with a long account name'});
  const payment=card.getByRole('button',{name:'Record payment for Everyday Card with a long account name'});
- expect(await payment.evaluate(e=>getComputedStyle(e).backgroundColor)).toBe('rgb(180, 237, 218)');await screenshot('debts');
+ expect(await payment.evaluate(e=>getComputedStyle(e).backgroundColor)).toBe('rgb(188, 238, 222)');await screenshot('debts');
  await card.getByRole('button',{name:'Activity for Everyday Card with a long account name'}).press('Enter');
  let dialog=page.getByRole('dialog');await expect(dialog.locator('summary')).toHaveCount(0);await expect(dialog.locator('details')).toHaveCount(0);await expect(dialog).toContainText('Weekly grocery run with a long activity title');
  if(info.project.name==='phone'){
