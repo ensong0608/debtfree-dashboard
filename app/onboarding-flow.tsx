@@ -115,6 +115,8 @@ export default function OnboardingFlow({ planning, importMessage, onPlanningChan
 
   const fieldError = (prefix: string, phrase: string) => errors.find(error => error.startsWith(prefix) && error.includes(phrase));
   const stepNames = ["Start", "Income", "Debts", "Capacity", "Plan"];
+  const priorityMatches = generated?.accounts.filter(account => account.name === generated.firstTarget) ?? [];
+  const priority = priorityMatches.length === 1 ? priorityMatches[0] : null;
   const snowball = generated ? calculatePlan(generated.accounts, generated.extra, "snowball") : null;
   return <main ref={shellRef} className="onboarding-shell" aria-label="Household setup" tabIndex={0}>
     <header className="onboarding-brand"><span>DF</span><div><strong>DebtFree</strong><small>Household payoff setup</small></div></header>
@@ -226,6 +228,7 @@ export default function OnboardingFlow({ planning, importMessage, onPlanningChan
         </div>
         {generated.loanTrackers.length > 0 && <p className="capacity-warning">House & car: {preciseCurrency.format(generated.loanMinimums)} monthly reserved separately. The forecast covers Cards & other; loan balances remain in House & car.</p>}
         <section className="setup-strategies"><h2>Avalanche selected</h2><p>Highest interest first. You can compare and change strategies in Payoff Plan.</p><div><article><strong>Avalanche</strong><small>Highest APR first</small>{generated.plan.stalled || !generated.accounts.length ? "Needs adjustment" : generated.plan.months.length + " months"}<small>{preciseCurrency.format(generated.plan.totalInterest)} estimated interest</small></article><article><strong>Snowball</strong><small>Smallest balance first</small>{snowball?.stalled || !generated.accounts.length ? "Needs adjustment" : snowball?.months.length + " months"}<small>{preciseCurrency.format(snowball?.totalInterest ?? 0)} estimated interest</small></article></div></section>
+        {priority && <section className="setup-priority"><span className="onboarding-eyebrow">First account to target</span><h2>{priority.name}</h2><dl><div><dt>Current balance</dt><dd>{preciseCurrency.format(priority.balance)}</dd></div><div><dt>Saved APR</dt><dd>{priority.apr.toFixed(2)}%</dd></div><div><dt>First month allocation</dt><dd>{preciseCurrency.format(generated.plan.months[0]?.payments[priority.id] ?? 0)}</dd></div></dl></section>}
         {generated.plan.stalled && <p className="capacity-warning" role="status">This plan does not amortize under the current payment settings. Continue and adjust the payment or debt details in Payoff Plan.</p>}
         <div className="onboarding-actions"><button className="secondary" type="button" onClick={() => setStep(4)}>Back</button><button className="primary" type="button" onClick={() => onComplete(buildOnboardingPlan(planning))}>Continue into the application</button></div>
       </div>}

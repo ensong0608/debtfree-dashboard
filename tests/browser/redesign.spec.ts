@@ -23,6 +23,14 @@ test('approved main tabs and secondary pages remain usable with synthetic data',
   await screenshot(name.toLowerCase().replace(/[^a-z]+/g,'-'));
   const axe=await new AxeBuilder({page}).include('.page-heading').include('.screen').withRules(['color-contrast']).analyze();expect(axe.violations).toEqual([]);
  }
+ await page.getByRole('button',{name:'More',exact:true}).click();await page.getByRole('button',{name:'Settings',exact:true}).click();
+ await page.locator('.data-transfer-actions input[type=file]').setInputFiles({name:'restore-preview-synthetic.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(fixture))});
+ const restore=page.getByRole('dialog',{name:'restore-preview-synthetic.json',exact:true});
+ await expect(restore).toBeVisible();
+ if(info.project.name==='phone'){const box=await restore.boundingBox();expect(box!.width).toBe(page.viewportSize()!.width);expect(box!.height).toBe(page.viewportSize()!.height);}
+ await screenshot('restore-preview');await page.keyboard.press('Escape');await expect(restore).not.toBeVisible();
+ await page.getByRole('button',{name:'Reset data',exact:true}).click();const reset=page.getByRole('dialog',{name:'Reset the complete dashboard?',exact:true});await expect(reset).toBeVisible();await page.keyboard.press('Escape');await expect(reset).not.toBeVisible();
+ await page.getByRole('button',{name:'Transactions',exact:true}).click();const deleteBox=await page.locator('.transaction-delete-x').first().boundingBox();expect(deleteBox!.width).toBeGreaterThanOrEqual(44);expect(deleteBox!.height).toBeGreaterThanOrEqual(44);
  await page.getByRole('button',{name:'Debts',exact:true}).click();
  await page.getByRole('button',{name:'Activity for Sample Rewards Card',exact:true}).click();await screenshot('activity');await page.getByRole('button',{name:'Close activity',exact:true}).click();
  await page.getByRole('button',{name:'Debt +',exact:true}).click();await screenshot('debt-form');
