@@ -1,7 +1,7 @@
 name: Validate and deploy foundations preview
 on:
   push:
-    branches: [codex/public-app-foundations-20261011]
+    branches: [codex/public-app-foundations-20261011, codex/visual-redesign-20261016]
   workflow_dispatch:
     inputs:
       provision_isolation_fixture:

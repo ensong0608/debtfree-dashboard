@@ -23,7 +23,7 @@ test('Budget section cards keep clear totals, Helvetica, and hide retired tools'
  await expect(page.locator('.budget-category-icon svg')).toHaveCount(3);
  await page.getByRole('button',{name:'More',exact:true}).click();
  await expect(page.getByRole('button',{name:'Home',exact:true})).toHaveCount(0);
- await page.getByText('Advanced tools',{exact:true}).click();
+ await expect(page.locator('.more-advanced')).toHaveAttribute('open','');
  await expect(page.getByRole('button',{name:'Detailed ledger',exact:true})).toHaveCount(0);
  await page.getByRole('button',{name:'Stats & Projections',exact:true}).click();
  await expect(page.locator('.insights-list')).toContainText('Sample Rewards Card');
