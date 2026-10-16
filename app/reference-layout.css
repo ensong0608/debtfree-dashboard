@@ -210,3 +210,13 @@ button svg { flex: none; }
 .debt-summary-minimum>b>small { display: inline; margin: 0; }
 .compact-debt-card .debt-reduction { margin: 8px 0 0; }
 .more-screen>.more-links[aria-label="More tools"]>button:first-child { background: #effaf5; border-color: #d8eee4; }
+
+/* Keep reporting and audit access available without adding another row to each card. */
+.clean-transaction-card>.transaction-edit-surface { min-height: 64px; padding-bottom: 5px; }
+.transaction-card-footer { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 12px; padding: 0 6px 0 55px; min-height: 44px; }
+.transaction-card-footer>.transaction-record-detail { margin: 0; max-width: calc(100% - 64px); }
+.transaction-card-footer>.transaction-delete-x { position: static; order: 3; margin-left: auto; flex: none; width: 44px; height: 44px; min-height: 44px; border: 0; background: transparent; color: #b62243; padding: 0; font-size: 23px; }
+.transaction-card-footer>.transaction-secondary { font-size: 11px; color: var(--muted); margin: 0; }
+.transaction-card-footer>.transaction-secondary>summary { min-height: 44px; padding: 13px 0; cursor: pointer; }
+.transaction-card-footer:has(>.transaction-secondary[open])>.transaction-secondary { flex-basis: 100%; order: 4; }
+.transaction-card-footer .transaction-secondary p,.transaction-card-footer .transaction-secondary li { font-size: 12px; line-height: 1.5; overflow-wrap: anywhere; }
