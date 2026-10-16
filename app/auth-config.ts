@@ -13,3 +13,8 @@ export function requireSupabaseConfiguration() {
   if (!config.enabled || !config.url || !config.key) throw new Error("Google sign-in is not configured.");
   return config;
 }
+
+export function lifecycleConfiguration() {
+  const settings = env as unknown as { HOUSEHOLD_LIFECYCLE_ENABLED?: string; HOUSEHOLD_CREATION_EMAILS?: string };
+  return { enabled: settings.HOUSEHOLD_LIFECYCLE_ENABLED === 'true', creationEmails: (settings.HOUSEHOLD_CREATION_EMAILS ?? '').split(',').map(email => email.trim().toLowerCase()).filter(Boolean) };
+}

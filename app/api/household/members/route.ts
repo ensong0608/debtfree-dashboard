@@ -1,3 +1,4 @@
+import { lifecycleConfiguration } from "@/app/auth-config";
 import { readBoundedBody } from "@/app/request-safety";
 import { checkHouseholdSession } from "@/app/household-session-scope";
 import { householdContext, listMembers, normalizeEmail, type HouseholdRole } from "../store";
@@ -12,6 +13,7 @@ export async function POST(request: Request) {
   if (!context) return Response.json({ error: "Sign in required" }, { status: 401 });
   const changed = checkHouseholdSession(request, context, true);
   if (changed) return changed;
+  if (lifecycleConfiguration().enabled) return Response.json({ error: "Reopen My account to manage household access." }, { status: 409 });
   if (context.member.role !== "owner") return Response.json({ error: "Only the household owner can add members" }, { status: 403 });
   const body = await readBoundedBody(request, 8192).then(JSON.parse).catch(() => null) as { email?: string; role?: HouseholdRole } | null;
   if (typeof body?.email !== "string") return Response.json({ error: "Enter a valid email address" }, { status: 400 });
@@ -37,6 +39,7 @@ export async function DELETE(request: Request) {
   if (!context) return Response.json({ error: "Sign in required" }, { status: 401 });
   const changed = checkHouseholdSession(request, context, true);
   if (changed) return changed;
+  if (lifecycleConfiguration().enabled) return Response.json({ error: "Reopen My account to manage household access." }, { status: 409 });
   if (context.member.role !== "owner") return Response.json({ error: "Only the household owner can remove members" }, { status: 403 });
   const email = normalizeEmail(new URL(request.url).searchParams.get("email") ?? "");
   if (!email || email === context.user.email) return Response.json({ error: "The household owner cannot be removed" }, { status: 400 });

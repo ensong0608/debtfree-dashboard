@@ -1,3 +1,5 @@
+> October 16 Stage 6 update: user accepted design/release checks for current private use and authorized household lifecycle work. See STAGE6_HOUSEHOLDS_20261016.md for implementation, closed-registration controls, manual deletion limitations and the next mobile-conversion agenda. Historical gate statements below do not establish live test completion or public-launch approval.
+
 # Public mobile app foundations — tracked implementation
 
 Branch: `codex/public-app-foundations-20261011`

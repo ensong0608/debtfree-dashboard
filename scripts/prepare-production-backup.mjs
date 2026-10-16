@@ -39,7 +39,8 @@ assert db.execute('PRAGMA integrity_check').fetchall()==[('ok',)]
 assert db.execute('PRAGMA foreign_key_check').fetchall()==[]
 db.row_factory=sqlite3.Row
 names=[r[0] for r in db.execute("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' AND name NOT LIKE '_cf_%' AND name != 'd1_migrations'")]
-assert set(names)=={'households','household_members','household_state'}
+assert {'households','household_members','household_state'}.issubset(set(names))
+assert set(names).issubset({'households','household_members','household_state','household_invitations','household_requests'})
 rows={name:[dict(r) for r in db.execute('SELECT * FROM '+name)] for name in names}
 print(json.dumps(rows))
 `,sqlPath],{stdio:['ignore','pipe','pipe'],encoding:'utf8',timeout:30000,maxBuffer:64*1024*1024});

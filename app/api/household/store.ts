@@ -1,6 +1,6 @@
 import { env } from "cloudflare:workers";
 import { getAuthenticatedUser } from "@/app/auth";
-import { authConfiguration } from "@/app/auth-config";
+import { lifecycleConfiguration, authConfiguration } from "@/app/auth-config";
 
 export type HouseholdRole = "owner" | "admin" | "viewer";
 export type HouseholdMemberRecord = {
@@ -32,6 +32,7 @@ export async function getOrCreateMember(email: string, displayName: string) {
     .bind(email).first<HouseholdMemberRecord>();
   const now = Date.now();
   if (member) {
+    if (member.status === "invited" && lifecycleConfiguration().enabled) return null;
     if (member.status === "invited" || member.display_name !== displayName) {
       await db.prepare("UPDATE household_members SET status = 'active', display_name = ?, updated_at = ? WHERE email = ?")
         .bind(displayName, now, email).run();
@@ -40,6 +41,7 @@ export async function getOrCreateMember(email: string, displayName: string) {
     return member;
   }
 
+  if (lifecycleConfiguration().enabled) return null;
   const existingHousehold = await db.prepare("SELECT id FROM households LIMIT 1").first<{ id: string }>();
   if (existingHousehold) return null;
   const auth = authConfiguration();
