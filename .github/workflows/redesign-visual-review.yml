@@ -1,0 +1,31 @@
+name: Redesign visual review
+on:
+  push:
+    branches: [codex/visual-redesign-20261016]
+permissions:
+  contents: read
+concurrency:
+  group: redesign-visual-review
+  cancel-in-progress: true
+jobs:
+  visual-review:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - run: npx playwright test tests/browser/redesign.spec.ts --project=phone
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: redesign-synthetic-visual-review
+          path: |
+            outputs/ui-verification/redesign/
+            .wrangler/browser-results/
+          include-hidden-files: true
+          retention-days: 7
