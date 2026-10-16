@@ -182,6 +182,7 @@ export type PlannedIncomeSource = OwnershipMetadata & {
 
 export type PlannedDebt = OwnershipMetadata & {
   trackerKind?: "house" | "car";
+  originalLoanAmount?: number;
   id: string;
   name: string;
   balance: number;
@@ -818,6 +819,7 @@ function validatePlannedDebt(value: unknown, path: string, issues: string[]) {
   const item = requiredRecord(value, path, issues);
   if (!item) return;
   if (item.trackerKind !== undefined) enumValue(item.trackerKind, new Set(["house", "car"]), path + ".trackerKind", issues);
+  if (item.originalLoanAmount !== undefined) requiredNumber(item.originalLoanAmount, path + ".originalLoanAmount", issues);
   requiredString(item.id, path + ".id", issues);
   requiredString(item.name, path + ".name", issues, true);
   requiredNumber(item.balance, path + ".balance", issues);

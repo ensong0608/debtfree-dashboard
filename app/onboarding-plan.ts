@@ -144,10 +144,10 @@ export function buildOnboardingPlan(
   const accounts = plannedDebtsToAccounts(planning.debts, completedAt);
   const loanMinimums = round(planning.debts.filter(debt => debt.trackerKind).reduce((sum, debt) => sum + debt.minimum, 0));
   const loanTrackers: LoanTracker[] = planning.debts.filter(debt => debt.trackerKind).map(debt => ({
-    id: debt.id, name: debt.name.trim(), kind: debt.trackerKind!, originalAmount: debt.balance,
+    id: debt.id, name: debt.name.trim(), kind: debt.trackerKind!, originalAmount: debt.originalLoanAmount ?? 0,
     remainingAmount: debt.balance, balanceKind: "principal", asOf: householdDate(calculationDate),
     budgetItemId: `setup-loan-${debt.id}`, budgetItemName: debt.name.trim(), apr: debt.apr,
-    principalAndInterest: debt.minimum, history: [],
+    history: [],
   }));
   const extra = capacityToExtra(Math.max(0, planning.capacity.monthlyAmount - loanMinimums), accounts);
   const strategy = RECOMMENDED_ONBOARDING_STRATEGY;
@@ -192,6 +192,7 @@ export function onboardingStepIssues(step: number, planning: PlannedPayoffData) 
   if (step === 3) {
     if (!planning.debts.length) issues.push("Add at least one debt.");
     planning.debts.forEach((debt, index) => {
+      if (debt.trackerKind && !(typeof debt.originalLoanAmount === "number" && debt.originalLoanAmount > 0)) issues.push("Debt " + (index + 1) + " needs its original loan amount.");
       if (!debt.name.trim()) issues.push("Debt " + (index + 1) + " needs a name.");
       if (debt.balance <= 0) issues.push("Debt " + (index + 1) + " needs a current balance greater than zero.");
       if (debt.minimum <= 0) issues.push("Debt " + (index + 1) + " needs a minimum monthly payment greater than zero.");
@@ -224,7 +225,7 @@ export function shouldShowOnboarding(payload: DashboardPayload) {
 export function seedMonthlyPlan(result: GeneratedOnboardingPlan, month: string, existing: Record<string, CashflowItem[]>, settings: MonthlyPlanSettings) {
   const createdAt = result.planning.onboarding.completedAt ?? new Date().toISOString();
   const income: CashflowItem[] = result.planning.incomeSources.map((source) => ({ id: `setup-income-${source.id}`, name: source.name, kind: "income", category: "Salary", amount: source.monthlyTakeHome, paymentMethod: "debit", creditAccountId: "", recurring: true, createdAt }));
-  const loanItems: CashflowItem[] = result.loanTrackers.map(loan => ({ id: loan.budgetItemId, name: loan.name, kind: "expense", category: loan.kind === "house" ? "Housing" : "Transportation", amount: loan.principalAndInterest ?? 0, paymentMethod: "debit", creditAccountId: "", recurring: true, createdAt }));
+  const loanItems: CashflowItem[] = result.loanTrackers.map(loan => ({ id: loan.budgetItemId, name: loan.name, kind: "expense", category: loan.kind === "house" ? "Housing" : "Transportation", amount: result.planning.debts.find(debt => debt.id === loan.id)?.minimum ?? 0, paymentMethod: "debit", creditAccountId: "", recurring: true, createdAt }));
   const expenses: CashflowItem[] = Object.entries(result.planning.essentialExpenses).filter(([key, value]) => key !== "safetyBuffer" && typeof value === "number" && value > 0).map(([key, value]) => ({ id: `setup-expense-${key}`, name: key.replace(/([A-Z])/g, " $1").replace(/^./, (c) => c.toUpperCase()), kind: "expense", category: key, amount: value as number, paymentMethod: "debit", creditAccountId: "", recurring: true, createdAt }));
   return {
     monthlyBudgets: Object.prototype.hasOwnProperty.call(existing, month) ? existing : { ...existing, [month]: [...income, ...expenses, ...loanItems] },
