@@ -94,14 +94,20 @@ export function createLifecycleApi(deps: { db: () => D1Database; user: () => Pro
         if (!['admin', 'viewer'].includes(body.role)) return error('Choose admin or viewer access.');
         await db.prepare("UPDATE household_members SET role = ?, updated_at = ? WHERE email = ? AND household_id = ? AND role != 'owner'").bind(body.role, now, body.email, household).run();
       } else {
-        await db.prepare("DELETE FROM household_members WHERE email = ? AND household_id = ? AND role != 'owner'").bind(body.email, household).run();
+        await db.batch([
+          db.prepare("DELETE FROM household_members WHERE email = ? AND household_id = ? AND role != 'owner'").bind(body.email, household),
+          db.prepare("UPDATE household_invitations SET resolved_at = ?, outcome = 'revoked' WHERE email = ? AND household_id = ? AND resolved_at IS NULL").bind(now, body.email, household),
+        ]);
       }
       return reply({ ok: true });
     }
     if (body.action === 'leave') {
       if (owner) return error('Owners must request household deletion instead of leaving.', 409);
       if (body.confirmation !== 'LEAVE') return error('Type LEAVE to confirm.');
-      await db.prepare("DELETE FROM household_members WHERE email = ? AND household_id = ? AND role != 'owner'").bind(user.email, household).run();
+      await db.batch([
+        db.prepare("DELETE FROM household_members WHERE email = ? AND household_id = ? AND role != 'owner'").bind(user.email, household),
+        db.prepare("UPDATE household_invitations SET resolved_at = ?, outcome = 'revoked' WHERE email = ? AND household_id = ? AND resolved_at IS NULL").bind(now, user.email, household),
+      ]);
       return reply({ ok: true });
     }
     if (body.action === 'request_deletion') {

@@ -69,3 +69,17 @@ test('deletion request remains visible and cancellable after membership removal'
   f.as('owner@example.test'); await f.post({action:'remove',email:'admin@example.test'});
   f.as('admin@example.test'); assert.equal((await (await f.get()).json()).requests.length,1); assert.equal((await f.post({action:'cancel_deletion'})).status,200); assert.equal((await (await f.get()).json()).requests.length,0);
 });
+
+test('removal and leaving atomically revoke pending rejoin invitations', async () => {
+  for (const action of ['remove','leave']) {
+    const f=fixture();
+    const {id}=await (await f.post({action:'invite',email:'new@example.test',role:'viewer'})).json();
+    // Simulate acceptance racing an invitation reissue: an active member can
+    // have an outstanding invitation created after the earlier preflight read.
+    f.sql.exec("INSERT INTO household_members VALUES ('new@example.test','a','New','viewer','active','owner@example.test',0,0)");
+    if(action==='leave') f.as('new@example.test');
+    assert.equal((await f.post({action,email:'new@example.test',confirmation:'LEAVE'})).status,200);
+    f.as('new@example.test'); assert.equal((await f.post({action:'accept',id})).status,409);
+    assert.equal(f.sql.prepare('SELECT outcome FROM household_invitations WHERE id=?').get(id).outcome,'revoked');
+  }
+});
