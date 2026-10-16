@@ -38,3 +38,13 @@ The existing authoritative planning file is DebtFree_Public_App_Requirements.txt
 8. Beta-test through the relevant platform channels, prepare store assets/reviewer access and roll out gradually with monitoring/rollback.
 
 This is the agreed next discussion after Stage 6. No timed/background reminder was requested or created.
+
+## Approved production release — October 16, 2026
+
+The user explicitly approved this concrete production release after reviewing the preview, migration and backup summary. PR #7 was merged as 31c7fb0f1b481f13cc5a732e8e336c4176af180c. Production deployment run https://github.com/ensong0608/debtfree-dashboard/actions/runs/38982737706 succeeded. Worker version: 2712042b-b613-440d-ada1-e0cda25050d6; URL: https://debtfree-dashboard.ensong0608.workers.dev/ .
+
+Exact merged-source release validation passed lint, types, all 301 Node tests, the local D1 recovery drill, 127 browser checks (2 existing skips), and the exact production-configured Worker dry run. The release confirmed the expected Cloudflare account/Worker/D1, exported and privately restored/encrypted the immediate backup, applied only the additive invitation/request schema, and published. Post-release comparison passed: every original household, membership and financial-state column exactly matched the immediate backup. Google account-choice/PKCE/callback checks passed; unauthenticated household, export and lifecycle access was denied.
+
+Encrypted recovery artifact 12082296949 from that deployment was downloaded with SHA-256 verification and archived as DebtFree_Stage6_Recovery_20261016.zip (Library identity libfile_d3943c3be7ac81919fc3877d474390a8). The prior recovery private key remains required; never commit it.
+
+Stage 6 is active for private production. Public signup and general household creation remain closed. Deletion requests remain manual and unfulfilled; independent authenticated multi-household/session/device checks and public-launch requirements remain outstanding. No real invitations/messages, membership removals or financial edits were performed for verification. The next agenda is mobile-app migration using the existing requirements checklist.
