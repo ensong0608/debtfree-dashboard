@@ -63,7 +63,7 @@ button svg { flex: none; }
 .debt-filter-toolbar { display: flex; align-items: flex-start; gap: 8px; margin: 0 0 12px; }
 .debt-filter-toolbar .owner-filters { flex: 1; margin: 0; gap: 6px; }
 .owner-filters button { padding: 8px 11px; min-height: 44px; font-size: 12px; }
-.owner-filters button span { opacity: .85; }
+.owner-filters button span { opacity: 1; }
 .arrange-debts { display: flex; align-items: center; justify-content: center; gap: 4px; font-size: 12px; padding: 8px 10px; flex: none; }
 .arrange-debts svg { width: 16px; height: 16px; }
 .household-debt-group>h2 { margin: 12px 0 9px; padding: 12px; min-height: 58px; align-items: center; border-radius: 10px; background: linear-gradient(110deg,#edf8f3,#f1f9f5); border: 1px solid #e0eee7; }
@@ -204,3 +204,9 @@ button svg { flex: none; }
 @media(prefers-reduced-motion:reduce) { *,*:before,*:after { transition: none!important; animation: none!important; } }
 
 .debt-name-label { min-width: 0; overflow-wrap: anywhere; }
+.debts-screen .debt-total-summary>span { font-size: 11px; }
+.debt-total-summary>small { margin-top: 0; align-self: center; }
+.debt-summary-minimum>b { display: block; white-space: nowrap; }
+.debt-summary-minimum>b>small { display: inline; margin: 0; }
+.compact-debt-card .debt-reduction { margin: 8px 0 0; }
+.more-screen>.more-links[aria-label="More tools"]>button:first-child { background: #effaf5; border-color: #d8eee4; }
