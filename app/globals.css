@@ -2076,3 +2076,15 @@ button:focus-visible,summary:focus-visible,input:focus-visible,select:focus-visi
 .debt-total-summary strong,.compact-debt-identity .simple-balance,.compact-debt-meta dd,.actual-progress-summary dd{overflow-wrap:anywhere}
 .sidebar .nav-item span{overflow-wrap:anywhere}
 .loan-modal form>header>button{min-width:44px;min-height:44px;flex:none}
+
+.lifecycle-panel form { display: grid; gap: 12px; margin: 16px 0; }
+.lifecycle-panel label { display: grid; gap: 6px; }
+.lifecycle-panel input, .lifecycle-panel select { width: 100%; min-height: 44px; border: 1px solid #d7dfe5; border-radius: 8px; padding: 10px; background: #fff; color: #263849; }
+.lifecycle-panel button, .lifecycle-panel summary, .lifecycle-panel a { min-height: 44px; }
+.lifecycle-invitation { padding: 16px 0; border-top: 1px solid #e1e7eb; overflow-wrap: anywhere; }
+.lifecycle-invitation button { margin: 4px 8px 4px 0; }
+.lifecycle-member-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.lifecycle-panel details { margin-top: 20px; }
+.lifecycle-panel p { line-height: 1.6; overflow-wrap: anywhere; }
+.lifecycle-panel summary { cursor: pointer; padding: 12px 0; }
+@media(max-width:600px) { .lifecycle-panel .member-row { display: flex; flex-wrap: wrap; gap: 10px; } .lifecycle-panel .member-row > div:first-child { width: 100%; } }

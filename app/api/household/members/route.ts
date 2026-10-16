@@ -1,3 +1,4 @@
+import { lifecycleConfiguration } from "@/app/auth-config";
 import { readBoundedBody } from "@/app/request-safety";
 import { checkHouseholdSession } from "@/app/household-session-scope";
 import { householdContext, listMembers, normalizeEmail, type HouseholdRole } from "../store";
@@ -8,6 +9,7 @@ const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const inviteRoles = new Set<HouseholdRole>(["admin", "viewer"]);
 
 export async function POST(request: Request) {
+  if (lifecycleConfiguration().enabled) return Response.json({ error: "Use household invitations to add a member." }, { status: 409 });
   const context = await householdContext();
   if (!context) return Response.json({ error: "Sign in required" }, { status: 401 });
   const changed = checkHouseholdSession(request, context, true);

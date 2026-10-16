@@ -38,13 +38,15 @@ INSERT INTO household_members VALUES ('viewer@example.test', 'synthetic-a', NULL
 INSERT INTO household_members VALUES ('b@example.test', 'synthetic-b', 'Owner B', 'owner', 'active', NULL, 11, 21);
 INSERT INTO household_state VALUES ('synthetic-a', ${quote(serialized)}, 7, 'partner@example.test', 20);
 INSERT INTO household_state VALUES ('synthetic-b', NULL, 0, NULL, 21);
+INSERT INTO household_invitations VALUES ('invite-1', 'synthetic-a', 'new@example.test', 'viewer', 'a@example.test', 20, 9999999999999, NULL, NULL);
+INSERT INTO household_requests VALUES ('request-1', 'synthetic-a', 'a@example.test', 'delete_household', 30, NULL);
 `);
   cli('execute', 'SOURCE', '--file', seed, '--yes');
   // The current migration creates child tables first. A default local D1 dump
   // interleaves CREATE/INSERT in that order; deferred FKs cannot reference a
   // parent table that does not yet exist. Export complete tables parent-first,
   // without rewriting SQL or turning off referential integrity.
-  const tables = ['households', 'household_members', 'household_state'];
+  const tables = ['households', 'household_members', 'household_state', 'household_invitations', 'household_requests'];
   const inventory = JSON.parse(cli('execute', 'SOURCE', '--json', '--command', "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' AND name NOT LIKE '_cf_%' ORDER BY name"))[0].results.map(row => row.name);
   assert.deepEqual(inventory, [...tables].sort(), 'Review recovery ordering when application schema changes');
   const parts = [];
@@ -58,13 +60,13 @@ INSERT INTO household_state VALUES ('synthetic-b', NULL, 0, NULL, 21);
   assert.ok((await readFile(backup, 'utf8')).includes('CREATE TABLE'));
   cli('execute', 'TARGET', '--file', backup, '--yes');
   const query = database => JSON.parse(cli('execute', database, '--json', '--command',
-    'SELECT * FROM households ORDER BY id; SELECT * FROM household_members ORDER BY email; SELECT * FROM household_state ORDER BY household_id; PRAGMA foreign_key_check; PRAGMA quick_check;'));
+    tables.map(table => 'SELECT * FROM ' + table + ' ORDER BY 1').join(';') + '; PRAGMA foreign_key_check; PRAGMA quick_check;'));
   const source = query('SOURCE'), restored = query('TARGET');
-  assert.equal(source.length, 5);
+  assert.equal(source.length, 7);
   // D1 metadata/timings differ. Compare every stored column in each application table.
   assert.deepEqual(restored.map(r => r.results), source.map(r => r.results));
-  assert.deepEqual(restored[3].results, []);
-  assert.deepEqual(Object.values(restored[4].results[0]), ['ok']);
+  assert.deepEqual(restored[5].results, []);
+  assert.deepEqual(Object.values(restored[6].results[0]), ['ok']);
   const saved = restored[2].results.find(row => row.household_id === 'synthetic-a');
   assert.equal(saved.revision, 7);
   assert.equal(saved.payload, serialized); // Exact bytes, including historical dates and unknown metadata.

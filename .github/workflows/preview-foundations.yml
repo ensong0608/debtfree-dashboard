@@ -1,7 +1,7 @@
 name: Validate and deploy foundations preview
 on:
   push:
-    branches: [codex/public-app-foundations-20261011, codex/visual-redesign-20261016, codex/reference-fidelity-20261016]
+    branches: [codex/public-app-foundations-20261011, codex/visual-redesign-20261016, codex/reference-fidelity-20261016, codex/stage6-households-20261016]
   workflow_dispatch:
     inputs:
       provision_isolation_fixture:
@@ -54,6 +54,7 @@ jobs:
           config.name = name;
           config.d1_databases = [{binding:'DB', database_name:name, database_id:db.uuid, migrations_dir:'drizzle'}];
           config.vars = {
+            HOUSEHOLD_LIFECYCLE_ENABLED:'true',
             AUTH_PROVIDER:'supabase', SUPABASE_URL:'https://acpderotiyoecmwwyfsu.supabase.co',
             SUPABASE_PUBLISHABLE_KEY:'sb_publishable_QP7A5zZPic3K-L9Bf-oUaA_cNkdtCCy',
             APP_ORIGIN:'https://' + name + '.ensong0608.workers.dev',
@@ -98,6 +99,7 @@ jobs:
           const email=process.env.PREVIEW_OWNER_EMAIL?.trim().toLowerCase();
           if(!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw new Error('Preview owner secret must contain a valid email');
           NODE
+          printf '%s\n' "$PREVIEW_OWNER_EMAIL" | npx wrangler secret put HOUSEHOLD_CREATION_EMAILS --name debtfree-dashboard-foundations-test --config wrangler.jsonc
           printf '%s\n' "$PREVIEW_OWNER_EMAIL" | npx wrangler secret put HOUSEHOLD_OWNER_EMAIL --name debtfree-dashboard-foundations-test --config wrangler.jsonc
       - name: Verify login and API denial
         run: |

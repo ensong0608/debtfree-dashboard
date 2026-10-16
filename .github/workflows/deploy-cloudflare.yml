@@ -45,7 +45,7 @@ jobs:
           if (db.name !== 'debtfree-dashboard-prod') throw new Error('Production D1 mismatch');
           const deploymentState = await api('/workers/scripts/debtfree-dashboard/deployments');
           console.log('Current production deployment IDs: ' + deploymentState.deployments.map(d => d.id).join(', '));
-          console.log('Confirmed existing production Worker and D1. No database migration is needed.');
+          console.log('Confirmed existing production Worker and D1. Stage 6 adds only invitation/request tables after the encrypted recovery checkpoint.');
           NODE
       - name: Prepare immediate pre-release encrypted recovery copy
         if: github.ref == 'refs/heads/codex/production-release-20261015'
@@ -60,12 +60,20 @@ jobs:
           path: outputs/private-release/production-backup.encrypted.json
           retention-days: 7
           if-no-files-found: error
+      - name: Apply additive Stage 6 schema after recovery checkpoint
+        if: github.ref == 'refs/heads/codex/production-release-20261015'
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+        run: npx wrangler d1 execute debtfree-dashboard-prod --remote --config wrangler.jsonc --file drizzle/0001_household_lifecycle.sql --yes
       - name: Configure production authentication
         run: |
           node --input-type=module <<'NODE'
           import fs from 'node:fs';
           const config = JSON.parse(fs.readFileSync('wrangler.jsonc', 'utf8'));
           Object.assign(config.vars, {
+            HOUSEHOLD_LIFECYCLE_ENABLED: 'true',
+            HOUSEHOLD_CREATION_EMAILS: '',
             AUTH_PROVIDER: 'supabase',
             SUPABASE_URL: 'https://acpderotiyoecmwwyfsu.supabase.co',
             SUPABASE_PUBLISHABLE_KEY: 'sb_publishable_QP7A5zZPic3K-L9Bf-oUaA_cNkdtCCy',
@@ -101,7 +109,7 @@ jobs:
             if(attempt<5) await new Promise(resolve=>setTimeout(resolve,3000));
           }
           if(!ready) throw new Error('Production Google login did not become ready');
-          for(const path of ['/api/household','/api/household/export']) {
+          for(const path of ['/api/household','/api/household/export','/api/household/lifecycle']) {
             const data=await fetch(origin+path,{redirect:'manual',signal:AbortSignal.timeout(10000)});
             if(![401,403].includes(data.status)) throw new Error('Unauthenticated household data must be denied');
           }

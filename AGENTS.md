@@ -34,3 +34,10 @@ Cloudflare Workers is the sole production hosting target. The production Worker 
 - Preserve the reconciliation-anchor and optional-loan-validator compatibility rules when fixing or rolling back. Use the approved encrypted backup/recovery workflow, never put financial payloads/private keys in repository content or logs, and verify stored production rows after publishing.
 
 - Latest private reference-fidelity correction: app source `19f71c4a38c5b294837feaf32a9b5d4fa90b8c04`, Worker version `8bc8af1c-2e85-4c28-9e38-aeabb9b00ab2`. Read `docs/REFERENCE_FIDELITY_RELEASE_20261016.md`, the prior `docs/VISUAL_REDESIGN_RELEASE_20261016.md`, and the original private release notes. Continue from the production release branch; documentation-only follow-ups do not change the deployed app. Preserve the same backup/data/public-launch guards. Buttons use subtle 8px corners, as explicitly requested.
+
+## Stage 6 and next mobile-app agenda
+
+- User authorized Stage 6 on October 16 after accepting design/release checks for private use. See `docs/STAGE6_HOUSEHOLDS_20261016.md`. Public signup stays closed; production household-creation allowlist must remain empty until separately authorized.
+- Lifecycle invitations require explicit acceptance, expire in seven days and can be revoked. Never auto-activate pending invitations upon sign-in in lifecycle mode or send invitations/messages from agent tools without explicit instructions.
+- Deletion is a cancellable request for manual review, not an automatic destructive operation or completed account deletion. Before public launch, finish actual identity/deletion processing and retention policy. Preserve all existing household financial history in ordinary releases.
+- After Stage 6, discuss official mobile-app conversion using the existing `DebtFree_Public_App_Requirements.txt` checklist. Re-verify current store/platform rules, pricing and packaging choices when planning. Do not imply a database migration is required just to package the web app.
