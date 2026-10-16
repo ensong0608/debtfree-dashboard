@@ -63,3 +63,9 @@ test('invitation flood limit, oversized bodies and legacy acceptance', async () 
   assert.equal((await f.post({action:'invite',email:'x'.repeat(9000)})).status,400);
   f.sql.exec("INSERT INTO household_members VALUES ('legacy@example.test','a',NULL,'viewer','invited','owner@example.test',0,0)"); f.as('legacy@example.test'); assert.equal((await f.post({action:'accept_legacy'})).status,200); assert.equal(f.sql.prepare('SELECT status FROM household_members WHERE email=?').get('legacy@example.test').status,'active');
 });
+
+test('deletion request remains visible and cancellable after membership removal', async () => {
+  const f=fixture(); f.as('admin@example.test'); await f.post({action:'request_deletion',confirmation:'DELETE'});
+  f.as('owner@example.test'); await f.post({action:'remove',email:'admin@example.test'});
+  f.as('admin@example.test'); assert.equal((await (await f.get()).json()).requests.length,1); assert.equal((await f.post({action:'cancel_deletion'})).status,200); assert.equal((await (await f.get()).json()).requests.length,0);
+});

@@ -21,7 +21,7 @@ export function createLifecycleApi(deps: { db: () => D1Database; user: () => Pro
     if (request.method === 'GET') {
       const inbox = await db.prepare(`SELECT i.id, h.name AS household_name, i.role, i.expires_at FROM household_invitations i JOIN households h ON h.id = i.household_id WHERE i.email = ? AND i.resolved_at IS NULL AND i.expires_at > ? ORDER BY i.created_at DESC`).bind(user.email, now).all();
       const invitations = member?.role === 'owner' && member.status === 'active' ? (await db.prepare('SELECT id, email, role, expires_at FROM household_invitations WHERE household_id = ? AND resolved_at IS NULL AND expires_at > ? ORDER BY created_at DESC').bind(member.household_id, now).all()).results : [];
-      const requests = member ? (await db.prepare('SELECT id, kind, created_at FROM household_requests WHERE household_id = ? AND email = ? AND cancelled_at IS NULL').bind(member.household_id, user.email).all()).results : [];
+      const requests = (await db.prepare('SELECT id, kind, created_at FROM household_requests WHERE email = ? AND cancelled_at IS NULL').bind(user.email).all()).results;
       return reply({ inbox: inbox.results, invitations, requests, canCreate: !member && settings.creationEmails.includes(user.email), legacyInvitation: member?.status === 'invited', member });
     }
     // Explicit origin + expected identity stop cross-site submissions and stale-account tabs.
@@ -59,6 +59,10 @@ export function createLifecycleApi(deps: { db: () => D1Database; user: () => Pro
         db.prepare(`UPDATE household_invitations SET resolved_at = ?, outcome = 'accepted' WHERE id = ? AND email = ? AND resolved_at IS NULL AND expires_at > ? AND EXISTS (SELECT 1 FROM household_members m WHERE m.email = household_invitations.email AND m.household_id = household_invitations.household_id AND m.status = 'active')`).bind(now, body.id, user.email, now),
       ]);
       return results[0].meta.changes === 1 ? reply({ ok: true }) : error('Invitation expired or was revoked.', 409);
+    }
+    if (body.action === 'cancel_deletion') {
+      await db.prepare('UPDATE household_requests SET cancelled_at = ? WHERE email = ? AND cancelled_at IS NULL').bind(now, user.email).run();
+      return reply({ ok: true });
     }
     if (!member || member.status !== 'active') return error('Household access required.', 403);
     const household = member.household_id;
@@ -107,10 +111,6 @@ export function createLifecycleApi(deps: { db: () => D1Database; user: () => Pro
       const id = existing?.id ?? crypto.randomUUID();
       if (!existing) await db.prepare('INSERT INTO household_requests (id, household_id, email, kind, created_at) VALUES (?, ?, ?, ?, ?)').bind(id, household, user.email, kind, now).run();
       return reply({ ok: true, id });
-    }
-    if (body.action === 'cancel_deletion') {
-      await db.prepare('UPDATE household_requests SET cancelled_at = ? WHERE household_id = ? AND email = ? AND cancelled_at IS NULL').bind(now, household, user.email).run();
-      return reply({ ok: true });
     }
     return error('Choose a supported action.');
   }

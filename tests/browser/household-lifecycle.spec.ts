@@ -20,7 +20,7 @@ test('owner can create and revoke an invitation with accessible mobile controls'
   });
   await page.goto('/'); await page.evaluate(props=>{ document.body.innerHTML='<main class="screen profile-screen"><div id="lifecycle-test"></div></main>'; Object.assign(window,{__lifecycleProps:props}); },owner); await page.addScriptTag({content:script});
   await expect(page.getByRole('button',{name:'Create invitation'})).toBeVisible();
-  await page.getByLabel('Partner email').fill('new@example.test'); await page.getByLabel('Access',{exact:true}).selectOption('viewer'); await page.getByRole('button',{name:'Create invitation'}).click();
+  await page.getByLabel('Partner email').fill('new@example.test'); await page.getByLabel('Invitation access',{exact:true}).selectOption('viewer'); await page.getByRole('button',{name:'Create invitation'}).click();
   await expect(page.getByRole('button',{name:'Revoke'})).toBeVisible(); expect(writes[0]).toEqual({action:'invite',email:'new@example.test',role:'viewer'});
   await page.getByRole('button',{name:'Revoke'}).click(); await expect(page.getByRole('button',{name:'Revoke'})).toHaveCount(0);
   expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
