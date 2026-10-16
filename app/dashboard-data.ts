@@ -174,11 +174,14 @@ export type PlannedIncomeSource = OwnershipMetadata & {
   id: string;
   name: string;
   monthlyTakeHome: number;
+  payFrequency?: "monthly" | "biweekly" | "weekly";
+  payAmount?: number;
   assignment: PlannedAssignment;
   [key: string]: unknown;
 };
 
 export type PlannedDebt = OwnershipMetadata & {
+  trackerKind?: "house" | "car";
   id: string;
   name: string;
   balance: number;
@@ -806,12 +809,15 @@ function validatePlannedIncome(value: unknown, path: string, issues: string[]) {
   requiredString(item.id, path + ".id", issues);
   requiredString(item.name, path + ".name", issues, true);
   requiredNumber(item.monthlyTakeHome, path + ".monthlyTakeHome", issues);
+  if (item.payFrequency !== undefined) enumValue(item.payFrequency, new Set(["monthly", "biweekly", "weekly"]), path + ".payFrequency", issues);
+  if (item.payAmount !== undefined) requiredNumber(item.payAmount, path + ".payAmount", issues);
   enumValue(item.assignment, plannedAssignments, path + ".assignment", issues);
 }
 
 function validatePlannedDebt(value: unknown, path: string, issues: string[]) {
   const item = requiredRecord(value, path, issues);
   if (!item) return;
+  if (item.trackerKind !== undefined) enumValue(item.trackerKind, new Set(["house", "car"]), path + ".trackerKind", issues);
   requiredString(item.id, path + ".id", issues);
   requiredString(item.name, path + ".name", issues, true);
   requiredNumber(item.balance, path + ".balance", issues);

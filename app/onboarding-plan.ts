@@ -10,6 +10,8 @@ import {
   type CashflowItem,
   type MonthlyPlanSettings,
 } from "./dashboard-data.ts";
+import type { LoanTracker } from "./loan-progress.ts";
+import { householdDate } from "./household-date.ts";
 import { calculatePlan, effectiveForecastApr, effectiveMinimum, round, type PayoffPlan } from "./payoff-engine.ts";
 
 export const ONBOARDING_STEP_COUNT = 5;
@@ -26,6 +28,8 @@ export type OnboardingTotals = {
 
 export type GeneratedOnboardingPlan = {
   accounts: DebtAccount[];
+  loanTrackers: LoanTracker[];
+  loanMinimums: number;
   planning: PlannedPayoffData;
   strategy: PayoffStrategy;
   extra: number;
@@ -65,6 +69,10 @@ export function createOnboardingPlanning(): PlannedPayoffData {
   };
 }
 
+export function normalizeIncome(amount: number, frequency: "monthly" | "biweekly" | "weekly") {
+  return round(amount * (frequency === "weekly" ? 52 / 12 : frequency === "biweekly" ? 26 / 12 : 1));
+}
+
 export function totalPlannedIncome(sources: PlannedIncomeSource[]) {
   return round(sources.reduce((sum, source) => sum + source.monthlyTakeHome, 0));
 }
@@ -100,7 +108,7 @@ export function capacityToExtra(capacity: number, accounts: DebtAccount[]) {
 }
 
 export function plannedDebtsToAccounts(debts: PlannedDebt[], createdAt: string): DebtAccount[] {
-  return debts.map((debt) => ({
+  return debts.filter(debt => !debt.trackerKind).map((debt) => ({
     id: debt.id,
     name: debt.name.trim(),
     type: debt.type,
@@ -133,7 +141,14 @@ export function buildOnboardingPlan(
   completedAt = new Date().toISOString(),
 ): GeneratedOnboardingPlan {
   const accounts = plannedDebtsToAccounts(planning.debts, completedAt);
-  const extra = capacityToExtra(planning.capacity.monthlyAmount, accounts);
+  const loanMinimums = round(planning.debts.filter(debt => debt.trackerKind).reduce((sum, debt) => sum + debt.minimum, 0));
+  const loanTrackers: LoanTracker[] = planning.debts.filter(debt => debt.trackerKind).map(debt => ({
+    id: debt.id, name: debt.name.trim(), kind: debt.trackerKind!, originalAmount: debt.balance,
+    remainingAmount: debt.balance, balanceKind: "principal", asOf: householdDate(calculationDate),
+    budgetItemId: `setup-loan-${debt.id}`, budgetItemName: debt.name.trim(), apr: debt.apr,
+    principalAndInterest: debt.minimum, history: [],
+  }));
+  const extra = capacityToExtra(Math.max(0, planning.capacity.monthlyAmount - loanMinimums), accounts);
   const strategy = RECOMMENDED_ONBOARDING_STRATEGY;
   const plan = calculatePlan(accounts, extra, strategy, {}, {}, calculationDate);
   const debtSummary = debtTotals(planning.debts);
@@ -144,6 +159,8 @@ export function buildOnboardingPlan(
     .sort((a, b) => effectiveForecastApr(b, 1, calculationDate) - effectiveForecastApr(a, 1, calculationDate) || a.balance - b.balance)[0]?.name ?? null;
   return {
     accounts,
+    loanTrackers,
+    loanMinimums,
     planning: {
       ...planning,
       onboarding: { ...planning.onboarding, completed: true, currentStep: 5, completedAt },
@@ -206,9 +223,10 @@ export function shouldShowOnboarding(payload: DashboardPayload) {
 export function seedMonthlyPlan(result: GeneratedOnboardingPlan, month: string, existing: Record<string, CashflowItem[]>, settings: MonthlyPlanSettings) {
   const createdAt = result.planning.onboarding.completedAt ?? new Date().toISOString();
   const income: CashflowItem[] = result.planning.incomeSources.map((source) => ({ id: `setup-income-${source.id}`, name: source.name, kind: "income", category: "Salary", amount: source.monthlyTakeHome, paymentMethod: "debit", creditAccountId: "", recurring: true, createdAt }));
+  const loanItems: CashflowItem[] = result.loanTrackers.map(loan => ({ id: loan.budgetItemId, name: loan.name, kind: "expense", category: loan.kind === "house" ? "Housing" : "Transportation", amount: loan.principalAndInterest ?? 0, paymentMethod: "debit", creditAccountId: "", recurring: true, createdAt }));
   const expenses: CashflowItem[] = Object.entries(result.planning.essentialExpenses).filter(([key, value]) => key !== "safetyBuffer" && typeof value === "number" && value > 0).map(([key, value]) => ({ id: `setup-expense-${key}`, name: key.replace(/([A-Z])/g, " $1").replace(/^./, (c) => c.toUpperCase()), kind: "expense", category: key, amount: value as number, paymentMethod: "debit", creditAccountId: "", recurring: true, createdAt }));
   return {
-    monthlyBudgets: Object.prototype.hasOwnProperty.call(existing, month) ? existing : { ...existing, [month]: [...income, ...expenses] },
-    monthlyPlan: { ...settings, monthlyCommitment: result.plan.monthly, months: { ...settings.months, [month]: settings.months[month] ?? { safetyBuffer: result.planning.essentialExpenses.safetyBuffer, debtPaymentTarget: result.plan.monthly } } },
+    monthlyBudgets: Object.prototype.hasOwnProperty.call(existing, month) ? existing : { ...existing, [month]: [...income, ...expenses, ...loanItems] },
+    monthlyPlan: { ...settings, payoffPlanAmount: result.plan.monthly, payoffPlanStrategy: result.strategy, loanTrackers: [...(settings.loanTrackers ?? []), ...result.loanTrackers.filter(loan => !(settings.loanTrackers ?? []).some(existing => existing.id === loan.id))], monthlyCommitment: result.plan.monthly, months: { ...settings.months, [month]: settings.months[month] ?? { safetyBuffer: result.planning.essentialExpenses.safetyBuffer, debtPaymentTarget: result.plan.monthly } } },
   };
 }

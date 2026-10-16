@@ -24,7 +24,11 @@ export default function PaymentsPage({ readOnly, accounts, transactions, adjustm
   const activity = useMemo(() => paymentActivity(transactions, adjustments), [transactions, adjustments]);
   const names = new Map(accounts.map(a => [a.id, a.name]));
   const knownIds = [...new Set([...accounts.map(a => a.id), ...activity.map(a => a.accountId)])];
-  const rows = activity.filter(row => row.date.slice(0, 7) === month && (accountId === "all" || row.accountId === accountId));
+  const [kindFilter, setKindFilter] = useState("all");
+  const monthRows = activity.filter(row => row.date.slice(0, 7) === month && (accountId === "all" || row.accountId === accountId));
+  const rows = monthRows.filter(row => kindFilter === "all" || (kindFilter === "payments" ? row.kind === "payment" : row.kind === "interest" || row.kind === "fee"));
+  const interestTotal = monthRows.filter(row => row.kind === "interest" || row.kind === "fee").reduce((sum, row) => sum + row.difference, 0);
+  const netChange = monthRows.reduce((sum, row) => sum + row.difference, 0);
   const deleted = [
     ...transactions.filter(t => t.deletedAt && !t.replacedByTransactionId).map(t => ({ id: "transaction:" + t.id, accountId: t.accountId, amount: t.amount, date: t.date, kind: t.type })),
     ...adjustments.filter(a => a.deletedAt).map(a => ({ id: "adjustment:" + a.id, accountId: a.accountId, amount: Math.abs(a.difference), date: a.date, kind: "adjustment" })),
@@ -33,6 +37,8 @@ export default function PaymentsPage({ readOnly, accounts, transactions, adjustm
     <h1 className="sr-only">Transactions</h1>
     {message && <p className="debt-action-message" role="status">{message}</p>}
     <div className="payments-filters"><label><span>Month</span><input type="month" value={month} onChange={e => setMonth(e.target.value)}/></label><label><span>Account</span><select value={accountId} onChange={e => setAccountId(e.target.value)}><option value="all">All card/other accounts</option>{knownIds.map(id => <option key={id} value={id}>{names.get(id) ?? "Removed debt (" + id + ")"}</option>)}</select></label></div>
+    <section className="transaction-highlights" aria-label="Monthly transaction summary"><article><span>Payments recorded</span><strong>{currency.format(confirmedPaymentTotal(transactions, adjustments, month, accountId))}</strong></article><article><span>Interest & fees</span><strong>{currency.format(interestTotal)}</strong></article><article className="net-change"><span>Net balance change</span><strong className={netChange > 0 ? "negative" : ""}>{netChange < 0 ? "−" : netChange > 0 ? "+" : ""}{currency.format(Math.abs(netChange))}</strong></article></section>
+    <div className="transaction-kind-filters" role="group" aria-label="Filter transaction type">{[{id:"all",label:"All"},{id:"payments",label:"Payments only"},{id:"interest",label:"Interest & fees"}].map(filter => <button type="button" key={filter.id} aria-pressed={kindFilter === filter.id} onClick={() => setKindFilter(filter.id)}>{filter.label}</button>)}</div>
     <details className="transaction-reporting"><summary>Payments this month</summary><section className="simple-total" aria-label="Confirmed payment total"><span>Payments this month</span><strong>{currency.format(confirmedPaymentTotal(transactions, adjustments, month, accountId))}</strong><p>Payments exclude refunds, credits, and unidentified reconciliation adjustments. Cards and other accounts only; house/car payments are separate. Payments recorded differ from net debt reduction because purchases, interest, credits, and lender adjustments also change balances. Budget checklists stay unchanged.</p></section></details>
     <section className="payment-activity" aria-label="Debt transaction activity">
       {rows.length ? rows.map((row, index) => {
@@ -40,7 +46,7 @@ export default function PaymentsPage({ readOnly, accounts, transactions, adjustm
         const kind = row.kind === "payment" ? "Payment" : row.kind === "credit" ? "Refund / credit" : row.kind === "interest" ? (transactions.find(t => "transaction:" + t.id === row.id)?.interestEstimate ? "Estimated interest" : "Interest") : row.kind === "purchase" ? "Purchase" : row.kind === "fee" ? "Fee" : "Balance adjustment";
         return <Fragment key={row.id}>
           {(index === 0 || rows[index - 1].date !== row.date) && <h2 className="transaction-date"><time dateTime={row.date}>{dateLabel(row.date)}</time></h2>}
-          <article className="clean-transaction-card" data-activity-id={row.id}>
+          <article className="clean-transaction-card" data-activity-id={row.id} data-kind={row.kind}>
           <button type="button" className="transaction-edit-surface" disabled={readOnly} aria-label={`Edit ${row.title} for ${names.get(row.accountId) ?? "removed debt"}`} onClick={() => open({ action: "save", id: row.id })}>
             <span className={"transaction-icon " + (row.difference < 0 ? "decrease" : "increase")}><OutlineIcon name={row.kind === "purchase" ? "cart" : row.kind === "payment" || row.kind === "credit" ? "card" : "receipt"}/></span>
             <span className="transaction-clean-name"><strong>{row.title}</strong><span>{names.get(row.accountId) ?? "Removed debt"}</span></span>

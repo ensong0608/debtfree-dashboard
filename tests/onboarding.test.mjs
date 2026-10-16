@@ -172,7 +172,7 @@ test("step validation reports accessible, field-specific guidance", () => {
 
 test("onboarding UI exposes all required screens and semantic keyboard controls", async () => {
   const source = await readFile(new URL("../app/onboarding-flow.tsx", import.meta.url), "utf8");
-  assert.match(source, /Build your household debt-payoff plan./);
+  assert.match(source, /Crush household debt,/);
   assert.match(source, /Start my payoff plan/);
   assert.match(source, /Import existing data/);
   assert.match(source, />Household income</);
