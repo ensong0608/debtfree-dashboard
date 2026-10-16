@@ -147,3 +147,4 @@ button:disabled{opacity:.6}
 .onboarding-shell input[aria-invalid=true]{outline:1px solid #b4233c;border-color:#b4233c}
 .aggregate-debt-progress{grid-column:1/-1;margin-top:14px}.aggregate-debt-progress>div:first-child{display:flex;justify-content:space-between;gap:12px;font-size:12px;color:var(--muted);margin-bottom:8px}.aggregate-debt-progress [role=progressbar]{height:6px;border-radius:99px;background:#e0eae4;overflow:hidden}.aggregate-debt-progress i{display:block;height:100%;background:linear-gradient(90deg,#20b78d,#69d5b2);border-radius:99px}
 .debts-screen .compact-debt-identity h2{display:flex;align-items:center;gap:8px}.debt-name-icon{display:grid;place-items:center;flex:none;width:30px;height:30px;border-radius:50%;background:var(--green-soft);color:var(--mint-ink)}.debt-name-icon svg{width:18px;height:18px}
+.utilization-metrics small{font-size:12px;line-height:1.5;color:var(--muted)}

@@ -113,6 +113,7 @@ export function plannedDebtsToAccounts(debts: PlannedDebt[], createdAt: string):
     name: debt.name.trim(),
     type: debt.type,
     balance: debt.balance,
+    baselineBalance: debt.balance,
     apr: debt.apr,
     interestFee: 0,
     minimum: debt.minimum,
@@ -227,6 +228,6 @@ export function seedMonthlyPlan(result: GeneratedOnboardingPlan, month: string, 
   const expenses: CashflowItem[] = Object.entries(result.planning.essentialExpenses).filter(([key, value]) => key !== "safetyBuffer" && typeof value === "number" && value > 0).map(([key, value]) => ({ id: `setup-expense-${key}`, name: key.replace(/([A-Z])/g, " $1").replace(/^./, (c) => c.toUpperCase()), kind: "expense", category: key, amount: value as number, paymentMethod: "debit", creditAccountId: "", recurring: true, createdAt }));
   return {
     monthlyBudgets: Object.prototype.hasOwnProperty.call(existing, month) ? existing : { ...existing, [month]: [...income, ...expenses, ...loanItems] },
-    monthlyPlan: { ...settings, payoffPlanAmount: result.plan.monthly, payoffPlanStrategy: result.strategy, loanTrackers: [...(settings.loanTrackers ?? []), ...result.loanTrackers.filter(loan => !(settings.loanTrackers ?? []).some(existing => existing.id === loan.id))], monthlyCommitment: result.plan.monthly, months: { ...settings.months, [month]: settings.months[month] ?? { safetyBuffer: result.planning.essentialExpenses.safetyBuffer, debtPaymentTarget: result.plan.monthly } } },
+    monthlyPlan: { ...settings, ...(settings.progressStartingBalance === undefined && result.accounts.length ? { progressStartingBalance: round(result.accounts.reduce((sum, account) => sum + account.balance, 0)) } : {}), payoffPlanAmount: result.plan.monthly, payoffPlanStrategy: result.strategy, loanTrackers: [...(settings.loanTrackers ?? []), ...result.loanTrackers.filter(loan => !(settings.loanTrackers ?? []).some(existing => existing.id === loan.id))], monthlyCommitment: result.plan.monthly, months: { ...settings.months, [month]: settings.months[month] ?? { safetyBuffer: result.planning.essentialExpenses.safetyBuffer, debtPaymentTarget: result.plan.monthly } } },
   };
 }

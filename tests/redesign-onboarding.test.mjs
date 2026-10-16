@@ -24,6 +24,8 @@ test('setup house/car debts preserve loan tracker representation, reserve paymen
  {...createPlannedDebt('car'),name:'Test vehicle',type:'Auto loan',trackerKind:'car',balance:15000,minimum:300,apr:5}];
  planning.capacity.monthlyAmount=1500;
  const result=buildOnboardingPlan(planning,new Date('2026-10-16T12:00:00Z'),'2026-10-16T12:00:00Z');
+ assert.equal(result.accounts[0].baselineBalance,2000);
+ assert.equal(seedMonthlyPlan(result,'2026-10',{}, {months:{},detailedSpendingTracking:false}).monthlyPlan.progressStartingBalance,2000);
  assert.equal(result.accounts.length,1);assert.equal(result.loanTrackers.length,2);
  assert.equal(result.loanMinimums,1100);assert.equal(result.extra,340);assert.equal(result.plan.monthly,400);
  const existing={progressStartingBalance:9876.54,months:{},loanTrackers:[],detailedSpendingTracking:false};

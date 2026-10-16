@@ -6,12 +6,14 @@ const output='outputs/ui-verification/redesign';
 test('approved main tabs and secondary pages remain usable with synthetic data',async({page},info)=>{
  const fixture=JSON.parse(readFileSync('tests/fixtures/legacy-v0.json','utf8'));
  const now=new Date();const month=`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
- fixture.accounts[0].baselineBalance=3000;fixture.monthlyPlan={months:{},detailedSpendingTracking:false,...fixture.monthlyPlan,payoffPlanAmount:500,progressStartingBalance:10000};
+ fixture.accounts[0].baselineBalance=3000;fixture.accounts[0].displayGroup='Mama';fixture.accounts[1].baselineBalance=7500;fixture.accounts[1].displayGroup='Papi';
+ const base=fixture.transactions[0];
+ fixture.transactions=[{...base,id:'test-payment',type:'payment',category:'Debt payment',title:'Monthly card payment',amount:180,date:month+'-12',createdAt:month+'-12T12:00:00Z',deletedAt:null},{...base,id:'test-interest',type:'fee',category:'Interest',title:'Statement interest',amount:34.25,date:month+'-10',createdAt:month+'-10T12:00:00Z',deletedAt:null},{...base,id:'test-purchase',title:'Household groceries',amount:64.25,date:month+'-08',createdAt:month+'-08T12:00:00Z',deletedAt:null}];fixture.monthlyPlan={months:{},detailedSpendingTracking:false,...fixture.monthlyPlan,payoffPlanAmount:500,progressStartingBalance:10000};
  fixture.monthlyBudgets[month]=[{id:'salary',name:'Test household salary',kind:'income',category:'Salary',amount:4200,paymentMethod:'debit',creditAccountId:'',recurring:true,createdAt:now.toISOString()},{id:'rent',name:'Test rent',kind:'expense',category:'Housing',amount:1400,paymentMethod:'debit',creditAccountId:'',recurring:true,createdAt:now.toISOString()}];
  mkdirSync(output,{recursive:true});
  await page.goto('/');await page.locator('input[type=file]').setInputFiles({name:'synthetic.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(fixture))});
  await expect(page.locator('.app-shell')).toBeVisible();
- const screenshot=async(name:string)=>{await page.screenshot({path:`${output}/${info.project.name}-${name}.png`,fullPage:true});expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1)).toBe(true);};
+ const screenshot=async(name:string)=>{await page.locator('.page-body').evaluate(el=>{el.scrollTop=0;});await page.screenshot({path:`${output}/${info.project.name}-${name}.png`,fullPage:true});expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1)).toBe(true);const body=page.locator('.page-body');await body.evaluate(el=>{el.scrollTop=el.scrollHeight;});await page.screenshot({path:`${output}/${info.project.name}-${name}-bottom.png`});await body.evaluate(el=>{el.scrollTop=0;});};
  for(const width of info.project.name==='phone'?[360,390,430]:info.project.name==='tablet'?[768]:[1440]){
   await page.setViewportSize({width,height:900});
   for(const name of ['Debts','Transactions','Budget','More']){await page.getByRole('button',{name,exact:true}).click();await screenshot(`${width}-${name.toLowerCase()}`);}
@@ -28,7 +30,7 @@ test('approved main tabs and secondary pages remain usable with synthetic data',
 
 test('all five setup steps share the design system, validate, normalize income and preserve loans on reload',async({page},info)=>{
  mkdirSync(output,{recursive:true});await page.goto('/');
- const screenshot=async(step:number)=>{await page.screenshot({path:`${output}/${info.project.name}-onboarding-${step}.png`,fullPage:true});expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1)).toBe(true);};
+ const screenshot=async(step:number)=>{const original=page.viewportSize()!;for(const width of info.project.name==='phone'?[360,390,430]:[original.width]){await page.setViewportSize({width,height:original.height});const shell=page.locator('.onboarding-shell');await shell.evaluate(el=>{el.scrollTop=0;});await page.screenshot({path:`${output}/${info.project.name}-${width}-onboarding-${step}.png`});expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1)).toBe(true);await shell.evaluate(el=>{el.scrollTop=el.scrollHeight;});await page.screenshot({path:`${output}/${info.project.name}-${width}-onboarding-${step}-bottom.png`});await shell.evaluate(el=>{el.scrollTop=0;});}await page.setViewportSize(original);};
  await expect(page.getByRole("button",{name:"Start my payoff plan",exact:true})).toBeVisible();
  await screenshot(1);await page.getByRole('button',{name:'Start my payoff plan',exact:true}).click();
  await page.getByRole('button',{name:'Continue',exact:true}).click();await expect(page.getByRole('alert')).toContainText('needs a name');

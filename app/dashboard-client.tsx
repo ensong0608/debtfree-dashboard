@@ -1317,7 +1317,7 @@ function AccountsPage({
   const paidOffCount = current.filter((account) => account.balance <= 0).length;
   const knownBaselines = current.length > 0 && current.every(account => typeof account.baselineBalance === "number" && account.baselineBalance > 0);
   const trackedStartingTotal = current.reduce((sum, account) => sum + (account.baselineBalance ?? 0), 0);
-  const trackedReduction = knownBaselines ? Math.max(0, Math.min(100, (trackedStartingTotal - totalBalance) / trackedStartingTotal * 100)) : null;
+  const trackedReduction = knownBaselines ? Math.max(0, Math.min(100, (trackedStartingTotal - current.reduce((sum, account) => sum + account.balance, 0)) / trackedStartingTotal * 100)) : null;
   const headers: { key: SortKey; label: string }[] = [
     { key: "name", label: "Debt" }, { key: "balance", label: "Balance" }, { key: "apr", label: "APR" },
     { key: "minimum", label: "Minimum" }, { key: "dueDate", label: "Due date" }, { key: "status", label: "Status" },
