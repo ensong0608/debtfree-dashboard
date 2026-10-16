@@ -18,7 +18,7 @@
 body,.app-shell,.debts-screen { background: var(--paper); }
 .page-heading { padding-top: 22px; padding-bottom: 22px; }
 .page-heading h1 { font-size: 32px; font-weight: 750; letter-spacing: -.9px; }
-.account-bubble { background: #e8eafb; width: 38px; height: 38px; font-size: 13px; }
+.account-bubble { background: #e8eafb; width: 44px; height: 44px; font-size: 13px; }
 .save-status { font-size: 11px; }
 .primary,.secondary,.danger,.import-file,
 .owner-filters button,.transaction-kind-filters button,
@@ -220,3 +220,5 @@ button svg { flex: none; }
 .transaction-card-footer>.transaction-secondary>summary { min-height: 44px; padding: 13px 0; cursor: pointer; }
 .transaction-card-footer:has(>.transaction-secondary[open])>.transaction-secondary { flex-basis: 100%; order: 4; }
 .transaction-card-footer .transaction-secondary p,.transaction-card-footer .transaction-secondary li { font-size: 12px; line-height: 1.5; overflow-wrap: anywhere; }
+
+.compact-debt-meta .debt-due-meta>dd { margin: 0; }
