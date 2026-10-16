@@ -1,3 +1,5 @@
+> Current follow-up: the approved visual redesign was released at app source af3ee3a5f541630fe129cc105edcba228b4f7418. See [VISUAL_REDESIGN_RELEASE_20261016.md](VISUAL_REDESIGN_RELEASE_20261016.md) for the latest Worker version, validation, encrypted recovery and exact data-preservation evidence. The October 15 promotion below remains historical context.
+
 # Private production release — completed October 15, 2026
 
 The user requested that the tested improvements reach the real app now, with development/release separation established for the later public launch. This changes the prior preview-only delivery direction. It does not open public signup or authorize Stage 6 activation.
