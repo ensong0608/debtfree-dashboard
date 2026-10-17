@@ -3,6 +3,7 @@ export default defineConfig({
   testDir: "./tests/browser",
   outputDir: ".wrangler/browser-results",
   workers: 1,
+  maxFailures: process.env.CI ? 1 : 0,
   timeout: 60000,
   expect: { timeout: 10000 },
   reporter: "list",
