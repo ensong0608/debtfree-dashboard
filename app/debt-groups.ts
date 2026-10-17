@@ -13,6 +13,6 @@ export function migrateLegacyGroups<T extends Pick<DebtAccount, "name" | "displa
   return { groups: [{ id: 'Mama', name: 'Mama' }, { id: 'Papi', name: 'Papi' }, { id: 'Other', name: 'Other' }], accounts: accounts.map(account => {
     const name = account.name.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
     const index = aliases.findIndex(items => items.some(alias => name === alias || name.startsWith(alias + ' ')));
-    return { ...account, displayGroup: account.displayGroup ?? (index < 0 ? 'Other' : index < 5 ? 'Mama' : 'Papi'), displayOrder: account.displayOrder ?? (index < 0 ? Number.MAX_SAFE_INTEGER : index % 5) };
+    return { ...account, displayGroup: account.displayGroup ?? (index < 0 ? 'Other' : index < 5 ? 'Mama' : 'Papi'), displayOrder: account.displayOrder ?? (index < 0 ? 1_000_000 : index % 5) };
   }) };
 }

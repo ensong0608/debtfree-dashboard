@@ -23,3 +23,12 @@ test('group labels validate and survive export/import without changing debt iden
  assert.equal(result.payload.monthlyPlan.debtGroups[1].name,'Ensong');
  original.payload.monthlyPlan.debtGroups.push({id:'group-two',name:'ensong'});assert.throws(()=>parseDashboardContract(original),/unique names/);
 });
+
+test('migration of an unrecognized lender remains valid for durable saving',()=>{
+ const original=parseDashboardContract(JSON.parse(readFileSync('tests/fixtures/legacy-v0.json','utf8')));
+ original.payload.accounts[0].name='Everyday card';
+ const migrated=migrateLegacyGroups(original.payload.accounts);
+ original.payload.accounts=migrated.accounts;
+ original.payload.monthlyPlan={...original.payload.monthlyPlan,debtGroups:migrated.groups};
+ assert.equal(parseDashboardContract(JSON.parse(serializeDashboardBackup(original))).payload.accounts[0].displayGroup,'Other');
+});
