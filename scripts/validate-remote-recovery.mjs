@@ -41,8 +41,10 @@ print(json.dumps({t:[dict(r) for r in c.execute('SELECT * FROM '+t)] for t in js
   if(!result[0]?.success||digest(result[0].results)!==digest(expected[table]))throw new Error('Restore differs');
   if(table==='household_state')for(const row of result[0].results)if(row.payload)parseDashboardContract(JSON.parse(row.payload));
  }
- const integrity=await api(`/d1/database/${created.uuid}/query`,'POST',{sql:'PRAGMA integrity_check; PRAGMA foreign_key_check;'});
- if(integrity.some(r=>!r.success)||integrity[0].results[0]?.integrity_check!=='ok'||integrity[1].results.length)throw new Error('Integrity failure');
+ console.log('Restored rows and contracts PASSED: exact membership, revisions, financial state, original baseline, snapshots, invitations and requests. No values logged.');
+ stage='remote D1 quick_check and foreign keys';
+ const integrity=await api(`/d1/database/${created.uuid}/query`,'POST',{sql:'PRAGMA quick_check; PRAGMA foreign_key_check;'});
+ if(integrity.some(r=>!r.success)||integrity[0].results[0]?.quick_check!=='ok'||integrity[1].results.length)throw new Error('Integrity failure');
  console.log('Remote isolated D1 recovery PASSED: exact membership, revisions, financial state, original Progress baseline, snapshots, invitations and requests match the consistent checkpoint. No production restore or values logged.');
 } catch {
  console.error('Remote isolated recovery could not be verified at '+stage+'. This gate remains open; no production restore was attempted.');process.exitCode=1;

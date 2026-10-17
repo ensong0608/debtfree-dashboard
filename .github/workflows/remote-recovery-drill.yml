@@ -1,0 +1,27 @@
+name: Verify isolated remote D1 recovery
+on:
+  push:
+    branches: [codex/production-release-20261015]
+    paths: [scripts/validate-remote-recovery.mjs, .github/workflows/remote-recovery-drill.yml]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: isolated-remote-recovery
+  cancel-in-progress: false
+jobs:
+  recovery:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - name: Verify an isolated disposable restore and cleanup
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+        run: node scripts/validate-remote-recovery.mjs
