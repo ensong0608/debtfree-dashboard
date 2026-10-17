@@ -1021,6 +1021,22 @@ function validateDashboardPayloadFields(value: unknown, path: string, includePla
       issues.push(path + ".customDebtOrder must not contain duplicate debt ids.");
     }
   }
+  if (!issues.length && payload) {
+    const plan = payload.monthlyPlan as MonthlyPlanSettings | undefined;
+    if (plan?.debtGroups) {
+      const ids = new Set(plan.debtGroups.map(group => group.id));
+      for (const account of [...payload.accounts as DebtAccount[], ...(plan.removedProgressAccounts ?? [])]) if (!ids.has(account.displayGroup ?? "Other")) issues.push(path + ".accounts must reference a saved debt group.");
+    }
+    const cycles = new Set<string>();
+    for (const transaction of payload.transactions as LedgerTransaction[]) {
+      if (transaction.actualInterestCycle !== undefined) {
+        if (typeof transaction.actualInterestCycle !== "string" || !/^\d{4}-(0[1-9]|1[0-2])$/.test(transaction.actualInterestCycle) || transaction.type !== "fee" || !transaction.date.startsWith(transaction.actualInterestCycle)) issues.push(path + ".transactions requires a valid actual-interest cycle.");
+        const key = transaction.accountId + ":" + transaction.actualInterestCycle;
+        if (!transaction.deletedAt && cycles.has(key)) issues.push(path + ".transactions duplicates actual interest for one cycle.");
+        if (!transaction.deletedAt) cycles.add(key);
+      }
+    }
+  }
   if (!issues.length && payload && Array.isArray(payload.transactions)) {
     try { validatePaymentLinks(payload.transactions as LedgerTransaction[], (payload.balanceAdjustments ?? []) as BalanceAdjustment[]); }
     catch(error) { issues.push(error instanceof Error ? error.message : "Invalid linked payment."); }

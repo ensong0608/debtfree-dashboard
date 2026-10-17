@@ -6,7 +6,7 @@ export function validDisplayName(value: string, max = 40) {
 }
 // One-time compatibility migration for backups predating explicit group metadata.
 // This is never used for newly added debts or households.
-export function migrateLegacyGroups(accounts: DebtAccount[], saved?: DebtGroup[]) {
+export function migrateLegacyGroups<T extends Pick<DebtAccount, "name" | "displayGroup" | "displayOrder">>(accounts: T[], saved?: DebtGroup[]) {
   if (saved) return { accounts, groups: saved };
   if (!accounts.length) return { accounts, groups: neutralGroups };
   const aliases = [['citi1', 'citi 1'], ['discover'], ['chase prime', 'chase amazon', 'amazon prime'], ['penfed', 'pen fed'], ['citi cash', 'citi custom cash'], ['costco'], ['chase freedom'], ['wells fargo'], ['citi double cash', 'double cash'], ['usbconnect', 'us bank connect', 'usbank connect', 'usb connect']];
