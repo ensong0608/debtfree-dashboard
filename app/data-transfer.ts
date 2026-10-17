@@ -1,3 +1,4 @@
+import { migrateLegacyGroups } from "./debt-groups.ts";
 import {
   createDashboardBackup,
   createDashboardPayload,
@@ -50,10 +51,17 @@ export function previewDashboardImport(text: string): DashboardImportPreview {
 }
 
 export function mergeDashboardPayload(current: DashboardPayload, incoming: DashboardPayload): DashboardPayload {
+  const normalizeGroups = (payload: DashboardPayload) => {
+    const removed = payload.monthlyPlan?.removedProgressAccounts ?? [];
+    const groups = payload.monthlyPlan?.debtGroups;
+    return { ...migrateLegacyGroups(payload.accounts, groups ?? (!payload.accounts.length && removed.length ? migrateLegacyGroups(removed).groups : undefined)), removed: migrateLegacyGroups(removed, groups).accounts };
+  };
+  const currentGroups = normalizeGroups(current);
+  const incomingGroups = normalizeGroups(incoming);
   const balanceAdjustments = mergeById(current.balanceAdjustments ?? [], incoming.balanceAdjustments ?? []);
   const customDebtOrder = [...new Set([...(current.customDebtOrder ?? []), ...(incoming.customDebtOrder ?? [])])];
   return createDashboardPayload({ ...current, ...incoming }, {
-    accounts: mergeById(current.accounts, incoming.accounts),
+    accounts: mergeById(currentGroups.accounts, incomingGroups.accounts),
     monthlyBudgets: mergeMonthlyRecords(current.monthlyBudgets, incoming.monthlyBudgets),
     payees: mergeById(current.payees, incoming.payees),
     transactions: mergeById(current.transactions, incoming.transactions),
@@ -65,6 +73,9 @@ export function mergeDashboardPayload(current: DashboardPayload, incoming: Dashb
     monthlyPlan: {
       ...current.monthlyPlan,
       ...incoming.monthlyPlan,
+      debtGroups: mergeById(incomingGroups.groups, currentGroups.groups),
+      ...(current.monthlyPlan?.progressStartingBalance !== undefined ? { progressStartingBalance: current.monthlyPlan.progressStartingBalance } : {}),
+      removedProgressAccounts: mergeById(currentGroups.removed, incomingGroups.removed),
       loanTrackers: mergeById(current.monthlyPlan?.loanTrackers ?? [], incoming.monthlyPlan?.loanTrackers ?? []),
       detailedSpendingTracking: Boolean(current.monthlyPlan?.detailedSpendingTracking || incoming.monthlyPlan?.detailedSpendingTracking),
       months: { ...(current.monthlyPlan?.months ?? {}), ...(incoming.monthlyPlan?.months ?? {}) },

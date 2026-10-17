@@ -32,3 +32,16 @@ test('migration of an unrecognized lender remains valid for durable saving',()=>
  original.payload.monthlyPlan={...original.payload.monthlyPlan,debtGroups:migrated.groups};
  assert.equal(parseDashboardContract(JSON.parse(serializeDashboardBackup(original))).payload.accounts[0].displayGroup,'Other');
 });
+
+test('merging a legacy backup preserves custom groups and the original household baseline',async()=>{
+ const {mergeDashboardPayload}=await import('../app/data-transfer.ts');
+ const current=parseDashboardContract(JSON.parse(readFileSync('tests/fixtures/legacy-v0.json','utf8'))).payload;
+ current.monthlyPlan={...current.monthlyPlan,debtGroups:[{id:'Other',name:'Shared'},{id:'group-owner',name:'Ensong'}],progressStartingBalance:20000};
+ current.accounts=current.accounts.map(a=>({...a,displayGroup:'group-owner'}));
+ const incoming=structuredClone(current);incoming.accounts=[{...incoming.accounts[0],id:'legacy-extra',name:'Discover',displayGroup:undefined}];delete incoming.monthlyPlan.debtGroups;incoming.monthlyPlan.progressStartingBalance=1;
+ const merged=mergeDashboardPayload(current,incoming);
+ assert.equal(merged.monthlyPlan.progressStartingBalance,20000);
+ assert.equal(merged.accounts.find(a=>a.id==='legacy-extra').displayGroup,'Mama');
+ assert.equal(merged.monthlyPlan.debtGroups.find(g=>g.id==='group-owner').name,'Ensong');
+ assert.equal(parseDashboardContract({format:'debtfree-dashboard-backup',version:6,exportedAt:new Date().toISOString(),payload:merged}).payload.accounts.length,current.accounts.length+1);
+});

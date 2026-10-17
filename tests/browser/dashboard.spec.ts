@@ -278,7 +278,7 @@ test("Costco interest starts next cycle, survives refresh, and reconciles withou
   await card.getByRole("button", { name: /Edit debt details/ }).click();
   const dialog = page.getByRole("dialog");
   await dialog.getByText("More details — optional",{exact:true}).click();
-  await dialog.getByLabel("Method",{exact:true}).selectOption("estimate");
+  await dialog.getByLabel("Interest method",{exact:true}).selectOption("estimate");
   const close = dialog.getByLabel("Latest closing date included",{exact:true});
   await close.fill("2026-10-01");
   await expect(dialog.getByRole("button", { name: "Save details", exact: true })).toBeDisabled();
@@ -287,14 +287,14 @@ test("Costco interest starts next cycle, survives refresh, and reconciles withou
   const original = page.viewportSize()!;
   for (const width of [360,390,430]) {
     await page.setViewportSize({ width, height:844 });
-    await dialog.getByLabel("Method",{exact:true}).scrollIntoViewIfNeeded();
+    await dialog.getByLabel("Interest method",{exact:true}).scrollIntoViewIfNeeded();
     expect(await dialog.evaluate(el => el.scrollWidth <= el.clientWidth + 1)).toBe(true);
   }
   await page.setViewportSize(original);
   await dialog.getByRole("button", { name: "Save details", exact: true }).click();
   if(!await card.getByRole("button",{name:/Edit debt details/}).isVisible()) await card.locator(".debt-overflow > summary").click();
   await card.getByRole("button", { name: /Edit debt details/ }).click();
-  await expect(dialog.getByLabel("Method",{exact:true})).toHaveValue("estimate");
+  await expect(dialog.getByLabel("Interest method",{exact:true})).toHaveValue("estimate");
   await dialog.getByRole("button", { name: "Cancel", exact: true }).click();
   await expect(card.locator(".simple-balance")).toHaveText("$10,075.60");
   await page.getByRole("button", { name: "Transactions", exact: true }).click();
