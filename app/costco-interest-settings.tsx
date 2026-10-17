@@ -1,15 +1,10 @@
 "use client";
 import type { InterestAutomation } from "./interest-accrual";
-import { COSTCO_ESTIMATED_APR, coveredCostcoClose, householdDate } from "./interest-accrual";
-
-export default function CostcoInterestSettings({ value, onChange }: { value?: InterestAutomation; onChange: (value: InterestAutomation) => void }) {
-  const config = value ?? { enabled: false, coveredThrough: coveredCostcoClose(householdDate()), estimatedApr: COSTCO_ESTIMATED_APR };
-  return <fieldset className="wide costco-interest-settings">
-    <legend>Costco monthly interest</legend>
-    <p>Optional estimate using the October statement rates: 18.99% and 22.99%, blended to {COSTCO_ESTIMATED_APR.toFixed(2)}%. Separate current balances at each rate are unknown.</p>
-    <label className="interest-toggle"><input type="checkbox" checked={config.enabled} onChange={event => onChange({ ...config, enabled: event.target.checked })}/><span>Automatically add estimated interest</span></label>
-    <label><span>Latest closing date already included in my balance</span><input type="date" value={config.coveredThrough} max={householdDate()} onChange={event => onChange({ ...config, coveredThrough: event.target.value })}/></label>
-    <p>Costco closes on day 2. Enabling confirms your saved balance already includes interest through this date. The first new estimate is the next month; October&apos;s $188.01 is not added again.</p>
-    <p>Updates run when an editor opens or refreshes the dashboard after closing, once per debt per month. Estimates use the saved balance × blended APR × days ÷ 365, not Citi&apos;s exact daily calculation. Enter the lender&apos;s balance to reconcile. Pause this if statement rates change.</p>
+import { coveredClose, householdDate } from "./interest-accrual";
+export default function InterestSettings({ value, apr, onChange }: { value?: InterestAutomation; apr: number; onChange: (value: InterestAutomation) => void }) {
+  const config = value ?? { enabled: false, closingDay: 2, coveredThrough: coveredClose(householdDate()), estimatedApr: apr };
+  return <fieldset className="wide costco-interest-settings"><legend>Interest entry</legend>
+    <label>Interest method<select aria-label="Interest method" value={config.enabled ? "estimate" : "manual"} onChange={event => onChange({ ...config, enabled: event.target.value === "estimate", coveredThrough: coveredClose(householdDate(), config.closingDay) })}><option value="manual">Manual interest entry</option><option value="estimate">Automatic estimated interest</option></select></label>
+    {config.enabled && <><label>Closing day<input type="number" min={1} max={31} value={config.closingDay ?? 2} onChange={event => { const closingDay = Number(event.target.value); if (closingDay >= 1 && closingDay <= 31) onChange({ ...config, closingDay, coveredThrough: coveredClose(householdDate(), closingDay) }); }}/></label><label>Estimate APR (%)<input type="number" min="0.01" max="100" step="0.01" value={config.estimatedApr} onChange={event => onChange({ ...config, estimatedApr: Number(event.target.value) })}/></label><label>Latest closing date included<input type="date" max={householdDate()} value={config.coveredThrough} onChange={event => onChange({ ...config, coveredThrough: event.target.value })}/></label><details><summary>Estimate assumptions</summary><p>Catch-up runs when an editor opens or returns to the app. It does not run while closed. Balance at closing × APR × cycle days ÷ 365, rounded to cents. Short months use the last day. The first estimate is the next closing date after the included date.</p><p>Disabling stops future catch-up. Re-enabling skips paused cycles and keeps existing entries. Enter actual interest below to replace an estimate, or update the lender balance to reconcile it.</p></details></>}
   </fieldset>;
 }

@@ -71,3 +71,27 @@ test('two phones applying the same cycle converge after a revision conflict with
   assert.equal(balance(checked.contract.payload.accounts[0],checked.contract.payload.transactions),balance(costco,accrue()));
  } finally {phones.forEach(p=>p.dispose());}
 });
+
+test('entered closing day clamps short months without drift and retains per-debt APR', () => {
+ const card={...costco, name:'Any card', interestAutomation:{enabled:true, closingDay:31, coveredThrough:'2028-01-31',estimatedApr:12}};
+ const entries=accrueCostcoInterest([card],[],'2028-03-31');
+ assert.deepEqual(entries.map(t=>t.date),['2028-02-29','2028-03-31']);
+ assert.deepEqual(entries.map(t=>t.interestEstimate.days),[29,31]);
+ assert.ok(entries.every(t=>t.interestEstimate.estimatedApr===12));
+ assert.equal(parseDashboardJson(serializeDashboardBackup(backup(card,entries))).payload.transactions.length,2);
+ assert.equal(accrueCostcoInterest([{...card,type:'Auto loan'}],[],'2028-03-31').length,0);
+});
+test('actual statement interest replaces estimates once and preserves the audit chain', async () => {
+ const {recordActualInterest}=await import('../app/interest-accrual.ts');
+ const estimated=accrue(); const actual=recordActualInterest(costco,estimated,180,'2026-11-02','2026-11-03T20:00:00Z');
+ assert.equal(balance(costco,actual),10255.60); assert.ok(actual[0].deletedAt);
+ assert.equal(actual[0].replacedByTransactionId,actual[1].id);
+ assert.equal(accrueCostcoInterest([costco],actual,'2026-11-30'),actual);
+ assert.throws(()=>recordActualInterest(costco,actual,180,'2026-11-02'),/already exists/);
+ const beforeCatchup=recordActualInterest(costco,[],180,'2026-11-02');
+ assert.equal(accrueCostcoInterest([costco],beforeCatchup,'2026-11-30'),beforeCatchup);
+ assert.equal(balance(costco,beforeCatchup),10255.60);
+ const reconciled=reconcileInterest(costco,estimated,'2026-11-03','2026-11-03T20:00:00Z');
+ assert.throws(()=>recordActualInterest(reconciled.account,reconciled.transactions,180,'2026-11-02'),/lender balance/);
+ assert.equal(parseDashboardJson(serializeDashboardBackup(backup(costco,actual))).payload.transactions.length,2);
+});

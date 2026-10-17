@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { changeDebtEntry, signedEntryDraft, parseSignedAmount } from "../app/debt-transactions.ts";
+import { undoDebtEntry, changeDebtEntry, signedEntryDraft, parseSignedAmount } from "../app/debt-transactions.ts";
 import { transactionAdjustedAccounts } from "../app/progress-balances.ts";
 import { confirmedPaymentTotal, paymentActivity } from "../app/payments.ts";
 import { accrueCostcoInterest } from "../app/interest-accrual.ts";
@@ -114,4 +114,14 @@ test('balance-update reporting classification changes no balances and survives b
  backup.payload.accounts=state.accounts;backup.payload.transactions=state.transactions;backup.payload.balanceAdjustments=state.adjustments;
  assert.deepEqual(parseDashboardContract(backup).payload.balanceAdjustments,state.adjustments);
  assert.throws(()=>changeDebtEntry(state,{action:'save',id:'adjustment:refund',draft:{accountId:a.id,kind:'adjustment',amount:50,direction:'decrease',date:'2026-10-10',note:'',reportKind:'purchase'}}),/direction/);
+});
+
+test('new manual Interest entry replaces the configured cycle estimate and undo restores it',()=>{
+ let state=initial();state.accounts[0]={...account,interestAutomation:{enabled:true,coveredThrough:'2026-10-02',estimatedApr:20}};
+ state.transactions=accrueCostcoInterest(state.accounts,[],'2026-11-03');const before=structuredClone(state);
+ state=change(state,{action:'save',draft:draft('interest',18,{date:'2026-11-02'})},'actual');
+ assert.equal(balance(state),1018);assert.ok(state.transactions[0].deletedAt);assert.equal(state.transactions[1].actualInterestCycle,'2026-11');
+ assert.equal(accrueCostcoInterest(state.accounts,state.transactions,'2026-11-30').length,2);
+ assert.throws(()=>change(state,{action:'restore',id:'transaction:'+state.transactions[0].id}),/replaced/);
+ const undone=undoDebtEntry(before,state);assert.equal(balance(undone),balance(before));
 });

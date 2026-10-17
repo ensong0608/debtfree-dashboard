@@ -56,11 +56,11 @@ test('restore or correction cannot hide an overpayment behind balance clamping',
  s.accounts[0].balanceOffset=-200;
  assert.throws(()=>mutate(s,{action:'restore',id:'transaction:entry'}),/exceed/);
 });
-test('fixed snapshot cohort ignores later debts, keeps archived debts and refuses missing accounts',()=>{
+test('household scope includes later debts, keeps archived debts and refuses an unreliable starting comparison',()=>{
  const snapshot={id:'s',month:'2026-08',capturedAt:'2026-08-31T00:00:00Z',totalBalance:1000,accounts:[{accountId:'a',balance:1000}],note:''};
  let accounts=[{...a,balanceOffset:-200}, {...a,id:'new',balance:9999,baselineBalance:9999}];
- let r=buildActualProgress(accounts,[],[],[snapshot]);assert.equal(r.reduction,200);assert.equal(r.excludedCount,1);assert.equal(r.current,800);
- accounts[0].archivedAt='2026-10-01';r=buildActualProgress(accounts,[],[],[snapshot]);assert.equal(r.reduction,200);
+ let r=buildActualProgress(accounts,[],[],[snapshot]);assert.equal(r.reduction,-9799);assert.equal(r.excludedCount,0);assert.equal(r.current,10799);
+ accounts[0].archivedAt='2026-10-01';r=buildActualProgress(accounts,[],[],[snapshot]);assert.equal(r.reduction,-9799);
  r=buildActualProgress(accounts.slice(1),[],[],[snapshot]);assert.equal(r.comparisonAvailable,false);assert.equal(r.reduction,0);assert.equal(snapshot.totalBalance,1000);
  assert.equal(buildActualProgress([{...a,baselineBalance:undefined}],[],[],[]).comparisonAvailable,false);
 });

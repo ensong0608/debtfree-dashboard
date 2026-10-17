@@ -22,8 +22,8 @@ export function paymentActivity(transactions: LedgerTransaction[], adjustments: 
     ...transactions.filter(t => t.type !== "payment" && !t.deletedAt).map(t => ({
       id: "transaction:" + t.id, accountId: t.accountId, date: t.date, createdAt: t.createdAt,
       amount: t.amount, difference: t.amount,
-      kind: t.interestEstimate || t.category === "Interest" ? "interest" as const : t.type === "charge" ? "purchase" as const : "fee" as const,
-      title: t.title || (t.interestEstimate ? "Estimated interest" : t.type === "charge" ? (t.payeeName || "Card purchase") : t.category === "Interest" ? "Interest" : "Fee"),
+      kind: t.interestEstimate || t.actualInterestCycle || t.category === "Interest" ? "interest" as const : t.type === "charge" ? "purchase" as const : "fee" as const,
+      title: t.title || (t.actualInterestCycle ? "Actual interest" : t.interestEstimate ? "Estimated interest" : t.type === "charge" ? (t.payeeName || "Card purchase") : t.category === "Interest" ? "Interest" : "Fee"),
       source: t.interestEstimate ? (t.interestEstimate.reconciledAt ? "Estimate reconciled to lender balance" : "Automatic interest estimate · Not counted as a payment") : t.type === "charge" ? "Card purchase" : "Interest or fee",
       note: t.memo, creator: t.creator, before: entryHistory(t).before, after: entryHistory(t).after, adjustment: null,
     })),

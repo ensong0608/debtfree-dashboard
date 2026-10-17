@@ -16,6 +16,8 @@ jobs:
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
           node-version: 24
@@ -47,6 +49,13 @@ jobs:
           console.log('Current production deployment IDs: ' + deploymentState.deployments.map(d => d.id).join(', '));
           console.log('Confirmed existing production Worker and D1. Stage 6 adds only invitation/request tables after the encrypted recovery checkpoint.');
           NODE
+      - name: Rehearse restoration in disposable unbound remote D1
+        if: github.ref == 'refs/heads/codex/production-release-20261015'
+        continue-on-error: true
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+        run: node scripts/validate-remote-recovery.mjs
       - name: Prepare immediate pre-release encrypted recovery copy
         if: github.ref == 'refs/heads/codex/production-release-20261015'
         env:
@@ -60,12 +69,20 @@ jobs:
           path: outputs/private-release/production-backup.encrypted.json
           retention-days: 7
           if-no-files-found: error
-      - name: Apply additive Stage 6 schema after recovery checkpoint
+      - name: Apply Stage 6 schema only when the committed migration changed
         if: github.ref == 'refs/heads/codex/production-release-20261015'
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
-        run: npx wrangler d1 execute debtfree-dashboard-prod --remote --config wrangler.jsonc --file drizzle/0001_household_lifecycle.sql --yes
+          RELEASE_BEFORE: ${{ github.event.before }}
+        run: |
+          before="$RELEASE_BEFORE"
+          if [ -z "$before" ] || ! git cat-file -e "$before^{commit}" 2>/dev/null; then before=HEAD^; fi
+          if git diff --quiet "$before" HEAD -- drizzle/0001_household_lifecycle.sql; then
+            echo "Committed schema unchanged; no remote migration applied."
+          else
+            npx wrangler d1 execute debtfree-dashboard-prod --remote --config wrangler.jsonc --file drizzle/0001_household_lifecycle.sql --yes
+          fi
       - name: Configure production authentication
         run: |
           node --input-type=module <<'NODE'

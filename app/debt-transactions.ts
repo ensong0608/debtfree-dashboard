@@ -1,6 +1,6 @@
 import type { BalanceAdjustment, BalanceReconciliation, DebtAccount, DebtAuditCreator, LedgerTransaction, PaymentKind } from "./dashboard-data.ts";
 import { accountLedgerBalance, transactionAdjustedAccounts } from "./progress-balances.ts";
-import { validDate } from "./interest-accrual.ts";
+import { validDate, recordActualInterest } from "./interest-accrual.ts";
 import { validatePaymentLinks, type PaymentLink } from "./payment-overlap.ts";
 import { round } from "./payoff-engine.ts";
 
@@ -20,7 +20,7 @@ export function signedEntryDraft(original: LedgerTransaction | BalanceAdjustment
   const signed = parseSignedAmount(input.amount);
   const adjustment = original && "difference" in original;
   const transaction = original && !adjustment ? original as LedgerTransaction : undefined;
-  const kind: EntryKind = adjustment ? "adjustment" : signed < 0 ? "payment" : transaction?.interestEstimate || transaction?.category === "Interest" && transaction.type === "fee" ? "interest" : transaction?.type === "fee" ? "fee" : "purchase";
+  const kind: EntryKind = adjustment ? "adjustment" : signed < 0 ? "payment" : transaction?.interestEstimate || transaction?.actualInterestCycle || transaction?.category === "Interest" && transaction.type === "fee" ? "interest" : transaction?.type === "fee" ? "fee" : "purchase";
   return { accountId: input.accountId, title: input.title.trim(), amount: Math.abs(signed), date: input.date, note: input.note, kind, direction: signed < 0 ? "decrease" : "increase", ...(adjustment ? { confirmAsPayment: Boolean((original as BalanceAdjustment).confirmedPayment) && signed < 0 } : {}), ...(transaction?.credit === true && signed < 0 ? { credit: true } : {}), ...(transaction?.paymentKind && signed < 0 ? { paymentKind: transaction.paymentKind } : {}) };
 }
 
@@ -53,7 +53,7 @@ export function changeDebtEntry(state: EntryState, command: EntryCommand, creato
     if (draft.title !== undefined && (!draft.title.trim() || draft.title.length > 160)) throw new Error("Add a title of up to 160 characters.");
     if (!validDate(draft.date)) throw new Error("Enter a valid transaction date.");
     if (!state.accounts.some(a => a.id === draft.accountId)) throw new Error("Choose an existing debt.");
-    if (transaction?.interestEstimate && (draft.direction === "decrease" || draft.kind !== "interest" || draft.date !== transaction.date || draft.accountId !== transaction.accountId)) throw new Error("Automatic interest stays attached to its original debt and monthly cycle. You can correct its amount or notes.");
+    if ((transaction?.interestEstimate || transaction?.actualInterestCycle) && (draft.direction === "decrease" || draft.kind !== "interest" || draft.date !== transaction.date || draft.accountId !== transaction.accountId)) throw new Error("Statement interest stays attached to its original debt and monthly cycle. You can correct its amount or notes.");
     if (draft.reportKind && (draft.kind !== "adjustment" || (draft.reportKind === "credit" ? draft.direction !== "decrease" : draft.direction !== "increase") || draft.confirmAsPayment)) throw new Error("Choose a type that matches the balance direction.");
     if (original && Boolean(adjustment) !== (draft.kind === "adjustment")) throw new Error("Keep a balance update as an adjustment. You can change its amount, direction, debt, date, and notes.");
   }
@@ -112,7 +112,9 @@ export function changeDebtEntry(state: EntryState, command: EntryCommand, creato
       if (type === "payment") { updated.debtAction = "payment"; updated.paymentKind = draft!.paymentKind ?? transaction?.paymentKind ?? "combined"; }
       else { delete updated.debtAction; delete updated.paymentKind; delete updated.plannedItemId; }
     }
-    transactions = transaction ? state.transactions.map(t => t.id === transaction.id ? updated : t) : [...state.transactions, updated];
+    if (!transaction && command.action === "save" && draft!.kind === "interest" && current.type === "Credit card" && current.interestAutomation) {
+      transactions = recordActualInterest(state.accounts.find(a => a.id === accountId)!, state.transactions, draft!.amount, draft!.date, now, newId).map(t => t.id === newId ? { ...t, ...updated } : t);
+    } else transactions = transaction ? state.transactions.map(t => t.id === transaction.id ? updated : t) : [...state.transactions, updated];
     if (command.action === "save") { updated.credit = draft!.credit === true && type === "payment"; if(updated.credit) updated.reductionKind=draft!.reductionKind??"credit";else delete updated.reductionKind; if (updated.credit) { delete updated.debtAction; delete updated.paymentKind; } updated.balanceBefore = current.balance; updated.balanceAfter = transactionAdjustedAccounts(accounts, transactions).find(a => a.id === accountId)!.balance; }
   }
   if (original && command.action !== "save") {

@@ -56,3 +56,26 @@ test("six-month debt activity counts payments and actual progress stays fixed af
  const result=await new AxeBuilder({page}).include(".actual-progress-screen").withRules(["color-contrast"]).analyze();
  expect(result.violations).toEqual([]);
 });
+
+test('Debts and Progress share the original household baseline; renaming a group keeps its debts', async ({page}) => {
+ const fixture=JSON.parse(readFileSync('tests/fixtures/legacy-v0.json','utf8'));
+ fixture.accounts=[{...fixture.accounts[0],id:'shared-card',name:'Costco',balance:800,baselineBalance:1000,displayGroup:'Other'}];
+ fixture.transactions=[];fixture.snapshots=[];fixture.balanceAdjustments=[];
+ fixture.monthlyPlan={detailedSpendingTracking:false,months:{},progressStartingBalance:2000,debtGroups:[{id:'Other',name:'Shared'}]};
+ await page.goto('/');await page.locator('input[type="file"]').setInputFiles({name:'shared.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(fixture))});
+ await expect(page.locator('.debt-summary-badge')).toContainText('60.0%');
+ await page.getByRole('button',{name:'Arrange debts'}).click();
+ await page.getByLabel('Rename Shared',{exact:true}).fill('Our cards');
+ await page.getByLabel('Rename Shared',{exact:true}).press('Tab');
+ await expect(page.getByRole('region',{name:'Our cards debts',exact:true})).toContainText('Costco');
+ await page.getByRole('button',{name:'Done arranging'}).click();
+ await page.getByRole('button',{name:'More',exact:true}).click();
+ await page.getByRole('button',{name:'Progress',exact:true}).filter({visible:true}).click();
+ await expect(page.locator('.progress-percent')).toContainText('60.0%');
+ await expect(page.locator('.actual-progress-summary')).toContainText('$2,000.00');
+ await expect(page.locator('.actual-progress-summary')).toContainText('$800.00');
+ await page.getByText('Account breakdown',{exact:true}).click();
+ await expect(page.locator('.actual-progress-group').first()).toContainText('Our cards');
+ await page.reload();await page.getByRole('button',{name:'Debts',exact:true}).click();
+ await expect(page.getByRole('region',{name:'Our cards debts',exact:true})).toBeVisible();
+});

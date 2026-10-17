@@ -21,6 +21,7 @@ export default defineConfig(async () => {
     plugins: [
       vinext(),
       cloudflare({
+        ...(process.env.DEBTFREE_DISABLE_INSPECTOR === "1" ? { inspectorPort: false as const } : {}),
         viteEnvironment: { name: "rsc", childEnvironments: ["ssr"] },
       }),
     ],
