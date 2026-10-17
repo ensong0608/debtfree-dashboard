@@ -1,6 +1,6 @@
 import type { BalanceAdjustment, BalanceReconciliation, DebtAccount, DebtAuditCreator, LedgerTransaction, PaymentKind } from "./dashboard-data.ts";
 import { accountLedgerBalance, transactionAdjustedAccounts } from "./progress-balances.ts";
-import { validDate } from "./interest-accrual.ts";
+import { validDate, recordActualInterest } from "./interest-accrual.ts";
 import { validatePaymentLinks, type PaymentLink } from "./payment-overlap.ts";
 import { round } from "./payoff-engine.ts";
 
@@ -112,7 +112,9 @@ export function changeDebtEntry(state: EntryState, command: EntryCommand, creato
       if (type === "payment") { updated.debtAction = "payment"; updated.paymentKind = draft!.paymentKind ?? transaction?.paymentKind ?? "combined"; }
       else { delete updated.debtAction; delete updated.paymentKind; delete updated.plannedItemId; }
     }
-    transactions = transaction ? state.transactions.map(t => t.id === transaction.id ? updated : t) : [...state.transactions, updated];
+    if (!transaction && command.action === "save" && draft!.kind === "interest" && current.type === "Credit card" && current.interestAutomation) {
+      transactions = recordActualInterest(state.accounts.find(a => a.id === accountId)!, state.transactions, draft!.amount, draft!.date, now, newId).map(t => t.id === newId ? { ...t, ...updated } : t);
+    } else transactions = transaction ? state.transactions.map(t => t.id === transaction.id ? updated : t) : [...state.transactions, updated];
     if (command.action === "save") { updated.credit = draft!.credit === true && type === "payment"; if(updated.credit) updated.reductionKind=draft!.reductionKind??"credit";else delete updated.reductionKind; if (updated.credit) { delete updated.debtAction; delete updated.paymentKind; } updated.balanceBefore = current.balance; updated.balanceAfter = transactionAdjustedAccounts(accounts, transactions).find(a => a.id === accountId)!.balance; }
   }
   if (original && command.action !== "save") {

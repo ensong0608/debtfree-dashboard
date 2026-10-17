@@ -45,7 +45,7 @@ export function accrueCostcoInterest(accounts: DebtAccount[], transactions: Ledg
     let start = config.coveredThrough;
     for (let cycle = nextClose(start, config.closingDay); cycle <= today; start = cycle, cycle = nextClose(cycle, config.closingDay)) {
       const id = "interest:" + account.id + ":" + cycle.slice(0, 7);
-      if (ids.has(id)) continue;
+      if (ids.has(id) || result.some(t => t.accountId === account.id && !t.interestEstimate && t.type === "fee" && (t.actualInterestCycle === cycle.slice(0, 7) || t.category === "Interest" && t.date.slice(0, 7) === cycle.slice(0, 7)))) continue;
       const balance = transactionAdjustedAccounts([account], result.filter(t => t.date <= cycle))[0].balance;
       const days = Math.round((Date.parse(cycle + "T12:00:00Z") - Date.parse(start + "T12:00:00Z")) / 86400000);
       const amount = round(balance * config.estimatedApr / 100 * days / 365);
@@ -78,12 +78,11 @@ export function reconcileInterest(account: DebtAccount, transactions: LedgerTran
 
 /** Replace only active, unreconciled estimates in the explicitly selected cycle.
  * Tombstones reserve the automatic ID; replacements retain their audit links. */
-export function recordActualInterest(account: DebtAccount, transactions: LedgerTransaction[], amount: number, cycle: string, now = new Date().toISOString()) {
+export function recordActualInterest(account: DebtAccount, transactions: LedgerTransaction[], amount: number, cycle: string, now = new Date().toISOString(), id = crypto.randomUUID()) {
   if (!validDate(cycle) || !Number.isFinite(amount) || amount < 0 || Math.round(amount * 100) !== amount * 100 && Math.abs(Math.round(amount * 100) - amount * 100) > 1e-7) throw new Error("Enter a valid interest amount and date.");
   if (transactions.some(t => t.accountId === account.id && !t.deletedAt && t.actualInterestCycle === cycle.slice(0, 7))) throw new Error("Actual interest already exists for this cycle. Edit it in Transactions.");
   const estimates = transactions.filter(t => t.accountId === account.id && t.interestEstimate?.cycle.slice(0, 7) === cycle.slice(0, 7) && !t.deletedAt);
   if (estimates.some(t => t.interestEstimate?.reconciledAt) || account.reconciliation && cycle <= account.reconciliation.date) throw new Error("This cycle is already included in the lender balance. Update the lender balance instead.");
-  const id = crypto.randomUUID();
   const originals = estimates.map(t => t.id);
   const result = transactions.map(t => originals.includes(t.id) ? { ...t, deletedAt: now, updatedAt: now, replacedByTransactionId: id } : t);
   result.push({ id, accountId: account.id, date: cycle, type: "fee", payeeId: "", payeeName: account.name, category: "Interest & fees", memo: "Actual interest", amount, actualInterestCycle: cycle.slice(0, 7), replacesEstimateIds: originals, createdAt: now, updatedAt: now, deletedAt: null });
