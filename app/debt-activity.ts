@@ -25,7 +25,9 @@ export function buildActualProgress(accounts: DebtAccount[], transactions: Ledge
   const hasFixedStart = typeof fixedStartingBalance === "number" && Number.isFinite(fixedStartingBalance) && fixedStartingBalance >= 0;
   const comparisonAvailable = hasFixedStart || (baseline ? baseline.accounts.every(saved => trackedAccounts.some(a => a.id === saved.accountId)) : trackedAccounts.length > 0 && trackedAccounts.every(a => typeof a.baselineBalance === "number") && [...transactions, ...adjustments].every(entry => trackedAccounts.some(a => a.id === entry.accountId)));
   const currentAccounts = [...transactionAdjustedAccounts(accounts, transactions).map(account => ({ ...account, removedFromDebts: false })), ...retained].map(account => ({ ...account, baselineBalance: baseline ? baselineIds.has(account.id) ? account.baselineBalance ?? baseline.accounts.find(a => a.accountId === account.id)?.balance : undefined : account.baselineBalance }));
-  const comparisonAccounts = currentAccounts.filter(a => hasFixedStart || baselineIds.has(a.id));
+  // Current totals always include all tracked debts, even when old snapshots
+  // cannot establish a reliable starting comparison for the present accounts.
+  const comparisonAccounts = currentAccounts;
   const starting = hasFixedStart ? round(fixedStartingBalance) : round(baseline ? baseline.accounts.reduce((sum,a) => sum + (trackedAccounts.find(account => account.id === a.accountId)?.baselineBalance ?? a.balance), 0) : trackedAccounts.reduce((sum,a) => sum + (a.baselineBalance ?? 0), 0));
   const current = round(comparisonAccounts.reduce((sum,a) => sum + a.balance, 0));
   const reduction = comparisonAvailable ? round(starting - current) : 0;
@@ -40,7 +42,7 @@ export function buildActualProgress(accounts: DebtAccount[], transactions: Ledge
     const current = round(items.reduce((sum,a) => sum + a.balance, 0));
     return { group, accounts: items, starting, current, reduction: round(starting - current) };
   });
-  return { comparisonAvailable, baseline, excludedCount: currentAccounts.length - comparisonAccounts.length, fixedStartingBalance: hasFixedStart, starting, current, reduction, percent: starting > 0 ? reduction / starting * 100 : null, groups, monthlyChange, monthEntries, paymentCount: monthEntries.filter(row => row.kind === "payment").length, reductionCount: monthEntries.filter(row => row.difference < 0).length, monthlyReductions: round(monthEntries.reduce((sum,row) => sum + Math.max(0, -row.difference), 0)), monthlyIncreases: round(monthEntries.reduce((sum,row) => sum + Math.max(0, row.difference), 0)), retainedCount: retained.length, baselineDate: baseline?.capturedAt.slice(0,10) ?? null, snapshots: [...snapshots].sort((a,b) => a.month.localeCompare(b.month)) };
+  return { comparisonAvailable, baseline, excludedCount: currentAccounts.length - comparisonAccounts.length, fixedStartingBalance: hasFixedStart, starting, current, reduction, percent: comparisonAvailable && starting > 0 ? reduction / starting * 100 : null, groups, monthlyChange, monthEntries, paymentCount: monthEntries.filter(row => row.kind === "payment").length, reductionCount: monthEntries.filter(row => row.difference < 0).length, monthlyReductions: round(monthEntries.reduce((sum,row) => sum + Math.max(0, -row.difference), 0)), monthlyIncreases: round(monthEntries.reduce((sum,row) => sum + Math.max(0, row.difference), 0)), retainedCount: retained.length, baselineDate: baseline?.capturedAt.slice(0,10) ?? null, snapshots: [...snapshots].sort((a,b) => a.month.localeCompare(b.month)) };
 }
 
 export function retainRemovedProgressAccount(existing: RemovedProgressAccount[], account: DebtAccount, currentBalance: number, removedAt = new Date().toISOString()): RemovedProgressAccount[] {
