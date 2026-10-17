@@ -26,7 +26,7 @@ test("actual progress includes manual updates without counting confirmations twi
 });
 test("increases remain visible and legacy baselines and archived paid cards stay in tracking totals",()=>{
  const report=buildActualProgress([{...account,baselineBalance:undefined,balanceOffset:100}],[],[],[],date);
- assert.equal(report.comparisonAvailable,false);assert.equal(report.starting,0);assert.equal(report.current,1100);assert.equal(report.reduction,0);assert.equal(report.percent,0);
+ assert.equal(report.comparisonAvailable,false);assert.equal(report.starting,0);assert.equal(report.current,1100);assert.equal(report.reduction,0);assert.equal(report.percent,null);
  const paid=buildActualProgress([{...account,balanceOffset:-1000,archivedAt:"2026-10-07"}],[],[],[],date);
  assert.equal(paid.reduction,1000);assert.equal(paid.groups[0].accounts.length,1);
 });

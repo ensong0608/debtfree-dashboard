@@ -1,0 +1,25 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {migrateLegacyGroups, neutralGroups, validDisplayName} from '../app/debt-groups.ts';
+import {debtDisplayPlacement, arrangeDebt} from '../app/debts-screen.ts';
+import {parseDashboardContract,serializeDashboardBackup} from '../app/dashboard-data.ts';
+import {readFileSync} from 'node:fs';
+test('legacy assignments migrate once; new households and new lender names stay neutral',()=>{
+ const card={id:'a',name:'Costco',balance:100};
+ assert.equal(debtDisplayPlacement(card).group,'Other');
+ const migrated=migrateLegacyGroups([card]); assert.equal(migrated.accounts[0].displayGroup,'Papi');
+ const renamed=migrated.groups.map(group=>({...group,name:group.id==='Papi'?'Ensong':group.name}));
+ assert.deepEqual(migrateLegacyGroups(migrated.accounts,renamed),{accounts:migrated.accounts,groups:renamed});
+ assert.deepEqual(migrateLegacyGroups([]).groups,neutralGroups);
+ const moved=arrangeDebt(migrated.accounts,'a','group-new');assert.equal(moved[0].displayGroup,'group-new');assert.equal(moved[0].id,'a');assert.equal(moved[0].balance,100);
+});
+test('group labels validate and survive export/import without changing debt identities',()=>{
+ assert.equal(validDisplayName('  '),false);assert.equal(validDisplayName('bad\nname'),false);assert.equal(validDisplayName('A'.repeat(41)),false);
+ const original=parseDashboardContract(JSON.parse(readFileSync('tests/fixtures/legacy-v0.json','utf8')));
+ original.payload.monthlyPlan={...original.payload.monthlyPlan,debtGroups:[{id:'Other',name:'Shared'},{id:'group-one',name:'Ensong'}]};
+ original.payload.accounts[0].displayGroup='group-one';
+ const result=parseDashboardContract(JSON.parse(serializeDashboardBackup(original)));
+ assert.equal(result.payload.accounts[0].id,original.payload.accounts[0].id);assert.equal(result.payload.accounts[0].displayGroup,'group-one');
+ assert.equal(result.payload.monthlyPlan.debtGroups[1].name,'Ensong');
+ original.payload.monthlyPlan.debtGroups.push({id:'group-two',name:'ensong'});assert.throws(()=>parseDashboardContract(original),/unique names/);
+});

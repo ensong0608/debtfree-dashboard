@@ -1,6 +1,7 @@
+import { validDisplayName, type DebtGroup } from "./debt-groups.ts";
 import { validatePaymentLinks } from "./payment-overlap.ts";
 import type { LoanTracker } from "./loan-progress.ts";
-import { validDate, type InterestAutomation, type InterestEstimate } from "./interest-accrual.ts";
+import { validDate, closingDate, type InterestAutomation, type InterestEstimate } from "./interest-accrual.ts";
 export const DASHBOARD_BACKUP_FORMAT = "debtfree-dashboard-backup" as const;
 export const LEGACY_DASHBOARD_DATA_VERSION = 1 as const;
 export const PLANNING_DASHBOARD_DATA_VERSION = 2 as const;
@@ -61,7 +62,7 @@ export type DebtAccount = OwnershipMetadata & {
   archivedAt?: string | null;
   archiveHistory?: DebtArchiveEvent[];
   customOrder?: number;
-  displayGroup?: "Mama" | "Papi" | "Other";
+  displayGroup?: string;
   displayOrder?: number;
   householdMember?: PlannedAssignment;
   [key: string]: unknown;
@@ -262,6 +263,7 @@ export type MonthlyPlanMonth = {
 export type RemovedProgressAccount = Pick<DebtAccount, "id" | "name" | "balance" | "baselineBalance" | "displayGroup" | "displayOrder"> & { removedAt: string };
 
 export type MonthlyPlanSettings = {
+  debtGroups?: DebtGroup[];
   payoffPlanAmount?: number;
   payoffPlanStrategy?: PayoffStrategy;
   payoffPlanOrder?: string[];
@@ -659,7 +661,8 @@ function validateAccount(value: unknown, path: string, issues: string[]) {
     const config = requiredRecord(item.interestAutomation, path + ".interestAutomation", issues);
     if (config) {
       requiredBoolean(config.enabled, path + ".interestAutomation.enabled", issues);
-      if (typeof config.coveredThrough !== "string" || !validDate(config.coveredThrough) || !config.coveredThrough.endsWith("-02")) issues.push(path + ".interestAutomation.coveredThrough must be a valid Costco closing date (day 02).");
+      if (config.closingDay !== undefined && (typeof config.closingDay !== "number" || !Number.isInteger(config.closingDay) || config.closingDay < 1 || config.closingDay > 31)) issues.push(path + ".interestAutomation.closingDay must be 1–31.");
+      if (typeof config.coveredThrough !== "string" || !validDate(config.coveredThrough) || config.coveredThrough !== closingDate(String(config.coveredThrough).slice(0, 7), typeof config.closingDay === "number" ? config.closingDay : 2)) issues.push(path + ".interestAutomation.coveredThrough must be a valid closing date and configuration.");
       if (typeof config.estimatedApr !== "number" || !Number.isFinite(config.estimatedApr) || config.estimatedApr <= 0 || config.estimatedApr > 100) issues.push(path + ".interestAutomation.estimatedApr must be greater than 0 and at most 100.");
     }
   }
@@ -673,7 +676,7 @@ function validateAccount(value: unknown, path: string, issues: string[]) {
   requiredNumber(item.postPromoMinimum, `${path}.postPromoMinimum`, issues);
   requiredString(item.createdAt, `${path}.createdAt`, issues);
   if (hasOwn(item, "archivedAt")) nullableString(item.archivedAt, `${path}.archivedAt`, issues);
-  if (hasOwn(item, "displayGroup")) enumValue(item.displayGroup, new Set(["Mama", "Papi", "Other"]), `${path}.displayGroup`, issues);
+  if (hasOwn(item, "displayGroup")) requiredString(item.displayGroup, `${path}.displayGroup`, issues);
   if (hasOwn(item, "displayOrder")) requiredNumber(item.displayOrder, `${path}.displayOrder`, issues, true);
   if (hasOwn(item, "customOrder")) requiredNumber(item.customOrder, `${path}.customOrder`, issues, true);
   if (hasOwn(item, "householdMember")) enumValue(item.householdMember, plannedAssignments, path + ".householdMember", issues);
@@ -727,7 +730,7 @@ function validateTransaction(value: unknown, path: string, issues: string[]) {
       for (const key of ["cycle", "periodStart"]) if (typeof estimate[key] !== "string" || !validDate(estimate[key] as string)) issues.push(path + ".interestEstimate." + key + " must be a valid date.");
       requiredNumber(estimate.days, path + ".interestEstimate.days", issues, true);
       requiredNumber(estimate.estimatedApr, path + ".interestEstimate.estimatedApr", issues);
-      if (item.type !== "fee" || item.date !== estimate.cycle || typeof estimate.cycle !== "string" || !estimate.cycle.endsWith("-02") || item.id !== "interest:" + item.accountId + ":" + estimate.cycle.slice(0, 7)) issues.push(path + ".interestEstimate requires a unique monthly interest fee.");
+      if (item.type !== "fee" || item.date !== estimate.cycle || typeof estimate.cycle !== "string" || item.id !== "interest:" + item.accountId + ":" + estimate.cycle.slice(0, 7)) issues.push(path + ".interestEstimate requires a unique monthly interest fee.");
       if (hasOwn(estimate, "reconciledAt")) requiredString(estimate.reconciledAt, path + ".interestEstimate.reconciledAt", issues);
     }
   }
@@ -880,10 +883,21 @@ function validateMonthlyPlan(value: unknown, path: string, issues: string[]) {
       for (const key of ["id", "name", "removedAt"]) requiredString(account[key], p + "." + key, issues);
       requiredNumber(account.balance, p + ".balance", issues);
       if (account.baselineBalance !== undefined) requiredNumber(account.baselineBalance, p + ".baselineBalance", issues);
-      if (account.displayGroup !== undefined) enumValue(account.displayGroup, new Set(["Mama", "Papi", "Other"]), p + ".displayGroup", issues);
+      if (account.displayGroup !== undefined) requiredString(account.displayGroup, p + ".displayGroup", issues);
       if (account.displayOrder !== undefined) requiredNumber(account.displayOrder, p + ".displayOrder", issues);
       if (typeof account.id === "string") { if (ids.has(account.id)) issues.push(p + ".id is duplicated."); ids.add(account.id); }
     });
+  }
+  if (plan.debtGroups !== undefined) {
+    if (!Array.isArray(plan.debtGroups) || plan.debtGroups.length < 1 || plan.debtGroups.length > 20) issues.push(path + ".debtGroups must contain 1–20 groups.");
+    else {
+      const ids = new Set(), names = new Set();
+      for (const group of plan.debtGroups) {
+        if (!group || typeof group.id !== "string" || !/^(Mama|Papi|Other|group-[a-zA-Z0-9-]{1,80})$/.test(group.id) || ids.has(group.id)) issues.push(path + ".debtGroups requires unique stable IDs.");
+        if (!group || typeof group.name !== "string" || !validDisplayName(group.name) || names.has(group.name.trim().toLowerCase())) issues.push(path + ".debtGroups requires unique names of 1–40 characters.");
+        if (group) { ids.add(group.id); if (typeof group.name === "string") names.add(group.name.trim().toLowerCase()); }
+      }
+    }
   }
   if (plan.progressStartingBalance !== undefined) requiredNumber(plan.progressStartingBalance, path + ".progressStartingBalance", issues);
   if (plan.loanTrackers !== undefined) {

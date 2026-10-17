@@ -221,24 +221,19 @@ export function setDebtArchived(account: DebtAccount, archived: boolean, created
   };
 }
 
-export type DebtDisplayGroup = "Mama" | "Papi" | "Other";
-const householdOrder = [
-  ["citi1", "citi 1"], ["discover"], ["chase prime", "chase amazon", "amazon prime"], ["penfed", "pen fed"], ["citi cash", "citi custom cash"],
-  ["costco"], ["chase freedom"], ["wells fargo"], ["citi double cash", "double cash"], ["usbconnect", "us bank connect", "usbank connect", "usb connect"],
-];
+export type DebtDisplayGroup = string;
 export function debtDisplayPlacement(account: DebtAccount) {
-  const name = account.name.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
-  const index = householdOrder.findIndex(aliases => aliases.some(alias => name === alias || name.startsWith(alias + " ")));
-  return { group: account.displayGroup ?? (index < 0 ? "Other" : index < 5 ? "Mama" : "Papi") as DebtDisplayGroup, order: account.displayOrder ?? (index < 0 ? Number.MAX_SAFE_INTEGER : index % 5) };
+  return { group: account.displayGroup ?? "Other", order: account.displayOrder ?? Number.MAX_SAFE_INTEGER };
 }
 export function groupedDisplayDebts(accounts: DebtAccount[]) {
-  return (["Mama", "Papi", "Other"] as const).map(group => ({ group, accounts: accounts.filter(account => !isArchivedDebt(account) && debtDisplayPlacement(account).group === group).sort((a, b) => debtDisplayPlacement(a).order - debtDisplayPlacement(b).order || a.name.localeCompare(b.name)) }));
+  return [...new Set(["Mama", "Papi", "Other", ...accounts.map(account => debtDisplayPlacement(account).group)])].map(group => ({ group, accounts: accounts.filter(account => !isArchivedDebt(account) && debtDisplayPlacement(account).group === group).sort((a, b) => debtDisplayPlacement(a).order - debtDisplayPlacement(b).order || a.name.localeCompare(b.name)) }));
 }
 export function arrangeDebt(accounts: DebtAccount[], id: string, destination: DebtDisplayGroup, direction: -1 | 0 | 1 = 0) {
   const groups = groupedDisplayDebts(accounts);
   const moving = accounts.find(account => account.id === id);
   if (!moving || isArchivedDebt(moving)) return accounts;
   const source = debtDisplayPlacement(moving).group;
+  if (!groups.some(group => group.group === destination)) groups.push({ group: destination, accounts: [] });
   const target = groups.find(group => group.group === destination)!.accounts;
   if (source !== destination) {
     groups.find(group => group.group === source)!.accounts = groups.find(group => group.group === source)!.accounts.filter(account => account.id !== id);

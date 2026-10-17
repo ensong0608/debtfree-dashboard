@@ -22,7 +22,7 @@ export function buildActualProgress(accounts: DebtAccount[], transactions: Ledge
   const savedVersions = snapshots.flatMap(s => [...(Array.isArray(s.revisions) ? s.revisions as PayoffSnapshot[] : []), s]);
   const baseline = savedVersions.sort((a,b) => a.capturedAt.localeCompare(b.capturedAt)).find(s => s.accounts?.length > 0);
   const baselineIds = new Set(baseline?.accounts.map(a => a.accountId) ?? trackedAccounts.map(a => a.id));
-  const hasFixedStart = typeof fixedStartingBalance === "number" && Number.isFinite(fixedStartingBalance) && fixedStartingBalance > 0;
+  const hasFixedStart = typeof fixedStartingBalance === "number" && Number.isFinite(fixedStartingBalance) && fixedStartingBalance >= 0;
   const comparisonAvailable = hasFixedStart || (baseline ? baseline.accounts.every(saved => trackedAccounts.some(a => a.id === saved.accountId)) : trackedAccounts.length > 0 && trackedAccounts.every(a => typeof a.baselineBalance === "number") && [...transactions, ...adjustments].every(entry => trackedAccounts.some(a => a.id === entry.accountId)));
   const currentAccounts = [...transactionAdjustedAccounts(accounts, transactions).map(account => ({ ...account, removedFromDebts: false })), ...retained].map(account => ({ ...account, baselineBalance: baseline ? baselineIds.has(account.id) ? account.baselineBalance ?? baseline.accounts.find(a => a.accountId === account.id)?.balance : undefined : account.baselineBalance }));
   const comparisonAccounts = currentAccounts.filter(a => hasFixedStart || baselineIds.has(a.id));
@@ -34,13 +34,13 @@ export function buildActualProgress(accounts: DebtAccount[], transactions: Ledge
   const accountIds = new Set(trackedAccounts.map(a => a.id));
   const monthEntries = entries.filter(row => accountIds.has(row.accountId) && row.date.slice(0, 7) === month);
   const monthlyChange = round(monthEntries.reduce((sum, row) => sum + row.difference, 0));
-  const groups = (["Mama", "Papi", "Other"] as const).map(group => {
+  const groups = [...new Set(comparisonAccounts.map(account => debtDisplayPlacement(account).group))].map(group => {
     const items = comparisonAccounts.filter(a => debtDisplayPlacement(a).group === group).sort((a,b) => debtDisplayPlacement(a).order - debtDisplayPlacement(b).order || a.name.localeCompare(b.name));
     const starting = round(items.reduce((sum,a) => sum + (a.baselineBalance ?? a.balance), 0));
     const current = round(items.reduce((sum,a) => sum + a.balance, 0));
     return { group, accounts: items, starting, current, reduction: round(starting - current) };
   });
-  return { comparisonAvailable, baseline, excludedCount: currentAccounts.length - comparisonAccounts.length, fixedStartingBalance: hasFixedStart, starting, current, reduction, percent: starting > 0 ? Math.min(100, Math.max(0, reduction / starting * 100)) : 0, groups, monthlyChange, monthEntries, paymentCount: monthEntries.filter(row => row.kind === "payment").length, reductionCount: monthEntries.filter(row => row.difference < 0).length, monthlyReductions: round(monthEntries.reduce((sum,row) => sum + Math.max(0, -row.difference), 0)), monthlyIncreases: round(monthEntries.reduce((sum,row) => sum + Math.max(0, row.difference), 0)), retainedCount: retained.length, baselineDate: baseline?.capturedAt.slice(0,10) ?? null, snapshots: [...snapshots].sort((a,b) => a.month.localeCompare(b.month)) };
+  return { comparisonAvailable, baseline, excludedCount: currentAccounts.length - comparisonAccounts.length, fixedStartingBalance: hasFixedStart, starting, current, reduction, percent: starting > 0 ? reduction / starting * 100 : null, groups, monthlyChange, monthEntries, paymentCount: monthEntries.filter(row => row.kind === "payment").length, reductionCount: monthEntries.filter(row => row.difference < 0).length, monthlyReductions: round(monthEntries.reduce((sum,row) => sum + Math.max(0, -row.difference), 0)), monthlyIncreases: round(monthEntries.reduce((sum,row) => sum + Math.max(0, row.difference), 0)), retainedCount: retained.length, baselineDate: baseline?.capturedAt.slice(0,10) ?? null, snapshots: [...snapshots].sort((a,b) => a.month.localeCompare(b.month)) };
 }
 
 export function retainRemovedProgressAccount(existing: RemovedProgressAccount[], account: DebtAccount, currentBalance: number, removedAt = new Date().toISOString()): RemovedProgressAccount[] {

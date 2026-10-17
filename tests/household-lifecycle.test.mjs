@@ -83,3 +83,12 @@ test('removal and leaving atomically revoke pending rejoin invitations', async (
     assert.equal(f.sql.prepare('SELECT outcome FROM household_invitations WHERE id=?').get(id).outcome,'revoked');
   }
 });
+
+test('only the owner can rename the current household; identity and financial history stay intact',async()=>{
+ const f=fixture(); f.as('admin@example.test'); assert.equal((await f.post({action:'rename',name:'New'})).status,403);
+ f.as('owner@example.test'); assert.equal((await f.post({action:'rename',name:'  '})).status,400);
+ assert.equal((await f.post({action:'rename',name:'New household'})).status,200);
+ assert.equal(f.sql.prepare("SELECT name FROM households WHERE id='a'").get().name,'New household');
+ assert.equal(f.sql.prepare("SELECT name FROM households WHERE id='b'").get().name,'B');
+ assert.equal(f.sql.prepare("SELECT revision FROM household_state WHERE household_id='a'").get().revision,9);
+});

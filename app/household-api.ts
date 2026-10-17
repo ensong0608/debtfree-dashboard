@@ -20,7 +20,7 @@ async function GET(request?: Request) {
   ]);
   let payload: unknown = null;
   if (state?.payload) {
-    try { payload = JSON.parse(state.payload); } catch { return Response.json({ error: "Stored household data needs recovery. No data was replaced." }, { status: 503 }); }
+    try { payload = JSON.parse(state.payload); } catch { reportServerFailure("household_storage_invalid"); return Response.json({ error: "Stored household data needs recovery. No data was replaced." }, { status: 503 }); }
   }
   return Response.json({ identity: context.user.email, householdId: member.household_id, householdName: household?.name ?? "My household", role: member.role, payload, revision: state?.revision ?? 0, members }, { headers: { "cache-control": "private, no-store" } });
 }
@@ -53,6 +53,7 @@ async function PUT(request: Request) {
     if (persisted?.revision === revision + 1 && persisted.updated_by === context.user.email && persisted.payload === serialized) {
       return Response.json({ ok: true, revision: persisted.revision }, { headers: { "cache-control": "no-store" } });
     }
+    reportServerFailure("household_conflict");
     return Response.json({ error: "Another session changed this household. Review the latest data before saving." }, { status: 409 });
   }
   await context.db.prepare("UPDATE households SET updated_at = ? WHERE id = ?").bind(now, context.member.household_id).run();

@@ -1,3 +1,5 @@
+import { reportServerFailure } from "./safe-monitoring.ts";
+import { validDisplayName } from "./debt-groups.ts";
 import { checkHouseholdSession } from './household-session-scope.ts';
 import { readBoundedBody } from './request-safety.ts';
 
@@ -67,7 +69,12 @@ export function createLifecycleApi(deps: { db: () => D1Database; user: () => Pro
     if (!member || member.status !== 'active') return error('Household access required.', 403);
     const household = member.household_id;
     const owner = member.role === 'owner';
-    if (['invite', 'revoke', 'role', 'remove'].includes(body.action) && !owner) return error('Only the owner can manage household access.', 403);
+    if (['rename', 'invite', 'revoke', 'role', 'remove'].includes(body.action) && !owner) return error('Only the owner can manage household access.', 403);
+    if (body.action === 'rename') {
+      if (typeof body.name !== 'string' || !validDisplayName(body.name, 80)) return error('Enter a household name (1–80 characters).');
+      await db.prepare('UPDATE households SET name = ?, updated_at = ? WHERE id = ?').bind(body.name.trim(), now, household).run();
+      return reply({ ok: true });
+    }
     if (body.action === 'invite') {
       const email = typeof body.email === 'string' ? body.email.trim().toLowerCase() : '';
       if (!emailPattern.test(email) || email.length > 254) return error('Enter a valid email address.');
@@ -121,7 +128,7 @@ export function createLifecycleApi(deps: { db: () => D1Database; user: () => Pro
     return error('Choose a supported action.');
   }
   return {
-    GET: async (request: Request) => { try { return await handle(request); } catch { return error('Household setup is unavailable. Try again.', 503); } },
-    POST: async (request: Request) => { try { return await handle(request); } catch { return error('Could not complete this action. Refresh and try again.', 409); } },
+    GET: async (request: Request) => { try { return await handle(request); } catch { reportServerFailure('household_lifecycle_failed'); return error('Household setup is unavailable. Try again.', 503); } },
+    POST: async (request: Request) => { try { return await handle(request); } catch { reportServerFailure('household_lifecycle_failed'); return error('Could not complete this action. Refresh and try again.', 409); } },
   };
 }

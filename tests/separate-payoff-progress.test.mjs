@@ -89,3 +89,16 @@ test("backup round trip preserves independent settings, removed balances and sna
   restored.payload.monthlyPlan.payoffPlanAmount = -1;
   assert.throws(() => parseDashboardContract(restored), /payoffPlanAmount/);
 });
+
+test('preserved zero baseline, increases, added debts and removed scopes share signed progress', () => {
+  const original = account('a', { balance: 800, baselineBalance: 1000 });
+  const added = account('b', { balance: 500, baselineBalance: 500 });
+  const report = buildActualProgress([original, added], [], [], [], date, 1000);
+  assert.equal(report.starting, 1000); assert.equal(report.current, 1300); assert.equal(report.percent, -30);
+  const archived = buildActualProgress([{ ...original, archivedAt: '2026-10-08' }, added], [], [], [], date, 1000);
+  assert.equal(archived.current, report.current);
+  const removed = retainRemovedProgressAccount([], added, 500);
+  assert.equal(buildActualProgress([original], [], [], [], date, 1000, removed).current, 1300);
+  const zero = buildActualProgress([added], [], [], [], date, 0);
+  assert.equal(zero.starting, 0); assert.equal(zero.comparisonAvailable, true); assert.equal(zero.percent, null);
+});
