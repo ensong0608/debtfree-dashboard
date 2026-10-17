@@ -619,7 +619,7 @@ export default function DashboardClient({ user, householdId, lifecycleEnabled = 
   const saveAccount = () => {
     if (isViewer) return;
     if (!draft.name.trim()) return;
-    if (draft.interestAutomation && (!validInterestConfig(draft.interestAutomation) || draft.interestAutomation.coveredThrough > householdDate())) return;
+    if (draft.interestAutomation?.enabled && (!validInterestConfig(draft.interestAutomation) || draft.interestAutomation.coveredThrough > householdDate())) return;
     if (draft.actualInterest && editingId) {
       const account = accounts.find(item => item.id === editingId);
       if (account) { try { setTransactions(recordActualInterest(account, transactions, draft.actualInterest.amount, draft.actualInterest.date)); } catch (error) { alert(error instanceof Error ? error.message : "Could not record interest."); return; } }
@@ -1642,7 +1642,7 @@ function AccountModal({ onLoanType, draft, editing, autoFocusField, onChange, on
   const autoMinimum = estimatedMinimum(draft.balance, draft.apr);
   const isCreditCard = draft.type === "Credit card";
 
-  const invalidInterestDate = draft.interestAutomation && (!validInterestConfig(draft.interestAutomation) || draft.interestAutomation.coveredThrough > householdDate());
+  const invalidInterestDate = draft.interestAutomation?.enabled && (!validInterestConfig(draft.interestAutomation) || draft.interestAutomation.coveredThrough > householdDate());
   return <div className="modal-backdrop" onMouseDown={(event) => { if (event.currentTarget === event.target) onClose(); }}>
     <section className="modal debt-action-modal" role="dialog" aria-modal="true" aria-labelledby="account-modal-title">
       <header><div><span>{editing ? "Edit debt details" : "New debt account"}</span><h2 id="account-modal-title">{editing ? draft.name || "Account details" : "Add a debt account"}</h2></div><button type="button" onClick={onClose} aria-label="Close account form">&times;</button></header>

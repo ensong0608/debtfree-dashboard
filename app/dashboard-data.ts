@@ -663,7 +663,7 @@ function validateAccount(value: unknown, path: string, issues: string[]) {
       requiredBoolean(config.enabled, path + ".interestAutomation.enabled", issues);
       if (config.closingDay !== undefined && (typeof config.closingDay !== "number" || !Number.isInteger(config.closingDay) || config.closingDay < 1 || config.closingDay > 31)) issues.push(path + ".interestAutomation.closingDay must be 1–31.");
       if (typeof config.coveredThrough !== "string" || !validDate(config.coveredThrough) || config.coveredThrough !== closingDate(String(config.coveredThrough).slice(0, 7), typeof config.closingDay === "number" ? config.closingDay : 2)) issues.push(path + ".interestAutomation.coveredThrough must be a valid closing date and configuration.");
-      if (typeof config.estimatedApr !== "number" || !Number.isFinite(config.estimatedApr) || config.estimatedApr <= 0 || config.estimatedApr > 100) issues.push(path + ".interestAutomation.estimatedApr must be greater than 0 and at most 100.");
+      if (typeof config.estimatedApr !== "number" || !Number.isFinite(config.estimatedApr) || config.estimatedApr < 0 || config.enabled === true && config.estimatedApr === 0 || config.estimatedApr > 100) issues.push(path + ".interestAutomation.estimatedApr must be greater than 0 and at most 100.");
     }
   }
   requiredNumber(item.minimum, `${path}.minimum`, issues);
