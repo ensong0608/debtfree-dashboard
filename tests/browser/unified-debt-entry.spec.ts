@@ -1,3 +1,4 @@
+import { openMore } from './navigation';
 import { test, expect } from '@playwright/test';
 import { readFileSync, mkdirSync } from 'node:fs';
 
@@ -54,7 +55,7 @@ test('Debt + adds house and car loans directly with actionable validation and no
   await page.getByRole('button',{name:'Update Synthetic home loan',exact:true}).click();
   await expect(dialog.getByLabel('Monthly payment from Budget (optional)')).toHaveValue('');
   await dialog.getByRole('button',{name:'Cancel',exact:true}).click();
-  await page.getByRole('button',{name:'More',exact:true}).click();
+  await openMore(page);
   await page.getByRole('button',{name:'Progress',exact:true}).filter({visible:true}).click();
   await expect(page.locator('.actual-progress-summary')).toContainText('$1,200.00');
   await expect(page.locator('.actual-progress-summary')).toContainText('$1,000.00');

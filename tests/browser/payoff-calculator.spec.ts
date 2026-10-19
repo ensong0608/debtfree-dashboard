@@ -1,3 +1,4 @@
+import { openFullCalculator } from './navigation';
 import { test, expect } from "@playwright/test";
 import { readFileSync } from "node:fs";
 
@@ -7,8 +8,7 @@ test("calculator uses only the entered amount and preserves balances and Budget"
   fixture.accounts = [0, 1].map(index => ({ ...fixture.accounts[0], id: `calc-${index}`, name: `Calculator card ${index}`, balance: 10000, baselineBalance: 10000, apr: 0, interestFee: 0, promoEndDate: "", postPromoApr: 0, minimum: 900, minimumMode: "manual", payoffMode: index ? "minimum-only" : "priority" }));
   await page.goto("/");
   await page.locator('input[type="file"]').setInputFiles({ name: "calculator.json", mimeType: "application/json", buffer: Buffer.from(JSON.stringify(fixture)) });
-  await page.getByRole("button", { name: "More", exact: true }).click();
-  await page.getByRole("button", { name: "Payoff Calculator", exact: true }).click();
+  await openFullCalculator(page);;
   await page.getByLabel("Total monthly debt payment", { exact: true }).fill("7000");
   await expect(page.locator(".plan-hero")).toContainText("3 months");
   await expect(page.locator(".plan-hero")).toContainText("$7,000.00");
@@ -43,8 +43,7 @@ test("calculator uses only the entered amount and preserves balances and Budget"
   }));
   expect(ordering.resultsBottom).toBeLessThanOrEqual(ordering.scheduleTop);
   await page.reload();
-  await page.getByRole("button", { name: "More", exact: true }).click();
-  await page.getByRole("button", { name: "Payoff Calculator", exact: true }).click();
+  await openFullCalculator(page);;
   await expect(page.getByLabel("Total monthly debt payment", { exact: true })).toHaveValue(String(fixture.extra));
   await page.getByRole("button", { name: "Debts", exact: true }).click();
   await expect(page.locator(".simple-total")).toContainText("$20,000.00");
@@ -59,14 +58,13 @@ test("long shrinking scenarios retain all months and distinguish the projection 
   fixture.monthlyPlan = { months:{}, detailedSpendingTracking:false, calculatorAmount:1 };
   await page.goto("/");
   await page.locator('input[type="file"]').setInputFiles({name:"limit-test.json",mimeType:"application/json",buffer:Buffer.from(JSON.stringify(fixture))});
-  await page.getByRole("button",{name:"More",exact:true}).click();
-  await page.getByRole("button",{name:"Payoff Calculator",exact:true}).click();
+  await openFullCalculator(page);;
   await expect(page.locator(".plan-hero")).toContainText("Beyond 1,200 months");
   await expect(page.locator(".plan-hero")).toContainText("Payoff exceeds the projection limit.");
   await expect(page.locator(".plan-table tbody tr")).toHaveCount(1200);
-  await expect(page.locator(".mobile-payoff-schedule .schedule-month")).toHaveCount(1200);
+  await expect(page.locator(".mobile-payoff-schedule")).toHaveCount(0);
   await expect(page.locator(".plan-table tbody tr").last()).toContainText("$800.00");
-  const lastMonth = page.viewportSize()!.width < 640 ? page.locator(".mobile-payoff-schedule .schedule-month").last() : page.locator(".plan-table tbody tr").last();
+  const lastMonth = page.locator(".plan-table tbody tr").last();
   await lastMonth.scrollIntoViewIfNeeded();
   await expect(lastMonth).toContainText("$800.00");
   await expect(page.getByRole("button",{name:"Use this in my plan",exact:true})).toBeDisabled();

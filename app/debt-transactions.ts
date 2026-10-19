@@ -49,7 +49,7 @@ export function changeDebtEntry(state: EntryState, command: EntryCommand, creato
   if (command.action !== "save" && Boolean(original?.deletedAt) === (command.action === "delete")) return state;
   const draft = command.draft;
   if (command.action === "save") {
-    if (!draft || !Number.isFinite(draft.amount) || draft.amount <= 0 || round(draft.amount) !== draft.amount) throw new Error("Enter an amount greater than $0 with at most two decimal places.");
+    if (!draft || !Number.isFinite(draft.amount) || draft.amount <= 0 || round(draft.amount) !== draft.amount) throw new Error("Enter an amount greater than zero with at most two decimal places.");
     if (draft.title !== undefined && (!draft.title.trim() || draft.title.length > 160)) throw new Error("Add a title of up to 160 characters.");
     if (!validDate(draft.date)) throw new Error("Enter a valid transaction date.");
     if (!state.accounts.some(a => a.id === draft.accountId)) throw new Error("Choose an existing debt.");

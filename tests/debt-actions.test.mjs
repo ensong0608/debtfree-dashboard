@@ -104,7 +104,7 @@ test("balance updates reconcile upward and downward without duplicate ledger eff
 test("balance updates reject negatives and allow unchanged lender confirmation", () => {
   const debt = account("card");
   const input = { storedAccount: debt, currentBalance: 1000, date: paymentDate, createdAt };
-  assert.throws(() => createBalanceAdjustment({ ...input, nextBalance: -0.01 }), (error) => error instanceof DebtBalanceError && /\$0\.00 or greater/i.test(error.message));
+  assert.throws(() => createBalanceAdjustment({ ...input, nextBalance: -0.01 }), (error) => error instanceof DebtBalanceError && /zero or greater/i.test(error.message));
   assert.equal(createBalanceAdjustment({ ...input, nextBalance: 1000 }).adjustment.difference, 0);
 });
 

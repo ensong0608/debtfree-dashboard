@@ -182,15 +182,15 @@ test("payoff pages expose only avalanche and snowball while retaining audit anno
   assert.match(client, /aria-live="polite"/);
 });
 
-test("calculation transparency includes every required assumption and estimate warning", async () => {
+test("calculation transparency remains in tooltips without the removed assumptions section", async () => {
   const client = await readFile(new URL("../app/payoff-calculator-page.tsx", import.meta.url), "utf8");
   [
-    "Assumptions",
+    "InfoTooltip",
     "Starting debt",
     "Current balances already include recorded transactions",
     "reserves saved or estimated minimums first",
-    "Interest is estimated monthly",
-    "Trying a scenario does not change your saved plan",
+    "It is an estimate and does not create interest transactions",
+    "Projections do not record payments or change Budget",
   ].forEach((label) => assert.ok(client.includes(label), `Missing calculation detail: ${label}`));
 });
 

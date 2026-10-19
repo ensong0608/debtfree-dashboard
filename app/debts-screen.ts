@@ -92,7 +92,7 @@ export function createDebtPayment(input: DebtPaymentInput): LedgerTransaction {
     throw new DebtPaymentError("Enter a valid payment date.");
   }
   if (balanceBefore <= 0) throw new DebtPaymentError(input.account.name + " is already paid off.");
-  if (amount <= 0) throw new DebtPaymentError("Enter a payment greater than $0.00.");
+  if (amount <= 0) throw new DebtPaymentError("Enter a payment greater than zero.");
   if (amount > balanceBefore) {
     throw new DebtPaymentError("Payment cannot exceed the current balance of $" + balanceBefore.toFixed(2) + ".");
   }
@@ -173,7 +173,7 @@ export type BalanceAdjustmentInput = {
 
 export function createBalanceAdjustment(input: BalanceAdjustmentInput) {
   if (!Number.isFinite(input.nextBalance) || input.nextBalance < 0) {
-    throw new DebtBalanceError("Current balance must be $0.00 or greater.");
+    throw new DebtBalanceError("Current balance must be zero or greater.");
   }
   if (!Number.isFinite(input.currentBalance) || input.currentBalance < 0) throw new DebtBalanceError("Enter a valid current balance.");
   if (cents(input.nextBalance) !== input.nextBalance || !Number.isSafeInteger(Math.round(input.nextBalance * 100))) throw new DebtBalanceError("Enter a balance with at most two decimal places.");

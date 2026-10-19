@@ -7,6 +7,9 @@ const eslintConfig = defineConfig([
   ...nextTs,
   // Override default ignores of eslint-config-next.
   globalIgnores([
+    ".wrangler/**",
+    "mobile/test-results/**",
+    "mobile/connected-dist/**",
     // Default ignores of eslint-config-next:
     ".next/**",
     "out/**",

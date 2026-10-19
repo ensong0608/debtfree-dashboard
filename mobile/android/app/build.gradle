@@ -1,0 +1,94 @@
+apply plugin: 'com.android.application'
+
+def connectedTest = providers.gradleProperty('connectedTest').getOrElse('false') == 'true'
+
+// AGP expands .gz assets and removes one suffix during mergeAssets. An outer
+// gzip layer preserves the exact web OCR file name and bytes in the APK.
+def ocrLanguage = layout.projectDirectory.file('src/main/assets/public/ocr/lang/eng.traineddata.gz')
+def ocrAssets = layout.buildDirectory.dir('generated/debtfree-ocr-assets')
+def prepareOcrLanguageAsset = tasks.register('prepareOcrLanguageAsset') {
+    inputs.file(ocrLanguage)
+    outputs.file(ocrAssets.map { it.file('public/ocr/lang/eng.traineddata.gz.gz') })
+    doLast {
+        def output = ocrAssets.get().file('public/ocr/lang/eng.traineddata.gz.gz').asFile
+        output.parentFile.mkdirs()
+        new java.util.zip.GZIPOutputStream(new FileOutputStream(output)).withCloseable { stream ->
+            stream.write(ocrLanguage.asFile.bytes)
+        }
+    }
+}
+
+android {
+    namespace = "com.debtfree.dashboard.dev"
+    compileSdk = rootProject.ext.compileSdkVersion
+    sourceSets.main.assets.srcDir(ocrAssets)
+    if (connectedTest) sourceSets.main.manifest.srcFile('src/connected/AndroidManifest.xml')
+    defaultConfig {
+        applicationId (connectedTest ? "com.debtfree.dashboard.connectedtest" : "com.debtfree.dashboard.dev")
+        minSdkVersion rootProject.ext.minSdkVersion
+        targetSdkVersion rootProject.ext.targetSdkVersion
+        versionCode (connectedTest ? 4 : 3)
+        versionName (connectedTest ? "1.0.3" : "1.0.2")
+        testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+        aaptOptions {
+             // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
+             // Default: https://android.googlesource.com/platform/frameworks/base/+/282e181b58cf72b6ca770dc7ca5f91f135444502/tools/aapt/AaptAssets.cpp#61
+            ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~:eng.traineddata.gz'
+        }
+    }
+    buildTypes {
+        release {
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+        }
+    }
+}
+
+tasks.named('preBuild').configure { dependsOn(prepareOcrLanguageAsset) }
+
+repositories {
+    flatDir{
+        dirs '../capacitor-cordova-android-plugins/src/main/libs', 'libs'
+    }
+}
+
+dependencies {
+    implementation fileTree(include: ['*.jar'], dir: 'libs')
+    implementation "androidx.appcompat:appcompat:$androidxAppCompatVersion"
+    implementation "androidx.coordinatorlayout:coordinatorlayout:$androidxCoordinatorLayoutVersion"
+    implementation "androidx.core:core-splashscreen:$coreSplashScreenVersion"
+    implementation project(':capacitor-android')
+    testImplementation "junit:junit:$junitVersion"
+    androidTestImplementation "androidx.test.ext:junit:$androidxJunitVersion"
+    androidTestImplementation "androidx.test.espresso:espresso-core:$androidxEspressoCoreVersion"
+    implementation project(':capacitor-cordova-android-plugins')
+}
+
+apply from: 'capacitor.build.gradle'
+
+try {
+    def servicesJSON = file('google-services.json')
+    if (servicesJSON.text) {
+        apply plugin: 'com.google.gms.google-services'
+    }
+} catch(Exception e) {
+    logger.info("google-services.json not found, google-services plugin not applied. Push Notifications won't work")
+}
+
+// Refuse cross-packaging connected assets into the existing device-only ID.
+def verifyMobileIdentity = tasks.register('verifyMobileIdentity') {
+    doLast {
+        def expected = connectedTest ? 'com.debtfree.dashboard.connectedtest' : 'com.debtfree.dashboard.dev'
+        def configFile = file('src/main/assets/capacitor.config.json')
+        if (!configFile.exists()) throw new GradleException('Run the matching Capacitor sync before packaging.')
+        def config = new groovy.json.JsonSlurper().parse(configFile)
+        if (config.appId != expected || config.server?.url) throw new GradleException('Mobile configuration identity mismatch.')
+        def markerFile = file('src/main/assets/public/mobile-build.json')
+        if (connectedTest && !markerFile.exists()) throw new GradleException('Connected build marker is missing.')
+        if (markerFile.exists()) {
+            def marker = new groovy.json.JsonSlurper().parse(markerFile)
+            if (marker.appId != expected) throw new GradleException('Mobile web assets do not match the Android identity.')
+        }
+    }
+}
+tasks.named('preBuild').configure { dependsOn(verifyMobileIdentity) }

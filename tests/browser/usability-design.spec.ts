@@ -1,3 +1,4 @@
+import { openMore, openFullCalculator } from './navigation';
 import {test,expect} from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
 import {readFileSync,mkdirSync} from 'node:fs';
@@ -39,13 +40,13 @@ test('everyday workflows keep independent targets, linked balances, Undo, and te
  await screenshot('transaction');await page.getByRole('button',{name:'Use negative amount'}).click();
  await expect(page.getByRole('dialog')).toContainText('Debt decreases by $66.96');await page.getByRole('button',{name:'Use positive amount'}).click();await page.getByRole('button',{name:'Save transaction',exact:true}).click();
  await page.locator('.entry-undo').getByRole('button',{name:'Undo'}).click();
- await page.getByRole('button',{name:'More',exact:true}).click();await page.getByRole('button',{name:'Payoff Calculator',exact:true}).click();
+ await openFullCalculator(page);;
  await page.getByLabel('Total monthly debt payment',{exact:true}).fill('700');await screenshot('calculator');
- await page.getByRole('button',{name:'More',exact:true}).click();await page.getByRole('button',{name:'Payoff Plan',exact:true}).click();
+ await openMore(page);await page.getByRole('button',{name:'Payoff Plan',exact:true}).click();
  await expect(page.getByLabel('Total monthly debt payment',{exact:true})).toHaveValue('600');await page.getByRole('tab',{name:'Recorded',exact:true}).click();await expect(page.locator('.allocation-total').first()).toHaveText('$0.00');await page.getByRole('tab',{name:'Planned',exact:true}).click();
  await screenshot('plan');
- await page.getByRole('button',{name:'More',exact:true}).click();await page.getByRole('button',{name:'Payoff Calculator',exact:true}).click();await page.getByRole('button',{name:'Use this in my plan'}).click();await expect(page.getByLabel('Total monthly debt payment',{exact:true})).toHaveValue('700');
- await page.getByRole('button',{name:'More',exact:true}).click();await page.getByRole('button',{name:'Progress',exact:true}).filter({visible:true}).click();
+ await openFullCalculator(page);;await page.getByRole('button',{name:'Use this in my plan'}).click();await expect(page.getByLabel('Total monthly debt payment',{exact:true})).toHaveValue('700');
+ await openMore(page);await page.getByRole('button',{name:'Progress',exact:true}).filter({visible:true}).click();
  await expect(page.locator('.actual-progress-summary')).toContainText('$10,000.00');await expect(page.locator('.actual-progress-summary')).toContainText('$7,500.00');await expect(page.locator('.actual-progress-summary')).toContainText('$2,500.00');
  await expect(page.locator('.progress-snapshot-chart circle')).toHaveCount(1);await expect(page.getByRole('button',{name:'Save snapshot',exact:true})).toBeVisible();await screenshot('progress');
  const axe=await new AxeBuilder({page}).include('.actual-progress-screen').withRules(['color-contrast']).analyze();expect(axe.violations).toEqual([]);

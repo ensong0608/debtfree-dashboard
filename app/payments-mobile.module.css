@@ -1,0 +1,81 @@
+.mobile { min-width: 0; }
+.mobile .filters { grid-template-columns: minmax(0,1fr) minmax(0,1fr); }
+.month { position: relative; display: flex; align-items: center; min-height: 44px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; background: white; }
+.month b { font-size: 14px; color: var(--ink); }
+.month input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+.month:focus-within { outline: 2px solid var(--mint-ink); outline-offset: 2px; }
+.mobile .highlights { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 6px; padding: 0; border: 0; border-radius: 0; background: transparent; box-shadow: none; }
+.mobile .highlights > article { display: block; grid-column: auto; min-width: 0; padding: 0; border-radius: 8px; overflow: hidden; background: #f0faf6; }
+.mobile .highlights > article:nth-child(2) { background: #fff3f5; }
+.mobile .summaryButton { display: flex; flex-direction: column; align-items: flex-start; gap: 7px; width: 100%; height: 100%; min-height: 144px; padding: 10px 7px; color: var(--mint-ink); border: 0; border-radius: 8px; background: transparent; text-align: left; cursor: pointer; }
+.summaryButton:focus-visible { outline: 2px solid currentColor; outline-offset: -3px; }
+.mobile .summaryButton > svg { width: 20px; height: 20px; }
+.mobile .summaryButton i { display: grid; place-items: center; width: 24px; height: 24px; background: #087e6b; color: white; border-radius: 50%; }
+.mobile .summaryButton i svg { width: 16px; height: 16px; }
+.mobile .summaryButton span { min-width: 0; font-size: 11px; line-height: 1.3; text-transform: none; color: var(--ink); letter-spacing: 0; }
+.mobile .summaryButton strong { min-width: 0; max-width: 100%; margin: 0; font-size: clamp(14px,3.7vw,18px); line-height: 1.25; letter-spacing: -.3px; overflow-wrap: anywhere; font-variant-numeric: tabular-nums; color: var(--mint-ink); }
+.mobile .summaryButton small { margin-top: auto; font-size: 10px; line-height: 1.3; color: var(--muted); }
+.mobile .highlights > article:nth-child(2) .summaryButton, .mobile .highlights > article:nth-child(2) strong { color: #a32643; }
+.explanation { position: fixed; inset: 0; width: min(360px,calc(100% - 32px)); max-height: calc(100dvh - 32px); padding: 20px; margin: auto; border: 1px solid var(--line); border-radius: 8px; background: var(--paper,#fff); color: var(--ink); box-sizing: border-box; }
+.explanation::backdrop { background: rgb(0 0 0 / 35%); }
+.explanation h2 { margin: 0 0 12px; font-size: 18px; }
+.explanation p { line-height: 1.5; font-size: 14px; }
+.explanation button { min-height: 44px; padding: 8px 16px; border: 1px solid var(--line); border-radius: 8px; background: #f0faf6; color: var(--ink); }
+.history { min-width: 0; width: 100%; }
+.history table { width: 100%; min-width: 0; border-collapse: collapse; table-layout: fixed; font-size: 11px; }
+.history th, .history td { padding: 7px 3px; text-align: left; border-bottom: 1px solid var(--line); overflow-wrap: anywhere; vertical-align: top; }
+.history th:first-child { width: 22%; }
+.history th:nth-child(2) { width: 21%; }
+.history button { min-height: 44px; width: 100%; padding: 2px 0; border: 0; border-radius: 4px; text-decoration: underline; text-underline-offset: 3px; background: transparent; color: var(--mint-ink); font: inherit; text-align: left; }
+.history button:focus-visible { outline: 2px solid var(--mint-ink); }
+.metadata { display: grid; grid-template-columns: auto minmax(0,1fr); gap: 4px 8px; margin: 6px 0; font-size: 11px; }
+.metadata dd { margin: 0; overflow-wrap: anywhere; }
+.mobile :global(.transaction-secondary) { min-width: 0; max-width: 100%; }
+.mobile :global(.transaction-card-footer) { flex-wrap: wrap; }
+
+.mobile .summaryButton strong .moneyChunk { display: inline-block; font: inherit; color: inherit; white-space: nowrap; }
+.mobile :global(.clean-transaction-card) { padding-right: 0; }
+.mobile :global(.clean-transaction-card > .transaction-edit-surface) { grid-template-columns: 32px minmax(0,1fr) minmax(0,1.2fr); padding: 12px; gap: 8px; }
+.mobile :global(.transaction-amount) { min-width: 0; overflow-wrap: anywhere; }
+.mobile :global(.transaction-amount > .transaction-signed-total) { white-space: normal; overflow-wrap: anywhere; margin: 0; font-size: 14px; }
+
+/* Mobile heading, history and entry-action refinement. */
+.mobile :global(.transaction-clean-name) > .transactionHeading { display: block; line-height: 1.4; text-align: left; }
+.mobile .transactionHeading .transactionType { display: inline; font-size: 12px; font-weight: 500; line-height: inherit; color: #526073; }
+.mobile :global(.transaction-card-footer:has(> .transaction-secondary[open])) { padding-inline: 10px; }
+.mobile .history { width: 100%; min-width: 0; color: #17243a; background: #fff; }
+.mobile .history table { width: 100%; min-width: 0; max-width: 100%; margin: 0; table-layout: fixed; border-spacing: 0; border-collapse: collapse; color: #17243a; background: #fff; font-size: 12px; }
+.mobile .history :is(th,td) { min-width: 0; width: auto; padding: 8px 3px; border-right: 0; border-bottom: 1px solid #dfe5ec; color: #17243a; background: #fff; text-align: left; vertical-align: baseline; white-space: normal; overflow-wrap: anywhere; line-height: 1.4; position: static; }
+.mobile .history th { font-weight: 650; background: #f0f6f3; }
+.mobile .history th:first-child { width: 20%; }
+.mobile .history th:nth-child(2) { width: 20%; }
+.mobile .history th:nth-child(3), .mobile .history th:nth-child(4) { width: 30%; }
+.mobile .history button { display: block; min-height: 44px; padding: 8px 0; line-height: inherit; vertical-align: baseline; color: #096b5d; }
+.mobile .history .historyAction { font-size: 12px; }
+.deleteEntry { align-self: flex-start; min-height: 44px; padding: 10px 14px; margin-bottom: 10px; border-radius: 8px; }
+@media(min-width:600px) { .mobile .history :is(th,td) { padding: 10px 8px; font-size: 13px; } .mobile .history th:first-child { width: 18%; } .mobile .history th:nth-child(2) { width: 22%; } }
+.entryFooter { display: grid; gap: 10px; }
+.entryFooter > .deleteEntry { width: auto; justify-self: start; margin: 0; color: #a32643; background: #fff3f5; border: 1px solid #e3b7c1; }
+.mobile .history :is(th,td) { vertical-align: top; }
+.mobile .history button { display: flex; align-items: flex-start; justify-content: flex-start; padding: 0; }
+.mobile .history .historyMoney { display: block; }
+.mobile .history .moneySegment { display: inline-block; white-space: nowrap; }
+@media(max-width:480px) {
+  .mobile :global(.clean-transaction-card > .transaction-edit-surface) { grid-template-columns: 32px minmax(0,1fr); }
+  .mobile :global(.transaction-edit-surface > .transaction-icon) { grid-row: 1 / 3; }
+  .mobile :global(.transaction-edit-surface > .transaction-amount) { grid-column: 2; justify-self: end; }
+}
+
+/* The deletion action is intentionally secondary to Cancel / Save. */
+.entryFooter>.deleteEntry{order:2;width:auto;justify-self:center;align-self:center;min-height:36px;margin:0;padding:4px 12px;border:0;border-radius:0;background:transparent;color:#a32643;font-size:12px;font-weight:500;box-shadow:none}
+.entryFooter>.deleteEntry:hover{text-decoration:underline;text-underline-offset:3px}
+.entryFooter>.deleteEntry:focus-visible{outline:2px solid #a32643;outline-offset:2px;border-radius:4px}
+.mobile .summaryButton .summaryLabel{display:flex;align-items:center;gap:3px;flex-wrap:wrap}
+.mobile .summaryButton .summaryLabel>svg{flex:none;width:14px;height:14px;color:var(--muted)}
+.entryFooter.entryFooter{display:flex;flex-direction:column;align-items:stretch;gap:4px}
+
+.mobile .summaryButton .summaryHeading{display:flex;align-items:flex-start;gap:5px;width:100%;min-width:0}
+.mobile .summaryButton .summaryHeading>svg{flex:none;width:16px;height:16px}
+.mobile .summaryButton .summaryHeading>i{flex:none;width:18px;height:18px}
+.mobile .summaryButton .summaryHeading>i>svg{width:12px;height:12px}
+.mobile .summaryButton .summaryLabel{display:block;flex:1;min-width:0;margin:0;line-height:1.35}

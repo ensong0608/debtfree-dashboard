@@ -48,3 +48,29 @@ next-env.d.ts
 /.codex-remote-attachments/
 /debtfree-old-dashboard.json
 .dev-server.pid
+
+!.env.example
+.dev.vars*
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal
+
+# Private application exports, if saved at repository root
+/debtfree-household-backup*.json
+/debtfree-device-recovery*.json
+
+# Standalone mobile demo build and test output
+/mobile/dist/
+/mobile/test-results/
+/mobile/playwright-report/
+
+# Android development packaging: never track host paths, signing inputs or IDE/cache state
+/mobile/android/.idea/
+/mobile/android/local.properties
+/mobile/android/**/.gradle/
+/mobile/android/**/build/
+/mobile/android/**/*.jks
+/mobile/android/**/*.keystore
+/mobile/android/**/keystore.properties
+/mobile/android/**/google-services.json
+/mobile/connected-dist/

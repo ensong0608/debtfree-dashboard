@@ -1,3 +1,4 @@
+import { openMore } from './navigation';
 import { test, expect } from '@playwright/test';
 import { readFileSync } from 'node:fs';
 import AxeBuilder from '@axe-core/playwright';
@@ -21,7 +22,7 @@ test('Budget section cards keep clear totals, Helvetica, and hide retired tools'
  expect(await page.locator('body').evaluate(el=>getComputedStyle(el).fontFamily)).toContain('Helvetica');
  await expect(income.locator('summary')).toContainText('$6,500.00');
  await expect(page.locator('.budget-category-icon svg')).toHaveCount(3);
- await page.getByRole('button',{name:'More',exact:true}).click();
+ await openMore(page);
  await expect(page.getByRole('button',{name:'Home',exact:true})).toHaveCount(0);
  await expect(page.locator('.more-advanced')).toHaveAttribute('open','');
  await expect(page.getByRole('button',{name:'Detailed ledger',exact:true})).toHaveCount(0);

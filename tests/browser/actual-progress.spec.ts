@@ -1,3 +1,4 @@
+import { openMore, openSettings } from './navigation';
 import { test, expect } from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
 import { readFileSync } from "node:fs";
@@ -27,7 +28,7 @@ test("six-month debt activity counts payments and actual progress stays fixed af
  expect(await history.locator('.inline-activity-entry').first().evaluate(e=>e.getBoundingClientRect().height)).toBeLessThanOrEqual(100);
  const contrast=await new AxeBuilder({page}).include(".debts-screen").withRules(["color-contrast"]).analyze();expect(contrast.violations).toEqual([]);
  await page.getByRole("button",{name:"Close activity",exact:true}).click();
- await page.getByRole("button",{name:"More",exact:true}).click();
+ await openMore(page);
  await page.getByRole("button",{name:"Progress",exact:true}).filter({visible:true}).click();
  await expect(page.locator(".page-heading")).toContainText("Progress");
  await expect(page.locator(".actual-progress-summary")).toContainText("$1,000.00");
@@ -45,7 +46,7 @@ test("six-month debt activity counts payments and actual progress stays fixed af
  await page.getByRole("button",{name:"Save snapshot",exact:true}).click();
  await expect(page.locator(".actual-progress-summary")).toContainText("$1,000.00");
  await page.reload();
- await page.getByRole("button",{name:"More",exact:true}).click();
+ await openMore(page);
  await page.getByRole("button",{name:"Progress",exact:true}).filter({visible:true}).click();
  await expect(page.locator(".actual-progress-summary")).toContainText("$350.00");
  await expect(page.locator(".snapshot-controls .saved-check")).toHaveCount(1);
@@ -64,12 +65,13 @@ test('Debts and Progress share the original household baseline; renaming a group
  fixture.monthlyPlan={detailedSpendingTracking:false,months:{},progressStartingBalance:2000,debtGroups:[{id:'Other',name:'Shared'}]};
  await page.goto('/');await page.locator('input[type="file"]').setInputFiles({name:'shared.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(fixture))});
  await expect(page.locator('.debt-summary-badge')).toContainText('60.0%');
- await page.getByRole('button',{name:'Arrange debts'}).click();
- await page.getByLabel('Rename Shared',{exact:true}).fill('Our cards');
- await page.getByLabel('Rename Shared',{exact:true}).press('Tab');
+ await openSettings(page);
+ await page.getByRole('button',{name:'Edit Shared category',exact:true}).click();
+ await page.getByLabel('Category name',{exact:true}).fill('Our cards');
+ await page.getByRole('button',{name:'Save category',exact:true}).click();
+ await page.getByRole('button',{name:'Debts',exact:true}).click();
  await expect(page.getByRole('region',{name:'Our cards debts',exact:true})).toContainText('Costco');
- await page.getByRole('button',{name:'Done arranging'}).click();
- await page.getByRole('button',{name:'More',exact:true}).click();
+ await openMore(page);
  await page.getByRole('button',{name:'Progress',exact:true}).filter({visible:true}).click();
  await expect(page.locator('.progress-percent')).toContainText('60.0%');
  await expect(page.locator('.actual-progress-summary')).toContainText('$2,000.00');

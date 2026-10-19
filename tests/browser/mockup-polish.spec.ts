@@ -1,3 +1,4 @@
+import { openMore, openAccount } from './navigation';
 import {test,expect} from '@playwright/test';
 import {readFileSync,mkdirSync} from 'node:fs';
 import AxeBuilder from '@axe-core/playwright';
@@ -14,7 +15,7 @@ test('screen title scrolls with content, account access stays available, and bal
  await page.goto('/');await page.locator('input[type=file]').setInputFiles({name:'mockup-test.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(fixture))});
  await expect(page.locator('.topbar')).toHaveCount(0);await expect(page.getByRole('button',{name:'Refresh dashboard'})).toHaveCount(0);
  await expect(page.getByRole('heading',{name:'Debts',exact:true,level:1})).toBeVisible();
- await page.getByRole('button',{name:'Open My Account'}).click();await expect(page.locator('.profile-screen')).toBeVisible();await page.getByRole('button',{name:'Debts',exact:true}).click();
+ await openAccount(page);await expect(page.locator('.profile-screen')).toBeVisible();await page.getByRole('button',{name:'Debts',exact:true}).click();
  await page.getByRole('button',{name:'Update balance for Test card'}).click();const dialog=page.getByRole('dialog');await page.getByLabel('New current balance').fill('900');await dialog.getByRole('radio',{name:'Refund / credit',exact:true}).check();
  if(info.project.name==='phone'){const box=await dialog.boundingBox();expect(box!.x).toBe(0);expect(box!.width).toBe(page.viewportSize()!.width);expect(box!.height).toBe(page.viewportSize()!.height);}
  await screenshot('balance');await dialog.getByRole('button',{name:'Save balance'}).click();await expect(page.locator('.simple-balance').first()).toHaveText('$900.00');
@@ -23,7 +24,7 @@ test('screen title scrolls with content, account access stays available, and bal
 
  await page.getByRole('button',{name:'Add record',exact:true}).click();await page.getByLabel('What’s it for?',{exact:true}).fill('Interest');await page.getByLabel('Transaction amount').fill('+20');await page.getByLabel('Transaction type').selectOption('interest');await page.getByRole('button',{name:'Save transaction',exact:true}).click();await expect(page.locator('.transaction-amount').first()).toContainText('Interest');
  await screenshot('transactions');await page.getByRole('button',{name:'Budget',exact:true}).click();const summary=page.getByRole('region',{name:'Monthly budget summary'});await expect(summary).toContainText('$3,200.00');await expect(summary).toContainText('$1,500.00');await expect(summary).toContainText('$1,700.00');await expect(summary).toContainText('$200.00');
- await screenshot('budget');await page.getByRole('button',{name:'More',exact:true}).click();await page.getByRole('button',{name:'Payoff Plan',exact:true}).click();await page.getByRole('tab',{name:'Recorded',exact:true}).click();await expect(page.locator('.recorded-summary')).toContainText('$0.00');await expect(page.locator('.recorded-account-values')).toContainText('$200.00');
+ await screenshot('budget');await openMore(page);await page.getByRole('button',{name:'Payoff Plan',exact:true}).click();await page.getByRole('tab',{name:'Recorded',exact:true}).click();await expect(page.locator('.recorded-summary')).toContainText('$0.00');await expect(page.locator('.recorded-account-values')).toContainText('$200.00');
  await screenshot('recorded');
  if(info.project.name==='phone'){await expect(page.locator('.plan-table-wrap')).not.toBeVisible();await expect(page.locator('.schedule-month')).toHaveCount(5);await page.locator('.schedule-month').last().scrollIntoViewIfNeeded();await expect(page.locator('.schedule-month').last()).toContainText('$0.00');await screenshot('schedule');}
  const axe=await new AxeBuilder({page}).include('.page-heading').include('.payment-allocation').withRules(['color-contrast']).analyze();expect(axe.violations).toEqual([]);

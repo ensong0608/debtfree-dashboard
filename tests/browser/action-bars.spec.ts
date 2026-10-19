@@ -38,3 +38,20 @@ test('bottom action bars belong to their tabs, touch the content edges, and open
   await page.getByRole('dialog').getByRole('button',{name:'Cancel',exact:true}).click();
   await expect(page.getByRole('button',{name:'Debt +',exact:true})).toBeFocused();
 });
+
+test('loan help opens independently of editing and preserves the recorded balance', async ({ page }) => {
+  const fixture=JSON.parse(readFileSync('tests/fixtures/legacy-v0.json','utf8'));
+  fixture.monthlyPlan={...fixture.monthlyPlan,detailedSpendingTracking:false,months:{},loanTrackers:[{id:'help-loan',name:'Synthetic help loan',kind:'house',originalAmount:1000,remainingAmount:800,balanceKind:'principal',asOf:'2026-10-01',budgetItemId:'',budgetItemName:'',history:[]}]};
+  await page.goto('/');await page.locator('input[type=file]').setInputFiles({name:'synthetic-loan-help.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(fixture))});
+  await page.getByRole('tab',{name:'House & car',exact:true}).click();
+  const loan=page.getByRole('article',{name:'Synthetic help loan loan progress',exact:true});
+  await loan.getByRole('button',{name:'Explain Original loan',exact:true}).click();
+  await expect(page.getByRole('dialog')).toContainText('original principal');
+  await expect(page.getByRole('dialog',{name:'Loan progress',exact:true})).toHaveCount(0);
+  await page.getByRole('button',{name:'Close explanation',exact:true}).click();
+  await expect(loan.locator('.loan-balance')).toHaveText('$800.00');
+  await loan.getByRole('button',{name:'Edit details for Synthetic help loan',exact:true}).click();
+  await expect(page.getByRole('dialog',{name:'Loan progress',exact:true})).toBeVisible();
+  await page.getByRole('dialog').getByRole('button',{name:'Cancel',exact:true}).click();
+  await expect(loan.locator('.loan-balance')).toHaveText('$800.00');
+});

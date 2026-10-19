@@ -1,9 +1,11 @@
+import { createHouseholdMoneyFormatter, householdCurrencySymbol, resolveHouseholdCurrency, type HouseholdCurrency } from "./household-currency.ts";
 export type PayoffReportCashflow = { type: "Income" | "Expense" | "One-time purchase" | "Budget"; name: string; category: string; amount: number; paymentMethod: string; linkedAccount: string };
 export type PayoffReportAccount = { name: string; type: string; balance: number; apr: number; monthlyInterest: number; minimumPayment: number; linkedCardExpenses: number; plannedMonthlyPayment: number; payoffMode: string; creditLimit: number; utilization: number | null; dueDate: string; projectedPayoff: string };
 export type PayoffReportScheduleRow = { month: string; focusDebt: string; minimumPayments: number; extraPayment: number; totalPaid: number; interest: number; remaining: number; milestone: string; accounts: { name: string; payment: number; endingBalance: number }[] };
 export type PayoffReportTransaction = { date: string; merchant: string; account: string; type: string; category: string; memo: string; amount: number; status: string };
 export type PayoffReportSnapshot = { month: string; capturedAt: string; totalBalance: number; monthlyInterest: number; activeAccountCount: number; projectedDebtFree: string; note: string; accounts: { name: string; type: string; balance: number; apr: number }[] };
 export type PayoffReportData = {
+  currency?: HouseholdCurrency;
   monthLimitReached?: boolean;
   calculationMode?: "calculator" | "plan";
   generatedAt: string; budgetMonth: string; strategy: string; projectedDebtFree: string; monthsToPayoff: number; stalled: boolean;
@@ -34,7 +36,6 @@ const NAVY: [number, number, number] = [19, 34, 56];
 const GREEN = [13, 139, 99] as const;
 const ORANGE = [231, 137, 38] as const;
 const VIOLET = [106, 93, 231] as const;
-const money = (value: number) => new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(value);
 const percent = (value: number) => `${value.toFixed(2)}%`;
 const reportFilename = (extension: string) => `debtfree-payoff-report-${new Date().toISOString().slice(0, 10)}.${extension}`;
 
@@ -66,13 +67,13 @@ function spendingCategoryTotals(report: PayoffReportData) {
   });
   return [...totals.entries()].sort((a, b) => b[1] - a[1]);
 }
-export function buildPayoffCsv(report: PayoffReportData) {
+export function buildPayoffCsv(report: PayoffReportData, currency: HouseholdCurrency = resolveHouseholdCurrency(report.currency)) {
   const labels = payoffReportLabels(report);
   const rows: string[] = [];
   const section = (title: string) => { if (rows.length) rows.push(""); rows.push(csvRow([title])); };
   section("DEBTFREE PAYOFF REPORT");
   [
-    ["Generated", report.generatedAt], ...(report.calculationMode === "calculator" ? [["Calculation", labels.explanation]] : []), ["Budget month", report.budgetMonth], ["Strategy", report.strategy],
+    ["Currency", currency], ["Generated", report.generatedAt], ...(report.calculationMode === "calculator" ? [["Calculation", labels.explanation]] : []), ["Budget month", report.budgetMonth], ["Strategy", report.strategy],
     ["Projection status", report.monthLimitReached ? "Projection limit reached" : report.stalled ? "Needs adjustment" : "On track"], ["Projected debt-free", report.projectedDebtFree],
     ["Months to payoff", report.stalled ? null : report.monthsToPayoff], ["Starting debt", report.startingDebt], [labels.monthly, report.monthlyPlan],
     ["Estimated interest", report.estimatedInterest], [labels.extra, report.extraPayment], ["Total income", report.totalIncome],
@@ -115,8 +116,8 @@ export function buildPayoffCsv(report: PayoffReportData) {
   });
   return `\uFEFF${rows.join("\r\n")}`;
 }
-export function exportPayoffCsv(report: PayoffReportData) {
-  downloadBlob(new Blob([buildPayoffCsv(report)], { type: "text/csv;charset=utf-8" }), reportFilename("csv"));
+export function exportPayoffCsv(report: PayoffReportData, currency: HouseholdCurrency = resolveHouseholdCurrency(report.currency)) {
+  downloadBlob(new Blob([buildPayoffCsv(report, currency)], { type: "text/csv;charset=utf-8" }), reportFilename("csv"));
 }
 const styled = (value: CellValue, style: number): StyledCell => ({ value, style });
 const isStyled = (value: CellValue | StyledCell): value is StyledCell => typeof value === "object" && value !== null && "style" in value;
@@ -155,9 +156,9 @@ function worksheetXml(sheet: SheetSpec) {
   return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><dimension ref="A1:${columnName(maxColumns - 1)}${maxRows}"/><sheetViews><sheetView showGridLines="0" workbookViewId="0">${pane}</sheetView></sheetViews><sheetFormatPr defaultRowHeight="18"/><cols>${columns}</cols><sheetData>${rows}</sheetData>${autoFilter}${mergeCells}<pageMargins left="0.3" right="0.3" top="0.6" bottom="0.6" header="0.2" footer="0.2"/><pageSetup paperSize="9"${orientation}/></worksheet>`;
 }
 
-function workbookStylesXml() {
+function workbookStylesXml(currency: HouseholdCurrency) {
   return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
-  <numFmts count="2"><numFmt numFmtId="164" formatCode="&quot;$&quot;#,##0.00;[Red]-&quot;$&quot;#,##0.00"/><numFmt numFmtId="166" formatCode="0.00&quot;%&quot;"/></numFmts>
+  <numFmts count="2"><numFmt numFmtId="164" formatCode="&quot;${xmlEscape(householdCurrencySymbol(currency))}&quot;#,##0.00;[Red]-&quot;${xmlEscape(householdCurrencySymbol(currency))}&quot;#,##0.00"/><numFmt numFmtId="166" formatCode="0.00&quot;%&quot;"/></numFmts>
   <fonts count="5"><font><sz val="10"/><name val="Aptos"/><color rgb="FF17243A"/></font><font><b/><sz val="20"/><name val="Aptos Display"/><color rgb="FFFFFFFF"/></font><font><sz val="10"/><name val="Aptos"/><color rgb="FF6F7C8F"/></font><font><b/><sz val="10"/><name val="Aptos"/><color rgb="FFFFFFFF"/></font><font><b/><sz val="14"/><name val="Aptos Display"/><color rgb="FF1677FF"/></font></fonts>
   <fills count="5"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill><fill><patternFill patternType="solid"><fgColor rgb="FF132238"/></patternFill></fill><fill><patternFill patternType="solid"><fgColor rgb="FF1677FF"/></patternFill></fill><fill><patternFill patternType="solid"><fgColor rgb="FFEDF5FF"/></patternFill></fill></fills>
   <borders count="2"><border><left/><right/><top/><bottom/><diagonal/></border><border><left style="thin"><color rgb="FFDDE4EC"/></left><right style="thin"><color rgb="FFDDE4EC"/></right><top style="thin"><color rgb="FFDDE4EC"/></top><bottom style="thin"><color rgb="FFDDE4EC"/></bottom><diagonal/></border></borders>
@@ -193,12 +194,12 @@ function tableSheet(name: string, subtitle: string, headers: string[], rows: (Ce
   };
 }
 
-function reportSheets(report: PayoffReportData): SheetSpec[] {
+function reportSheets(report: PayoffReportData, currency: HouseholdCurrency): SheetSpec[] {
   const labels = payoffReportLabels(report);
   const categories = spendingCategoryTotals(report);
   const overviewRows: (CellValue | StyledCell)[][] = [
     [styled("DebtFree household payoff report", 1)],
-    [styled(`Generated ${report.generatedAt} | Budget month ${report.budgetMonth} | ${report.strategy} strategy${report.calculationMode === "calculator" ? " | Scenario: no minimums reserved" : ""}`, 2)], [],
+    [styled(`Generated ${report.generatedAt} | Currency ${currency} | Budget month ${report.budgetMonth} | ${report.strategy} strategy${report.calculationMode === "calculator" ? " | Scenario: no minimums reserved" : ""}`, 2)], [],
     [styled("PLAN AT A GLANCE", 3)],
     [styled("Starting debt", 8), styled(report.startingDebt, 9), styled("Projected debt-free", 8), styled(report.projectedDebtFree, 10), styled("Months to payoff", 8), styled(report.stalled ? null : report.monthsToPayoff, 10), styled("Status", 8), styled(report.monthLimitReached ? "Projection limit reached" : report.stalled ? "Needs adjustment" : "On track", 10)],
     [styled(labels.monthly, 8), styled(report.monthlyPlan, 9), styled("Estimated interest", 8), styled(report.estimatedInterest, 9), styled(labels.extra, 8), styled(report.extraPayment, 9), styled(labels.available, 8), styled(report.availableExtra, 9)], [],
@@ -246,9 +247,9 @@ function reportSheets(report: PayoffReportData): SheetSpec[] {
   return [overview, monthly, accounts, schedule, transactions, snapshots];
 }
 
-export async function exportPayoffExcel(report: PayoffReportData) {
+export async function exportPayoffExcel(report: PayoffReportData, currency: HouseholdCurrency = resolveHouseholdCurrency(report.currency)) {
   const { strToU8, zipSync } = await import("fflate");
-  const sheets = reportSheets(report);
+  const sheets = reportSheets(report, currency);
   const workbookSheets = sheets.map((sheet, index) => `<sheet name="${xmlEscape(sheet.name)}" sheetId="${index + 1}" r:id="rId${index + 1}"/>`).join("");
   const workbookRels = sheets.map((_, index) => `<Relationship Id="rId${index + 1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet${index + 1}.xml"/>`).join("");
   const overrides = sheets.map((_, index) => `<Override PartName="/xl/worksheets/sheet${index + 1}.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>`).join("");
@@ -259,7 +260,7 @@ export async function exportPayoffExcel(report: PayoffReportData) {
     "docProps/app.xml": strToU8(`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Properties xmlns="http://schemas.openxmlformats.org/officeDocument/2006/extended-properties" xmlns:vt="http://schemas.openxmlformats.org/officeDocument/2006/docPropsVTypes"><Application>DebtFree Dashboard</Application><TitlesOfParts><vt:vector size="${sheets.length}" baseType="lpstr">${sheets.map((sheet) => `<vt:lpstr>${xmlEscape(sheet.name)}</vt:lpstr>`).join("")}</vt:vector></TitlesOfParts></Properties>`),
     "xl/workbook.xml": strToU8(`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><bookViews><workbookView activeTab="0"/></bookViews><sheets>${workbookSheets}</sheets><calcPr calcId="191029"/></workbook>`),
     "xl/_rels/workbook.xml.rels": strToU8(`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">${workbookRels}<Relationship Id="rId${sheets.length + 1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>`),
-    "xl/styles.xml": strToU8(workbookStylesXml()),
+    "xl/styles.xml": strToU8(workbookStylesXml(currency)),
   };
   sheets.forEach((sheet, index) => { files[`xl/worksheets/sheet${index + 1}.xml`] = strToU8(worksheetXml(sheet)); });
   const bytes = zipSync(files, { level: 6 });
@@ -314,7 +315,8 @@ function drawPdfKpi(doc: PdfDocument, x: number, y: number, width: number, label
   doc.text(value, x + 5, y + 16);
 }
 
-export async function exportPayoffPdf(report: PayoffReportData) {
+export async function exportPayoffPdf(report: PayoffReportData, currency: HouseholdCurrency = resolveHouseholdCurrency(report.currency)) {
+  const money = (value: number) => createHouseholdMoneyFormatter(currency, { currencyDisplay: "code", minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(value);
   const labels = payoffReportLabels(report);
   const [{ jsPDF }, autoTableModule] = await Promise.all([import("jspdf"), import("jspdf-autotable")]);
   const autoTable = autoTableModule.default;

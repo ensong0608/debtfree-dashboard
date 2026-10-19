@@ -1,0 +1,11 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "debtfree-dashboard-local",
+  "main": "worker/index.ts",
+  "compatibility_date": "2026-08-04",
+  "compatibility_flags": ["nodejs_compat"],
+  "vars": { "APP_ORIGIN": "http://localhost:8787", "HOUSEHOLD_LIFECYCLE_ENABLED": "true", "HOUSEHOLD_CREATION_EMAILS": "new@example.test", "CF_ACCESS_TEAM_DOMAIN": "https://invalid.example.test", "CF_ACCESS_AUD": "local-only" },
+  "assets": { "directory": "dist/client", "binding": "ASSETS" },
+  "d1_databases": [{ "binding": "DB", "database_name": "debtfree-dashboard-local", "database_id": "00000000-0000-4000-8000-000000000001", "migrations_dir": "drizzle", "remote": false }],
+  "images": { "binding": "IMAGES" }
+}

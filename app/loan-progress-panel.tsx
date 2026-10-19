@@ -1,4 +1,7 @@
 'use client';
+import InfoTooltip from "./info-tooltip";
+import { createHouseholdMoneyFormatter, householdCurrencySymbol } from "./household-currency";
+import { useHouseholdCurrency } from "./household-currency-context";
 import OutlineIcon from "./outline-icon";
 import LoanActivityPanel from "./loan-activity-panel";
 import { useEffect, useState } from 'react';
@@ -6,11 +9,14 @@ import type { CashflowItem } from './dashboard-data';
 import { linkedLoanPayment, loanProgress, loanPaymentSplit, recordLoanPayment, type LoanTracker } from './loan-progress';
 import { householdDate } from './interest-accrual';
 import { loanEntryErrors, type LoanEntryField } from './loan-entry';
-const money = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' });
+
 
 export default function LoanProgressPanel({ loans, items, onChange, onDialog, initialDraft, editorOnly = false, readOnly = false }: {
   initialDraft?: LoanTracker; editorOnly?: boolean; readOnly?: boolean; loans: LoanTracker[]; items: CashflowItem[]; onChange: (loans: LoanTracker[]) => void; onDialog: (open: boolean) => void;
 }) {
+  const symbol = householdCurrencySymbol(useHouseholdCurrency());
+  const householdCurrency = useHouseholdCurrency();
+  const money = createHouseholdMoneyFormatter(householdCurrency, { style: 'currency', });
   const [activityLoan,setActivityLoan]=useState<LoanTracker|null>(null);
   const [draft, setDraft] = useState<LoanTracker | null>(initialDraft ?? null);
   const [paymentDraft, setPaymentDraft] = useState<{ loan: LoanTracker; amount: number; extra: number; date: string } | null>(null);
@@ -43,9 +49,9 @@ export default function LoanProgressPanel({ loans, items, onChange, onDialog, in
         <span>{approximate ? 'Payoff quote' : 'Remaining principal'}</span><strong className="loan-balance">{money.format(loan.remainingAmount)}</strong>
         <div className="loan-progress-track" role="progressbar" aria-label={`${loan.name} loan paid down`} aria-valuenow={Number(progress.percent.toFixed(2))} aria-valuemin={0} aria-valuemax={100}><i style={{ width: `${progress.percent}%` }}/></div>
         <div className="loan-progress-caption"><strong>{approximate ? '≈ ' : ''}{progress.percent.toFixed(2)}% paid down</strong><span>{money.format(progress.reduction)} reduction</span></div>
-        <dl><div><dt>Original loan</dt><dd>{money.format(loan.originalAmount)}</dd></div><div><dt>Monthly · Budget</dt><dd>{payment ? money.format(payment.amount) : 'Link a current bill'}</dd></div><div><dt>Balance as of</dt><dd>{loan.asOf}</dd></div></dl>
-        {split && <dl className="loan-payment-split"><div><dt>Next payment · principal</dt><dd>{money.format(split.principal)}</dd></div><div><dt>Interest</dt><dd>{money.format(split.interest)}</dd></div><div><dt>Escrow</dt><dd>{money.format(split.escrow)}</dd></div></dl>}
-        </button><button type="button" className="debt-activity-chevron" aria-label={`Activity for ${loan.name}`} onClick={()=>setActivityLoan(loan)}>›</button><div className="compact-debt-actions">{split && <button className="secondary" type="button" disabled={readOnly} onClick={() => { setError(''); setPaymentDraft({ loan, amount: payment!.amount, extra: 0, date: householdDate() }); onDialog(true); }}><OutlineIcon name="card"/>Payment</button>}
+        </button><dl><div><dt><InfoTooltip label="Original loan">{"The original principal entered for this loan tracker. It is the comparison amount for loan progress."}</InfoTooltip></dt><dd>{money.format(loan.originalAmount)}</dd></div><div><dt>Monthly · Budget</dt><dd>{payment ? money.format(payment.amount) : 'Link a current bill'}</dd></div><div><dt>Balance as of</dt><dd>{loan.asOf}</dd></div></dl>
+        {split && <dl className="loan-payment-split"><div><dt><InfoTooltip label="Next payment · principal">{"The portion of the linked Budget payment estimated to reduce loan principal after interest and escrow."}</InfoTooltip></dt><dd>{money.format(split.principal)}</dd></div><div><dt><InfoTooltip label="Interest">{"The estimated interest portion of the next linked payment, calculated from the saved remaining principal and loan rate."}</InfoTooltip></dt><dd>{money.format(split.interest)}</dd></div><div><dt><InfoTooltip label="Escrow">{"The saved escrow portion of the linked payment. It does not reduce the loan principal."}</InfoTooltip></dt><dd>{money.format(split.escrow)}</dd></div></dl>}
+        <button type="button" className="debt-activity-chevron" aria-label={`Activity for ${loan.name}`} onClick={()=>setActivityLoan(loan)}>›</button><div className="compact-debt-actions">{split && <button className="secondary" type="button" disabled={readOnly} onClick={() => { setError(''); setPaymentDraft({ loan, amount: payment!.amount, extra: 0, date: householdDate() }); onDialog(true); }}><OutlineIcon name="card"/>Payment</button>}
         {!split && <button className="primary" type="button" disabled={readOnly || loan.remainingAmount<=0} onClick={() => {setError('');setPaymentDraft({loan,amount:payment?.amount??0,extra:0,date:householdDate()});onDialog(true);}}><OutlineIcon name="card"/>Payment</button>}
         <button className="secondary" type="button" disabled={readOnly} aria-label={`Update ${loan.name} loan`} onClick={() => open(loan)}><OutlineIcon name="receipt"/>Balance</button></div>
       </article>;
@@ -64,7 +70,7 @@ export default function LoanProgressPanel({ loans, items, onChange, onDialog, in
       <label>Regular payment<input type="number" required min="0.01" step="0.01" value={paymentDraft.amount} onChange={e => setPaymentDraft({ ...paymentDraft, amount: Number(e.target.value) })}/></label>
       <label>Extra principal<input type="number" required min="0" step="0.01" value={paymentDraft.extra} onChange={e => setPaymentDraft({ ...paymentDraft, extra: Number(e.target.value) })}/></label>
       {paymentPreview && <div className="wide loan-payment-preview"><p>Interest: {money.format(paymentPreview.interest)} · Escrow: {money.format(paymentPreview.escrow)}</p><p>Principal deducted: {money.format(paymentPreview.principal + paymentPreview.extraPrincipal)}</p><p>New balance: <strong>{money.format(paymentPreview.remainingAmount)}</strong></p><p>Total paid: {money.format(paymentPreview.total)}. This does not add another Budget expense.</p></div>}
-      {error && <p className="wide form-error" role="alert">{error}</p>}
+      {error && <p className="wide form-error" role="alert">{error.replace(/\$0(?:\.00)?/g, symbol + "0")}</p>}
     </div><footer><button className="secondary" type="button" onClick={() => { setPaymentDraft(null); onDialog(false); }}>Cancel</button><button className="primary" type="submit" disabled={!paymentPreview}>Confirm payment</button></footer></form></section></div>}
     {draft && <div className="modal-backdrop"><section className="modal loan-modal" role="dialog" aria-modal="true" aria-labelledby="loan-dialog-title"><form noValidate onSubmit={event => {
       event.preventDefault();
@@ -93,7 +99,7 @@ export default function LoanProgressPanel({ loans, items, onChange, onDialog, in
 
         <label className="wide">Monthly payment from Budget (optional)<select value={linkedLoanPayment(draft, items)?.id ?? ''} onChange={e => { const item = expenses.find(item => item.id === e.target.value); setDraft({ ...draft, budgetItemId: item?.id ?? '', budgetItemName: item?.name ?? '' }); }}><option value="">No Budget link</option>{expenses.map(item => <option value={item.id} key={item.id}>{item.name} · {money.format(item.amount)}</option>)}</select></label>
         {Object.keys(fieldErrors).length > 0 && <div className="wide form-error" role="alert">Check the highlighted fields.</div>}
-        {error && <p className="wide form-error" role="alert">{error}</p>}
+        {error && <p className="wide form-error" role="alert">{error.replace(/\$0(?:\.00)?/g, symbol + "0")}</p>}
       </div><footer><button className="secondary" type="button" onClick={close}>Cancel</button><button className="primary" type="submit" disabled={readOnly}>Save loan</button></footer>
     </form></section></div>}
   </section>;

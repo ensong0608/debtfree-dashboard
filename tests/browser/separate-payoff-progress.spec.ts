@@ -1,3 +1,4 @@
+import { openMore, openFullCalculator } from './navigation';
 import { test, expect } from "@playwright/test";
 import { readFileSync } from "node:fs";
 
@@ -10,11 +11,10 @@ test("calculator and plan save independently and plan reserves minimums within t
   fixture.strategy = "custom";
   await page.goto("/");
   await page.locator('input[type="file"]').setInputFiles({ name: "split-plan.json", mimeType: "application/json", buffer: Buffer.from(JSON.stringify(fixture)) });
-  await page.getByRole("button", { name: "More", exact: true }).click();
-  await page.getByRole("button", { name: "Payoff Calculator", exact: true }).click();
+  await openFullCalculator(page);;
   await expect(page.getByLabel("Total monthly debt payment", { exact: true })).toHaveValue("3793");
   await expect(page.getByRole("button", { name: "Avalanche", exact: true })).toHaveAttribute("aria-pressed", "true");
-  await page.getByRole("button", { name: "More", exact: true }).click();
+  await openMore(page);
   await page.getByRole("button", { name: "Payoff Plan", exact: true }).click();
   await expect(page.getByLabel("Total monthly debt payment", { exact: true })).toHaveValue("");
   await page.getByLabel("Total monthly debt payment", { exact: true }).fill("1000");
@@ -32,7 +32,7 @@ test("calculator and plan save independently and plan reserves minimums within t
   const minimum = page.getByLabel("Minimum payment for Plan card 1", { exact: true });
   await minimum.fill("0");
   await page.getByRole("button", { name: "Save minimum for Plan card 1", exact: true }).click();
-  await expect(page.getByRole("alert")).toContainText("Enter a minimum greater than $0.");
+  await expect(page.getByRole("alert")).toContainText("Enter a minimum greater than zero.");
   await expect(page.locator(".plan-commitment")).toContainText("Minimums $1,800.00");
   await minimum.fill("1200");
   await page.getByRole("button", { name: "Save minimum for Plan card 1", exact: true }).click();
@@ -43,12 +43,11 @@ test("calculator and plan save independently and plan reserves minimums within t
   expect(await page.getByLabel("Total monthly debt payment", { exact: true }).evaluate(input => Number.parseFloat(getComputedStyle(input.closest('.extra-control')!.querySelector('label')!).fontSize))).toBeGreaterThanOrEqual(14);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
   await page.reload();
-  await page.getByRole("button", { name: "More", exact: true }).click();
+  await openMore(page);
   await page.getByRole("button", { name: "Payoff Plan", exact: true }).click();
   await expect(page.getByLabel("Total monthly debt payment", { exact: true })).toHaveValue("7000");
   await expect(page.getByLabel("Minimum payment for Plan card 1", { exact: true })).toHaveValue("1200");
-  await page.getByRole("button", { name: "More", exact: true }).click();
-  await page.getByRole("button", { name: "Payoff Calculator", exact: true }).click();
+  await openFullCalculator(page);;
   await expect(page.getByLabel("Total monthly debt payment", { exact: true })).toHaveValue("7000");
   await page.getByRole("button", { name: "Debts", exact: true }).click();
   await expect(page.locator(".simple-total")).toContainText("$20,000.00");
@@ -69,7 +68,7 @@ test("removing an isolated test account retains its last balance in Progress", a
   await page.getByText("Advanced destructive action", { exact: true }).click();
   page.on("dialog", dialog => dialog.accept());
   await page.getByRole("button", { name: "Permanently delete debt account", exact: true }).click();
-  await page.getByRole("button", { name: "More", exact: true }).click();
+  await openMore(page);
   await page.getByRole("button", { name: "Progress", exact: true }).filter({ visible: true }).click();
   await expect(page.locator(".actual-progress-summary")).toContainText("$1,000.00");
   await page.getByText("Account breakdown", {exact:true}).click();
@@ -78,7 +77,7 @@ test("removing an isolated test account retains its last balance in Progress", a
   await page.getByRole("button", { name: "Save snapshot", exact: true }).click();
   await expect(page.locator(".snapshot-controls .saved-check")).toContainText("$1,000.00");
   await page.reload();
-  await page.getByRole("button", { name: "More", exact: true }).click();
+  await openMore(page);
   await page.getByRole("button", { name: "Progress", exact: true }).filter({ visible: true }).click();
   await expect(page.locator(".actual-progress-summary")).toContainText("$1,000.00");
   await page.getByText("Account breakdown", {exact:true}).click();

@@ -1,5 +1,5 @@
 "use client";
-import Link from "next/link";
+
 import { useCallback, useEffect, useState } from 'react';
 
 type Role = 'owner' | 'admin' | 'viewer';
@@ -42,7 +42,9 @@ export default function HouseholdLifecyclePanel({ identity, householdId, role, m
       {data.canCreate && <form onSubmit={event => { event.preventDefault(); void act({ action: 'create', name }, true); }}><label>Household name<input value={name} maxLength={80} required onChange={event => setName(event.target.value)}/></label><button className="primary" disabled={working}>Create household</button></form>}
       {!data.canCreate && !data.legacyInvitation && !data.inbox.length && <p>No pending invitations. New household registration is closed.</p>}
       {Boolean(data.requests.length) && <div><p>Pending deletion request: {data.requests[0].id}</p><button disabled={working} onClick={() => void act({ action: 'cancel_deletion' })}>Cancel deletion request</button></div>}
-      {data.member && !data.legacyInvitation && <Link className="account-link" href="/">Open your household</Link>}
+      {/* Shared static client cannot import Next Link; ordinary navigation preserves the web destination. */}
+      {/* eslint-disable-next-line @next/next/no-html-link-for-pages */}
+      {data.member && !data.legacyInvitation && <a className="account-link" href="/">Open your household</a>}
     </>}
     {!setup && <>
       {role === 'owner' && <form onSubmit={event => { event.preventDefault(); void act({ action: 'rename', name }, true); }}><label>Household name<input aria-label="New household name" value={name} maxLength={80} required onChange={event => setName(event.target.value)}/></label><button className="secondary" disabled={working}>Save household name</button></form>}
@@ -53,6 +55,6 @@ export default function HouseholdLifecyclePanel({ identity, householdId, role, m
       {role !== 'owner' && <button className="secondary" disabled={working} onClick={() => { const confirmation = prompt('Shared records stay with this household. Type LEAVE to leave.'); if (confirmation) void act({ action: 'leave', confirmation }, true); }}>Leave household</button>}
       <details><summary>Account deletion</summary><p>{role === 'owner' ? 'Owner deletion requests include the household and its shared financial records. Export your data first. Other members will lose access when deletion is processed.' : 'Deleting your account removes your access. Shared debts, payments and history remain with the household.'}</p><p>Requests are reviewed manually during private testing. Nothing is deleted automatically.</p>{data?.requests.length ? <><p>Request reference: {data.requests[0].id}</p><button disabled={working} onClick={() => void act({ action: 'cancel_deletion' })}>Cancel deletion request</button></> : <button className="danger" disabled={working} onClick={() => { const confirmation = prompt('Type DELETE to request deletion.'); if (confirmation) void act({ action: 'request_deletion', confirmation }); }}>Request deletion</button>}</details>
     </>}
-    <p><Link href="/support">Help and support</Link></p>
+    <p><a href="/support">Help and support</a></p>
   </article>;
 }

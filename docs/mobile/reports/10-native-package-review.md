@@ -1,0 +1,52 @@
+# Agent report: Independent native package review
+
+Date/time zone: October 17, 2026 / America/Los_Angeles
+Status: complete — static project/asset review only
+Owned file: new `docs/mobile/reports/10-native-package-review.md`
+
+## Recommendation and actionable findings
+
+Accept the scaffold for the next synthetic debug compilation checkpoint. No blocking source/configuration defect found for that limited scope. This is not APK acceptance or a binary audit: `mobile/android/app/build/outputs/apk/debug/app-debug.apk` is absent. SDK/license readiness and compilation remain pending; manager owns integrated lint/types/web/mobile checks.
+
+1. **P3 — generated instrumentation smoke test asserts the old package.** `mobile/android/app/src/androidTest/java/com/getcapacitor/myapp/ExampleInstrumentedTest.java:26` expects `com.getcapacitor.app`, while `mobile/android/app/build.gradle:4,7` sets `com.debtfree.dashboard.dev`. A future connected/device instrumentation run will fail this assertion regardless of app behavior. Packaging owner should update the assertion (and optionally the template test package/path) before treating instrumentation as evidence. This does not block assembleDebug/lintDebug and was not executed here.
+2. **Deferred security hardening before native sharing — broad FileProvider roots.** `mobile/android/app/src/main/res/xml/file_paths.xml:3-4` permits external storage and the whole app cache (`path="."`). The manifest provider is correctly unexported and requires explicit URI grants (`AndroidManifest.xml:29-36`); broad paths alone are not proof of unauthenticated access. For this sample-only scaffold with no native sharing plugin, this is not a release-blocking exploit finding. Before financial export/camera/share, replace these with a dedicated minimal cache/export directory, read-only grants as appropriate, and cleanup tests; avoid external-path for sensitive material. Android's [FileProvider guidance](https://developer.android.com/privacy-and-security/risks/file-providers) recommends narrow paths. Report08 already identifies this boundary; independently confirmed.
+
+## Inspected evidence and findings
+
+Read assignment 09, report08 and applicable repository/mobile scope instructions. Preserved all existing and concurrently modified files. No private household, credentials, SDK installation, device or production access.
+
+**Dependency boundary:** `package.json` and lockfile pin core/android/cli to exactly 8.5.3. The only scoped override is CLI -> xcode -> uuid 11.1.1. Read-only structural comparison of current lock `packages` against `git show HEAD:package-lock.json` found **zero existing package version changes, zero removals, 82 additions**. Current UUID lock entry is 11.1.1. This supports the report's preserved-version claim; it does not independently reproduce npm audit, installation provenance or xcode runtime tests. Manager/packaging report supplies the restored pre-existing audit count of 22; this worker did not rerun audit or label those historical findings resolved.
+
+**Root bridge and development identity:** root `capacitor.config.ts:1` re-exports `mobile/capacitor.config.ts`; the latter sets `com.debtfree.dashboard.dev`, DebtFree Dev, root-relative `mobile/dist` and `android.path: mobile/android` (`:5-8`). Root scripts invoke CLI from repository root. Generated `app/src/main/assets/capacitor.config.json` agrees, and plugin list is empty. No server.url, live-reload fallback, allowNavigation wildcard, connected provider key or credential appears in reviewed native configuration. Application ID, Java package and string resources agree. The `custom_url_scheme` string alone does not register OAuth callbacks: manifest contains only MAIN/LAUNCHER, no deep-link filter.
+
+**Synthetic content and asset sync:** `mobile/main.tsx:11-12` creates the isolated demo repository and mounts the device-only synthetic branch. `mobile/demo-repository.ts` uses `synthetic-mobile-demo-v1`; `mobile/demo-fixture.ts:3` identifies hand-authored samples. `mobile/vite.config.ts:9,15,19-24` disables environment/public directory copying, copies an asset allowlist and guards server/auth module inclusion. Independently byte-compared all **18 mobile/dist files** against native assets/public: no missing or differing copies. This proves current disk sync, not what a nonexistent APK packages or what a phone requests. Shared dashboard still contains connected code; its device-only branch and runtime tests, not string absence, determine whether those calls execute.
+
+**Android defaults:** manifest's sole requested permission is INTERNET (`:42`), appropriate for standard Capacitor scaffolding; do not call the package network-denied. Installed `@capacitor/android/.../CapConfig.java:39,46,254-286` defaults to local HTTPS scheme, mixed content false and WebView debugging based on application debug flag unless overridden. HTTPS localhost is Capacitor's local asset origin, not a configured remote production server. No manifest cleartext/debuggable override or network security config was added. Source review supports normal debug-only inspection behavior; final debug/release merged flags and cleartext enforcement require build output. No network/callback/auth/runtime proof was executed. Official [Capacitor configuration](https://capacitorjs.com/docs/config) corroborates these settings; installed 8.5.3 source controls this review.
+
+**Components and signing:** launcher activity is exported intentionally for MAIN/LAUNCHER (`AndroidManifest.xml:14-25`), singleTask, with template configuration-change handling. MainActivity only extends BridgeActivity. Provider is not exported. `app/build.gradle:19-24` has no release signing configuration; no release key was created or inspected. Standard debug signing belongs to the future debug build; scaffold acceptance is not release signing/store readiness. Google Services classpath is template dependency scaffolding; application plugin applies only if google-services.json exists (`app/build.gradle:47-54`), and that file is absent.
+
+**Backup:** manifest `:5-7` sets allowBackup=false, fullBackupContent=false and explicit extraction rules. `res/xml/data_extraction_rules.xml:4-25` excludes all nine configured domains for both cloud backup and device transfer. Parsed all **16 main XML files**, including generated XML config, without syntax errors. These are explicit source exclusions, not measured OEM restore/transfer compliance or credential encryption. Local browser storage remains sample storage; native token vault and encrypted financial drafts are unimplemented and governed by NATIVE_AUTH_CONTRACT.md before connected use.
+
+**Brand/resources:** launcher API24–25 vectors and API26+ adaptive foreground/background use DF monogram and mint #BCEEDE / ink #096B5D. `res/values/ic_launcher_background.xml:2` also defines surface #F7F8FC. Splash `styles.xml:19-23` references df_mark, surface and postSplashScreenTheme; drawable splash references the same resources. All locally referenced color/drawable/mipmap/style/string resources in the 15 resource XML files resolve in the static symbol check. No stock bitmap launcher/splash references remain in these paths. This is not aapt compilation, launcher-mask or splash rendering proof.
+
+**Toolchain:** inspected variables.gradle (min24, compile/target36), build.gradle (AGP8.13.0), wrapper properties (Gradle8.14.3-all plus distribution SHA256), and generated capacitor.build.gradle (Java21). Did not run Gradle, download a wrapper, install SDK/JDK or accept licenses. Report08's build-tools35.0.0 requirement is supplied packaging documentation, not a newly tested SDK resolution. No local.properties or APK currently exists. Root TS exclusions cover mobile/dist and mobile/android; lint script excludes generated native folder. Integrated lint/types outcomes belong to manager, not this review.
+
+**Artifact/source boundary:** `git check-ignore -v` confirms mobile/dist, native copied assets, local.properties, .gradle, build/APK, keystore and google-services inputs are ignored. Root ignore also covers IDE and keystore.properties. `git ls-files --others --exclude-standard mobile/android` lists 32 prospective source files; inspected generated Java/Gradle/XML/config/wrapper source for host-path, signing and provider-secret indicators. Matches found were ordinary documentation/schema URLs; no host path or credential found in this reviewed scope. This is a targeted source check, not a repository-wide secret audit. Wrapper JAR is a normal generated source dependency, not an APK. Future staging must still be explicit and reviewed; this worker staged nothing.
+
+## Verification actually performed
+
+- Read-only source, report and installed dependency-default inspection; git status and structural lock comparison against tracked HEAD.
+- Byte comparison of 18 web/native copied files: exact match.
+- XML parsing: 16 main XML files; static local resource-reference resolution: no unresolved references across 15 resource XML files.
+- Ignore checks and absent APK/local.properties/google-services checks; official primary platform documentation for uncertain configuration/FileProvider semantics.
+- No writes except this report. No installs, builds, lint/test suites, native/device/emulator/provider runs, audit rerun, cloud operations, commit, push or deploy. Existing manager/packaging passes remain attributed to their reports.
+
+## Blockers and next action
+
+Next: packaging/toolchain owner obtains the authorized SDK/license readiness and runs assembleDebug plus lintDebug; manager records failures or APK hash/size, merged manifest, packaged resources/assets and signing/debug status. Correct the stale instrumentation package assertion before a device instrumentation pass. Narrow FileProvider with the later native share/export slice.
+
+Physical Back/navigation, keyboard/insets, process restart/storage recovery, resume, actual network behavior, file import/export/share, OCR worker/WASM/camera, native auth, phone compatibility and all iOS/macOS/store work remain pending. S20+/S21+ 5G OS/WebView versions still require capture; model names are not compatibility proof. Keep real household imports out of demo testing.
+
+## Changes made and handoff
+
+Created only `docs/mobile/reports/10-native-package-review.md`. Static scaffold accepted for compilation with the low-priority template-test correction and deferred sharing hardening above. Per latest owner direction, completion is reported in this worker chat only; no manager message sent.

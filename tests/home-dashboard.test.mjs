@@ -244,7 +244,7 @@ test("Phase 4 navigation, advanced access, mobile targets, and headings are expl
   assert.doesNotMatch(monthly, />Open detailed ledger</);
   assert.match(client, /item\.id !== "history" \|\| detailedSpendingTracking/);
   const progress = await readFile(new URL("../app/actual-progress-page.tsx", import.meta.url), "utf8");
-  assert.match(client, /<h1>\{ALL_NAV_ITEMS/);
+  assert.match(client, /<h1>\{mobileView[\s\S]*?ALL_NAV_ITEMS\.find/);
   assert.match(client, /id: "snapshots", label: "Progress"/);
   assert.match(progress, /actual-progress-summary/);
   assert.match(progress, /This month/);

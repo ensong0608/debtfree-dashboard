@@ -100,7 +100,8 @@ test("removes disposable starter assets", async () => {
   assert.match(calculator, /\["avalanche", "snowball"\]/);
   assert.doesNotMatch(calculator, /Custom payoff order/);
   assert.match(calculator, /Saved minimum/);
-  assert.match(calculator, /Ending balance/);
+  assert.match(calculator, /<th>Balance<\/th>/);
+  assert.match(calculator, /money\.format\(month\.remaining\)/);
   assert.doesNotMatch(dashboardSource, /moneyPrecise\.format\(month\.payments\[account\.id\] \?\? 0\)\} paid/);
   assert.match(dashboardSource, /\/api\/household/);
   assert.match(dashboardSource, /Add member/);

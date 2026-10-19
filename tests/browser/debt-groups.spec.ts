@@ -11,12 +11,20 @@ test("household debts can be reordered and moved with saved placement", async ({
   const mama = page.getByRole("region", { name: "Mama debts", exact: true });
   const papi = page.getByRole("region", { name: "Papi debts", exact: true });
   await expect(mama.locator("article h2")).toHaveText(["Citi1", "Discover"]);
-  await page.getByRole("button", { name: "Arrange debts", exact: true }).click();
-  await page.getByRole("button", { name: "Move Discover up", exact: true }).click();
+  if ((page.viewportSize()?.width ?? 1440) <= 820) {
+    await page.getByRole("button", { name: "Edit debt details for Discover", exact: true }).click();
+    await page.getByLabel("Position in category", { exact: true }).selectOption("1");
+    await page.getByRole("dialog").getByRole("button", { name: "Save details", exact: true }).click();
+  } else {
+    await page.getByRole("button", { name: "Arrange debts", exact: true }).click();
+    await page.getByRole("button", { name: "Move Discover up", exact: true }).click();
+    await page.getByRole("button", { name: "Done arranging", exact: true }).click();
+  }
   await expect(mama.locator("article h2")).toHaveText(["Discover", "Citi1"]);
-  await page.getByLabel("Group for Citi1", { exact: true }).selectOption("Papi");
+  await page.getByRole("button", { name: "Edit debt details for Citi1", exact: true }).click();
+  await page.getByRole("dialog").getByLabel("Debt category", { exact: true }).selectOption("Papi");
+  await page.getByRole("button", { name: "Save details", exact: true }).click();
   await expect(papi.locator("article h2")).toHaveText(["Costco", "Citi1"]);
-  await page.getByRole("button", { name: "Done arranging", exact: true }).click();
   await page.reload();
   await expect(mama.locator("article h2")).toHaveText(["Discover"]);
   await expect(papi.locator("article h2")).toHaveText(["Costco", "Citi1"]);

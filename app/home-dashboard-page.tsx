@@ -1,9 +1,12 @@
 "use client";
+import InfoTooltip from "./info-tooltip";
+import { createHouseholdMoneyFormatter, householdCurrencySymbol } from "./household-currency";
+import { useHouseholdCurrency } from "./household-currency-context";
 
 import type { HomeAction, HomeDashboardModel } from "./home-dashboard";
 
-const money = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 });
-const preciseMoney = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+
 
 function formatMonth(value: string | null) {
   if (!value) return "Needs adjustment";
@@ -17,10 +20,11 @@ function formatDate(value: string) {
 }
 
 function ActionIcon({ action }: { action: HomeAction }) {
-  return <span className={`home-action-icon ${action.kind}`} aria-hidden="true">{action.kind === "due" ? "$" : action.kind === "promo" ? "%" : action.kind === "warning" ? "!" : "✓"}</span>;
+  const symbol = householdCurrencySymbol(useHouseholdCurrency());
+  return <span className={`home-action-icon ${action.kind}`} aria-hidden="true">{action.kind === "due" ? symbol : action.kind === "promo" ? "%" : action.kind === "warning" ? "!" : "✓"}</span>;
 }
 
-function paymentAction(model: HomeDashboardModel) {
+function paymentAction(model: HomeDashboardModel, preciseMoney: Intl.NumberFormat) {
   const focus = model.nextPayment;
   if (!model.activeDebtCount && model.startingDebt > 0) return { title: "You are debt-free", detail: "All recorded debt balances are paid off. Review your progress and keep a backup." };
   if (!model.activeDebtCount) return { title: "Add first debt", detail: "Add a balance, APR, and minimum payment to build your payoff plan." };
@@ -53,8 +57,12 @@ export default function HomeDashboardPage({
   onViewProgress: () => void;
   onViewMonthlyPlan: () => void;
 }) {
+  const householdCurrency = useHouseholdCurrency();
+  const money = createHouseholdMoneyFormatter(householdCurrency, { style: "currency", maximumFractionDigits: 0 });
+  const preciseMoney = createHouseholdMoneyFormatter(householdCurrency, { style: "currency", minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const symbol = householdCurrencySymbol(householdCurrency);
   const focus = model.nextPayment;
-  const recommendedAction = paymentAction(model);
+  const recommendedAction = paymentAction(model, preciseMoney);
   return <div className="screen home-screen">
     <div className="home-heading">
       <div><span className="eyebrow">Household payoff command center</span><h1>Here’s what to do next</h1><p>Your current balances, payment target, and payoff order in one place.</p></div>
@@ -63,12 +71,12 @@ export default function HomeDashboardPage({
 
     <section className="home-summary" aria-labelledby="home-summary-title">
       <h2 className="sr-only" id="home-summary-title">Payoff summary</h2>
-      <article className="home-debt-free"><span>Estimated debt-free date</span><strong>{formatMonth(model.debtFreeMonth)}</strong><small>{model.stalled ? "Increase the payment target to create a finish line" : `${model.strategy === "avalanche" ? "Avalanche" : model.strategy === "snowball" ? "Snowball" : "Custom"} strategy · ${preciseMoney.format(model.estimatedInterest)} projected interest`}</small></article>
-      <article><span>Total remaining debt</span><strong>{preciseMoney.format(model.totalDebt)}</strong><small>{model.activeDebtCount} active {model.activeDebtCount === 1 ? "debt" : "debts"}</small></article>
-      <article><span>Amount already paid off</span><strong>{preciseMoney.format(model.amountPaid)}</strong><small>{model.progressLabel}</small></article>
-      <article className="home-progress-card"><div><span>Plan progress</span><strong>{model.progressPercent.toFixed(1)}%</strong></div><div className="home-progress-track" role="progressbar" aria-label="Debt payoff progress" aria-valuemin={0} aria-valuemax={100} aria-valuenow={model.progressPercent}><i style={{ width: `${model.progressPercent}%` }}/></div><small>{money.format(model.startingDebt)} starting debt</small></article>
-      <article><span>Monthly debt target</span><strong>{preciseMoney.format(model.monthlyTarget)}</strong><small>Includes all minimum payments</small></article>
-      <article className="home-extra-card"><label htmlFor="home-extra-payment">Extra above minimums</label><div className="home-extra-editor"><span>$</span><input id="home-extra-payment" type="number" min="0" step=".01" inputMode="decimal" value={model.extraPayment || ""} placeholder="0" aria-describedby="home-extra-help" onChange={(event) => onExtra(Math.max(0, Number(event.target.value) || 0))}/></div><small id="home-extra-help">Updates the Home target, Payoff Plan, and projections everywhere.</small></article>
+      <article className="home-debt-free"><span><InfoTooltip label="Estimated debt-free date">{"The projected month when the saved payoff plan clears active card and other debt, using its monthly target, payoff order and saved rates. It changes when balances or plan settings change."}</InfoTooltip></span><strong>{formatMonth(model.debtFreeMonth)}</strong><small>{model.stalled ? "Increase the payment target to create a finish line" : `${model.strategy === "avalanche" ? "Avalanche" : model.strategy === "snowball" ? "Snowball" : "Custom"} strategy · ${preciseMoney.format(model.estimatedInterest)} projected interest`}</small></article>
+      <article><span><InfoTooltip label="Total remaining debt">{"The sum of current balances for active card and other debt accounts. Recorded transactions are already reflected in those balances; house and car trackers are separate."}</InfoTooltip></span><strong>{preciseMoney.format(model.totalDebt)}</strong><small>{model.activeDebtCount} active {model.activeDebtCount === 1 ? "debt" : "debts"}</small></article>
+      <article><span><InfoTooltip label="Amount already paid off">{"Starting debt minus current remaining debt, floored at zero. This is net balance reduction, not the sum of every payment recorded."}</InfoTooltip></span><strong>{preciseMoney.format(model.amountPaid)}</strong><small>{model.progressLabel}</small></article>
+      <article className="home-progress-card"><div><span><InfoTooltip label="Plan progress">{"Net balance reduction divided by the recorded starting debt, expressed as a percentage and capped at 100%."}</InfoTooltip></span><strong>{model.progressPercent.toFixed(1)}%</strong></div><div className="home-progress-track" role="progressbar" aria-label="Debt payoff progress" aria-valuemin={0} aria-valuemax={100} aria-valuenow={model.progressPercent}><i style={{ width: `${model.progressPercent}%` }}/></div><small>{money.format(model.startingDebt)} starting debt</small></article>
+      <article><span><InfoTooltip label="Monthly debt target">{"Saved or estimated minimum payments plus the extra above minimums. This is a target; payments are recorded separately."}</InfoTooltip></span><strong>{preciseMoney.format(model.monthlyTarget)}</strong><small>Includes all minimum payments</small></article>
+      <article className="home-extra-card"><label htmlFor="home-extra-payment">Extra above minimums</label><div className="home-extra-editor"><span>{symbol}</span><input id="home-extra-payment" type="number" min="0" step=".01" inputMode="decimal" value={model.extraPayment || ""} placeholder="0" aria-describedby="home-extra-help" onChange={(event) => onExtra(Math.max(0, Number(event.target.value) || 0))}/></div><small id="home-extra-help">Updates the Home target, Payoff Plan, and projections everywhere.</small></article>
       <article className="home-next-action"><span>Next recommended action</span><strong>{recommendedAction.title}</strong><small>{recommendedAction.detail}</small></article>
     </section>
 

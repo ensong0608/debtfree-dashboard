@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">DebtFree Dev</string>
+    <string name="title_activity_main">DebtFree Dev</string>
+    <string name="package_name">com.debtfree.dashboard.dev</string>
+    <string name="custom_url_scheme">com.debtfree.dashboard.dev</string>
+</resources>

@@ -1,3 +1,4 @@
+import { openMore, openFullCalculator } from './navigation';
 import {test,expect} from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
 import {readFileSync,mkdirSync} from 'node:fs';
@@ -34,12 +35,12 @@ test('Progress matches the summary-first design and mobile entry choices never o
  for(const name of ['Payment','Refund / credit','Balance correction'])await expect(dialog.getByRole('radio',{name,exact:true})).toBeVisible();
  await dialog.getByRole('radio',{name:'Refund / credit',exact:true}).check();await expect(dialog).toContainText('Debt decreases by $150.00');await expect(dialog).toContainText('$4,916.96');
  await dialog.locator('.signed-amount-controls').scrollIntoViewIfNeeded();await screenshot('transaction');await dialog.getByRole('button',{name:'Save transaction',exact:true}).click();await expect(page.locator('.simple-total>strong')).toHaveText('$0.00');
- await page.reload();await page.getByRole('button',{name:'More',exact:true}).click();await page.getByRole('button',{name:'Progress',exact:true}).filter({visible:true}).click();
+ await page.reload();await openMore(page);await page.getByRole('button',{name:'Progress',exact:true}).filter({visible:true}).click();
  const hero=page.locator('.actual-progress-summary');await expect(hero).toContainText('$10,000.00');await expect(hero).toContainText('$4,916.96');await expect(hero.locator('.progress-snapshot-chart circle')).toHaveCount(2);await expect(page.locator('.paid-off-card')).toContainText('1');
  for(const amount of await page.locator('.snapshot-chart-labels strong').all())expect(await amount.evaluate(e=>e.scrollWidth<=e.clientWidth+1&&e.getBoundingClientRect().height<26)).toBe(true);
  await expect(page.getByRole('region',{name:'Snapshots'}).locator('.saved-check')).toHaveCount(2);await screenshot('progress');
  const axe=await new AxeBuilder({page}).include('.actual-progress-screen').withRules(['color-contrast']).analyze();expect(axe.violations).toEqual([]);
- await page.getByRole('button',{name:'More',exact:true}).click();await page.getByRole('button',{name:'Payoff Calculator',exact:true}).click();
+ await openFullCalculator(page);;
  await page.getByLabel('Total monthly debt payment',{exact:true}).fill('600');expect(await page.getByLabel('Total monthly debt payment',{exact:true}).evaluate(e=>parseFloat(getComputedStyle(e).fontSize))).toBeGreaterThanOrEqual(24);await expect(page.getByRole('button',{name:'Calculate scenario',exact:true})).toBeVisible();const budgetBox=await page.locator('.extra-control>div').boundingBox(),inputBox=await page.getByLabel('Total monthly debt payment',{exact:true}).boundingBox();expect(inputBox!.y).toBeGreaterThanOrEqual(budgetBox!.y);expect(inputBox!.y+inputBox!.height).toBeLessThanOrEqual(budgetBox!.y+budgetBox!.height);await screenshot('calculator');
  await page.getByRole('button',{name:'Use this in my plan',exact:true}).click();await expect(page.locator('.plan-commitment')).toContainText('$600.00');await expect(page.getByRole('tab',{name:'Planned',exact:true})).toHaveAttribute('aria-selected','true');await screenshot('plan');
  await page.getByRole('tab',{name:'Recorded',exact:true}).click();await expect(page.locator('.allocation-total').first()).toHaveText('$0.00');await page.getByRole('tab',{name:'Planned',exact:true}).click();await expect(page.getByLabel('Minimum payment for Everyday Card with a long account name')).toHaveValue('150');

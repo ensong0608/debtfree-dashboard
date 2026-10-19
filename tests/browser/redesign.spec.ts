@@ -1,3 +1,4 @@
+import { openMore, openSettings, openAccount, openFullCalculator } from './navigation';
 import {test,expect} from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
 import {readFileSync,mkdirSync} from 'node:fs';
@@ -16,7 +17,7 @@ test('approved main tabs and secondary pages remain usable with synthetic data',
  const screenshot=async(name:string)=>{await page.locator('.page-body').evaluate(el=>{el.scrollTop=0;});await page.screenshot({path:`${output}/${info.project.name}-${name}.png`,fullPage:true});expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1)).toBe(true);const body=page.locator('.page-body');await body.evaluate(el=>{el.scrollTop=el.scrollHeight;});await page.screenshot({path:`${output}/${info.project.name}-${name}-bottom.png`});await body.evaluate(el=>{el.scrollTop=0;});};
  for(const width of info.project.name==='phone'?[360,390,430]:info.project.name==='tablet'?[768]:[1440]){
   await page.setViewportSize({width,height:900});
-  for(const name of ['Debts','Transactions','Budget','More']){await page.getByRole('button',{name,exact:true}).click();await screenshot(`${width}-${name.toLowerCase()}`);
+  for(const name of (width <= 820 ? ['Debts','Transactions','Budget','Account'] : ['Debts','Transactions','Budget','More'])){await page.getByRole('button',{name,exact:true}).click();await screenshot(`${width}-${name.toLowerCase()}`);
    if(name==='Debts') {
     const identity=page.locator('.compact-debt-identity').first();
     const heading=await identity.locator('h2').boundingBox(),amount=await identity.locator('.simple-balance').boundingBox();
@@ -28,18 +29,28 @@ test('approved main tabs and secondary pages remain usable with synthetic data',
    const contrast=await new AxeBuilder({page}).include('.page-heading').include('.screen').include('.bottom-action-bar').withRules(['color-contrast']).analyze();expect(contrast.violations).toEqual([]);}
  }
  for(const name of ['Payoff Calculator','Payoff Plan','Progress','Settings','Credit Utilization','Stats & Projections']){
-  await page.getByRole('button',{name:'More',exact:true}).click();await page.getByRole('button',{name,exact:true}).click();
+  if(name==='Payoff Calculator') await openFullCalculator(page);
+  else if(name==='Settings') await openSettings(page);
+  else { await openMore(page);await page.getByRole('button',{name,exact:true}).click(); }
   await screenshot(name.toLowerCase().replace(/[^a-z]+/g,'-'));
   const axe=await new AxeBuilder({page}).include('.page-heading').include('.screen').withRules(['color-contrast']).analyze();expect(axe.violations).toEqual([]);
  }
- await page.getByRole('button',{name:'More',exact:true}).click();await page.getByRole('button',{name:'Settings',exact:true}).click();
+ await openAccount(page);
  await page.locator('.data-transfer-actions input[type=file]').setInputFiles({name:'restore-preview-synthetic.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(fixture))});
  const restore=page.getByRole('dialog',{name:'restore-preview-synthetic.json',exact:true});
  await expect(restore).toBeVisible();
  if(info.project.name==='phone'){const box=await restore.boundingBox();expect(box!.width).toBe(page.viewportSize()!.width);expect(box!.height).toBe(page.viewportSize()!.height);}
  await screenshot('restore-preview');await page.keyboard.press('Escape');await expect(restore).not.toBeVisible();
  await page.getByRole('button',{name:'Reset data',exact:true}).click();const reset=page.getByRole('dialog',{name:'Reset the complete dashboard?',exact:true});await expect(reset).toBeVisible();await page.keyboard.press('Escape');await expect(reset).not.toBeVisible();
- await page.getByRole('button',{name:'Transactions',exact:true}).click();const deleteBox=await page.locator('.transaction-delete-x').first().boundingBox();expect(deleteBox!.width).toBeGreaterThanOrEqual(44);expect(deleteBox!.height).toBeGreaterThanOrEqual(44);
+ await page.getByRole('button',{name:'Transactions',exact:true}).click();
+ if((page.viewportSize()?.width ?? 1440)<=820){
+  await page.locator('.transaction-edit-surface').first().click();
+  const entry=page.getByRole('dialog');const deleteBox=await entry.getByRole('button',{name:'Delete transaction',exact:true}).boundingBox();
+  expect(deleteBox!.width).toBeGreaterThanOrEqual(24);expect(deleteBox!.height).toBeGreaterThanOrEqual(24);
+  await entry.getByRole('button',{name:'Cancel',exact:true}).click();
+ }else{
+  const deleteBox=await page.locator('.transaction-delete-x').first().boundingBox();expect(deleteBox!.width).toBeGreaterThanOrEqual(44);expect(deleteBox!.height).toBeGreaterThanOrEqual(44);
+ }
  await page.getByRole('button',{name:'Debts',exact:true}).click();
  await page.getByRole('button',{name:'Activity for Sample Rewards Card',exact:true}).click();await screenshot('activity');await page.getByRole('button',{name:'Close activity',exact:true}).click();
  await page.getByRole('button',{name:'Debt +',exact:true}).click();await screenshot('debt-form');

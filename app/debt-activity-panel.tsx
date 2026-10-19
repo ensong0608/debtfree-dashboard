@@ -1,9 +1,13 @@
 "use client";
+import { createHouseholdMoneyFormatter, } from "./household-currency";
+import { useHouseholdCurrency } from "./household-currency-context";
 import type { BalanceAdjustment, LedgerTransaction } from "./dashboard-data";
 import { buildDebtActivity } from "./debt-activity";
-const money = new Intl.NumberFormat("en-US", {style:"currency",currency:"USD"});
+
 export function activityMonthLabel(month: string) { return new Date(month + "-01T12:00:00").toLocaleDateString("en-US", {month:"long",year:"numeric"}); }
 export default function DebtActivityPanel({accountId, name, transactions, adjustments, expanded=false}: {expanded?:boolean;accountId:string; name:string; transactions:LedgerTransaction[]; adjustments:BalanceAdjustment[]}) {
+  const householdCurrency = useHouseholdCurrency();
+  const money = createHouseholdMoneyFormatter(householdCurrency, {style:"currency",});
   const months = buildDebtActivity(accountId, transactions, adjustments).filter(month => month.rows.length > 0);
   if (!months.length) return expanded ? <div className="debt-history compact-activity"><p>No activity yet.</p></div> : null;
   const content = <>

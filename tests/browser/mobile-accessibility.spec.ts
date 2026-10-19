@@ -1,3 +1,4 @@
+import { openMore } from './navigation';
 import { test, expect, type Page, type Locator } from '@playwright/test';
 import { readFileSync } from 'node:fs';
 
@@ -15,7 +16,7 @@ async function target(locator: Locator) {
   expect(box!.height).toBeGreaterThanOrEqual(44);
 }
 async function more(page: Page, name: string) {
-  await page.getByRole('button',{name:'More',exact:true}).click();
+  await openMore(page);
   await page.getByRole('button',{name,exact:true}).filter({visible:true}).click();
 }
 async function doubleText(page: Page) {
@@ -59,7 +60,7 @@ test('tablists support arrow/Home/End selection and a single Tab stop',async({pa
 
 test('mobile targets and reverse modal focus work without the redundant loan entry',async({page})=>{
   await page.setViewportSize({width:390,height:844});await load(page);
-  for(const name of ['Open My Account','Activity for Synthetic accessibility card','Record payment for Synthetic accessibility card','Update balance for Synthetic accessibility card','Debt +']) await target(page.getByRole('button',{name,exact:true}));
+  for(const name of ['Open Settings','Activity for Synthetic accessibility card','Record payment for Synthetic accessibility card','Update balance for Synthetic accessibility card','Debt +']) await target(page.getByRole('button',{name,exact:true}));
   const trigger=page.getByRole('button',{name:'Debt +',exact:true});
   await trigger.click();await page.getByLabel('Debt type').selectOption({label:'House loan'});
   const dialog=page.getByRole('dialog',{name:'Loan progress',exact:true});
@@ -95,9 +96,9 @@ test('200 percent text reflows across debt, loan form, Plan and Progress on a na
   await dialog.getByRole('button',{name:'Cancel',exact:true}).click();
   await more(page,'Payoff Plan');await fit();
   await page.getByRole('button',{name:'Full payoff schedule →',exact:true}).click();
-  await page.locator('.mobile-payoff-schedule .schedule-month').last().scrollIntoViewIfNeeded();
-  await expect(page.locator('.mobile-payoff-schedule .schedule-month').last()).toBeVisible();
-  const last=await page.locator('.mobile-payoff-schedule .schedule-month').last().boundingBox();
+  await page.locator('.plan-table tbody tr').last().scrollIntoViewIfNeeded();
+  await expect(page.locator('.plan-table tbody tr').last()).toBeVisible();
+  const last=await page.locator('.plan-table tbody tr').last().boundingBox();
   const navigation=await page.locator('.sidebar').boundingBox();
   expect(last!.y+last!.height).toBeLessThanOrEqual(navigation!.y+1);
   await more(page,'Progress');await fit();

@@ -1,3 +1,4 @@
+import { openMore, openFullCalculator } from './navigation';
 import { test, expect, type Page } from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
 import path from "node:path";
@@ -69,12 +70,12 @@ test("phone navigation and long account names fit 360, 390, and 430px", async ({
   await page.locator('input[type="file"]').setInputFiles({ name: "phone-fixture.json", mimeType: "application/json", buffer: Buffer.from(JSON.stringify(fixture)) });
   for (const width of [360, 390, 430]) {
     await page.setViewportSize({ width, height: 844 });
-    await expect(page.getByRole("button",{name:"Open My Account",exact:true})).toBeVisible();
+    await expect(page.getByRole("button",{name:"Open Settings",exact:true})).toBeVisible();
     const boxes = await page.locator('nav[aria-label="Primary navigation"] button').evaluateAll(buttons => buttons.map(button => ({ y: button.getBoundingClientRect().y, height: button.getBoundingClientRect().height })));
     expect(boxes).toHaveLength(4);
     expect(new Set(boxes.map(box => Math.round(box.y))).size).toBe(1);
     expect(boxes.every(box => box.height >= 48)).toBe(true);
-    for (const name of ["Debts", "Transactions", "Budget", "More"]) {
+    for (const name of ["Debts", "Transactions", "Budget", "Account"]) {
       await page.getByRole("button", { name, exact: true }).click();
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
       if (width === 390 && testInfo.project.name === "phone") await page.screenshot({ path: `outputs/updated-${name.toLowerCase()}-390.png` });
@@ -122,14 +123,13 @@ test("create a household plan, record payment, change strategy and restore a bac
   await page.getByRole("button", { name: "Copy recurring items" }).click();
   await page.locator(".budget-section-card").filter({has:page.getByText("Income",{exact:true})}).locator(":scope > summary").click();
   await expect(page.getByRole("button", { name: /Edit Household salary/ })).toBeVisible();
-  await page.getByRole("button", { name: "More", exact: true }).click();
-  await page.getByRole("button", { name: "Payoff Calculator", exact: true }).click();
+  await openFullCalculator(page);;
   await page.getByRole("button", { name: /Snowball/, exact: false }).first().click();
   await page.getByLabel("Total monthly debt payment", { exact: true }).fill("7000");
   await expect(page.getByText("Monthly amount", { exact: true })).toBeVisible();
   await expect(page.locator(".plan-hero")).toContainText("$7,000.00");
   await expect(page.getByText("What-if calculator", { exact: true })).toHaveCount(0);
-  await page.getByRole("button", { name: "More", exact: true }).click();
+  await openMore(page);
   await page.getByRole("button", { name: "Settings", exact: true }).click();
   const download = page.waitForEvent("download");
   await page.getByRole("button", { name: "Export full backup", exact: true }).click();
@@ -190,7 +190,7 @@ test("simplified Budget preserves existing paid records and balances across mont
  await page.reload();await expect(balance).toHaveText(before!);
  await page.getByRole("button",{name:"Budget",exact:true}).click();
  await expect(page.getByRole("button",{name:"Edit Paid rent",exact:true})).toContainText("Paid $500.00 · Remaining $0.00");
- await page.getByRole("button",{name:"More",exact:true}).click();
+ await openMore(page);
  await page.getByRole("button",{name:"Settings",exact:true}).click();
  const download=page.waitForEvent("download");await page.getByRole("button",{name:"Export full backup",exact:true}).click();
  const file=await download;const backup=JSON.parse(readFileSync((await file.path())!,"utf8"));

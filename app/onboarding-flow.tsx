@@ -1,4 +1,6 @@
 "use client";
+import { createHouseholdMoneyFormatter, householdCurrencySymbol } from "./household-currency";
+import { useHouseholdCurrency } from "./household-currency-context";
 
 import { useEffect, useMemo, useRef, useState, type ChangeEvent, type FormEvent } from "react";
 import {
@@ -7,6 +9,8 @@ import {
   type PlannedIncomeSource,
   type PlannedPayoffData,
 } from "./dashboard-data";
+import HouseholdCurrencySettings from "./household-currency-settings";
+import type { HouseholdCurrency } from "./household-currency";
 import OutlineIcon from "./outline-icon";
 import { calculatePlan } from "./payoff-engine";
 import {
@@ -40,8 +44,8 @@ const expenseFields: { key: EssentialExpenseKey; label: string }[] = [
   { key: "safetyBuffer", label: "Safety buffer" },
 ];
 
-const currency = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 });
-const preciseCurrency = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+
 const numberValue = (value: string) => Math.max(0, Number.isFinite(Number(value)) ? Number(value) : 0);
 const newId = (prefix: string) => prefix + "-" + Date.now() + "-" + Math.random();
 
@@ -52,6 +56,7 @@ function readableMonth(month: string | null) {
 }
 
 export type OnboardingFlowProps = {
+  onCurrencyChange?: (currency: HouseholdCurrency) => void;
   planning: PlannedPayoffData;
   importMessage: string;
   onPlanningChange: (planning: PlannedPayoffData) => void;
@@ -59,7 +64,11 @@ export type OnboardingFlowProps = {
   onComplete: (result: GeneratedOnboardingPlan) => void;
 };
 
-export default function OnboardingFlow({ planning, importMessage, onPlanningChange, onImport, onComplete }: OnboardingFlowProps) {
+export default function OnboardingFlow({ onCurrencyChange, planning, importMessage, onPlanningChange, onImport, onComplete }: OnboardingFlowProps) {
+  const householdCurrency = useHouseholdCurrency();
+  const currency = createHouseholdMoneyFormatter(householdCurrency, { style: "currency", maximumFractionDigits: 0 });
+  const preciseCurrency = createHouseholdMoneyFormatter(householdCurrency, { style: "currency", minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const symbol = householdCurrencySymbol(householdCurrency);
   const step = Math.min(5, Math.max(1, planning.onboarding.currentStep));
   const shellRef = useRef<HTMLElement>(null);
   useEffect(() => { shellRef.current?.scrollTo({top: 0}); }, [step]);
@@ -127,7 +136,7 @@ export default function OnboardingFlow({ planning, importMessage, onPlanningChan
       </div>
       {errors.length > 0 && <div ref={errorRef} id="onboarding-errors" className="onboarding-errors" role="alert" aria-live="assertive" tabIndex={-1}><strong>Please review this step.</strong><ul>{errors.map((error) => <li key={error}>{error}</li>)}</ul></div>}
 
-      {step === 1 && <div className="onboarding-welcome">
+      {step === 1 && <div className="onboarding-welcome"><HouseholdCurrencySettings onboarding readOnly={!onCurrencyChange} onChange={currency => onCurrencyChange?.(currency)}/>
         <span className="onboarding-eyebrow">A focused plan in a few minutes</span>
         <h1 id="onboarding-title">Crush household debt, <em>together.</em></h1>
         <p>You only need monthly income, debt balances, minimum payments, and a comfortable payment amount. Transactions, payees, and receipts are not required.</p>
@@ -148,7 +157,7 @@ export default function OnboardingFlow({ planning, importMessage, onPlanningChan
             <legend>Income source {index + 1}</legend>
             <label><span>Income source name</span><input aria-label="Income source name" value={source.name} onChange={(event) => updateIncome(source.id, { name: event.target.value })} aria-invalid={errors.some((error) => error.startsWith("Income source " + (index + 1))) || undefined} aria-describedby={errors.length ? "onboarding-errors" : undefined} placeholder="Salary or benefits"/>{fieldError("Income source " + (index + 1), "name") && <small className="setup-field-error">Enter an income source name.</small>}</label>
             <div className="income-frequency"><span>Pay frequency</span><div>{(["monthly", "biweekly", "weekly"] as const).map(frequency => <button type="button" key={frequency} aria-pressed={(source.payFrequency ?? "monthly") === frequency} onClick={() => { const amount = source.payAmount ?? source.monthlyTakeHome; updateIncome(source.id, { payFrequency: frequency, payAmount: amount, monthlyTakeHome: normalizeIncome(amount, frequency) }); }}>{frequency === "biweekly" ? "Biweekly" : frequency === "weekly" ? "Weekly" : "Monthly"}</button>)}</div></div>
-            <label><span>{source.payFrequency && source.payFrequency !== "monthly" ? "Take-home amount per paycheck" : "Monthly take-home amount"}</span><div className="onboarding-money"><b aria-hidden="true">$</b><input type="number" min="0" step="0.01" inputMode="decimal" aria-label={source.payFrequency && source.payFrequency !== "monthly" ? "Take-home amount per paycheck" : "Monthly take-home amount"} value={(source.payAmount ?? source.monthlyTakeHome) || ""} onChange={(event) => updateIncome(source.id, { payAmount: numberValue(event.target.value), monthlyTakeHome: normalizeIncome(numberValue(event.target.value), source.payFrequency ?? "monthly") })} aria-invalid={errors.some((error) => error.startsWith("Income source " + (index + 1))) || undefined} aria-describedby={errors.length ? "onboarding-errors" : undefined}/></div></label>
+            <label><span>{source.payFrequency && source.payFrequency !== "monthly" ? "Take-home amount per paycheck" : "Monthly take-home amount"}</span><div className="onboarding-money"><b aria-hidden="true">{symbol}</b><input type="number" min="0" step="0.01" inputMode="decimal" aria-label={source.payFrequency && source.payFrequency !== "monthly" ? "Take-home amount per paycheck" : "Monthly take-home amount"} value={(source.payAmount ?? source.monthlyTakeHome) || ""} onChange={(event) => updateIncome(source.id, { payAmount: numberValue(event.target.value), monthlyTakeHome: normalizeIncome(numberValue(event.target.value), source.payFrequency ?? "monthly") })} aria-invalid={errors.some((error) => error.startsWith("Income source " + (index + 1))) || undefined} aria-describedby={errors.length ? "onboarding-errors" : undefined}/></div></label>
             <p className="income-normalized">Monthly equivalent: {preciseCurrency.format(source.monthlyTakeHome)}</p>
             <label><span>Assignment (optional)</span><select value={source.assignment} onChange={(event) => updateIncome(source.id, { assignment: event.target.value as PlannedAssignment })}>{assignments.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}</select></label>
             {planning.incomeSources.length > 1 && <button className="onboarding-remove" type="button" onClick={() => update({ incomeSources: planning.incomeSources.filter((item) => item.id !== source.id) })} aria-label={"Remove income source " + (index + 1)}>Remove</button>}
@@ -165,21 +174,21 @@ export default function OnboardingFlow({ planning, importMessage, onPlanningChan
           {planning.debts.map((debt, index) => <fieldset className="onboarding-debt" key={debt.id}>
             <legend>Debt {index + 1}</legend>
             <label className="onboarding-type"><span>Debt type</span><select aria-label="Debt type" value={debt.trackerKind === "house" ? "House loan" : debt.type} onChange={event => { const type = event.target.value; updateDebt(debt.id, { type: type === "House loan" ? "Other" : type as PlannedDebt["type"], trackerKind: type === "House loan" ? "house" : type === "Auto loan" ? "car" : undefined }); }}>{debtTypes.map(type => <option key={type} value={type}>{type === "Auto loan" ? "Car loan" : type}</option>)}</select></label>
-            {debt.trackerKind && <label className="onboarding-type"><span>Original loan amount</span><div className="onboarding-money"><b aria-hidden="true">$</b><input type="number" min="0.01" step="0.01" inputMode="decimal" aria-label="Original loan amount" value={debt.originalLoanAmount || ""} aria-invalid={Boolean(fieldError("Debt " + (index + 1), "original"))} onChange={event => updateDebt(debt.id, {originalLoanAmount: numberValue(event.target.value)})}/></div>{fieldError("Debt " + (index + 1), "original") && <small className="setup-field-error">Enter the original amount from your loan agreement.</small>}</label>}
+            {debt.trackerKind && <label className="onboarding-type"><span>Original loan amount</span><div className="onboarding-money"><b aria-hidden="true">{symbol}</b><input type="number" min="0.01" step="0.01" inputMode="decimal" aria-label="Original loan amount" value={debt.originalLoanAmount || ""} aria-invalid={Boolean(fieldError("Debt " + (index + 1), "original"))} onChange={event => updateDebt(debt.id, {originalLoanAmount: numberValue(event.target.value)})}/></div>{fieldError("Debt " + (index + 1), "original") && <small className="setup-field-error">Enter the original amount from your loan agreement.</small>}</label>}
             <div className="onboarding-debt-basic">
               <label><span>Debt name</span><input aria-label="Debt name" value={debt.name} onChange={(event) => updateDebt(debt.id, { name: event.target.value })} aria-invalid={errors.some((error) => error.startsWith("Debt " + (index + 1))) || undefined} aria-describedby={errors.length ? "onboarding-errors" : undefined} placeholder="Rewards card"/>{fieldError("Debt " + (index + 1), "name") && <small className="setup-field-error">Enter a debt name.</small>}</label>
-              <label><span>Current balance</span><div className="onboarding-money"><b aria-hidden="true">$</b><input type="number" min="0" step="0.01" inputMode="decimal" aria-label="Current balance" value={debt.balance || ""} onChange={(event) => updateDebt(debt.id, { balance: numberValue(event.target.value) })} aria-invalid={Boolean(fieldError("Debt " + (index + 1), "balance"))}/></div>{fieldError("Debt " + (index + 1), "balance") && <small className="setup-field-error">Enter a balance greater than $0.</small>}</label>
+              <label><span>Current balance</span><div className="onboarding-money"><b aria-hidden="true">{symbol}</b><input type="number" min="0" step="0.01" inputMode="decimal" aria-label="Current balance" value={debt.balance || ""} onChange={(event) => updateDebt(debt.id, { balance: numberValue(event.target.value) })} aria-invalid={Boolean(fieldError("Debt " + (index + 1), "balance"))}/></div>{fieldError("Debt " + (index + 1), "balance") && <small className="setup-field-error">Enter a balance greater than 0.</small>}</label>
               <label><span>APR</span><div className="onboarding-money suffix"><input type="number" min="0" step="0.01" inputMode="decimal" aria-label="APR" value={debt.apr || ""} onChange={(event) => updateDebt(debt.id, { apr: numberValue(event.target.value) })}/><b aria-hidden="true">%</b></div></label>
-              <label><span>Minimum monthly payment</span><div className="onboarding-money"><b aria-hidden="true">$</b><input type="number" min="0" step="0.01" inputMode="decimal" aria-label="Minimum monthly payment" value={debt.minimum || ""} onChange={(event) => updateDebt(debt.id, { minimum: numberValue(event.target.value) })} aria-invalid={Boolean(fieldError("Debt " + (index + 1), "minimum"))}/></div>{fieldError("Debt " + (index + 1), "minimum") && <small className="setup-field-error">Enter a minimum greater than $0.</small>}</label>
+              <label><span>Minimum monthly payment</span><div className="onboarding-money"><b aria-hidden="true">{symbol}</b><input type="number" min="0" step="0.01" inputMode="decimal" aria-label="Minimum monthly payment" value={debt.minimum || ""} onChange={(event) => updateDebt(debt.id, { minimum: numberValue(event.target.value) })} aria-invalid={Boolean(fieldError("Debt " + (index + 1), "minimum"))}/></div>{fieldError("Debt " + (index + 1), "minimum") && <small className="setup-field-error">Enter a minimum greater than 0.</small>}</label>
             </div>
             <details className="onboarding-advanced">
               <summary>Advanced details</summary>
               <div>
                 <label><span>Due date</span><input type="date" value={debt.dueDate} onChange={(event) => updateDebt(debt.id, { dueDate: event.target.value })}/></label>
-                <label><span>Credit limit</span><div className="onboarding-money"><b aria-hidden="true">$</b><input type="number" min="0" step="0.01" inputMode="decimal" value={debt.creditLimit || ""} onChange={(event) => updateDebt(debt.id, { creditLimit: numberValue(event.target.value) })}/></div></label>
+                <label><span>Credit limit</span><div className="onboarding-money"><b aria-hidden="true">{symbol}</b><input type="number" min="0" step="0.01" inputMode="decimal" value={debt.creditLimit || ""} onChange={(event) => updateDebt(debt.id, { creditLimit: numberValue(event.target.value) })}/></div></label>
                 <label><span>Promotional expiration</span><input type="date" value={debt.promoEndDate} onChange={(event) => updateDebt(debt.id, { promoEndDate: event.target.value })}/></label>
                 <label><span>Post-promotional APR</span><div className="onboarding-money suffix"><input type="number" min="0" step="0.01" inputMode="decimal" value={debt.postPromoApr || ""} onChange={(event) => updateDebt(debt.id, { postPromoApr: numberValue(event.target.value) })}/><b aria-hidden="true">%</b></div></label>
-                <label><span>Post-promotion minimum</span><div className="onboarding-money"><b aria-hidden="true">$</b><input type="number" min="0" step="0.01" inputMode="decimal" value={debt.postPromoMinimum || ""} onChange={(event) => updateDebt(debt.id, { postPromoMinimum: numberValue(event.target.value) })}/></div></label>
+                <label><span>Post-promotion minimum</span><div className="onboarding-money"><b aria-hidden="true">{symbol}</b><input type="number" min="0" step="0.01" inputMode="decimal" value={debt.postPromoMinimum || ""} onChange={(event) => updateDebt(debt.id, { postPromoMinimum: numberValue(event.target.value) })}/></div></label>
 
                 <label><span>Household member</span><select value={debt.assignment} onChange={(event) => updateDebt(debt.id, { assignment: event.target.value as PlannedAssignment })}>{assignments.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}</select></label>
                 <label className="onboarding-check"><input type="checkbox" checked={debt.payoffMode === "minimum-only"} onChange={(event) => updateDebt(debt.id, { payoffMode: event.target.checked ? "minimum-only" : "priority" })}/><span>Minimum-only mode</span></label>
@@ -205,11 +214,11 @@ export default function OnboardingFlow({ planning, importMessage, onPlanningChan
         </div>
         {planning.capacity.method === "calculated" && <div className="expense-grid">
           {planning.debts.some(debt => debt.trackerKind) && <p className="setup-loan-guidance">Enter essentials excluding house/car payments added in Debts. Those payments are reserved separately.</p>}
-          {expenseFields.map((field) => <label key={field.key}><span>{field.label}</span><div className="onboarding-money"><b aria-hidden="true">$</b><input type="number" min="0" step="0.01" inputMode="decimal" aria-label={field.label} value={planning.essentialExpenses[field.key] || ""} onChange={(event) => updateExpense(field.key, numberValue(event.target.value))}/></div></label>)}
+          {expenseFields.map((field) => <label key={field.key}><span>{field.label}</span><div className="onboarding-money"><b aria-hidden="true">{symbol}</b><input type="number" min="0" step="0.01" inputMode="decimal" aria-label={field.label} value={planning.essentialExpenses[field.key] || ""} onChange={(event) => updateExpense(field.key, numberValue(event.target.value))}/></div></label>)}
           <div className="capacity-math" aria-live="polite"><span>{currency.format(income)} income - {currency.format(totalPlannedExpenses(planning.essentialExpenses))} essentials - {currency.format(planning.essentialExpenses.safetyBuffer)} buffer</span><strong>{preciseCurrency.format(recommended)} recommended</strong></div>
         </div>}
-        <label className="capacity-amount"><span>{planning.capacity.method === "calculated" ? "Adjusted monthly debt-payment amount" : "Total monthly debt-payment amount"}</span><div className="onboarding-money"><b aria-hidden="true">$</b><input type="number" min="0" step="0.01" inputMode="decimal" aria-label={planning.capacity.method === "calculated" ? "Adjusted monthly debt-payment amount" : "Total monthly debt-payment amount"} value={planning.capacity.monthlyAmount || ""} onChange={(event) => update({ capacity: { ...planning.capacity, monthlyAmount: numberValue(event.target.value) } })} aria-invalid={errors.length > 0 || undefined} aria-describedby={errors.length ? "onboarding-errors" : "capacity-help"}/></div><small id="capacity-help">This amount includes {preciseCurrency.format(debtSummary.minimums)} in minimum payments.</small></label>
-        {planning.capacity.monthlyAmount > 0 && planning.capacity.monthlyAmount < debtSummary.minimums && <p className="capacity-warning" role="status">This is below your minimum payments. The plan requires the full minimums with $0 extra. Review affordability before continuing.</p>}
+        <label className="capacity-amount"><span>{planning.capacity.method === "calculated" ? "Adjusted monthly debt-payment amount" : "Total monthly debt-payment amount"}</span><div className="onboarding-money"><b aria-hidden="true">{symbol}</b><input type="number" min="0" step="0.01" inputMode="decimal" aria-label={planning.capacity.method === "calculated" ? "Adjusted monthly debt-payment amount" : "Total monthly debt-payment amount"} value={planning.capacity.monthlyAmount || ""} onChange={(event) => update({ capacity: { ...planning.capacity, monthlyAmount: numberValue(event.target.value) } })} aria-invalid={errors.length > 0 || undefined} aria-describedby={errors.length ? "onboarding-errors" : "capacity-help"}/></div><small id="capacity-help">This amount includes {preciseCurrency.format(debtSummary.minimums)} in minimum payments.</small></label>
+        {planning.capacity.monthlyAmount > 0 && planning.capacity.monthlyAmount < debtSummary.minimums && <p className="capacity-warning" role="status">This is below your minimum payments. The plan requires the full minimums with 0 extra. Review affordability before continuing.</p>}
         {planning.capacity.monthlyAmount > recommended && income > 0 && <p className="capacity-warning" role="status">This is above the {preciseCurrency.format(recommended)} left after your entered essentials and buffer. Check that it is affordable.</p>}
         <StepActions step={step} onBack={() => setStep(3)} nextLabel="Generate my plan"/>
       </form>}

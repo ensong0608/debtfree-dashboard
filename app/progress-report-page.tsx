@@ -1,8 +1,10 @@
 "use client";
+import { createHouseholdMoneyFormatter, } from "./household-currency";
+import { useHouseholdCurrency } from "./household-currency-context";
 
 type ProgressReport = ReturnType<(typeof import("./progress-report"))["buildProgressReport"]>;
 
-const currency = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", minimumFractionDigits: 2 });
+
 
 function monthLabel(month: string | null) {
   if (!month) return "Not available";
@@ -10,7 +12,7 @@ function monthLabel(month: string | null) {
   return new Date(year, value - 1, 1).toLocaleDateString("en-US", { month: "short", year: "numeric" });
 }
 
-function changeLabel(value: number) {
+function changeLabel(value: number, currency: Intl.NumberFormat) {
   if (Math.abs(value) < .005) return "No change";
   return `${value > 0 ? "-" : "+"}${currency.format(Math.abs(value))}`;
 }
@@ -22,6 +24,8 @@ function timeLabel(value: number | null) {
 }
 
 export default function ProgressReportPanel({ report }: { report: ProgressReport }) {
+  const householdCurrency = useHouseholdCurrency();
+  const currency = createHouseholdMoneyFormatter(householdCurrency, { style: "currency", minimumFractionDigits: 2 });
   const width = 960;
   const height = 250;
   const padX = 34;
@@ -43,7 +47,7 @@ export default function ProgressReportPanel({ report }: { report: ProgressReport
       <article><span>Current debt</span><strong>{currency.format(report.currentDebt)}</strong><small>Transaction-adjusted balance</small></article>
       <article className="good"><span>Principal eliminated</span><strong>{currency.format(report.principalEliminated)}</strong><small>Balance reduction since start</small></article>
       <article className="good"><span>Progress</span><strong>{report.progressPercent.toFixed(1)}%</strong><small>Of starting debt eliminated</small></article>
-      <article className={report.changeThisMonth >= 0 ? "good" : "warning"}><span>Change this month</span><strong>{changeLabel(report.changeThisMonth)}</strong><small>Prior snapshot or current ledger</small></article>
+      <article className={report.changeThisMonth >= 0 ? "good" : "warning"}><span>Change this month</span><strong>{changeLabel(report.changeThisMonth, currency)}</strong><small>Prior snapshot or current ledger</small></article>
       <article><span>Estimated interest paid</span><strong>{currency.format(report.estimatedInterestPaid)}</strong><small>Recorded interest and fee entries</small></article>
       <article className="good"><span>Estimated interest avoided</span><strong>{report.estimatedInterestAvoided === null ? "Not available" : currency.format(report.estimatedInterestAvoided)}</strong><small>Compared with minimum-only pace</small></article>
       <article><span>Current debt-free date</span><strong>{monthLabel(report.currentDebtFreeMonth)}</strong><small>Current saved plan</small></article>
@@ -72,7 +76,7 @@ export default function ProgressReportPanel({ report }: { report: ProgressReport
       <header><span>Milestones</span><h2 id="progress-milestones-title">Meaningful payoff checkpoints</h2></header>
       <div>{report.milestones.map((item) => <article key={item.id} className={item.status}>
         <i aria-hidden="true">{item.status === "achieved" ? "\u2713" : item.status === "projected" ? "\u2192" : "\u00b7"}</i>
-        <div><strong>{item.label}</strong><small>{item.status === "achieved" ? "Achieved" : item.status === "projected" ? "Projected" : "Not yet projected"}</small></div>
+        <div><strong>{item.label.replace("$1,000", currency.format(1000))}</strong><small>{item.status === "achieved" ? "Achieved" : item.status === "projected" ? "Projected" : "Not yet projected"}</small></div>
         <time>{item.month ? monthLabel(item.month) : "Pending"}</time>
       </article>)}</div>
     </section>

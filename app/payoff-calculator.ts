@@ -4,7 +4,7 @@ import { accountsWithCustomDebtOrder } from "./payoff-plan.ts";
 
 /** Save one shared minimum without changing any posted balance or ledger entry. */
 export function updatePayoffMinimum(accounts: DebtAccount[], id: string, minimum: number): DebtAccount[] {
-  if (!Number.isFinite(minimum) || round(minimum) <= 0) throw new Error("Enter a minimum greater than $0.");
+  if (!Number.isFinite(minimum) || round(minimum) <= 0) throw new Error("Enter a minimum greater than zero.");
   return accounts.map(account => account.id === id && !account.archivedAt
     ? { ...account, minimum: round(minimum), minimumMode: "manual" }
     : account);

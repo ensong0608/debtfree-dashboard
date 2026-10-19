@@ -1,0 +1,13 @@
+# Agent 2 — Native authentication and isolated backend
+
+You are a specialist reporting to the primary manager for DebtFree. Work in `C:\Projects\debtfree-dashboard`. Read `AGENTS.md` and `docs/mobile/README.md`; this is explicitly local-only, discovery-only work. Preserve existing changes. Your only writable file is `docs/mobile/reports/02-authentication.md`; do not edit application/configuration/dependencies or other reports. Do not spawn agents.
+
+Read the Supabase skill at `C:\Users\masil\.codex\plugins\cache\openai-curated-remote\supabase\1.0.0\skills\supabase\SKILL.md` and follow its documentation verification process. Announce its use if needed. This task involves inspecting existing auth and proposing a contract, not changing a Supabase project. Do not use connector project administration, read credentials/environment secrets, or access production/real imported financial data. No new cloud resources, paid commitments or production configuration changes.
+
+Owner goal: shared Android/iPhone app; Android first on Windows. Inspect existing web Supabase Google auth, cookie/session verification, household resolution, API origin/CSRF gates, revision-safe writes, sign-out/account switching and local identity simulation. Determine why native packaging needs a separate authentication/transport adapter and what can remain unchanged. A test provider must be isolated from production. Local simulator is not production authentication evidence.
+
+Produce a specific, evidence-backed native auth/API proposal using provider-supported browser login, PKCE/state/callback checks, secure credential storage and logout/refresh behavior. Explain required backend verification and household authorization without weakening web CSRF or trusting editable metadata. Include native redirect/deep links, cross-platform/iOS login considerations, cache/draft isolation, negative cases and development backend connectivity. Clearly distinguish offline bundled sample app from real authentication on a physical Android phone. No long list of hypothetical changes without source grounding.
+
+Identify exact proposed files/configuration responsibilities, implementation dependencies, owner actions actually needed now vs later, and acceptance criteria for two synthetic identities/households. Verify time-sensitive claims with current official Supabase/Google/Capacitor docs; note chosen plugin approach is a proposal until verified. No installs, migrations, provider mutations, credentials or household payloads in reports.
+
+Use `docs/mobile/REPORT_TEMPLATE.md`, write the assigned report, and notify the manager directly with report path, main decisions, blockers and next concrete slice. Do not claim login or device testing passed when only inspected.

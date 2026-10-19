@@ -1,0 +1,3 @@
+# This file configures only the isolated mobile authority function.
+[functions.mobile-session-authority]
+verify_jwt = false

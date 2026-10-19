@@ -1,0 +1,52 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "debtfree-mobile-test",
+  "main": "worker/mobile-test.ts",
+  "account_id": "005a72abf0c701cfc067867e4f3ba034",
+  "compatibility_date": "2026-08-04",
+  "compatibility_flags": [
+    "nodejs_compat"
+  ],
+  "workers_dev": true,
+  "vars": {
+    "TEST_ENVIRONMENT": "debtfree-mobile-test",
+    "TEST_API_ORIGIN": "https://debtfree-mobile-test.ensong0608.workers.dev",
+    "TEST_ISSUER": "https://otggeztwtaklsqwtztgz.supabase.co/auth/v1",
+    "PRODUCTION_ISSUER": "https://acpderotiyoecmwwyfsu.supabase.co/auth/v1",
+    "TEST_WEBVIEW_ORIGIN": "https://localhost"
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "debtfree-mobile-test",
+      "database_id": "df2bf22b-d8af-4a16-9d74-cc1211d39a3d",
+      "migrations_dir": "drizzle"
+    }
+  ],
+  "services": [
+    {
+      "binding": "SESSION_AUTHORITY",
+      "service": "debtfree-mobile-session-authority-test"
+    }
+  ],
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "HOUSEHOLD_REVISIONS_TEST",
+        "class_name": "HouseholdNotifications"
+      }
+    ]
+  },
+  "migrations": [
+    {
+      "tag": "mobile-test-v1",
+      "new_sqlite_classes": [
+        "HouseholdNotifications"
+      ]
+    }
+  ],
+  "observability": {
+    "enabled": true
+  },
+  "preview_urls": false
+}

@@ -1,11 +1,15 @@
+import { createHouseholdMoneyFormatter, } from "./household-currency";
+import { useHouseholdCurrency } from "./household-currency-context";
 import type { LoanTracker } from "./loan-progress";
 import type { DebtAccount } from "./dashboard-data";
 import type { PayoffPlan } from "./payoff-engine";
 import { categoryBalances, categoryGradient, DEBT_CATEGORY_COLORS, payoffMilestones, trackedPayoffProgress } from "./debt-presentation";
 
-const money = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" });
+
 
 export function MobileCategorySummary({ accounts, loans = [] }: { accounts: DebtAccount[]; loans?: LoanTracker[] }) {
+  const householdCurrency = useHouseholdCurrency();
+  const money = createHouseholdMoneyFormatter(householdCurrency, { style: "currency", });
   const categories = categoryBalances(accounts, loans);
   return <div className="mobile-category-summary">
     <div className="category-donut" style={{ background: categoryGradient(accounts, loans) }} role="img" aria-label={categories.length ? `Balance by category: ${categories.map(category => `${category.label} ${money.format(category.balance)}`).join(", ")}` : "No outstanding debt balance"}/>
@@ -22,6 +26,8 @@ export function MobileDebtProgress({ account }: { account: DebtAccount }) {
 }
 
 export function MobilePayoffTimeline({ accounts, plan, monthLabel }: { accounts: DebtAccount[]; plan: PayoffPlan; monthLabel: (offset: number) => string }) {
+  const householdCurrency = useHouseholdCurrency();
+  const money = createHouseholdMoneyFormatter(householdCurrency, { style: "currency", });
   const milestones = payoffMilestones(accounts, plan);
   if (!milestones.length) return null;
   return <section className="mobile-payoff-timeline" aria-labelledby="mobile-payoff-steps-title">

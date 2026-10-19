@@ -1,0 +1,17 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "debtfree-mobile-session-authority-test",
+  "main": "worker/session-authority-proxy.ts",
+  "account_id": "005a72abf0c701cfc067867e4f3ba034",
+  "compatibility_date": "2026-08-04",
+  "workers_dev": false,
+  "preview_urls": false,
+  "routes": [],
+  "vars": {
+    "TEST_ENVIRONMENT": "debtfree-mobile-test",
+    "TEST_SUPABASE_REF": "otggeztwtaklsqwtztgz",
+    "TEST_ISSUER": "https://otggeztwtaklsqwtztgz.supabase.co/auth/v1",
+    "AUTHORITY_EDGE_URL": "https://otggeztwtaklsqwtztgz.supabase.co/functions/v1/mobile-session-authority"
+  },
+  "observability": { "enabled": false }
+}

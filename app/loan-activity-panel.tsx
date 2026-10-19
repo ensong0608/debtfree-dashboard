@@ -1,9 +1,13 @@
 "use client";
+import { createHouseholdMoneyFormatter, } from "./household-currency";
+import { useHouseholdCurrency } from "./household-currency-context";
 import type { LoanTracker } from "./loan-progress";
 import { recentDebtMonths } from "./debt-activity";
 import { activityMonthLabel } from "./debt-activity-panel";
-const money = new Intl.NumberFormat("en-US", {style:"currency",currency:"USD"});
+
 export default function LoanActivityPanel({loan,expanded=false}:{loan:LoanTracker;expanded?:boolean}) {
+  const householdCurrency = useHouseholdCurrency();
+  const money = createHouseholdMoneyFormatter(householdCurrency, {style:"currency",});
  const history=[...loan.history].sort((a,b)=>a.date.localeCompare(b.date)||a.recordedAt.localeCompare(b.recordedAt));
  const months=recentDebtMonths().map(month=>({month,entries:history.map((entry,index)=>({entry,prior:history[index-1]})).filter(row=>row.entry.date.slice(0,7)===month).reverse()})).filter(month=>month.entries.length);
  if(!months.length)return expanded?<div className="debt-history compact-activity"><p>No activity yet.</p></div>:null;
