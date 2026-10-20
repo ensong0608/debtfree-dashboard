@@ -40,8 +40,10 @@ async function render(page: Page, data: object) {
 for (const width of [320, 390]) test(`mobile summary keeps three cards, large amounts and accessible dialogs at ${width}px`, async ({ page }) => {
   await page.setViewportSize({ width, height: 900 });
   await render(page, { transactions: [transaction("Large payment", { amount: 123456789.12 }), transaction("Fee", { type: "fee", amount: 52.25 })] });
-  await expect(page.locator('.transaction-month-control b')).toHaveText("OCT 2026");
-  await expect(page.getByLabel("Month", { exact: true })).toHaveValue("2026-10");
+  await expect(page.getByRole("combobox", {name: "Period", exact: true})).toHaveValue("month:2026-10");
+  await expect(page.locator(".payments-filters select")).toHaveCount(2);
+  const filterTops = await page.locator(".payments-filters select").evaluateAll(elements => elements.map(element => element.getBoundingClientRect().top));
+  expect(Math.max(...filterTops) - Math.min(...filterTops)).toBeLessThanOrEqual(1);
   await expect(page.getByRole("combobox", { name: "Account", exact: true })).toHaveValue("all");
   await expect(page.getByRole("option", { name: "ALL", exact: true })).toBeAttached();
   const cards = page.getByRole("region", { name: "Monthly transaction summary" }).locator("article");
@@ -94,7 +96,7 @@ for (const mobile of [true, false]) test(`period filters synchronize totals, tra
   await expect(history).not.toContainText("September");
   await expect(history).not.toContainText("Other debt");
   await expect(history).not.toContainText("Deleted");
-  await period.selectOption("year");
+  await period.selectOption("year:2026");
   await expect(summary()).toHaveText("$2,700.00");
   await expect(page.locator(".clean-transaction-card")).toHaveCount(27);
   await card.getByText("Debt history", {exact:true}).click();
@@ -111,14 +113,40 @@ for (const mobile of [true, false]) test(`period filters synchronize totals, tra
   expect(dates).toEqual([...dates].sort().reverse());
   await page.getByRole("combobox", {name: "Account", exact:true}).selectOption("demo-card");
   await expect(summary()).toHaveText("$2,700.00");
-  await period.selectOption("year");
-  await page.getByRole("combobox", {name: "Year", exact:true}).selectOption("2025");
+  await period.selectOption("year:2026");
+  await period.selectOption("year:2025");
   await expect(summary()).toHaveText("$100.00");
   await expect(page.locator(".clean-transaction-card")).toHaveCount(1);
-  await period.selectOption("month");
-  await page.getByLabel("Month", {exact:true}).fill("2026-09");
+  await period.selectOption("month:2026-09");
   await expect(summary()).toHaveText("$2,400.00");
   await expect(page.locator(".clean-transaction-card")).toHaveCount(24);
+  expect(await page.evaluate(() => JSON.stringify((window as unknown as {__fixture: object}).__fixture) === (window as unknown as {__before: string}).__before)).toBe(true);
+});
+
+test("history stops at its transaction, including same-day ordering, in every period", async ({page}) => {
+  await render(page, {transactions: [
+    transaction("October 3", {date:"2026-10-03"}),
+    transaction("October 16 early", {date:"2026-10-16", createdAt:"2026-10-16T09:00:00Z"}),
+    transaction("October 16 late", {date:"2026-10-16", createdAt:"2026-10-16T18:00:00Z"}),
+    transaction("September", {date:"2026-09-01"}),
+  ]});
+  const period = page.getByRole("combobox", {name:"Period", exact:true});
+  for (const value of ["month:2026-10", "year:2026", "lifetime"]) {
+    await period.selectOption(value);
+    const early = page.locator('[data-activity-id="transaction:October 3"]');
+    await early.getByText("Debt history", {exact:true}).click();
+    const earlyHistory = early.getByLabel("Transaction activity for Synthetic card");
+    await expect(earlyHistory).not.toContainText("October 16");
+    await expect(earlyHistory.getByRole("listitem")).toHaveCount(value.startsWith("month:") ? 1 : 2);
+    const later = page.locator('[data-activity-id="transaction:October 16 early"]');
+    await later.getByText("Debt history", {exact:true}).click();
+    const laterHistory = later.getByLabel("Transaction activity for Synthetic card");
+    await expect(laterHistory).toContainText("October 3");
+    await expect(laterHistory).not.toContainText("October 16 late");
+    const latest = page.locator('[data-activity-id="transaction:October 16 late"]');
+    await latest.getByText("Debt history", {exact:true}).click();
+    await expect(latest.getByLabel("Transaction activity for Synthetic card")).toContainText("October 16 early");
+  }
   expect(await page.evaluate(() => JSON.stringify((window as unknown as {__fixture: object}).__fixture) === (window as unknown as {__before: string}).__before)).toBe(true);
 });
 

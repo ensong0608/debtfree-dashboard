@@ -101,10 +101,12 @@
 .debtHistoryMore { display: block; width: 100%; margin-top: 12px; padding: 9px; border: 1px solid var(--line); border-radius: 8px; background: transparent; color: var(--mint-ink); font-weight: 650; }
 
 /* Share heading, amount and count rows so wrapping cannot offset one card. */
-.period { grid-column: 1 / -1; }
 .mobile .highlights { grid-template-rows: auto auto auto; row-gap: 7px; }
 .mobile .highlights > article { display: grid; grid-template-rows: subgrid; grid-row: 1 / span 3; }
 .mobile .summaryButton { display: grid; grid-template-rows: subgrid; grid-row: span 3; align-items: start; justify-items: start; }
 .mobile .summaryButton small { justify-self: center; }
 
 .mobile .summaryButton strong, .mobile .summaryButton small { align-self: start; }
+
+.filters > label > span { display: flex; align-items: center; gap: 6px; min-height: 20px; }
+.filters > label > span svg { width: 16px; height: 16px; }

@@ -39,7 +39,13 @@ export default function DebtActivityHistory({ entries, accountId, accountName, c
   });
   const [showAll, setShowAll] = useState(false);
   const [expanded, setExpanded] = useState(false);
-  const related = useMemo(() => entries.filter(entry => entry.accountId === accountId), [entries, accountId]);
+  const related = useMemo(() => {
+    const current = entries.find(entry => entry.id === currentEntryId);
+    if (!current) return [];
+    return entries.filter(entry => entry.accountId === accountId && (
+      entry.date < current.date || (entry.date === current.date && entry.createdAt <= current.createdAt)
+    ));
+  }, [entries, accountId, currentEntryId]);
   // Entries are already restricted to the selected period by the parent.
   const recent = related.slice(0, 20);
   const shown = showAll ? related : recent;

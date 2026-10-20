@@ -42,7 +42,6 @@ export default function PaymentsPage({ readOnly, accounts, transactions, adjustm
   const [month, setMonth] = useState(currentMonth);
   const [period, setPeriod] = useState<"month" | "year" | "lifetime">("month");
   const [accountId, setAccountId] = useState("all");
-  const monthDisplay = /^\d{4}-\d{2}$/.test(month) ? new Date(`${month}-01T12:00:00`).toLocaleDateString("en-US", { month: "short", year: "numeric" }).toUpperCase() : "Month";
   const activity = useMemo(() => paymentActivity(transactions, adjustments), [transactions, adjustments]);
   const names = new Map(accounts.map(a => [a.id, a.name]));
   const knownIds = [...new Set([...accounts.map(a => a.id), ...activity.map(a => a.accountId)])];
@@ -68,9 +67,19 @@ export default function PaymentsPage({ readOnly, accounts, transactions, adjustm
     <h1 className="sr-only">Transactions</h1>
     {message && <p className="debt-action-message" role="status">{message}</p>}
     <div className={`payments-filters${mobile ? " " + styles.filters : ""}`}>
-      <label className={period !== "lifetime" ? styles.period : undefined}><span>Period</span><select aria-label="Period" value={period} onChange={e => setPeriod(e.target.value as typeof period)}><option value="month">Month</option><option value="year">Year</option><option value="lifetime">Lifetime</option></select></label>
-      {period === "month" && <label className="transaction-month-control"><span><OutlineIcon name="calendar"/>Month</span>{mobile ? <div className={styles.month}><b aria-hidden="true">{monthDisplay}</b><input aria-label="Month" type="month" value={month} onChange={e => setMonth(e.target.value)}/></div> : <input aria-label="Month" type="month" value={month} onChange={e => setMonth(e.target.value)}/>}</label>}
-      {period === "year" && <label><span><OutlineIcon name="calendar"/>Year</span><select aria-label="Year" value={month.slice(0, 4)} onChange={e => setMonth(`${e.target.value}-${month.slice(5, 7)}`)}>{years.map(year => <option key={year} value={year}>{year}</option>)}</select></label>}
+      <label className="transaction-period-control"><span><OutlineIcon name="calendar"/>Period</span><select aria-label="Period" value={period === "lifetime" ? "lifetime" : period === "year" ? `year:${month.slice(0, 4)}` : `month:${month}`} onChange={e => {
+        const value = e.target.value;
+        if (value === "lifetime") setPeriod("lifetime");
+        else if (value.startsWith("year:")) { setPeriod("year"); setMonth(`${value.slice(5)}-${month.slice(5, 7)}`); }
+        else { setPeriod("month"); setMonth(value.slice(6)); }
+      }}>
+        <option value="lifetime">Lifetime</option>
+        <optgroup label="Year">{years.map(year => <option key={year} value={`year:${year}`}>{year}</option>)}</optgroup>
+        <optgroup label="Month">{years.flatMap(year => Array.from({length: 12}, (_, i) => {
+          const value = `${year}-${String(12 - i).padStart(2, "0")}`;
+          return <option key={value} value={`month:${value}`}>{new Date(`${value}-01T12:00:00`).toLocaleDateString("en-US", {month: "short", year: "numeric"})}</option>;
+        }))}</optgroup>
+      </select></label>
       <label><span>Account</span><select value={accountId} onChange={e => setAccountId(e.target.value)}><option value="all">{mobile ? "ALL" : "All accounts"}</option>{knownIds.map(id => <option key={id} value={id}>{names.get(id) ?? "Removed debt (" + id + ")"}</option>)}</select></label>
     </div>
     {mobile ? <section className={`transaction-highlights ${styles.highlights}`} aria-label={summaryLabel}>{([
