@@ -400,7 +400,9 @@ test("Transactions can add, edit, remove and restore purchases and balance adjus
   await expect(entry.locator(".transaction-delete-x")).toHaveText("×");
   await expect(entry.locator(".transaction-delete-x")).toHaveAccessibleName("Delete transaction of $66.96 for Sample Rewards Card");
   await expect(entry.locator(".transaction-captured")).toHaveCount(0);
-  await expect(entry.locator(".transaction-secondary")).toContainText("$2,450.75 → $2,517.71");
+  await entry.getByText("Debt history", {exact:true}).click();
+  await expect(entry.getByLabel("Transaction activity for Sample Rewards Card")).toContainText("Balance: $2,517.71");
+  await entry.getByText("Debt history", {exact:true}).click();
   await expect(entry.getByText("SFC Henderson grocery run",{exact:true})).toBeVisible();
   if(testInfo.project.name === "phone") { await entry.scrollIntoViewIfNeeded(); await page.screenshot({path:"outputs/named-transaction-card-430.png"}); }
   await expect(page.locator(".simple-total>strong")).toHaveText("$0.00");
