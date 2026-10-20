@@ -39,6 +39,7 @@ export default function DebtActivityHistory({ entries, accountId, accountName, s
     style: "currency", minimumFractionDigits: 2, maximumFractionDigits: 2,
   });
   const [showAll, setShowAll] = useState(false);
+  const [expanded, setExpanded] = useState(false);
   const related = useMemo(() => entries.filter(entry => entry.accountId === accountId), [entries, accountId]);
   // Show every event in the selected month, including the earliest payments, plus a little context.
   const recent = useMemo(() => {
@@ -55,7 +56,9 @@ export default function DebtActivityHistory({ entries, accountId, accountName, s
     return result;
   }, []);
 
-  return <div className={styles.debtActivityHistory} aria-label={`Transaction activity for ${accountName}`}>
+  return <details className="transaction-secondary" onToggle={event => setExpanded(event.currentTarget.open)}>
+    <summary>Debt history</summary>
+    {expanded && <div className={styles.debtActivityHistory} aria-label={`Transaction activity for ${accountName}`}>
     <div className={styles.debtHistoryIntro}>
       <strong>{accountName} history</strong>
       <small>{related.length} {related.length === 1 ? "entry" : "entries"}</small>
@@ -83,5 +86,6 @@ export default function DebtActivityHistory({ entries, accountId, accountName, s
     {related.length > recent.length && <button type="button" className={styles.debtHistoryMore} onClick={() => setShowAll(value => !value)}>
       {showAll ? "Show recent activity" : `Show all ${related.length} entries`}
     </button>}
-  </div>;
+  </div>}
+  </details>;
 }

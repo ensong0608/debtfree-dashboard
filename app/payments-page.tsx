@@ -80,7 +80,7 @@ export default function PaymentsPage({ readOnly, accounts, transactions, adjustm
           </button>
           <div className="transaction-card-footer"><span className="transaction-record-detail"><OutlineIcon name={row.kind === "payment" ? "check" : "receipt"}/>{row.kind === "payment" ? "Recorded" : row.kind === "interest" || row.kind === "fee" ? kind : typeof row.after === "number" ? `New balance: ${currency.format(row.after)}` : kind}</span>
           {!mobile && <button type="button" className="secondary transaction-delete-x" disabled={readOnly} onClick={() => open({ action: "delete", id: row.id })} aria-label={(row.kind === "payment" && !row.adjustment ? "Delete payment of " : "Delete transaction of ") + currency.format(row.amount) + " for " + (names.get(row.accountId) ?? "removed debt")}>×</button>}
-          <details className="transaction-secondary"><summary>Debt history</summary><DebtActivityHistory entries={activity} accountId={row.accountId} accountName={names.get(row.accountId) ?? "Removed debt"} selectedMonth={month} currentEntryId={row.id}/></details></div>
+          <DebtActivityHistory entries={activity} accountId={row.accountId} accountName={names.get(row.accountId) ?? "Removed debt"} selectedMonth={month} currentEntryId={row.id}/></div>
         </article></Fragment>;
       }) : <div className="simple-empty"><h2>No activity this month</h2><p>Use + to add a record, or update a lender balance in Debts.</p></div>}
 
