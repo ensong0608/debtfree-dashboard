@@ -2,12 +2,11 @@
 import { Fragment, useEffect, useMemo, useState } from "react";
 import type { BalanceAdjustment, DebtAccount, LedgerTransaction } from "./dashboard-data";
 import { confirmedPaymentTotal, paymentActivity } from "./payments";
-import { entryHistory } from "./entry-history";
 import OutlineIcon from "./outline-icon";
 import InfoTooltip, { ExplanationDialog } from "./info-tooltip";
 import DebtEntryDialog from "./debt-entry-dialog";
 import type { EntryCommand } from "./debt-transactions";
-import TransactionHistoryTable from "./transaction-history-table";
+import DebtActivityHistory from "./debt-activity-history";
 import styles from "./payments-mobile.module.css";
 
 import { useHouseholdCurrency } from "./household-currency-context";
@@ -70,7 +69,6 @@ export default function PaymentsPage({ readOnly, accounts, transactions, adjustm
 
     <section className="payment-activity" aria-label="Debt transaction activity">
       {rows.length ? rows.map((row, index) => {
-        const history = entryHistory(row.adjustment ?? transactions.find(t => "transaction:" + t.id === row.id)!);
         const kind = row.kind === "payment" ? "Payment" : row.kind === "credit" ? "Refund / credit" : row.kind === "interest" ? (transactions.find(t => "transaction:" + t.id === row.id)?.interestEstimate ? "Estimated interest" : "Interest") : row.kind === "purchase" ? "Purchase" : row.kind === "fee" ? "Fee" : "Balance adjustment";
         return <Fragment key={row.id}>
           {(index === 0 || rows[index - 1].date !== row.date) && <h2 className="transaction-date"><time dateTime={row.date}>{dateLabel(row.date)}</time><span className={rows.filter(item => item.date === row.date).reduce((sum, item) => sum + item.difference, 0) > 0 ? "increases" : "decreases"}>{currency.format(rows.filter(item => item.date === row.date).reduce((sum, item) => sum + item.difference, 0))} net change</span></h2>}
@@ -82,7 +80,7 @@ export default function PaymentsPage({ readOnly, accounts, transactions, adjustm
           </button>
           <div className="transaction-card-footer"><span className="transaction-record-detail"><OutlineIcon name={row.kind === "payment" ? "check" : "receipt"}/>{row.kind === "payment" ? "Recorded" : row.kind === "interest" || row.kind === "fee" ? kind : typeof row.after === "number" ? `New balance: ${currency.format(row.after)}` : kind}</span>
           {!mobile && <button type="button" className="secondary transaction-delete-x" disabled={readOnly} onClick={() => open({ action: "delete", id: row.id })} aria-label={(row.kind === "payment" && !row.adjustment ? "Delete payment of " : "Delete transaction of ") + currency.format(row.amount) + " for " + (names.get(row.accountId) ?? "removed debt")}>×</button>}
-          <details className="transaction-secondary"><summary>History</summary>{mobile ? <TransactionHistoryTable entry={row.adjustment ?? transactions.find(t => "transaction:" + t.id === row.id)!} names={names}/> : <><p>{history.explanation}</p>{history.original && <p>Original balance change · {history.original.date} · {names.get(history.original.accountId) ?? "Removed account"}: {currency.format(history.original.before)} → {currency.format(history.original.after)} ({currency.format(history.original.amount)})</p>}{history.events.map((event, i) => <p key={i}>{event.action === "save" ? "Saved change" : event.action === "delete" ? "Deleted entry" : "Restored entry"} · recorded {event.recordedAt} · entry date {event.effectiveDate}{event.movement.map(m => m.before === m.after ? ` · ${names.get(m.accountId) ?? m.accountId}: No additional balance change` : ` · ${names.get(m.accountId) ?? m.accountId}: ${currency.format(m.before)} → ${currency.format(m.after)} (net ${currency.format(m.after - m.before)})`).join("")}</p>)}{history.revisions.length > 0 && <ul>{history.revisions.map((revision, i) => <li key={i}>Prior version · {String(revision.date ?? "date unavailable")} · {names.get(String(revision.accountId)) ?? "Removed account"} · {String(revision.title ?? "Untitled")} · {currency.format(typeof revision.difference === "number" ? revision.difference : (revision.type === "payment" ? -1 : 1) * Number(revision.amount ?? 0))} · corrected {String(revision.correctedAt ?? "time unavailable")}</li>)}</ul>}</>}</details></div>
+          <details className="transaction-secondary"><summary>Debt history</summary><DebtActivityHistory entries={activity} accountId={row.accountId} accountName={names.get(row.accountId) ?? "Removed debt"} selectedMonth={month} currentEntryId={row.id}/></details></div>
         </article></Fragment>;
       }) : <div className="simple-empty"><h2>No activity this month</h2><p>Use + to add a record, or update a lender balance in Debts.</p></div>}
 

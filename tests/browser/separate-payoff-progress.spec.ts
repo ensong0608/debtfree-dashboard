@@ -32,7 +32,7 @@ test("calculator and plan save independently and plan reserves minimums within t
   const minimum = page.getByLabel("Minimum payment for Plan card 1", { exact: true });
   await minimum.fill("0");
   await page.getByRole("button", { name: "Save minimum for Plan card 1", exact: true }).click();
-  await expect(page.getByRole("alert")).toContainText("Enter a minimum greater than zero.");
+  await expect(page.getByRole("alert")).toContainText("Enter a minimum greater than 0.");
   await expect(page.locator(".plan-commitment")).toContainText("Minimums $1,800.00");
   await minimum.fill("1200");
   await page.getByRole("button", { name: "Save minimum for Plan card 1", exact: true }).click();

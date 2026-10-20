@@ -50,6 +50,12 @@ for (const width of [320, 390]) test(`mobile summary keeps three cards, large am
   expect(new Set(boxes.map(box => box.y)).size).toBe(1);
   expect(boxes.every(box => box.right <= width && box.width > 60 && !box.overflow)).toBe(true);
   expect(await page.locator(".transaction-signed-total").evaluateAll(elements => elements.every(element => element.scrollWidth <= element.clientWidth))).toBe(true);
+  const spacing = await cards.locator("button").evaluateAll(buttons => buttons.map(button => ({
+    centered: getComputedStyle(button.querySelector("strong")!).textAlign === "center",
+    minimum: getComputedStyle(button).minHeight,
+    countMargin: getComputedStyle(button.querySelector("small")!).marginTop,
+  })));
+  expect(spacing.every(value => value.centered && value.minimum === "0px" && value.countMargin === "0px")).toBe(true);
   await page.screenshot({ path: `.wrangler/mobile-transactions/summary-${width}.png` });
   await expect(cards.nth(2)).toContainText("−$123,456,736.87");
   await expect(page.getByText("Payments this month", { exact: true })).toHaveCount(0);
@@ -68,26 +74,26 @@ for (const width of [320, 390]) test(`mobile summary keeps three cards, large am
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
 });
 
-test("history shows zero-movement correction once, discloses metadata and never invents missing balances", async ({ page }) => {
-  await page.setViewportSize({ width: 320, height: 1000 });
-  await render(page, { transactions: [transaction("Corrected", { balanceBefore: 1000, balanceAfter: 900, balanceEvents: [event(1000, 900, "2026-10-12T12:00:00.000Z"), event(900, 900, "2026-10-13T12:00:00.000Z")], revisions: [{ date: "2026-10-12", accountId: "demo-card", title: "Original title", amount: 100, type: "payment", balanceBefore: 1000, balanceAfter: 900, correctedAt: "2026-10-13T12:00:00.000Z" }] }), transaction("Uncaptured") ] });
-  const card = page.locator('[data-activity-id="transaction:Corrected"]');
-  await card.getByText("History", { exact: true }).click();
-  const table = card.getByRole("table", { name: "Transaction history" });
-  await expect(table.locator("tr[data-history-event]")).toHaveCount(2);
-  await expect(table.locator("tr[data-history-event]").nth(1)).toContainText("$0.00");
-  await table.getByRole("button", { name: "Details for Saved 2026-10-13T12:00:00.000Z" }).click();
-  await expect(table).toContainText("No additional balance change");
-  await expect(table).toContainText("2026-10-13T12:00:00.000Z");
-  await expect(card.getByText("Original & prior versions", { exact: true })).toHaveCount(0);
-  await expect(card).toContainText("Original title");
-  const missing = page.locator('[data-activity-id="transaction:Uncaptured"]');
-  await missing.getByText("History", { exact: true }).click();
-  await expect(missing.getByLabel("Balance unavailable", { exact: true })).toHaveText(String.fromCharCode(0x2014));
-  await missing.getByRole("button", { name: /^Details for Recorded/ }).click();
-  await expect(missing).toContainText("Historical balances unavailable.");
-  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
-  expect(await page.evaluate(() => JSON.stringify((window as unknown as { __fixture: object }).__fixture) === (window as unknown as { __before: string }).__before)).toBe(true);
+test("debt history includes early and recent payments, excludes other debts and expands older months", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 1000 });
+  const older = Array.from({length: 10}, (_, i) => transaction(`Older ${i}`, {date: `2026-09-${String(i + 1).padStart(2, "0")}`}));
+  await render(page, { transactions: [transaction("Recent", {date: "2026-10-19"}), transaction("Early", {date: "2026-10-02"}), transaction("Other debt", {accountId: "another-card"}), transaction("Deleted", {deletedAt: now}), ...older] });
+  const card = page.locator('[data-activity-id="transaction:Recent"]');
+  await card.getByText("Debt history", {exact: true}).click();
+  const history = card.getByLabel("Transaction activity for Synthetic card");
+  await expect(history.getByRole("listitem")).toHaveCount(10);
+  await expect(history.getByRole("listitem").first()).toContainText("Recent");
+  await expect(history).toContainText("Early");
+  await expect(history).not.toContainText("Other debt");
+  await expect(history).not.toContainText("Deleted");
+  await expect(history.locator('[data-current="true"]')).toContainText("Recent");
+  await history.getByRole("button", {name: "Show all 12 entries"}).click();
+  await expect(history.getByRole("listitem")).toHaveCount(12);
+  const dates = await history.locator("time").evaluateAll(elements => elements.map(element => element.getAttribute("datetime")));
+  expect(dates).toEqual([...dates].sort().reverse());
+  await history.getByRole("button", {name: "Show recent activity"}).click();
+  await expect(history.getByRole("listitem")).toHaveCount(10);
+  expect(await page.evaluate(() => JSON.stringify((window as unknown as {__fixture: object}).__fixture) === (window as unknown as {__before: string}).__before)).toBe(true);
 });
 
 test("seven-day visible recovery boundary covers transactions and adjustments without mutating tombstones", async ({ page }) => {
@@ -136,35 +142,22 @@ test("mobile viewer can inspect summaries and history without mutation controls"
   await expect(page.locator(".transaction-delete-x")).toHaveCount(0);
   await page.getByRole("button", { name: "Explain Payments recorded", exact: true }).click();
   await page.getByRole("button", { name: "Close explanation", exact: true }).click();
-  await page.getByText("History", { exact: true }).click();
-  await expect(page.getByRole("table", { name: "Transaction history" })).toBeVisible();
+  await page.getByText("Debt history", { exact: true }).click();
+  await expect(page.getByLabel("Transaction activity for Synthetic card")).toBeVisible();
 });
 
-for (const width of [320, 390, 736]) test(`history has readable aligned cells and PHP values at ${width}px`, async ({ page }) => {
-  await page.setViewportSize({ width, height: 1100 });
-  await render(page, { currency: "PHP", transactions: [transaction("Groceries", { type: "charge", amount: 12345678.12, balanceBefore: 1000, balanceAfter: 12346678.12, balanceEvents: [event(1000, 12346678.12, "2026-10-12T12:00:00.000Z")] })] });
+test("debt history keeps large PHP values readable and omits uncaptured balances", async ({ page }) => {
+  await page.setViewportSize({width: 390, height: 1100});
+  await render(page, {currency: "PHP", transactions: [transaction("Groceries", {type: "charge", amount: 12345678.12}), transaction("Captured", {balanceBefore: 1000, balanceAfter: 900}), transaction("Included", {includedIn: {type: "adjustment", id: "anchor"}})]});
   const card = page.locator('[data-activity-id="transaction:Groceries"]');
-  await expect(card.locator(".transaction-clean-name > strong")).toHaveText(/Groceries.*Purchase/);
-  await expect(card.locator(".transaction-amount small")).toHaveCount(0);
-  await expect(card.locator(".transaction-delete-x")).toHaveCount(0);
-  await card.getByText("History", { exact: true }).click();
-  const table = card.getByRole("table", { name: "Transaction history" });
-  await expect(table).toContainText(/₱12,345,678.12/);
-  await expect(table.getByRole("row")).toHaveCount(2);
-  const geometry = await table.evaluate(element => {
-    const first = element.querySelector('tr[data-history-event]')!;
-    const cells = [...first.querySelectorAll('td')];
-    return { width: element.getBoundingClientRect().width, available: element.parentElement!.getBoundingClientRect().width, minWidth: getComputedStyle(element).minWidth, cells: cells.map(cell => ({ color: getComputedStyle(cell).color, background: getComputedStyle(cell).backgroundColor, overflow: cell.scrollWidth > cell.clientWidth, textTop: (() => { const walker = document.createTreeWalker(cell, NodeFilter.SHOW_TEXT); let node = walker.nextNode(); while (node && !node.textContent?.trim()) node = walker.nextNode(); if (!node) return 0; const range = document.createRange(); range.selectNodeContents(node); return range.getClientRects()[0].top; })(), top: cell.getBoundingClientRect().top, bottom: cell.getBoundingClientRect().bottom })), headers: [...element.querySelectorAll('th')].map(cell => ({color:getComputedStyle(cell).color,background:getComputedStyle(cell).backgroundColor})) };
-  });
-  expect(geometry.width).toBeLessThanOrEqual(geometry.available + 1);
-  expect(geometry.minWidth).toBe("0px");
-  expect(geometry.cells.every(cell => !cell.overflow && cell.color === "rgb(23, 36, 58)" && cell.background === "rgb(255, 255, 255)")).toBe(true);
-  expect(geometry.headers.every(cell => cell.color === "rgb(23, 36, 58)" && cell.background === "rgb(240, 246, 243)")).toBe(true);
-  expect(Math.max(...geometry.cells.map(cell => cell.textTop)) - Math.min(...geometry.cells.map(cell => cell.textTop))).toBeLessThanOrEqual(1.5);
-  expect(new Set(geometry.cells.map(cell => cell.top)).size).toBe(1);
-  expect(new Set(geometry.cells.map(cell => cell.bottom)).size).toBe(1);
-  await page.screenshot({ path: `.wrangler/mobile-transactions/history-refined-${width}.png` });
-  expect(await page.evaluate(() => JSON.stringify((window as unknown as {__fixture:object}).__fixture) === (window as unknown as {__before:string}).__before)).toBe(true);
+  await card.getByText("Debt history", {exact: true}).click();
+  const history = card.getByLabel("Transaction activity for Synthetic card");
+  await expect(history).toContainText("+₱12,345,678.12");
+  await expect(history.getByRole("listitem").filter({hasText: "Captured"})).toContainText("Balance: ₱900.00");
+  await expect(history.getByRole("listitem").filter({hasText: "Groceries"})).not.toContainText("Balance:");
+  await expect(history.getByRole("listitem").filter({hasText: "Included"})).toContainText("Included");
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await page.screenshot({path: ".wrangler/mobile-transactions/debt-history-390.png"});
 });
 
 test("PHP input symbol and delete confirmation discard unsaved edits and commit only original command", async ({ page }) => {
@@ -217,9 +210,9 @@ test("heading does not repeat a title that already names the transaction type", 
 
 test("negative PHP history preserves sign, original movement and fixture bytes", async ({ page }) => {
   await render(page, { currency: "PHP", transactions: [transaction("Large original", { amount: 12345678.12, balanceBefore: 12346678.12, balanceAfter: 1000, balanceEvents: [event(12346678.12, 1000, "2026-10-12T12:00:00.000Z")] })] });
-  await page.getByText("History", { exact: true }).click();
-  const table = page.getByRole("table", { name: "Transaction history" });
-  await expect(table.locator("tr[data-history-event]")).toHaveCount(1);
-  await expect(table).toContainText("\u2212₱12,345,678.12");
+  await page.getByText("Debt history", { exact: true }).click();
+  const history = page.getByLabel("Transaction activity for Synthetic card");
+  await expect(history.getByRole("listitem")).toHaveCount(1);
+  await expect(history).toContainText("\u2212₱12,345,678.12");
   expect(await page.evaluate(() => JSON.stringify((window as unknown as {__fixture:object}).__fixture) === (window as unknown as {__before:string}).__before)).toBe(true);
 });
