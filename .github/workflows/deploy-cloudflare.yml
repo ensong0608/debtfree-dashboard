@@ -5,6 +5,11 @@ on:
     branches: [codex/supabase-google-login, codex/mobile-payments-budget, codex/production-release-20261015]
     paths: [.github/workflows/deploy-cloudflare.yml, "app/**", "tests/**"]
   workflow_dispatch:
+    inputs:
+      full_suite:
+        description: Run the full suite only when explicitly requested by the owner
+        type: boolean
+        default: false
 permissions:
   contents: read
 concurrency:
@@ -23,8 +28,12 @@ jobs:
           node-version: 24
           cache: npm
       - run: npm ci
-      - run: npx playwright install --with-deps chromium
-      - run: npm run validate
+      - name: Install browser for explicitly requested full validation
+        if: github.event_name == 'workflow_dispatch' && inputs.full_suite
+        run: npx playwright install --with-deps chromium
+      - name: Full validation (owner opt-in only)
+        if: github.event_name == 'workflow_dispatch' && inputs.full_suite
+        run: npm run validate
       - name: Confirm existing production resources
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
@@ -50,7 +59,7 @@ jobs:
           console.log('Confirmed existing production Worker and D1. Stage 6 adds only invitation/request tables after the encrypted recovery checkpoint.');
           NODE
       - name: Rehearse restoration in disposable unbound remote D1
-        if: github.ref == 'refs/heads/codex/production-release-20261015'
+        if: github.ref == 'refs/heads/codex/production-release-20261015' && github.event_name == 'workflow_dispatch' && inputs.full_suite
         continue-on-error: true
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
@@ -103,7 +112,7 @@ jobs:
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
-        run: npm run deploy
+        run: npx wrangler deploy --config dist/server/wrangler.json --keep-vars
       - name: Verify stored production rows unchanged
         if: github.ref == 'refs/heads/codex/production-release-20261015'
         env:

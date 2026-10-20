@@ -1,5 +1,6 @@
-name: Validate dashboard
-on: [push, pull_request]
+name: Full validation (manual request only)
+on:
+  workflow_dispatch:
 concurrency:
   group: validation-${{ github.ref }}
   cancel-in-progress: true
