@@ -20,7 +20,7 @@ test('everyday workflows keep independent targets, linked balances, Undo, and te
  await card.getByRole('button',{name:'Activity for Everyday Card'}).press('Enter');
  await expect(page.getByRole('dialog')).toContainText('No activity yet.');await page.getByRole('button',{name:'Close activity'}).click();
  await page.getByRole('button',{name:'Debt +',exact:true}).click();
- await expect(page.getByRole('dialog').getByLabel('Current balance')).toBeVisible();
+ await expect(page.getByRole('dialog').getByRole('spinbutton', {name: /^Current balance/})).toBeVisible();
  await expect(page.getByRole('dialog').getByLabel('Due date')).not.toBeVisible();
  await screenshot('add-debt');await page.getByRole('button',{name:'Close account form'}).click();
  await card.getByRole('button',{name:'Update balance for Everyday Card'}).click();

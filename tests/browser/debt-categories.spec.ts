@@ -33,7 +33,7 @@ test('debt categories can be created in the editor, renamed in Settings and reus
   await page.getByRole('button', { name: 'Debts', exact: true }).click();
   await page.getByRole('button', { name: 'Debt +', exact: true }).click();
   await dialog.getByLabel('Account name', { exact: true }).fill('Travel card');
-  await dialog.getByLabel('Current balance').fill('200');
+  await dialog.getByRole('spinbutton', {name: /^Current balance/}).fill('200');
   await dialog.getByLabel('Debt category', { exact: true }).selectOption('__new__');
   await dialog.getByLabel('New category name', { exact: true }).fill('Travel');
   mkdirSync('outputs/ui-verification/debt-categories', { recursive: true });
