@@ -56,6 +56,10 @@ for (const width of [320, 390]) test(`mobile summary keeps three cards, large am
     countMargin: getComputedStyle(button.querySelector("small")!).marginTop,
   })));
   expect(spacing.every(value => value.centered && value.minimum === "0px" && value.countMargin === "0px")).toBe(true);
+  const amountTops = await cards.locator("button > strong").evaluateAll(elements => elements.map(element => element.getBoundingClientRect().top));
+  const countTops = await cards.locator("button > small").evaluateAll(elements => elements.map(element => element.getBoundingClientRect().top));
+  expect(Math.max(...amountTops) - Math.min(...amountTops)).toBeLessThanOrEqual(1);
+  expect(Math.max(...countTops) - Math.min(...countTops)).toBeLessThanOrEqual(1);
   await page.screenshot({ path: `.wrangler/mobile-transactions/summary-${width}.png` });
   await expect(cards.nth(2)).toContainText("−$123,456,736.87");
   await expect(page.getByText("Payments this month", { exact: true })).toHaveCount(0);
@@ -74,25 +78,47 @@ for (const width of [320, 390]) test(`mobile summary keeps three cards, large am
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
 });
 
-test("debt history includes early and recent payments, excludes other debts and expands older months", async ({ page }) => {
-  await page.setViewportSize({ width: 390, height: 1000 });
-  const older = Array.from({length: 10}, (_, i) => transaction(`Older ${i}`, {date: `2026-09-${String(i + 1).padStart(2, "0")}`}));
-  await render(page, { transactions: [transaction("Recent", {date: "2026-10-19"}), transaction("Early", {date: "2026-10-02"}), transaction("Other debt", {accountId: "another-card"}), transaction("Deleted", {deletedAt: now}), ...older] });
+for (const mobile of [true, false]) test(`period filters synchronize totals, transaction rows and debt history (${mobile ? "phone" : "desktop"})`, async ({ page }) => {
+  await page.setViewportSize({width: mobile ? 390 : 1440, height: 1000});
+  const older = Array.from({length: 24}, (_, i) => transaction(`September ${i}`, {date: `2026-09-${String(i + 1).padStart(2, "0")}`}));
+  await render(page, {mobile, transactions: [transaction("Recent", {date: "2026-10-19"}), transaction("Early", {date: "2026-10-02"}), transaction("Other debt", {accountId: "another-card"}), transaction("Deleted", {deletedAt: now}), transaction("Last year", {date: "2025-12-01"}), ...older]});
+  const period = page.getByRole("combobox", {name: "Period", exact:true});
   const card = page.locator('[data-activity-id="transaction:Recent"]');
-  await card.getByText("Debt history", {exact: true}).click();
   const history = card.getByLabel("Transaction activity for Synthetic card");
-  await expect(history.getByRole("listitem")).toHaveCount(10);
-  await expect(history.getByRole("listitem").first()).toContainText("Recent");
+  const summary = () => page.getByRole("region", {name: /transaction summary/}).locator("article").first().locator("strong");
+  await expect(summary()).toHaveText("$300.00");
+  await expect(page.locator(".clean-transaction-card")).toHaveCount(3);
+  await card.getByText("Debt history", {exact:true}).click();
+  await expect(history.getByRole("listitem")).toHaveCount(2);
   await expect(history).toContainText("Early");
+  await expect(history).not.toContainText("September");
   await expect(history).not.toContainText("Other debt");
   await expect(history).not.toContainText("Deleted");
-  await expect(history.locator('[data-current="true"]')).toContainText("Recent");
-  await history.getByRole("button", {name: "Show all 12 entries"}).click();
-  await expect(history.getByRole("listitem")).toHaveCount(12);
+  await period.selectOption("year");
+  await expect(summary()).toHaveText("$2,700.00");
+  await expect(page.locator(".clean-transaction-card")).toHaveCount(27);
+  await card.getByText("Debt history", {exact:true}).click();
+  await expect(history.getByRole("listitem")).toHaveCount(20);
+  await history.getByRole("button", {name: "Show all 26 entries"}).click();
+  await expect(history.getByRole("listitem")).toHaveCount(26);
+  await expect(history).not.toContainText("Last year");
+  await period.selectOption("lifetime");
+  await expect(summary()).toHaveText("$2,800.00");
+  await card.getByText("Debt history", {exact:true}).click();
+  await history.getByRole("button", {name: "Show all 27 entries"}).click();
+  await expect(history).toContainText("Last year");
   const dates = await history.locator("time").evaluateAll(elements => elements.map(element => element.getAttribute("datetime")));
   expect(dates).toEqual([...dates].sort().reverse());
-  await history.getByRole("button", {name: "Show recent activity"}).click();
-  await expect(history.getByRole("listitem")).toHaveCount(10);
+  await page.getByRole("combobox", {name: "Account", exact:true}).selectOption("demo-card");
+  await expect(summary()).toHaveText("$2,700.00");
+  await period.selectOption("year");
+  await page.getByRole("combobox", {name: "Year", exact:true}).selectOption("2025");
+  await expect(summary()).toHaveText("$100.00");
+  await expect(page.locator(".clean-transaction-card")).toHaveCount(1);
+  await period.selectOption("month");
+  await page.getByLabel("Month", {exact:true}).fill("2026-09");
+  await expect(summary()).toHaveText("$2,400.00");
+  await expect(page.locator(".clean-transaction-card")).toHaveCount(24);
   expect(await page.evaluate(() => JSON.stringify((window as unknown as {__fixture: object}).__fixture) === (window as unknown as {__before: string}).__before)).toBe(true);
 });
 

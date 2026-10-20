@@ -28,11 +28,10 @@ function kindLabel(kind: ActivityRow["kind"]) {
 }
 
 /** Debt-wide display only. Uses existing ledger activity; never posts or replays money. */
-export default function DebtActivityHistory({ entries, accountId, accountName, selectedMonth, currentEntryId }: {
+export default function DebtActivityHistory({ entries, accountId, accountName, currentEntryId }: {
   entries: ReturnType<typeof paymentActivity>;
   accountId: string;
   accountName: string;
-  selectedMonth: string;
   currentEntryId: string;
 }) {
   const money = createHouseholdMoneyFormatter(useHouseholdCurrency(), {
@@ -41,12 +40,8 @@ export default function DebtActivityHistory({ entries, accountId, accountName, s
   const [showAll, setShowAll] = useState(false);
   const [expanded, setExpanded] = useState(false);
   const related = useMemo(() => entries.filter(entry => entry.accountId === accountId), [entries, accountId]);
-  // Show every event in the selected month, including the earliest payments, plus a little context.
-  const recent = useMemo(() => {
-    const thisMonth = related.filter(entry => entry.date.slice(0, 7) === selectedMonth);
-    const otherMonths = related.filter(entry => entry.date.slice(0, 7) !== selectedMonth).slice(0, 8);
-    return [...thisMonth, ...otherMonths].sort((a, b) => b.date.localeCompare(a.date) || b.createdAt.localeCompare(a.createdAt) || a.id.localeCompare(b.id));
-  }, [related, selectedMonth]);
+  // Entries are already restricted to the selected period by the parent.
+  const recent = related.slice(0, 20);
   const shown = showAll ? related : recent;
   const groups = shown.reduce<{ month: string; rows: ActivityRow[] }[]>((result, entry) => {
     const month = entry.date.slice(0, 7);
