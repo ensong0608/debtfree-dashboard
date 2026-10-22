@@ -26,7 +26,7 @@ test('loans persist, use Budget payments, and do not change existing debt balanc
   await expect(card).toContainText('$2,000.00');
   await expect(card).toContainText('Next payment · principal');
   await expect(page.locator('.simple-total>strong')).toHaveText('$80,000.00');
-  await expect(page.getByRole('status').first()).toHaveText(/Saved on device/);
+  await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem('debtfree-dashboard-prototype-v1') ?? 'null')?.payload?.monthlyPlan?.loanTrackers?.[0]?.remainingAmount)).toBe(80000);
   await page.reload();
   await expect(page.locator('.simple-total>strong')).toHaveText(before);
   await page.getByRole('tab',{name:'House & car',exact:true}).click();

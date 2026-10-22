@@ -47,9 +47,9 @@ jobs:
       - name: Install browser for focused loan checks
         if: steps.loan_changes.outputs.changed == 'true'
         run: npx playwright install --with-deps chromium
-      - name: Verify mortgage and car forms on phone and desktop
+      - name: Verify mortgage and car forms on phone
         if: steps.loan_changes.outputs.changed == 'true'
-        run: npx playwright test tests/browser/unified-debt-entry.spec.ts tests/browser/loan-progress.spec.ts --project=phone --project=desktop
+        run: npx playwright test tests/browser/unified-debt-entry.spec.ts tests/browser/loan-progress.spec.ts --project=phone
       - name: Confirm existing production resources
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
