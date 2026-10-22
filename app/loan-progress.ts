@@ -13,6 +13,8 @@ export type LoanTracker = {
   apr?: number;
   escrow?: number;
   principalAndInterest?: number;
+  monthlyPayment?: number; // Total regular payment, including mortgage escrow.
+  dueDate?: string;
   history: { date: string; amount: number; balanceKind: 'principal' | 'payoff'; recordedAt: string; payment?: number; principal?: number; interest?: number; escrow?: number; extraPrincipal?: number }[];
 };
 
@@ -30,16 +32,22 @@ export function linkedLoanPayment(loan: LoanTracker, items: CashflowItem[]) {
   return matches.length === 1 ? matches[0] : null;
 }
 
+// Explicit form values take precedence; legacy Budget links remain intact.
+export function regularLoanPayment(loan: LoanTracker, items: CashflowItem[]) {
+  return loan.monthlyPayment ?? linkedLoanPayment(loan, items)?.amount ?? (loan.principalAndInterest === undefined ? undefined : loan.principalAndInterest + (loan.kind === 'house' ? loan.escrow ?? 0 : 0));
+}
+
 const cents = (amount: number) => Math.round((amount + Number.EPSILON) * 100) / 100;
 
 export function loanPaymentSplit(loan: LoanTracker, payment: number, extraPrincipal = 0) {
-  if (loan.balanceKind !== 'principal' || loan.apr === undefined || loan.escrow === undefined) throw new Error('Set a principal balance, APR, and escrow before recording a payment.');
-  if (![loan.remainingAmount, loan.apr, loan.escrow, payment, extraPrincipal].every(Number.isFinite) || loan.apr < 0 || loan.escrow < 0 || payment <= 0 || extraPrincipal < 0) throw new Error('Enter valid payment amounts and loan terms.');
+  const escrow = loan.kind === 'car' ? 0 : loan.escrow;
+  if (loan.balanceKind !== 'principal' || loan.apr === undefined || escrow === undefined) throw new Error('Set a principal balance, APR, and escrow before recording a payment.');
+  if (![loan.remainingAmount, loan.apr, escrow, payment, extraPrincipal].every(Number.isFinite) || loan.apr < 0 || escrow < 0 || payment <= 0 || extraPrincipal < 0) throw new Error('Enter valid payment amounts and loan terms.');
   const interest = cents(loan.remainingAmount * loan.apr / 1200);
-  const principal = cents(payment - loan.escrow - interest);
+  const principal = cents(payment - escrow - interest);
   if (principal <= 0) throw new Error('Payment must cover escrow, interest, and some principal.');
   if (cents(principal + extraPrincipal) > loan.remainingAmount) throw new Error('Principal payment exceeds the remaining loan balance.');
-  return { interest, principal, escrow: loan.escrow, extraPrincipal: cents(extraPrincipal), total: cents(payment + extraPrincipal), remainingAmount: cents(loan.remainingAmount - principal - extraPrincipal) };
+  return { interest, principal, escrow, extraPrincipal: cents(extraPrincipal), total: cents(payment + extraPrincipal), remainingAmount: cents(loan.remainingAmount - principal - extraPrincipal) };
 }
 
 export function recordLoanPayment(loan: LoanTracker, payment: number, date: string, extraPrincipal = 0, recordedAt = new Date().toISOString()) {

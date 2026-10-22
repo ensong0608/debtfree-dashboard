@@ -34,6 +34,22 @@ jobs:
       - name: Full validation (owner opt-in only)
         if: github.event_name == 'workflow_dispatch' && inputs.full_suite
         run: npm run validate
+      - name: Detect loan form changes
+        id: loan_changes
+        env:
+          RELEASE_BEFORE: ${{ github.event.before }}
+        run: |
+          before="$RELEASE_BEFORE"
+          if [ -z "$before" ] || ! git cat-file -e "$before^{commit}" 2>/dev/null; then before=HEAD^; fi
+          if ! git diff --quiet "$before" HEAD -- app/loan-progress.ts app/loan-progress-panel.tsx app/loan-entry.ts app/loan-details-fields.tsx tests/browser/loan-progress.spec.ts tests/browser/unified-debt-entry.spec.ts; then
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Install browser for focused loan checks
+        if: steps.loan_changes.outputs.changed == 'true'
+        run: npx playwright install --with-deps chromium
+      - name: Verify mortgage and car forms on phone and desktop
+        if: steps.loan_changes.outputs.changed == 'true'
+        run: npx playwright test tests/browser/unified-debt-entry.spec.ts tests/browser/loan-progress.spec.ts --project=phone --project=desktop
       - name: Confirm existing production resources
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}

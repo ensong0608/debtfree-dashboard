@@ -2140,3 +2140,26 @@ button:focus-visible,summary:focus-visible,input:focus-visible,select:focus-visi
 }
 
 @media(max-width:700px){.budget-summary dd{font-size:clamp(12px,3.5vw,18px);font-variant-numeric:tabular-nums;white-space:nowrap}}
+
+/* Shared mortgage/car details: one scrolling column and persistent actions. */
+.modal.loan-details-modal{max-width:540px;max-height:100%;overflow:hidden}
+.loan-details-modal>form{display:flex;flex-direction:column;max-height:calc(100dvh - 32px)}
+.loan-details-modal form>header{position:relative;justify-content:center;padding:20px 58px}
+.loan-details-modal form>header h2{text-align:center;margin:0;font-size:22px}
+.loan-details-modal form>header>button{position:absolute;right:12px;top:12px}
+.loan-details-modal form>.form-grid{display:flex;flex-direction:column;gap:18px;overflow-y:auto;min-height:0}
+.loan-details-modal form>footer{flex:none;display:flex;justify-content:flex-end;gap:12px}
+.loan-details-modal form>footer button{flex:1;min-height:48px;border-radius:8px}
+.loan-field-label{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.loan-currency-input,.loan-percentage-input{display:flex;align-items:center;border:1px solid var(--line);border-radius:8px;background:#fff;padding:0 12px;gap:8px}
+.loan-currency-input input,.loan-percentage-input input{border:0;box-shadow:none;flex:1;background:transparent;padding-left:0;min-width:0}
+.loan-currency-input:focus-within,.loan-percentage-input:focus-within{outline:2px solid #459d82}
+.loan-currency-input:has([aria-invalid="true"]),.loan-percentage-input:has([aria-invalid="true"]){border-color:#b42318}
+.loan-input-label{display:block}.loan-detail-field,.loan-date-field{display:grid;gap:6px}
+.loan-calendar{border:1px solid var(--line);border-radius:8px;padding:10px}
+.loan-calendar-heading{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px}
+.loan-calendar-grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:2px;text-align:center}
+.loan-calendar-grid button{min-width:0;min-height:40px;border:0;border-radius:8px;background:#f2f7f4;color:#243448;padding:4px}
+.loan-calendar-grid button[aria-pressed="true"]{background:#b9e4d3;color:#172e26}
+@media(max-width:700px){.modal.loan-details-modal{max-width:none}.loan-details-modal>form{max-height:100%;height:100%}}
+.loan-field-label .loan-help{width:32px;min-height:32px;flex:none;border:1px solid var(--line);border-radius:50%;background:#eef8f2;color:#285d4b;font-size:16px}

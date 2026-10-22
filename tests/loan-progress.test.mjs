@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { readFileSync } from 'node:fs';
-import { linkedLoanPayment, loanProgress, loanPaymentSplit, recordLoanPayment } from '../app/loan-progress.ts';
+import { regularLoanPayment, linkedLoanPayment, loanProgress, loanPaymentSplit, recordLoanPayment } from '../app/loan-progress.ts';
 import { parseDashboardContract, serializeDashboardBackup } from '../app/dashboard-data.ts';
 import { mergeDashboardPayload } from '../app/data-transfer.ts';
 
@@ -54,4 +54,27 @@ test('Pennymac amortization matches statements and reduces only principal', () =
   const contract = parseDashboardContract(JSON.parse(readFileSync('tests/fixtures/legacy-v0.json', 'utf8')));
   contract.payload.monthlyPlan.loanTrackers = [october];
   assert.deepEqual(parseDashboardContract(JSON.parse(serializeDashboardBackup(contract))).payload.monthlyPlan.loanTrackers, [october]);
+});
+
+test('explicit total payments override legacy links and subtract mortgage escrow exactly once', () => {
+ const home = {...loan, apr: 3.625, escrow: 600, principalAndInterest: 1400};
+ const items = [{id:'bill-a', name:'Mortgage', kind:'expense', amount:2500}];
+ assert.equal(regularLoanPayment(home, []), 2000);
+ assert.equal(regularLoanPayment(home, items), 2500);
+ assert.equal(regularLoanPayment({...home,principalAndInterest:undefined},items),2500);
+ assert.equal(regularLoanPayment({...home,monthlyPayment:2200},items),2200);
+ assert.equal(loanPaymentSplit({...home,monthlyPayment:2200},2200).principal,1358.33);
+ assert.equal(loanPaymentSplit({...home,kind:'car',escrow:undefined},1000).escrow,0);
+ assert.equal(loanPaymentSplit({...home,kind:'car',escrow:600},1000).principal,758.33);
+});
+test('new optional payment/date fields roundtrip alongside unchanged legacy history and snapshots', () => {
+ const contract=parseDashboardContract(JSON.parse(readFileSync('tests/fixtures/legacy-v0.json','utf8')));
+ const history=[{date:'2026-10-01',amount:80000,balanceKind:'payoff',recordedAt:'2026-10-01T12:00:00Z'}];
+ contract.payload.monthlyPlan.loanTrackers=[{...loan,history,monthlyPayment:2210.90,dueDate:'2027-01-15'}];
+ const roundtrip=parseDashboardContract(JSON.parse(serializeDashboardBackup(contract)));
+ assert.deepEqual(roundtrip.payload,contract.payload);
+ for(const change of [{monthlyPayment:-1},{monthlyPayment:Infinity},{dueDate:'2026-02-30'}]) {
+  const invalid=structuredClone(contract); Object.assign(invalid.payload.monthlyPlan.loanTrackers[0],change);
+  assert.throws(()=>parseDashboardContract(invalid));
+ }
 });
