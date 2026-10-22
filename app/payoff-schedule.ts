@@ -1,6 +1,6 @@
 import type { CashflowItem, DebtAccount, PayoffStrategy } from './dashboard-data.ts';
 import { calculateMinimumPayoffPlan } from './payoff-calculator.ts';
-import { forecastMonthKey, round, PAYOFF_PLAN_MONTH_LIMIT } from './payoff-engine.ts';
+import { forecastMonthKey, forecastMinimum, forecastMonthlyRate, round, PAYOFF_PLAN_MONTH_LIMIT } from './payoff-engine.ts';
 import { regularLoanPayment, type LoanTracker } from './loan-progress.ts';
 
 export type ScheduleMonth = { month: string; paid: number; interest: number; remaining: number; paidOff: string[] };
@@ -46,3 +46,28 @@ export function buildPayoffSchedule(accounts: DebtAccount[], loans: LoanTracker[
   return { rows, issues, complete, payoffMonths, debtFreeMonth: complete ? rows.at(-1)?.month ?? null : null, monthly: round(amount + activeLoans.reduce((sum, loan) => sum + (regularLoanPayment(loan, items) ?? 0), 0)), totalInterest: round(rows.reduce((sum, row) => sum + row.interest, 0)) };
 }
 export type PayoffSchedule = ReturnType<typeof buildPayoffSchedule>;
+
+/** Selected debt types share the existing minimum-reserving engine; loan escrow stays outside principal. */
+export function buildConfiguredPayoffSchedule(accounts:DebtAccount[],loans:LoanTracker[],items:CashflowItem[],extra:number,strategy:PayoffStrategy,date=new Date()) {
+ const issues:string[]=[];
+ const cardInputs=accounts.filter(a=>!a.archivedAt&&a.balance>0).map(a=>({...a,id:'account:'+a.id}));
+ const loanInputs=loans.filter(l=>l.remainingAmount>0).flatMap(l=>{
+  const payment=regularLoanPayment(l,items),escrow=l.kind==='car'?0:l.escrow;
+  if(l.balanceKind!=='principal'||l.apr===undefined||escrow===undefined||payment===undefined||payment-escrow<=round(l.remainingAmount*l.apr/1200)) {issues.push('Review payment and principal terms for '+l.name+'.');return [];}
+  return [{id:'loan:'+l.id,name:l.name,type:'Other' as const,balance:l.remainingAmount,apr:l.apr,interestFee:0,minimum:round(payment-escrow),minimumMode:'manual' as const,payoffMode:'priority' as const,creditLimit:0,dueDate:'',promoEndDate:'',postPromoApr:0,postPromoMinimum:0,createdAt:date.toISOString(),escrow}];
+ });
+ const inputs=[...cardInputs,...loanInputs];
+ const minimums=round(inputs.reduce((sum,a)=>sum+forecastMinimum(a,round(a.balance*(1+forecastMonthlyRate(a,1,date))),1,date),0));
+ const result=calculateMinimumPayoffPlan(inputs,round(minimums+extra),strategy,[],date);
+ if(result.error)issues.push(result.error);if(result.plan?.stalled)issues.push('Increase extra payment to reach a payoff date.');
+ const payoffMonths:Record<string,string>={};
+ const rows=(result.plan?.months??[]).map((month,i)=>{
+  const before=i===0?null:result.plan!.months[i-1];
+  const escrow=loanInputs.filter(l=>(before?.balances[l.id]??l.balance)>0).reduce((sum,l)=>sum+l.escrow,0);
+  const key=forecastMonthKey(month.month,date);
+  for(const a of inputs)if((month.payments[a.id]??0)>0&&(month.balances[a.id]??Infinity)<=0)payoffMonths[a.id]=key;
+  return {month:key,paid:round(month.paid+escrow),interest:month.interest,remaining:month.remaining,paidOff:month.paidOff};
+ });
+ const complete=!issues.length&&(rows.at(-1)?.remaining??0)===0;
+ return {rows,issues,complete,payoffMonths,debtFreeMonth:complete?rows.at(-1)?.month??null:null,monthly:round(minimums+extra+loanInputs.reduce((n,l)=>n+l.escrow,0)),totalInterest:round(rows.reduce((n,r)=>n+r.interest,0))};
+}

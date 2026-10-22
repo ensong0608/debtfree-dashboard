@@ -266,6 +266,8 @@ export type MonthlyPlanSettings = {
   currency?: import('./household-currency').HouseholdCurrency;
   debtGroups?: DebtGroup[];
   payoffPlanAmount?: number;
+  payoffExtraPayment?: number;
+  payoffExcludedTypes?: string[];
   payoffPlanStrategy?: PayoffStrategy;
   payoffPlanOrder?: string[];
   removedProgressAccounts?: RemovedProgressAccount[];
@@ -873,6 +875,8 @@ function validateMonthlyPlan(value: unknown, path: string, issues: string[]) {
   const plan = requiredRecord(value, path, issues);
   if (!plan) return;
   if (Object.prototype.hasOwnProperty.call(plan, 'currency') && !['USD', 'PHP', 'EUR', 'GBP', 'CAD', 'AUD'].includes(plan.currency as string)) issues.push(path + '.currency must be a supported household currency.');
+  if (plan.payoffExtraPayment !== undefined) requiredNumber(plan.payoffExtraPayment, path + ".payoffExtraPayment", issues);
+  if (plan.payoffExcludedTypes !== undefined) requiredArray(plan.payoffExcludedTypes, path + ".payoffExcludedTypes", issues)?.forEach((value,i)=>enumValue(value,new Set(["Credit card","Mortgage","Auto loan","Personal loan","Student loan","Medical debt","Other"]),path+".payoffExcludedTypes["+i+"]",issues));
   if (plan.payoffPlanAmount !== undefined) requiredNumber(plan.payoffPlanAmount, path + ".payoffPlanAmount", issues);
   if (plan.payoffPlanStrategy !== undefined) enumValue(plan.payoffPlanStrategy, new Set(["avalanche", "snowball", "custom"]), path + ".payoffPlanStrategy", issues);
   if (plan.payoffPlanOrder !== undefined) requiredArray(plan.payoffPlanOrder, path + ".payoffPlanOrder", issues)?.forEach((id, i) => requiredString(id, path + ".payoffPlanOrder[" + i + "]", issues));

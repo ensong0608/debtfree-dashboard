@@ -6,24 +6,28 @@ import { householdDate } from "./household-date";
 import { parseMoneyInput } from "./payments";
 import { createHouseholdMoneyFormatter, householdCurrencySymbol } from "./household-currency";
 import { useHouseholdCurrency } from "./household-currency-context";
+import ScheduleMinimumEditor, {type ScheduleMinimum} from "./schedule-minimum-editor";
 import OutlineIcon from "./outline-icon";
 import PayoffLandscape from "./payoff-landscape";
 import styles from "./payoff-home.module.css";
 
-export default function PayoffSchedule({ schedule, amount, date, readOnly = false, onAmount, onClose }: {
+export default function PayoffSchedule({ schedule, amount, date, readOnly = false, onAmount, onClose, strategy, onStrategy, types, excludedTypes, onTypes, minimums, minimumExpected, onMinimums }: {
   schedule: Schedule; amount: number; date: Date; readOnly?: boolean;
   onAmount: (amount: number) => void; onClose: () => void;
+  strategy: "avalanche"|"snowball"; onStrategy:(value:"avalanche"|"snowball")=>void; types:string[]; excludedTypes:string[]; onTypes:(values:string[])=>void; minimums:ScheduleMinimum[]; minimumExpected:string; onMinimums:(values:Record<string,number>,expected:string)=>string|null;
 }) {
   const currency = useHouseholdCurrency();
   const money = createHouseholdMoneyFormatter(currency, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const [draft, setDraft] = useState(String(amount));
+  const [help,setHelp]=useState(false);
+  const [editMinimums,setEditMinimums]=useState(false);
   const [inputError, setInputError] = useState("");
   useEffect(() => { const overflow = document.body.style.overflow; document.body.style.overflow = "hidden"; return () => { document.body.style.overflow = overflow; }; }, []);
   const currentDate = householdDate(date);
   const currentMonth = new Date(currentDate + "T12:00:00").toLocaleDateString("en-US", { month: "short", year: "numeric" });
   const save = () => {
     const value = parseMoneyInput(draft);
-    if (!Number.isFinite(value) || value <= 0 || !Number.isSafeInteger(Math.round(value * 100))) { setInputError("Enter a payment greater than 0."); return; }
+    if (!Number.isFinite(value) || value < 0 || !Number.isSafeInteger(Math.round(value * 100))) { setInputError("Enter an extra payment of 0 or more."); return; }
     setInputError("");
     if (!readOnly && value !== amount) onAmount(value);
   };
@@ -36,10 +40,11 @@ export default function PayoffSchedule({ schedule, amount, date, readOnly = fals
           <section className={styles.currentPayment} aria-label="Current record">
             <header><span>Current payment</span><time dateTime={currentDate}>{currentMonth}</time></header>
             <div className={styles.currentPaymentBody}><div className={styles.currentDate}><i><OutlineIcon name="calendar"/></i><div><strong>{currentMonth}</strong><time dateTime={currentDate}>{new Date(currentDate + "T12:00:00").toLocaleDateString("en-US", {month:"short",day:"numeric",year:"numeric"})}</time></div></div>
-              <form onSubmit={event => { event.preventDefault(); save(); }}><label htmlFor="schedule-payment">Payment</label><div className={styles.paymentInput}><span>{householdCurrencySymbol(currency)}</span><input id="schedule-payment" type="text" inputMode="decimal" value={draft} disabled={readOnly} aria-invalid={Boolean(inputError)} aria-describedby={inputError ? "schedule-payment-error" : undefined} onChange={event => { setDraft(event.target.value); setInputError(""); }} onBlur={save}/><button type="submit" aria-label="Save monthly payment" disabled={readOnly}><OutlineIcon name="check"/></button></div>{inputError && <small id="schedule-payment-error" role="alert">{inputError}</small>}</form>
+              <form onSubmit={event => { event.preventDefault(); save(); }}><label htmlFor="schedule-payment">Extra payment<button className={styles.questionButton} type="button" aria-label="Explain extra payment" onClick={()=>setHelp(true)}>?</button></label><div className={styles.paymentInput}><span>{householdCurrencySymbol(currency)}</span><input aria-label="Extra payment" id="schedule-payment" type="text" inputMode="decimal" value={draft} disabled={readOnly} aria-invalid={Boolean(inputError)} aria-describedby={inputError ? "schedule-payment-error" : undefined} onChange={event => { setDraft(event.target.value); setInputError(""); }} onBlur={save}/><button type="submit" aria-label="Save extra payment" disabled={readOnly}><OutlineIcon name="check"/></button></div>{inputError && <small id="schedule-payment-error" role="alert">{inputError}</small>}</form>
               <span className={styles.paymentSaying}>You’re<br/>on track! <b>♥</b></span>
             </div>
           </section>
+          <div className={styles.scheduleOptions}><label>Method<select aria-label="Payoff method" disabled={readOnly} value={strategy} onChange={e=>onStrategy(e.target.value as "avalanche"|"snowball")}><option value="avalanche">Avalanche</option><option value="snowball">Snowball</option></select></label><details><summary>Included debt types</summary><div className={styles.includedTypes}>{types.map(type=><label key={type}><input type="checkbox" aria-label={'Include '+type} checked={!excludedTypes.includes(type)} disabled={readOnly} onChange={e=>onTypes(e.target.checked?excludedTypes.filter(t=>t!==type):[...excludedTypes,type])}/>{type}</label>)}</div></details><button type="button" disabled={readOnly||minimums.length===0} onClick={()=>setEditMinimums(true)}>Edit minimums</button></div>
           {schedule.issues.map(issue => <p key={issue} role="alert" className={styles.scheduleMessage}>{issue}</p>)}
           {schedule.rows.length > 0 ? <div className={styles.scheduleTableWrap}><table className={styles.scheduleTable}><caption className="sr-only">Projected interest, balance after payment and debts paid off each month</caption><thead><tr><th>Month</th><th>Interest</th><th>Balance after payment</th><th>Debt paid off</th></tr></thead><tbody>{schedule.rows.map(month => {
             const key = month.month;
@@ -49,5 +54,7 @@ export default function PayoffSchedule({ schedule, amount, date, readOnly = fals
         </div>
       </div>
     </section>
+    {help&&<div className={styles.minimumBackdrop}><section role="dialog" aria-modal="true" aria-label="Extra payment" className={styles.minimumDialog}><header><h2>Extra payment</h2><button data-dialog-close type="button" aria-label="Close explanation" className={styles.questionButton} onClick={()=>setHelp(false)}>×</button></header><p>This amount is extra, on top of the included debts’ minimum payments. The schedule adds those minimums automatically. Mortgage escrow remains separate from principal and interest.</p></section></div>}
+    {editMinimums&&<ScheduleMinimumEditor items={minimums} expected={minimumExpected} onSave={onMinimums} onClose={()=>setEditMinimums(false)}/>}
   </div>, document.body);
 }
