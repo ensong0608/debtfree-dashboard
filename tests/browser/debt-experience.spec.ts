@@ -138,7 +138,7 @@ test('Debt + creates mortgage and car records, validates missing values and pres
   await page.getByRole('button',{name:'Debt +',exact:true}).click();
   const creation=page.getByRole('dialog',{name:'Add a debt account',exact:true});
   await creation.getByLabel('Account name',{exact:true}).fill(`New ${kind}`);
-  await creation.getByLabel('Debt type',{exact:true}).selectOption({label:kind});
+  await creation.getByRole('combobox',{name:'Debt type',exact:true}).selectOption({label:kind});
   const loan=page.getByRole('dialog',{name:kind === 'House loan' ? 'Mortgage Details' : 'Car Loan Details',exact:true});
   await loan.getByRole('button',{name:'Save',exact:true}).click();
   await expect(loan.getByText('Enter an original loan amount greater than $0.',{exact:true})).toBeVisible();
