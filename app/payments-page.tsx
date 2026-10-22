@@ -1,6 +1,7 @@
 "use client";
 import { Fragment, useEffect, useMemo, useState } from "react";
 import type { BalanceAdjustment, DebtAccount, LedgerTransaction } from "./dashboard-data";
+import {householdDate} from "./household-date";
 import { paymentActivity } from "./payments";
 import OutlineIcon from "./outline-icon";
 import InfoTooltip, { ExplanationDialog } from "./info-tooltip";
@@ -28,8 +29,8 @@ function SummaryExplanation({ kind, onClose }: { kind: keyof typeof explanations
   return <ExplanationDialog title={explanations[kind].title} onClose={onClose}><p>{explanations[kind].body}</p></ExplanationDialog>;
 }
 
-export default function PaymentsPage({ readOnly, accounts, transactions, adjustments, message, storedAccounts, onChange, onDialog, mobile = false, accountScope }: {
-  accountScope?: string; mobile?: boolean; readOnly: boolean; accounts: DebtAccount[]; transactions: LedgerTransaction[]; adjustments: BalanceAdjustment[]; message: string;
+export default function PaymentsPage({ readOnly, accounts, transactions, adjustments, message, storedAccounts, onChange, onDialog, mobile = false, accountScope, cardDetail = false }: {
+  accountScope?: string; cardDetail?: boolean; mobile?: boolean; readOnly: boolean; accounts: DebtAccount[]; transactions: LedgerTransaction[]; adjustments: BalanceAdjustment[]; message: string;
   onConfirm: (id: string) => void; onUndoConfirmation: (id: string) => void; storedAccounts: DebtAccount[]; onChange: (command: EntryCommand, expected: string) => string | null; onDialog: (open: boolean) => void;
 }) {
   const currency = createHouseholdMoneyFormatter(useHouseholdCurrency());
@@ -39,8 +40,8 @@ export default function PaymentsPage({ readOnly, accounts, transactions, adjustm
   const [pendingAction, setPendingAction] = useState<EntryCommand | null>(null);
   const open = (command: EntryCommand) => { setPendingExpected(undefined); setPendingAction(command); onDialog(true); };
   const close = () => { setPendingAction(null); onDialog(false); };
-  const [month, setMonth] = useState(currentMonth);
-  const [period, setPeriod] = useState<"month" | "year" | "lifetime">(accountScope ? "lifetime" : "month");
+  const [month, setMonth] = useState(()=>cardDetail?householdDate().slice(0,7):currentMonth());
+  const [period, setPeriod] = useState<"month" | "year" | "lifetime">(cardDetail ? "month" : accountScope ? "lifetime" : "month");
   const [accountId, setAccountId] = useState(accountScope ?? "all");
   const activity = useMemo(() => paymentActivity(transactions, adjustments), [transactions, adjustments]);
   const names = new Map(accounts.map(a => [a.id, a.name]));
@@ -63,31 +64,34 @@ export default function PaymentsPage({ readOnly, accounts, transactions, adjustm
     ...transactions.filter(t => t.deletedAt && !t.replacedByTransactionId && (!mobile || isRecentlyDeleted(t.deletedAt))).map(t => ({ id: "transaction:" + t.id, accountId: t.accountId, amount: t.amount, date: t.date, kind: t.type })),
     ...adjustments.filter(a => a.deletedAt && (!mobile || isRecentlyDeleted(a.deletedAt))).map(a => ({ id: "adjustment:" + a.id, accountId: a.accountId, amount: Math.abs(a.difference), date: a.date, kind: "adjustment" })),
   ].filter(t => inPeriod(t.date) && (accountId === "all" || t.accountId === accountId));
-  return <div className={`screen payments-screen transactions-screen${mobile ? " " + styles.mobile : ""}`}>
-    <h1 className="sr-only">Transactions</h1>{accountScope && <button className="secondary" type="button" disabled={readOnly} onClick={() => open({action:"save"})}>Add transaction</button>}
-    {message && <p className="debt-action-message" role="status">{message}</p>}
-    <div className={`payments-filters${mobile ? " " + styles.filters : ""}`}>
+  const periodControl = (
       <label className="transaction-period-control"><span><OutlineIcon name="calendar"/>Period</span><select aria-label="Period" value={period === "lifetime" ? "lifetime" : period === "year" ? `year:${month.slice(0, 4)}` : `month:${month}`} onChange={e => {
         const value = e.target.value;
         if (value === "lifetime") setPeriod("lifetime");
         else if (value.startsWith("year:")) { setPeriod("year"); setMonth(`${value.slice(5)}-${month.slice(5, 7)}`); }
         else { setPeriod("month"); setMonth(value.slice(6)); }
       }}>
-        <option value="lifetime">Lifetime</option>
+        {cardDetail ? <><option value={'month:'+householdDate().slice(0,7)}>{new Date(householdDate().slice(0,7)+'-01T12:00:00').toLocaleDateString('en-US',{month:'short'})}</option><option value="lifetime">Lifetime</option><option value={'year:'+householdDate().slice(0,4)}>{householdDate().slice(0,4)}</option></> : <><option value="lifetime">Lifetime</option>
         <optgroup label="Year">{years.map(year => <option key={year} value={`year:${year}`}>{year}</option>)}</optgroup>
         <optgroup label="Month">{years.flatMap(year => Array.from({length: 12}, (_, i) => {
           const value = `${year}-${String(12 - i).padStart(2, "0")}`;
           return <option key={value} value={`month:${value}`}>{new Date(`${value}-01T12:00:00`).toLocaleDateString("en-US", {month: "short", year: "numeric"})}</option>;
-        }))}</optgroup>
+        }))}</optgroup></>}
       </select></label>
+  );
+  return <div className={`screen payments-screen transactions-screen${mobile ? " " + styles.mobile : ""}`}>
+    <h1 className="sr-only">Transactions</h1>{accountScope && !cardDetail && <button className="secondary" type="button" disabled={readOnly} onClick={() => open({action:"save"})}>Add transaction</button>}
+    {message && <p className="debt-action-message" role="status">{message}</p>}
+    {!cardDetail && <div className={`payments-filters${mobile ? " " + styles.filters : ""}`}>
+      {!cardDetail && periodControl}
       {!accountScope && <label><span>Account</span><select value={accountId} onChange={e => setAccountId(e.target.value)}><option value="all">{mobile ? "ALL" : "All accounts"}</option>{knownIds.map(id => <option key={id} value={id}>{names.get(id) ?? "Removed debt (" + id + ")"}</option>)}</select></label>}
-    </div>
+    </div>}
     {mobile ? <section className={`transaction-highlights ${styles.highlights}`} aria-label={summaryLabel}>{([
       { key: "payments", icon: "trend", value: currency.format(paymentTotal), count: paymentCount },
       { key: "interest", icon: "percent", value: currency.format(interestTotal), count: interestCount },
       { key: "net", icon: "check", value: `${netChange < 0 ? "−" : netChange > 0 ? "+" : ""}${currency.format(Math.abs(netChange))}`, count: periodRows.length },
     ] as const).map(card => <article key={card.key}><button type="button" className={styles.summaryButton} aria-haspopup="dialog" aria-label={`Explain ${explanations[card.key].title}`} onClick={() => { setExplanation(card.key); onDialog(true); }}><span className={styles.summaryHeading}>{card.key === "net" ? <i><OutlineIcon name={card.icon}/></i> : <OutlineIcon name={card.icon}/>}<span className={styles.summaryLabel}>{explanations[card.key].title}</span></span><strong>{card.value.split(",").map((part, index, parts) => <span className={styles.moneyChunk} key={index}>{part}{index < parts.length - 1 ? "," : ""}</span>)}</strong><small>{card.count} {card.count === 1 ? "transaction" : "transactions"}</small></button></article>)}</section> : <section className="transaction-highlights" aria-label={summaryLabel}><article><OutlineIcon name="trend"/><div><span><InfoTooltip label="Payments recorded">{explanations.payments.body}</InfoTooltip></span><strong>{currency.format(paymentTotal)}</strong><small>{paymentCount} {paymentCount === 1 ? "transaction" : "transactions"}</small></div></article><article><OutlineIcon name="percent"/><div><span><InfoTooltip label="Interest & fees">{explanations.interest.body}</InfoTooltip></span><strong>{currency.format(interestTotal)}</strong><small>{interestCount} {interestCount === 1 ? "transaction" : "transactions"}</small></div></article><article className="net-change"><i><OutlineIcon name="check"/></i><span><InfoTooltip label="Net balance change">{explanations.net.body}</InfoTooltip></span><strong className={netChange > 0 ? "negative" : ""}>{netChange < 0 ? "−" : netChange > 0 ? "+" : ""}{currency.format(Math.abs(netChange))}</strong></article></section>}
-    <div className="transaction-kind-filters" role="group" aria-label="Filter activity category">{[{id:"all",label:"All"},{id:"payments",label:"Payments only"},{id:"interest",label:"Interest & fees"}].map(filter => <button type="button" key={filter.id} aria-pressed={kindFilter === filter.id} onClick={() => setKindFilter(filter.id)}>{filter.label} ({filter.id === "all" ? periodRows.length : filter.id === "payments" ? paymentCount : interestCount})</button>)}</div>
+    <div className={"transaction-kind-filters"+(cardDetail?" "+styles.cardFilters:"")} role="group" aria-label="Filter activity category">{cardDetail && periodControl}{[{id:"all",label:"All"},{id:"payments",label:"Payments only"},{id:"interest",label:"Interest & fees"}].map(filter => <button type="button" key={filter.id} aria-pressed={kindFilter === filter.id} onClick={() => setKindFilter(filter.id)}>{filter.label} ({filter.id === "all" ? periodRows.length : filter.id === "payments" ? paymentCount : interestCount})</button>)}</div>
 
     <section className="payment-activity" aria-label="Debt transaction activity">
       {rows.length ? rows.map((row, index) => {
@@ -102,7 +106,7 @@ export default function PaymentsPage({ readOnly, accounts, transactions, adjustm
           </button>
           <div className="transaction-card-footer"><span className="transaction-record-detail"><OutlineIcon name={row.kind === "payment" ? "check" : "receipt"}/>{row.kind === "payment" ? "Recorded" : row.kind === "interest" || row.kind === "fee" ? kind : typeof row.after === "number" ? `New balance: ${currency.format(row.after)}` : kind}</span>
           {!mobile && <button type="button" className="secondary transaction-delete-x" disabled={readOnly} onClick={() => open({ action: "delete", id: row.id })} aria-label={(row.kind === "payment" && !row.adjustment ? "Delete payment of " : "Delete transaction of ") + currency.format(row.amount) + " for " + (names.get(row.accountId) ?? "removed debt")}>×</button>}
-          <DebtActivityHistory key={`${row.id}:${period}:${month}`} entries={periodRows} accountId={row.accountId} accountName={names.get(row.accountId) ?? "Removed debt"} currentEntryId={row.id}/></div>
+          {!cardDetail && <DebtActivityHistory key={`${row.id}:${period}:${month}`} entries={periodRows} accountId={row.accountId} accountName={names.get(row.accountId) ?? "Removed debt"} currentEntryId={row.id}/>}</div>
         </article></Fragment>;
       }) : <div className="simple-empty"><h2>No activity in this period</h2><p>Use + to add a record, or update a lender balance in Debts.</p></div>}
 
@@ -110,6 +114,6 @@ export default function PaymentsPage({ readOnly, accounts, transactions, adjustm
     {!mobile && <details className="transaction-reporting"><summary>{paymentsLabel}</summary><section className="simple-total" aria-label="Confirmed payment total"><span>{paymentsLabel}</span><strong>{currency.format(paymentTotal)}</strong><p>Payments exclude refunds, credits, and unidentified reconciliation adjustments. Cards and other accounts only; house/car payments are separate. Payments recorded differ from net debt reduction because purchases, interest, credits, and lender adjustments also change balances. Budget checklists stay unchanged.</p></section></details>}
     {deleted.length > 0 && <details className="deleted-payments"><summary>{mobile ? "Recently deleted" : "Deleted transactions"} ({deleted.length})</summary><p>Retained for recovery. Deleted entries do not affect balances or payment totals.</p>{deleted.map(t => <article key={t.id}><div><strong>{names.get(t.accountId) ?? "Removed debt"} · {currency.format(t.amount)}</strong><p>{t.kind} · {dateLabel(t.date)}</p></div><button type="button" className="secondary" disabled={readOnly} onClick={() => open({ action: "restore", id: t.id })} aria-label={"Restore " + (t.kind === "payment" ? "payment" : "transaction") + " of " + currency.format(t.amount) + " for " + (names.get(t.accountId) ?? "removed debt")}>Restore</button></article>)}</details>}
     {explanation && <SummaryExplanation kind={explanation} onClose={() => { setExplanation(null); onDialog(false); }}/>}
-    {pendingAction && <DebtEntryDialog accountScope={accountScope} key={`${pendingAction.action}:${pendingAction.id ?? "new"}`} mobile={mobile} expectedState={pendingExpected} onRequestDelete={mobile && pendingAction.id ? expected => { setPendingExpected(expected); setPendingAction({ action: "delete", id: pendingAction.id }); } : undefined} state={{ accounts: storedAccounts, transactions, adjustments }} command={pendingAction} readOnly={readOnly} onSave={onChange} onClose={close}/>}
+    {pendingAction && <DebtEntryDialog flexibleScope={cardDetail} accountScope={accountScope} key={`${pendingAction.action}:${pendingAction.id ?? "new"}`} mobile={mobile} expectedState={pendingExpected} onRequestDelete={mobile && pendingAction.id ? expected => { setPendingExpected(expected); setPendingAction({ action: "delete", id: pendingAction.id }); } : undefined} state={{ accounts: storedAccounts, transactions, adjustments }} command={pendingAction} readOnly={readOnly} onSave={onChange} onClose={close}/>}
   </div>;
 }

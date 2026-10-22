@@ -6,7 +6,7 @@ import { DASHBOARD_STORAGE_KEY } from '../../app/data-repository';
 test.beforeEach(async ({page}, info) => {
  const fixture=createDemoFixture();
  fixture.payload.monthlyPlan!.payoffPlanAmount=300;
- fixture.payload.accounts[1].apr=18;
+ fixture.payload.accounts[1].apr=info.title.startsWith("summary swipe")?26.49:18;
  if(info.title.startsWith("Home preview")) fixture.payload.accounts[1].name="Sample travel with a very long household debt name that wraps";
  fixture.payload.monthlyPlan!.loanTrackers=[{id:'home',name:'Sample home',kind:'house',originalAmount:10000,remainingAmount:1000,balanceKind:'principal',asOf:'2026-10-01',budgetItemId:'',budgetItemName:'',apr:12,monthlyPayment:600,escrow:100,dueDate:'2026-10-26',history:[{date:'2025-01-01',amount:1200,balanceKind:'principal',recordedAt:'2025-01-01T12:00:00Z'}]}];
  await page.addInitScript(({key,fixture})=>{if(!localStorage.getItem(key)) localStorage.setItem(key,JSON.stringify(fixture));},{key:DASHBOARD_STORAGE_KEY,fixture});
@@ -48,10 +48,14 @@ test('debt Overview, scoped lifetime Transactions, Info and Advanced preserve un
  const detail=page.getByRole('dialog',{name:'Sample card',exact:true});
  await expect(detail.getByRole('tab')).toHaveText(['Overview','Transactions','Info']);
  await detail.getByRole('tab',{name:'Transactions',exact:true}).click();
- await expect(detail.getByLabel('Period',{exact:true})).toHaveValue('lifetime');
+ await expect(detail.getByLabel('Period',{exact:true})).toHaveValue('month:'+new Date().toISOString().slice(0,7));
+ await expect(detail.getByLabel('Period').locator('option')).toHaveCount(3);
+ await expect(detail.getByRole('button',{name:'Record Payment',exact:true})).toHaveCount(0);
+ await expect(detail.getByRole('button',{name:'Add transaction',exact:true})).toHaveCount(0);
+ await expect(detail.getByText('Debt history',{exact:true})).toHaveCount(0);
  await expect(detail.locator('.clean-transaction-card')).toHaveCount(1);
  await expect(detail.locator('.payment-activity')).not.toContainText('Sample travel');
- await detail.getByRole('button',{name:'Add transaction',exact:true}).click();
+ await detail.getByRole('button',{name:'+ Transaction',exact:true}).click();
  const entry=page.getByRole('dialog',{name:'New transaction',exact:true});
  await expect(entry.getByLabel('Card used')).toHaveValue('demo-card');
  await expect(entry.getByLabel('Card used')).toBeDisabled();
@@ -82,11 +86,13 @@ test('debt Overview, scoped lifetime Transactions, Info and Advanced preserve un
 test('recording a payment within a debt persists and does not affect another debt',async({page})=>{
  const before=await saved(page);
  await page.getByRole('button',{name:'Open Sample travel',exact:true}).click();
- await page.getByRole('dialog',{name:'Sample travel',exact:true}).getByRole('button',{name:'Record Payment',exact:true}).click();
+ await page.getByRole('dialog',{name:'Sample travel',exact:true}).getByRole('button',{name:'+ Transaction',exact:true}).click();
  const payment=page.getByRole('dialog').last();
- await expect(payment.getByRole('heading',{name:'Record payment',exact:true})).toBeVisible();
- await payment.getByLabel('Payment amount',{exact:true}).fill('50');
- await payment.getByRole('button',{name:/Save payment|Record Payment|Confirm payment/}).click();
+ await expect(payment.getByRole('heading',{name:'New transaction',exact:true})).toBeVisible();
+ await payment.getByLabel('What’s it for?',{exact:true}).fill('Payment');
+ await payment.getByLabel('Transaction amount',{exact:true}).fill('-50');
+ await expect(payment.getByLabel('Transaction date')).toBeEnabled();
+ await payment.getByRole('button',{name:'Save transaction',exact:true}).click();
  await expect.poll(async()=>(await saved(page)).transactions.length).toBe(before.transactions.length+1);
  const after=await saved(page);
  expect(after.transactions.at(-1).accountId).toBe('demo-travel');
@@ -191,4 +197,89 @@ test('Debt + creates mortgage and car records, validates missing values and pres
  await page.reload();
  await page.getByRole('navigation',{name:'Primary navigation'}).getByRole('button',{name:/^Debts?$/,exact:true}).click();
  await expect(page.getByRole('button',{name:'Open New Car loan',exact:true})).toBeVisible();
+});
+
+test('summary swipe and remembered sort keep card totals separate from loans',async({page})=>{
+ const summary=page.getByRole('region',{name:'Debt summary',exact:true});
+ await expect(summary).toContainText('$2,400.00');
+ await summary.getByRole('button',{name:'Card debts',exact:true}).click();
+ await expect(summary).toContainText('$1,400.00');await expect(summary).not.toContainText('$2,400.00');
+ await page.getByLabel('Sort debts').selectOption('amount');
+ await page.reload();await page.getByRole('navigation',{name:'Primary navigation'}).getByRole('button',{name:/^Debts?$/,exact:true}).click();
+ await expect(summary.getByRole('button',{name:'Card debts',exact:true})).toHaveAttribute('aria-pressed','true');
+ await expect(page.getByLabel('Sort debts')).toHaveValue('amount');
+ const box=(await summary.boundingBox())!;
+ await page.mouse.move(box.x+70,box.y+70);await page.mouse.down();await page.mouse.move(box.x+180,box.y+70,{steps:6});await page.mouse.up();
+ await expect(summary.getByRole('button',{name:'Total outstanding debt',exact:true})).toHaveAttribute('aria-pressed','true');
+ await expect(summary).toContainText('$2,400.00');
+ await expect(page.getByRole('button',{name:'Open Sample card',exact:true}).getByRole('progressbar')).toHaveAttribute('aria-valuenow','10');
+ await expect(page.getByRole('button',{name:'Open Sample travel',exact:true}).locator('[class*=highApr]')).toHaveCSS('color','rgb(179, 38, 56)');
+ await expect(page.getByRole('button',{name:'Open Sample card',exact:true}).locator('[class*=lowApr]')).toHaveCSS('color','rgb(9, 107, 80)');
+ await page.screenshot({path:'outputs/redesign/debts-refined.png'});
+});
+
+test('credit card drafts survive tabs, transactions confirm independently and balance edits reconcile once',async({page})=>{
+ const before=await saved(page);
+ await page.getByRole('button',{name:'Open Sample card',exact:true}).click();
+ let detail=page.getByRole('dialog',{name:'Sample card',exact:true});
+ await expect(detail.getByRole('button',{name:'Record Payment',exact:true})).toHaveCount(0);
+ await detail.getByRole('button',{name:'Sample card overview',exact:true}).click();
+ await detail.getByLabel('Account name',{exact:true}).fill('Draft card');
+ await detail.getByRole('button',{name:'Advanced',exact:true}).click();
+ const advanced=page.getByRole('dialog',{name:'Advanced',exact:true});
+ await expect(advanced.locator('fieldset').getByRole('button')).toHaveText(['Mark paid off','Delete debt']);
+ await advanced.getByLabel('Credit limit (optional)',{exact:true}).fill('6000');
+ await page.screenshot({path:'outputs/redesign/card-advanced-refined.png'});
+ await expect((await saved(page)).accounts).toEqual(before.accounts);
+ await page.keyboard.press('Escape');
+ for(const width of [320,390]) {
+  await page.setViewportSize({width,height:844});
+  let y:number|undefined;
+  for(const tab of ['Overview','Transactions','Info']) {
+   await detail.getByRole('tab',{name:tab,exact:true}).click();
+   const buttons=detail.locator('footer').getByRole('button');await expect(buttons).toHaveText(['+ Transaction','Edit','Save']);
+   const box=(await buttons.first().boundingBox())!;if(y!==undefined)expect(box.y).toBe(y);y=box.y;
+   if(tab==='Transactions'){const filters=detail.getByRole('group',{name:'Filter activity category'});const period=(await filters.locator('label.transaction-period-control').boundingBox())!;for(const button of await filters.getByRole('button').all())expect(Math.abs((await button.boundingBox())!.y-period.y)).toBeLessThan(1);}
+   expect(await detail.evaluate(el=>el.scrollWidth<=el.clientWidth+1)).toBe(true);
+  }
+ }
+ await expect(detail.getByLabel('Account name',{exact:true})).toHaveValue('Draft card');
+ await detail.getByRole('tab',{name:'Transactions',exact:true}).click();
+ await page.screenshot({path:'outputs/redesign/card-transactions-refined.png'});
+ await detail.getByRole('tab',{name:'Info',exact:true}).click();
+ await detail.getByRole('button',{name:'+ Transaction',exact:true}).click();
+ const transaction=page.getByRole('dialog',{name:'New transaction',exact:true});
+ await expect(transaction.getByLabel('Transaction type').locator('option')).toHaveText(['Purchase','Interest','Fee','Balance update']);
+ await transaction.getByLabel('What’s it for?',{exact:true}).fill('Test purchase');
+ await transaction.getByLabel('Transaction amount',{exact:true}).fill('10');
+ await transaction.getByLabel('Transaction type',{exact:true}).selectOption('purchase');
+ await transaction.getByRole('button',{name:'Save transaction',exact:true}).click();
+ await expect.poll(async()=>(await saved(page)).transactions.length).toBe(before.transactions.length+1);
+ expect((await saved(page)).accounts[0].name).toBe('Sample card');
+ await detail.getByRole('button',{name:'Save',exact:true}).click();
+ detail=page.getByRole('dialog',{name:'Draft card',exact:true});
+ await expect.poll(async()=>(await saved(page)).accounts[0].name).toBe('Draft card');
+ expect((await saved(page)).balanceAdjustments).toEqual(before.balanceAdjustments);
+ await detail.getByLabel('Current balance',{exact:true}).fill('800');
+ await detail.getByRole('button',{name:'Save',exact:true}).click();
+ await expect.poll(async()=>(await saved(page)).balanceAdjustments.length).toBe(before.balanceAdjustments.length+1);
+ const after=await saved(page);expect(after.balanceAdjustments.at(-1).difference).toBe(-110);expect(after.transactions.length).toBe(before.transactions.length+1);expect(after.snapshots).toEqual(before.snapshots);expect(after.monthlyPlan.loanTrackers).toEqual(before.monthlyPlan.loanTrackers);
+ await page.screenshot({path:'outputs/redesign/card-info-refined.png'});
+});
+
+test('credit card deletion confirms and retains history; paid off cards archive without a payment',async({page})=>{
+ const before=await saved(page);
+ await page.getByRole('button',{name:'Open Sample card',exact:true}).click();
+ const detail=page.getByRole('dialog',{name:'Sample card',exact:true});
+ await detail.getByRole('button',{name:'Edit',exact:true}).click();await detail.getByRole('button',{name:'Advanced',exact:true}).click();
+ const advanced=page.getByRole('dialog',{name:'Advanced',exact:true});
+ page.once('dialog',dialog=>dialog.dismiss());await advanced.getByRole('button',{name:'Delete debt',exact:true}).click();expect((await saved(page)).accounts).toEqual(before.accounts);
+ page.once('dialog',dialog=>dialog.accept());await advanced.getByRole('button',{name:'Delete debt',exact:true}).click();
+ await expect.poll(async()=>(await saved(page)).accounts.some((a:{id:string})=>a.id==='demo-card')).toBe(false);
+ const removed=await saved(page);expect(removed.transactions).toEqual(before.transactions);expect(removed.snapshots).toEqual(before.snapshots);expect(removed.monthlyPlan.progressStartingBalance).toBe(before.monthlyPlan.progressStartingBalance);expect(removed.monthlyPlan.removedProgressAccounts.some((a:{id:string})=>a.id==='demo-card')).toBe(true);
+ await page.getByRole('button',{name:'Open Sample travel',exact:true}).click();
+ const travel=page.getByRole('dialog',{name:'Sample travel',exact:true});await travel.getByRole('button',{name:'Edit',exact:true}).click();await travel.getByRole('button',{name:'Advanced',exact:true}).click();
+ page.once('dialog',dialog=>dialog.accept());await page.getByRole('dialog',{name:'Advanced',exact:true}).getByRole('button',{name:'Mark paid off',exact:true}).click();
+ await expect.poll(async()=>(await saved(page)).accounts.find((a:{id:string})=>a.id==='demo-travel').archivedAt).toBeTruthy();
+ const paid=await saved(page);expect(paid.transactions).toEqual(before.transactions);expect(paid.balanceAdjustments.at(-1).balanceAfter).toBe(0);expect(paid.snapshots).toEqual(before.snapshots);expect(paid.monthlyPlan.loanTrackers).toEqual(before.monthlyPlan.loanTrackers);
 });

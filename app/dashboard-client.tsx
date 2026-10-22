@@ -6,6 +6,8 @@ import { DebtCategorySettings } from "./debt-category-controls";
 import { migrateLegacyGroups, neutralGroups, type DebtGroup } from "./debt-groups";
 import HouseholdLifecyclePanel from "./household-lifecycle-panel";
 import AppearanceSettings, { useAppearanceSettings } from "./appearance-settings";
+import CreditCardInfo from "./credit-card-info";
+import {saveCreditCardDetails, markCreditCardPaidOff, type CardEditBaseline} from "./credit-card-editor";
 import HomeDashboardPage from "./home-dashboard-page";
 import PayoffSchedulePopup from "./payoff-schedule-popup";
 import { buildPayoffSchedule } from "./payoff-schedule";
@@ -305,6 +307,9 @@ export default function DashboardClient({ user, householdId, lifecycleEnabled = 
   const [transferMessage, setTransferMessage] = useState("");
   const [deviceSaveStatus, setDeviceSaveStatus] = useState<SyncStatus>("connecting");
   const paymentSubmitted = useRef(false);
+  const cardEditBaseline = useRef<CardEditBaseline | null>(null);
+  const [cardEditError,setCardEditError]=useState("");
+  const [cardTransactionOpen,setCardTransactionOpen]=useState(false);
   const balanceExpected = useRef<number | null>(null);
   const contentRef = useRef<HTMLDivElement>(null);
   useEffect(() => { contentRef.current?.scrollTo({ top: 0 }); }, [page]);
@@ -563,6 +568,8 @@ export default function DashboardClient({ user, householdId, lifecycleEnabled = 
     setAccountAutoFocus("name");
     const stored = accounts.find((item) => item.id === account.id) ?? account;
     setEditingId(stored.id);
+    cardEditBaseline.current={account:stored,balance:account.balance};
+    setCardEditError("");
     setDraft({ displayGroup: stored.displayGroup ?? (monthlyPlan.debtGroups ?? neutralGroups)[0].id, name: stored.name, type: stored.type, balance: account.balance, apr: stored.apr, interestFee: stored.interestFee, minimum: stored.minimum, minimumMode: stored.minimumMode, payoffMode: stored.payoffMode, creditLimit: stored.creditLimit, dueDate: stored.dueDate, promoEndDate: stored.promoEndDate, postPromoApr: stored.postPromoApr, postPromoMinimum: stored.postPromoMinimum, ...(stored.interestAutomation ? { interestAutomation: stored.interestAutomation } : {}) });
     setModalOpen(true);
   };
@@ -632,6 +639,7 @@ export default function DashboardClient({ user, householdId, lifecycleEnabled = 
       setAccounts((current) => current.filter((item) => item.id !== editingId));
       setCustomDebtOrder((current) => current.filter((id) => id !== editingId));
       setModalOpen(false);
+      if(account?.type === "Credit card") setSelectedDebt(null);
       setDebtActionMessage("Debt account permanently deleted. Existing history references were retained.");
     }
   };
@@ -732,7 +740,13 @@ export default function DashboardClient({ user, householdId, lifecycleEnabled = 
   };
   const markAccountPaidOff = (id: string) => {
     const account = calculatedAccounts.find((item) => item.id === id);
-    if (!account || account.balance <= 0) return;
+    if (!account || isViewer) return;
+    if(account.type === "Credit card") {
+      if(!confirm("Mark "+account.name+" paid off and archive it?")) return;
+      try {const next=markCreditCardPaidOff({accounts,transactions,adjustments:balanceAdjustments},id,auditCreator);setAccounts(next.accounts);setTransactions(next.transactions);setBalanceAdjustments(next.adjustments);setSelectedDebt(null);setDebtActionMessage("Card marked paid off and archived.");} catch(error){setCardEditError(error instanceof Error?error.message:"Could not mark this card paid off.");}
+      return;
+    }
+    if (account.balance <= 0) return;
     if (!confirm("Mark " + account.name + " paid off by recording a final " + moneyPrecise.format(account.balance) + " payment?")) return;
     const now = new Date().toISOString();
     const existingPayee = payees.find((payee) => !payee.deletedAt && payee.name.toLowerCase() === account.name.toLowerCase());
@@ -1026,7 +1040,19 @@ export default function DashboardClient({ user, householdId, lifecycleEnabled = 
     setSelectedDebt(selection); setDetailTab("Overview");
   };
   const householdProgress = buildActualProgress(accounts, transactions, balanceAdjustments, snapshots, new Date(), monthlyPlan.progressStartingBalance, monthlyPlan.removedProgressAccounts);
-  const detailInfo = selectedAccount && <AccountModal inline readOnly={isViewer} onLoanType={() => {}} draft={draft} editing autoFocusField="name" onChange={setDraft} onClose={() => setDetailTab("Overview")} onSave={() => { if (saveAccount()) setDetailTab("Overview"); }} onRemove={removeAccount} onArchive={() => archiveAccount(selectedAccount.id)} onMarkPaidOff={() => markAccountPaidOff(selectedAccount.id)}/>;
+  const cardDetails = selectedAccount?.type === "Credit card";
+  const saveCard = () => {
+    if(isViewer || !selectedAccount || !cardEditBaseline.current) return;
+    try {
+      const next=saveCreditCardDetails({accounts,transactions,adjustments:balanceAdjustments},selectedAccount.id,draft,cardEditBaseline.current,auditCreator);
+      createDashboardPayload(dashboardContract.current?.payload,{accounts:next.accounts,transactions:next.transactions,balanceAdjustments:next.adjustments,monthlyBudgets,payees,snapshots,extra,strategy,planning,monthlyPlan,customDebtOrder});
+      setAccounts(next.accounts);setTransactions(next.transactions);setBalanceAdjustments(next.adjustments);
+      const stored=next.accounts.find(account=>account.id===selectedAccount.id)!;
+      const posted=transactionAdjustedAccounts(next.accounts,next.transactions).find(account=>account.id===selectedAccount.id)!;
+      cardEditBaseline.current={account:stored,balance:posted.balance};setDraft(current=>({...current,balance:posted.balance}));setCardEditError("");
+    }catch(error){setCardEditError(error instanceof Error?error.message:"Could not save this card.");}
+  };
+  const detailInfo = selectedAccount && (cardDetails ? <CreditCardInfo draft={draft} interestAutomated={Boolean(draft.interestAutomation?.enabled)} readOnly={isViewer} onChange={next=>{setDraft(current=>({...current,...next}));setCardEditError("");}} onPaidOff={()=>markAccountPaidOff(selectedAccount.id)} onDelete={removeAccount}/> : <AccountModal inline readOnly={isViewer} onLoanType={() => {}} draft={draft} editing autoFocusField="name" onChange={setDraft} onClose={() => setDetailTab("Overview")} onSave={() => { if (saveAccount()) setDetailTab("Overview"); }} onRemove={removeAccount} onArchive={() => archiveAccount(selectedAccount.id)} onMarkPaidOff={() => markAccountPaidOff(selectedAccount.id)}/>);
   if (!loaded) return <main className="onboarding-shell onboarding-loading" role="status"><div><span>DF</span><strong>Loading your household.</strong></div></main>;
   if (!isViewer && !recoveryDrafts.length && shouldShowOnboarding({ accounts, monthlyBudgets, payees, transactions, snapshots, extra, strategy, planning })) {
     return <HouseholdCurrencyProvider currency={householdCurrency}><>{syntheticDemo && <div className="viewer-notice" role="status">Synthetic demo</div>}<OnboardingFlow
@@ -1080,7 +1106,7 @@ export default function DashboardClient({ user, householdId, lifecycleEnabled = 
 
         {page === "home" && <HomeDashboardPage name={user.displayName} accounts={payoffAccounts} loans={loans} schedule={payoffSchedule} progress={householdProgress} onSchedule={() => setScheduleOpen(true)} onViewPlan={() => setScheduleOpen(true)} onViewProgress={() => setPage("snapshots")} onViewDebts={() => setPage("accounts")}/> }
         {page === "monthly" && <MonthlyPlanPage payoffAmount={monthlyPlan.payoffPlanAmount ?? 0} month={selectedMonth} hasMonth={Object.prototype.hasOwnProperty.call(monthlyBudgets, selectedMonth)} previousHasItems={(monthlyBudgets[shiftMonth(selectedMonth, -1)] ?? []).some((item) => item.recurring ?? item.kind !== "purchase")} items={cashflowItems} accounts={calculatedAccounts} transactions={transactions} settings={selectedPlanSettings} trackingEnabled={detailedSpendingTracking} plannedMinimums={selectedPlanSettings.minimums ?? (selectedMonth === currentMonthKey() ? monthlyTargets.minimums : {})} plannedPayments={selectedMonth === currentMonthKey() ? monthlyTargets.payments : selectedPlanSettings.payments ?? {}} onMonth={setSelectedMonth} onCopyPrevious={copyPreviousBudget} onStartBlank={startBlankBudget} onAdd={openNewCashflow} onEdit={openEditCashflow} onSettings={updateSelectedPlanSettings} onTracking={setDetailedSpendingTracking} onViewTransactions={() => setPage("accounts")}/>}
-        {(page === "accounts" || page === "debt-tools") && <><DebtSummary accounts={calculatedAccounts} loans={loans} items={planningCashflowItems}/><UnifiedDebtList accounts={calculatedAccounts} loans={loans} items={planningCashflowItems} onSelect={openDebt}/></>}
+        {(page === "accounts" || page === "debt-tools") && <><DebtSummary preferenceScope={householdId + ":" + user.email} accounts={calculatedAccounts} loans={loans} items={planningCashflowItems}/><UnifiedDebtList preferenceScope={householdId + ":" + user.email} accounts={calculatedAccounts} loans={loans} items={planningCashflowItems} onSelect={openDebt}/></>}
         {page === "settings" && <div className={mobileStyles.settings}><HouseholdCurrencySettings readOnly={isViewer} onChange={currency => { if (!isViewer) setMonthlyPlan(current => ({ ...current, currency })); }}/><AppearanceSettings/><DebtCategorySettings groups={monthlyPlan.debtGroups ?? neutralGroups} onChange={debtGroups => { if (!isViewer) setMonthlyPlan(current => ({ ...current, debtGroups })); }} readOnly={isViewer}/><section className={mobileStyles.accountTools} aria-label="Settings tools"><h2>Account &amp; tools</h2>{[...MORE_NAV_ITEMS, ...ADVANCED_NAV_ITEMS].map(item => <button type="button" key={item.id} onClick={() => item.id === "plan" ? setScheduleOpen(true) : setPage(item.id)}>{item.label}</button>)}</section><section className={mobileStyles.archives} aria-label="Archived debts"><h2>Archived debts</h2>{calculatedAccounts.filter(a => a.archivedAt).map(account => <article key={account.id}><button type="button" onClick={() => openDebt({kind:"account", id:account.id})}>{account.name}</button><button type="button" className="secondary" disabled={isViewer} onClick={() => restoreAccount(account.id)}>Restore</button></article>)}</section></div>}
         {page === "history" && detailedSpendingTracking && <TransactionsPage accounts={calculatedAccounts} payees={payees} transactions={transactions} onQuickAdd={openNewTransaction} onEdit={openEditTransaction} onAudit={setAuditTransactionId} onDelete={softDeleteTransaction} onRestore={restoreTransaction} onBatchAdd={addBatchTransactions} onManagePayees={() => setPayeeModalOpen(true)}/>}
 
@@ -1098,7 +1124,8 @@ export default function DashboardClient({ user, householdId, lifecycleEnabled = 
     </main>
 
     {mobileView && toolsOpen && <div className={mobileStyles.backdrop} onClick={event => { if (event.target === event.currentTarget) setToolsOpen(false); }} onKeyDown={event => { if (event.key === "Escape") setToolsOpen(false); }}><section id="mobile-tools" className={mobileStyles.tools} role="dialog" aria-modal="true" aria-label="Tools"><header><h2>Tools</h2><button type="button" className={mobileStyles.headerButton} aria-label="Close Tools" onClick={() => setToolsOpen(false)}>×</button></header><nav aria-label="Tools">{[...MORE_NAV_ITEMS.filter(item => item.id !== "profile" && item.id !== "calculator"), ...ADVANCED_NAV_ITEMS, { id: "debt-tools" as PageId, label: "Debt details & import" }].map(item => <button type="button" key={item.id} onClick={() => navigateMobile(item.id)}>{item.label}</button>)}</nav><section aria-label="Settings"><h3>Settings</h3><button type="button" onClick={() => navigateMobile("settings")}>Appearance &amp; preferences</button></section><section aria-label="Account"><h3>Account</h3><button type="button" onClick={() => navigateMobile("profile")}>Account &amp; backups</button></section></section></div>}
-    {selectedAccount && <DebtDetail name={selectedAccount.name} tab={detailTab} onTab={tab => { if (tab === "Info" && detailTab !== "Info") { openEdit(selectedAccount); setModalOpen(false); } setDetailTab(tab); }} onBack={() => setSelectedDebt(null)} overview={<DebtOverview name={selectedAccount.name} balance={selectedAccount.balance} starting={selectedAccount.baselineBalance} apr={selectedAccount.apr} minimum={effectiveMinimum(selectedAccount)} dueDate={recurringDueDate(selectedAccount.dueDate)} readOnly={isViewer} onPayment={() => openRecommendedPayment(selectedAccount.id, plan.months[0]?.payments[selectedAccount.id] ?? effectiveMinimum(selectedAccount))} onBalance={() => openBalanceEdit(selectedAccount)} payoff={payoffSchedule.complete ? payoffSchedule.payoffMonths[`account:${selectedAccount.id}`] : null}/>} transactions={<><button type="button" className="primary" disabled={isViewer} onClick={() => openRecommendedPayment(selectedAccount.id, effectiveMinimum(selectedAccount))}>Record Payment</button><PaymentsPage accountScope={selectedAccount.id} mobile={mobileView} readOnly={isViewer} accounts={calculatedAccounts} transactions={transactions} adjustments={balanceAdjustments} message={debtActionMessage} onConfirm={confirmBalancePayment} onUndoConfirmation={undoBalancePayment} storedAccounts={accounts} onChange={changeTransactionEntry} onDialog={setDebtEntryOpen}/></>} info={detailInfo}/>}
+    {selectedAccount && <DebtDetail name={selectedAccount.name} tab={detailTab} onTab={tab => { if (!cardDetails && tab === "Info" && detailTab !== "Info") { openEdit(selectedAccount); setModalOpen(false); } setDetailTab(tab); }} onBack={() => setSelectedDebt(null)} overview={<DebtOverview name={selectedAccount.name} balance={selectedAccount.balance} starting={selectedAccount.baselineBalance} apr={selectedAccount.apr} minimum={effectiveMinimum(selectedAccount)} dueDate={recurringDueDate(selectedAccount.dueDate)} readOnly={isViewer} onEdit={cardDetails?()=>setDetailTab("Info"):undefined} onPayment={() => openRecommendedPayment(selectedAccount.id, plan.months[0]?.payments[selectedAccount.id] ?? effectiveMinimum(selectedAccount))} onBalance={() => openBalanceEdit(selectedAccount)} payoff={payoffSchedule.complete ? payoffSchedule.payoffMonths[`account:${selectedAccount.id}`] : null}/>} transactions={<>{!cardDetails&&<button type="button" className="primary" disabled={isViewer} onClick={() => openRecommendedPayment(selectedAccount.id, effectiveMinimum(selectedAccount))}>Record Payment</button>}<PaymentsPage cardDetail={cardDetails} accountScope={selectedAccount.id} mobile={mobileView} readOnly={isViewer} accounts={calculatedAccounts} transactions={transactions} adjustments={balanceAdjustments} message={debtActionMessage} onConfirm={confirmBalancePayment} onUndoConfirmation={undoBalancePayment} storedAccounts={accounts} onChange={changeTransactionEntry} onDialog={setDebtEntryOpen}/></>} info={detailInfo} actions={cardDetails?<>{cardEditError&&<p className="form-error" role="alert">{cardEditError}</p>}<button className="primary" type="button" disabled={isViewer} onClick={()=>setCardTransactionOpen(true)}>+ Transaction</button><button className="secondary" type="button" disabled={isViewer} onClick={()=>setDetailTab("Info")}>Edit</button><button className="primary" type="button" disabled={isViewer} onClick={saveCard}>Save</button></>:undefined}/> }
+    {selectedAccount && cardTransactionOpen && <DebtEntryDialog accountScope={selectedAccount.id} flexibleScope mobile={mobileView} state={{accounts,transactions,adjustments:balanceAdjustments}} command={{action:"save"}} readOnly={isViewer} onSave={changeTransactionEntry} onClose={()=>setCardTransactionOpen(false)}/>}
     {selectedLoan && <LoanProgressPanel payoffMonth={payoffSchedule.complete ? payoffSchedule.payoffMonths[`loan:${selectedLoan.id}`] : null} key={selectedLoan.id} detailLoanId={selectedLoan.id} detailTab={detailTab} onDetailTab={setDetailTab} onDetailClose={() => setSelectedDebt(null)} readOnly={isViewer} loans={loans} items={planningCashflowItems} onChange={loanTrackers => setMonthlyPlan(current => ({ ...current, loanTrackers }))} onDialog={setDebtEntryOpen}/>}
     {scheduleOpen && <PayoffSchedulePopup schedule={payoffSchedule} amount={monthlyPlan.payoffPlanAmount ?? 0} date={new Date()} readOnly={isViewer} onAmount={payoffPlanAmount => { if (!isViewer) setMonthlyPlan(current => ({...current, payoffPlanAmount})); }} onClose={() => setScheduleOpen(false)}/>}
     {householdRole !== "viewer" && newRecordOpen && <DebtEntryDialog state={{accounts, transactions, adjustments:balanceAdjustments}} command={{action:"save"}} readOnly={isViewer} onSave={changeTransactionEntry} onClose={() => { setNewRecordOpen(false); setDebtEntryOpen(false); }}/>}
