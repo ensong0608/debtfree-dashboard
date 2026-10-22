@@ -19,7 +19,7 @@ test('loans persist, use Budget payments, and do not change existing debt balanc
   await dialog.getByLabel('Current balance').fill('80000');
   await dialog.getByLabel('Mortgage payment', {exact:true}).fill('2000');
   await dialog.getByLabel('APR*').fill('3.625');
-  await dialog.getByLabel('Escrow amount').fill('618.37');
+  await dialog.getByLabel('Escrow amount',{exact:true}).fill('618.37');
   await dialog.getByRole('button', { name:'Save' }).click();
   const card = page.getByRole('article', { name:'Home loan progress' });
   await expect(card).toContainText('20.00% paid down');
