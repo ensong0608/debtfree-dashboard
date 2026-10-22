@@ -54,7 +54,7 @@ test('debt Overview, scoped lifetime Transactions, Info and Advanced preserve un
  await detail.getByLabel('Account name',{exact:true}).fill('Renamed card');
  await detail.getByRole('button',{name:'Advanced',exact:true}).click();
  const advanced=page.getByRole('dialog',{name:'Advanced',exact:true});
- await expect(advanced.getByLabel('Actual interest fee',{exact:true})).toBeVisible();
+ await expect(advanced.getByRole('spinbutton',{name:/^Actual interest fee/})).toBeVisible();
  await page.keyboard.press('Escape');
  await expect(advanced).toHaveCount(0);
  await detail.getByRole('button',{name:'Save',exact:true}).click();
