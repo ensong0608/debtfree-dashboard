@@ -1450,7 +1450,7 @@ function AccountModal({ inline = false, readOnly = false, onArchive, onMarkPaidO
 
   const invalidInterestDate = draft.interestAutomation?.enabled && (!validInterestConfig(draft.interestAutomation) || draft.interestAutomation.coveredThrough > householdDate());
   return <div className={inline ? "inline-debt-info" : "modal-backdrop"} onMouseDown={(event) => { if (event.currentTarget === event.target) onClose(); }}>
-    <section className={inline ? "debt-action-modal inline-info-form" : "modal debt-action-modal"} role={inline ? undefined : "dialog"} aria-modal={inline ? undefined : true} aria-labelledby={inline ? undefined : "account-modal-title"}>
+    <section className={inline ? "debt-action-modal inline-info-form" : "modal debt-action-modal"} role={inline ? undefined : "dialog"} aria-modal={inline ? undefined : true} aria-label={inline ? undefined : editing ? draft.name || "Account details" : "Add a debt account"}>
       {!inline && <header className="back-form-header"><button type="button" data-dialog-close onClick={onClose} aria-label="Back from account form">‹</button><div><h2 id="account-modal-title">{editing ? draft.name || "Account details" : "Add a debt account"}</h2><small>Household currency: {inheritedCurrency}</small></div></header>}
       <fieldset disabled={readOnly}>
       <div className="debt-action-form"><div className="form-grid">
