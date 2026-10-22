@@ -7,21 +7,22 @@ test.beforeEach(async ({page}, info) => {
  const fixture=createDemoFixture();
  fixture.payload.monthlyPlan!.payoffPlanAmount=300;
  fixture.payload.accounts[1].apr=18;
+ if(info.title.startsWith("Home preview")) fixture.payload.accounts[1].name="Sample travel with a very long household debt name that wraps";
  fixture.payload.monthlyPlan!.loanTrackers=[{id:'home',name:'Sample home',kind:'house',originalAmount:10000,remainingAmount:1000,balanceKind:'principal',asOf:'2026-10-01',budgetItemId:'',budgetItemName:'',apr:12,monthlyPayment:600,escrow:100,dueDate:'2026-10-26',history:[{date:'2025-01-01',amount:1200,balanceKind:'principal',recordedAt:'2025-01-01T12:00:00Z'}]}];
  await page.addInitScript(({key,fixture})=>{if(!localStorage.getItem(key)) localStorage.setItem(key,JSON.stringify(fixture));},{key:DASHBOARD_STORAGE_KEY,fixture});
  await page.goto('/');
  await expect(page.getByRole('heading',{name:'Hi Guest!'})).toBeVisible();
- if (!info.title.startsWith('five tabs') && !info.title.startsWith('Home preview')) await page.getByRole('navigation',{name:'Primary navigation'}).getByRole('button',{name:'Debt',exact:true}).click();
+ if (!info.title.startsWith('five tabs') && !info.title.startsWith('Home preview')) await page.getByRole('navigation',{name:'Primary navigation'}).getByRole('button',{name:/^Debts?$/,exact:true}).click();
 });
 const saved=(page:import('@playwright/test').Page)=>page.evaluate(key=>JSON.parse(localStorage.getItem(key)!).payload,DASHBOARD_STORAGE_KEY);
 
 test('five tabs, separate Home summary and searchable unified Debt list', async({page})=>{
  const nav=page.getByRole('navigation',{name:'Primary navigation'});
- await expect(nav.getByRole('button')).toHaveText(['Home','Debt','Progress','Budget','Settings']);
+ await expect(nav.getByRole('button')).toHaveText((await page.viewportSize())!.width <= 820 ? ['Home','Debts','Transactions','Budget','Settings'] : ['Home','Debt','Progress','Budget','Settings']);
  await expect(page.getByRole('region',{name:'Your debt categories',exact:true})).toBeVisible();
  await expect(page.getByRole('button',{name:/^Open Sample/})).toHaveCount(0);
  await expect(page.getByRole('searchbox',{name:'Search debts'})).toHaveCount(0);
- await nav.getByRole('button',{name:'Debt',exact:true}).click();
+ await nav.getByRole('button',{name:/^Debts?$/,exact:true}).click();
  const debts=page.getByRole('region',{name:'Debt list',exact:true});
  await expect(page.getByRole('region',{name:'Debt summary',exact:true})).toContainText('Minimum payments');
  await expect(debts.getByRole('button',{name:/^Open /})).toHaveText([/Sample card/,/Sample home/,/Sample travel/]);
@@ -32,11 +33,12 @@ test('five tabs, separate Home summary and searchable unified Debt list', async(
  await page.getByRole('searchbox',{name:'Search debts'}).fill('TRAVEL');
  await expect(debts.getByRole('button',{name:/^Open /})).toHaveCount(1);
  await page.getByRole('searchbox',{name:'Search debts'}).fill('');
- await nav.getByRole('button',{name:'Debt',exact:true}).click();
+ await nav.getByRole('button',{name:/^Debts?$/,exact:true}).click();
  await expect(page.getByRole('region',{name:'Debt list'}).getByRole('button',{name:/^Open /})).toHaveCount(3);
  await expect(page.getByRole('tab',{name:'House & car',exact:true})).toHaveCount(0);
- for(const name of ['Progress','Budget','Settings']) {await nav.getByRole('button',{name,exact:true}).click();await expect(page.locator('.page-heading h1')).toHaveText(name);}
+ for(const name of ['Budget','Settings']) {await nav.getByRole('button',{name,exact:true}).click();await expect(page.locator('.page-heading h1')).toHaveText(name);}
  await expect(page.getByRole('button',{name:'Open Settings',exact:true})).toHaveCount(0);
+ if((await page.viewportSize())!.width<=820) {await page.getByRole('button',{name:'Open Account',exact:true}).click();await expect(page.locator('.page-heading h1')).toHaveText('Account');await page.getByRole('button',{name:'Close Account',exact:true}).click();await nav.getByRole('button',{name:'Transactions',exact:true}).click();await expect(page.locator('.page-heading h1')).toHaveText('Transactions');}
  expect(await page.evaluate(()=>document.documentElement.scrollWidth <= innerWidth+1)).toBe(true);
 });
 
@@ -73,7 +75,7 @@ test('debt Overview, scoped lifetime Transactions, Info and Advanced preserve un
  await page.getByRole('button',{name:'Back from Renamed card'}).click();
  await expect(page.getByRole('button',{name:'Open Renamed card',exact:true})).toBeFocused();
  await page.reload();
- await page.getByRole('navigation',{name:'Primary navigation'}).getByRole('button',{name:'Debt',exact:true}).click();
+ await page.getByRole('navigation',{name:'Primary navigation'}).getByRole('button',{name:/^Debts?$/,exact:true}).click();
  await expect(page.getByRole('button',{name:'Open Renamed card',exact:true})).toBeVisible();
 });
 
@@ -123,9 +125,10 @@ test('Home preview opens one complete schedule, supports keyboard back and fits 
  const schedule=page.getByRole('dialog',{name:'Payoff Schedule',exact:true});
  await expect(schedule.getByRole('table')).toBeVisible();
  await expect(schedule.getByRole('table').locator('tbody tr').last()).toContainText('$0.00');
- await expect(schedule.getByRole('table')).toContainText('Sample home paid off!');
- await schedule.getByText('Edit payment & payoff order',{exact:true}).click();
- await schedule.getByLabel('Debt account payment budget').fill('400');
+ await expect(schedule.getByRole('table')).toContainText(/Sample home\s*paid off!/) ;
+ await expect(schedule.getByRole('textbox')).toHaveCount(1);
+ await schedule.getByLabel('Payment',{exact:true}).fill('400');
+ await schedule.getByRole('button',{name:'Save monthly payment'}).click();
  await expect.poll(async()=>(await saved(page)).monthlyPlan.payoffPlanAmount).toBe(400);
  const after=await saved(page);
  for(const key of ['accounts','transactions','balanceAdjustments','snapshots','monthlyBudgets']) expect(after[key]).toEqual(before[key]);
@@ -142,12 +145,20 @@ test('Home preview opens one complete schedule, supports keyboard back and fits 
  }
  await page.setViewportSize(info.project.name==='phone'?{width:390,height:844}:{width:1440,height:1000});
  const scan=await new AxeBuilder({page}).include('[aria-label="Payoff Schedule"][role="dialog"]').withRules(['color-contrast','button-name','label']).analyze();expect(scan.violations).toEqual([]);
- await schedule.getByText('Edit payment & payoff order',{exact:true}).click();
- await schedule.evaluate(el=>{el.scrollTop=0;});
+ const back=schedule.getByRole('button',{name:'Close payoff schedule and go back'});
+ const beforeBack=await back.boundingBox();
+ await schedule.locator('[class*="scheduleScroll"]').evaluate(el=>{el.scrollTop=el.scrollHeight;});
+ expect((await back.boundingBox())!.y).toBe(beforeBack!.y);
+ await schedule.locator('[class*="scheduleScroll"]').evaluate(el=>{el.scrollTop=0;});
  await page.screenshot({path:`outputs/redesign/schedule-${info.project.name}.png`,fullPage:true});
  await page.keyboard.press('Escape');
  await expect(schedule).toHaveCount(0);
  await expect(page.getByRole('button',{name:'Open full schedule',exact:false})).toBeFocused();
+ await page.getByRole('navigation',{name:'Primary navigation'}).getByRole('button',{name:'Settings',exact:true}).click();
+ await page.getByRole('button',{name:'Payoff Plan',exact:true}).click();
+ await expect(schedule).toBeVisible();
+ await schedule.getByRole('button',{name:'Close payoff schedule and go back'}).click();
+ await page.getByRole('navigation',{name:'Primary navigation'}).getByRole('button',{name:'Home',exact:true}).click();
  await page.locator('.page-body').evaluate(el=>{el.scrollTop=0;});
  await page.screenshot({path:`outputs/redesign/home-${info.project.name}.png`,fullPage:true});
 });
@@ -155,7 +166,7 @@ test('Home preview opens one complete schedule, supports keyboard back and fits 
 
 test('Debt + creates mortgage and car records, validates missing values and preserves the existing household', async({page})=>{
  const before=await saved(page);
- await page.getByRole('navigation',{name:'Primary navigation'}).getByRole('button',{name:'Debt',exact:true}).click();
+ await page.getByRole('navigation',{name:'Primary navigation'}).getByRole('button',{name:/^Debts?$/,exact:true}).click();
  for(const kind of ['House loan','Car loan']) {
   await page.getByRole('button',{name:'Debt +',exact:true}).click();
   const creation=page.getByRole('dialog',{name:'Add a debt account',exact:true});
@@ -178,6 +189,6 @@ test('Debt + creates mortgage and car records, validates missing values and pres
  for(const key of ['accounts','transactions','snapshots','balanceAdjustments','monthlyBudgets']) expect(after[key]).toEqual(before[key]);
  expect(after.monthlyPlan.progressStartingBalance).toBe(before.monthlyPlan.progressStartingBalance);
  await page.reload();
- await page.getByRole('navigation',{name:'Primary navigation'}).getByRole('button',{name:'Debt',exact:true}).click();
+ await page.getByRole('navigation',{name:'Primary navigation'}).getByRole('button',{name:/^Debts?$/,exact:true}).click();
  await expect(page.getByRole('button',{name:'Open New Car loan',exact:true})).toBeVisible();
 });
