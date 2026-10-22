@@ -3,7 +3,7 @@ import AxeBuilder from '@axe-core/playwright';
 import { createDemoFixture } from '../../mobile/demo-fixture';
 import { DASHBOARD_STORAGE_KEY } from '../../app/data-repository';
 
-test.beforeEach(async ({page}) => {
+test.beforeEach(async ({page}, info) => {
  const fixture=createDemoFixture();
  fixture.payload.monthlyPlan!.payoffPlanAmount=300;
  fixture.payload.accounts[1].apr=18;
@@ -11,13 +11,19 @@ test.beforeEach(async ({page}) => {
  await page.addInitScript(({key,fixture})=>{if(!localStorage.getItem(key)) localStorage.setItem(key,JSON.stringify(fixture));},{key:DASHBOARD_STORAGE_KEY,fixture});
  await page.goto('/');
  await expect(page.getByRole('heading',{name:'Hi Guest!'})).toBeVisible();
+ if (!info.title.startsWith('five tabs') && !info.title.startsWith('Home preview')) await page.getByRole('navigation',{name:'Primary navigation'}).getByRole('button',{name:'Debt',exact:true}).click();
 });
 const saved=(page:import('@playwright/test').Page)=>page.evaluate(key=>JSON.parse(localStorage.getItem(key)!).payload,DASHBOARD_STORAGE_KEY);
 
-test('five tabs, Home search/sort and unified mixed-type Debt list', async({page})=>{
+test('five tabs, separate Home summary and searchable unified Debt list', async({page})=>{
  const nav=page.getByRole('navigation',{name:'Primary navigation'});
  await expect(nav.getByRole('button')).toHaveText(['Home','Debt','Progress','Budget','Settings']);
- const debts=page.getByRole('region',{name:'Your debts',exact:true});
+ await expect(page.getByRole('region',{name:'Your debt categories',exact:true})).toBeVisible();
+ await expect(page.getByRole('button',{name:/^Open Sample/})).toHaveCount(0);
+ await expect(page.getByRole('searchbox',{name:'Search debts'})).toHaveCount(0);
+ await nav.getByRole('button',{name:'Debt',exact:true}).click();
+ const debts=page.getByRole('region',{name:'Debt list',exact:true});
+ await expect(page.getByRole('region',{name:'Debt summary',exact:true})).toContainText('Minimum payments');
  await expect(debts.getByRole('button',{name:/^Open /})).toHaveText([/Sample card/,/Sample home/,/Sample travel/]);
  await page.getByLabel('Sort debts').selectOption('apr');
  await expect(debts.getByRole('button',{name:/^Open /}).first()).toHaveAttribute('aria-label','Open Sample travel');
@@ -25,6 +31,7 @@ test('five tabs, Home search/sort and unified mixed-type Debt list', async({page
  await expect(debts.getByRole('button',{name:/^Open /}).first()).toHaveAttribute('aria-label','Open Sample home');
  await page.getByRole('searchbox',{name:'Search debts'}).fill('TRAVEL');
  await expect(debts.getByRole('button',{name:/^Open /})).toHaveCount(1);
+ await page.getByRole('searchbox',{name:'Search debts'}).fill('');
  await nav.getByRole('button',{name:'Debt',exact:true}).click();
  await expect(page.getByRole('region',{name:'Debt list'}).getByRole('button',{name:/^Open /})).toHaveCount(3);
  await expect(page.getByRole('tab',{name:'House & car',exact:true})).toHaveCount(0);
@@ -66,6 +73,7 @@ test('debt Overview, scoped lifetime Transactions, Info and Advanced preserve un
  await page.getByRole('button',{name:'Back from Renamed card'}).click();
  await expect(page.getByRole('button',{name:'Open Renamed card',exact:true})).toBeFocused();
  await page.reload();
+ await page.getByRole('navigation',{name:'Primary navigation'}).getByRole('button',{name:'Debt',exact:true}).click();
  await expect(page.getByRole('button',{name:'Open Renamed card',exact:true})).toBeVisible();
 });
 
@@ -116,17 +124,31 @@ test('Home preview opens one complete schedule, supports keyboard back and fits 
  await expect(schedule.getByRole('table')).toBeVisible();
  await expect(schedule.getByRole('table').locator('tbody tr').last()).toContainText('$0.00');
  await expect(schedule.getByRole('table')).toContainText('Sample home paid off!');
+ await schedule.getByText('Edit payment & payoff order',{exact:true}).click();
  await schedule.getByLabel('Debt account payment budget').fill('400');
  await expect.poll(async()=>(await saved(page)).monthlyPlan.payoffPlanAmount).toBe(400);
  const after=await saved(page);
  for(const key of ['accounts','transactions','balanceAdjustments','snapshots','monthlyBudgets']) expect(after[key]).toEqual(before[key]);
  expect(after.monthlyPlan.loanTrackers).toEqual(before.monthlyPlan.loanTrackers);
  expect(await page.evaluate(()=>document.documentElement.scrollWidth <= innerWidth+1)).toBe(true);
+ if(info.project.name==='phone') for(const width of [320,360,390,430]) {
+  await page.setViewportSize({width,height:844});
+  const table=await schedule.getByRole('table').boundingBox();
+  expect(table!.x).toBeGreaterThanOrEqual(0); expect(table!.x+table!.width).toBeLessThanOrEqual(width);
+  const headers=await schedule.locator('thead th').all(); const cells=await schedule.locator('tbody tr').first().locator('th,td').all();
+  expect(headers).toHaveLength(4); expect(cells).toHaveLength(4);
+  for(let i=0;i<4;i++) {const h=await headers[i].boundingBox(), c=await cells[i].boundingBox();expect(Math.abs(h!.x-c!.x)).toBeLessThan(1);expect(Math.abs(h!.width-c!.width)).toBeLessThan(1);}
+  expect(await schedule.evaluate(el=>el.scrollWidth<=el.clientWidth+1)).toBe(true);
+ }
+ await page.setViewportSize(info.project.name==='phone'?{width:390,height:844}:{width:1440,height:1000});
  const scan=await new AxeBuilder({page}).include('[aria-label="Payoff Schedule"][role="dialog"]').withRules(['color-contrast','button-name','label']).analyze();expect(scan.violations).toEqual([]);
+ await schedule.getByText('Edit payment & payoff order',{exact:true}).click();
+ await schedule.evaluate(el=>{el.scrollTop=0;});
  await page.screenshot({path:`outputs/redesign/schedule-${info.project.name}.png`,fullPage:true});
  await page.keyboard.press('Escape');
  await expect(schedule).toHaveCount(0);
  await expect(page.getByRole('button',{name:'Open full schedule',exact:false})).toBeFocused();
+ await page.locator('.page-body').evaluate(el=>{el.scrollTop=0;});
  await page.screenshot({path:`outputs/redesign/home-${info.project.name}.png`,fullPage:true});
 });
 
