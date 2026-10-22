@@ -38,16 +38,17 @@ function PaymentCalendar({ value, onChange, invalid }: { invalid?: boolean; valu
   </div>;
 }
 
-export default function LoanDetailsFields({ draft, onChange, errors }: { draft: LoanTracker; onChange: (draft: LoanTracker) => void; errors: Partial<Record<LoanEntryField, string>> }) {
+export default function LoanDetailsFields({ draft, onChange, errors, mode = "all" }: { mode?: "all" | "info" | "advanced"; draft: LoanTracker; onChange: (draft: LoanTracker) => void; errors: Partial<Record<LoanEntryField, string>> }) {
   const error = (field: LoanEntryField) => errors[field] && <small className="form-error" id={`loan-error-${field}`}>{errors[field]}</small>;
   const described = (field: LoanEntryField) => errors[field] ? `loan-error-${field}` : undefined;
   const currency = (field: 'originalAmount' | 'remainingAmount' | 'monthlyPayment' | 'escrow', label: string, help?: string) => <div className="loan-detail-field"><div className="loan-field-label"><label htmlFor={`loan-${field}`}>{label}*</label>{help && <PaymentHelp label={label}>{help}</PaymentHelp>}</div><div className="loan-input-label">
     <CurrencyInput label={label} name={field} value={draft[field]} invalid={Boolean(errors[field])} describedBy={described(field)} onChange={value => onChange({ ...draft, [field]: value ?? (field === 'originalAmount' || field === 'remainingAmount' ? Number.NaN : undefined) })}/>
   </div>{error(field)}</div>;
+  if (mode === "advanced") return <>{currency('originalAmount', 'Original balance')}</>;
   return <>
     <label>Name*<input autoFocus name="name" aria-label="Name*" required maxLength={100} aria-invalid={Boolean(errors.name)} aria-describedby={described('name')} value={draft.name} onChange={event => onChange({ ...draft, name: event.target.value })}/>{error('name')}</label>
-    <label>Category*<select name="kind" aria-label="Category*" required aria-invalid={Boolean(errors.kind)} value={draft.kind} onChange={event => onChange({ ...draft, kind: event.target.value as LoanTracker['kind'] })}><option value="house">House</option><option value="car">Car</option></select>{error('kind')}</label>
-    {currency('originalAmount', 'Original balance')}
+    <label>Debt type*<select name="kind" aria-label="Debt type*" required aria-invalid={Boolean(errors.kind)} value={draft.kind} onChange={event => onChange({ ...draft, kind: event.target.value as LoanTracker['kind'] })}><option value="house">House</option><option value="car">Car</option></select>{error('kind')}</label>
+    {mode === 'all' && currency('originalAmount', 'Original balance')}
     {currency('remainingAmount', 'Current balance')}
     <label>APR*<span className="loan-percentage-input"><input name="apr" aria-label="APR*" type="number" required min="0" max="100" step="any" aria-invalid={Boolean(errors.apr)} aria-describedby={described('apr')} value={draft.apr ?? ''} onChange={event => onChange({ ...draft, apr: event.target.value === '' ? undefined : Number(event.target.value) })}/><span aria-hidden="true">%</span></span>{error('apr')}</label>
     {currency('monthlyPayment', draft.kind === 'house' ? 'Mortgage payment' : 'Minimum payment', draft.kind === 'house' ? 'Enter the total regular monthly payment, including principal, interest, and escrow. Enter its escrow portion separately below; it is subtracted once when calculating principal.' : 'Enter the regular monthly payment required by your lender, including principal and interest. Extra principal can be recorded separately.')}
