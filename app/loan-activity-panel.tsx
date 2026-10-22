@@ -5,11 +5,11 @@ import type { LoanTracker } from "./loan-progress";
 import { recentDebtMonths } from "./debt-activity";
 import { activityMonthLabel } from "./debt-activity-panel";
 
-export default function LoanActivityPanel({loan,expanded=false}:{loan:LoanTracker;expanded?:boolean}) {
+export default function LoanActivityPanel({loan,expanded=false,allHistory=false}:{loan:LoanTracker;expanded?:boolean;allHistory?:boolean}) {
   const householdCurrency = useHouseholdCurrency();
   const money = createHouseholdMoneyFormatter(householdCurrency, {style:"currency",});
  const history=[...loan.history].sort((a,b)=>a.date.localeCompare(b.date)||a.recordedAt.localeCompare(b.recordedAt));
- const months=recentDebtMonths().map(month=>({month,entries:history.map((entry,index)=>({entry,prior:history[index-1]})).filter(row=>row.entry.date.slice(0,7)===month).reverse()})).filter(month=>month.entries.length);
+ const months=(allHistory ? [...new Set(history.map(entry=>entry.date.slice(0,7)))].sort().reverse() : recentDebtMonths()).map(month=>({month,entries:history.map((entry,index)=>({entry,prior:history[index-1]})).filter(row=>row.entry.date.slice(0,7)===month).reverse()})).filter(month=>month.entries.length);
  if(!months.length)return expanded?<div className="debt-history compact-activity"><p>No activity yet.</p></div>:null;
  const content=<>{months.map(({month,entries})=>{
  const payments=entries.filter(row=>row.entry.payment!==undefined);

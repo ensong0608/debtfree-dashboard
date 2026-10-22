@@ -34,22 +34,22 @@ jobs:
       - name: Full validation (owner opt-in only)
         if: github.event_name == 'workflow_dispatch' && inputs.full_suite
         run: npm run validate
-      - name: Detect loan form changes
+      - name: Detect debt experience changes
         id: loan_changes
         env:
           RELEASE_BEFORE: ${{ github.event.before }}
         run: |
           before="$RELEASE_BEFORE"
           if [ -z "$before" ] || ! git cat-file -e "$before^{commit}" 2>/dev/null; then before=HEAD^; fi
-          if ! git diff --quiet "$before" HEAD -- app/loan-progress.ts app/loan-progress-panel.tsx app/loan-entry.ts app/loan-details-fields.tsx tests/browser/loan-progress.spec.ts tests/browser/unified-debt-entry.spec.ts; then
+          if ! git diff --quiet "$before" HEAD -- app/loan-progress.ts app/loan-progress-panel.tsx app/loan-entry.ts app/loan-details-fields.tsx app/dashboard-client.tsx app/debt-experience.tsx app/debt-experience.module.css app/payoff-schedule.ts app/payments-page.tsx app/debt-entry-dialog.tsx tests/browser/debt-experience.spec.ts; then
             echo "changed=true" >> "$GITHUB_OUTPUT"
           fi
-      - name: Install browser for focused loan checks
+      - name: Install browser for focused debt checks
         if: steps.loan_changes.outputs.changed == 'true'
         run: npx playwright install --with-deps chromium
-      - name: Verify mortgage and car forms on phone
+      - name: Verify navigation, debt details, schedule and loan forms on phone
         if: steps.loan_changes.outputs.changed == 'true'
-        run: npx playwright test tests/browser/unified-debt-entry.spec.ts tests/browser/loan-progress.spec.ts --project=phone
+        run: npx playwright test tests/browser/debt-experience.spec.ts --project=phone
       - name: Confirm existing production resources
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}

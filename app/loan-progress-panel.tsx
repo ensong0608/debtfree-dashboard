@@ -1,45 +1,65 @@
 'use client';
+import { DebtDetail, DebtOverview, ExperienceOverlay, type DebtDetailTab } from "./debt-experience";
 import InfoTooltip from "./info-tooltip";
 import { createHouseholdMoneyFormatter, householdCurrencySymbol } from "./household-currency";
 import { useHouseholdCurrency } from "./household-currency-context";
 import OutlineIcon from "./outline-icon";
 import LoanDetailsFields from "./loan-details-fields";
 import LoanActivityPanel from "./loan-activity-panel";
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import type { CashflowItem } from './dashboard-data';
 import { regularLoanPayment, loanProgress, loanPaymentSplit, recordLoanPayment, type LoanTracker } from './loan-progress';
 import { householdDate } from './interest-accrual';
 import { loanEntryErrors, type LoanEntryField } from './loan-entry';
 
 
-export default function LoanProgressPanel({ loans, items, onChange, onDialog, initialDraft, editorOnly = false, readOnly = false }: {
-  initialDraft?: LoanTracker; editorOnly?: boolean; readOnly?: boolean; loans: LoanTracker[]; items: CashflowItem[]; onChange: (loans: LoanTracker[]) => void; onDialog: (open: boolean) => void;
+export default function LoanProgressPanel({ loans, items, onChange, onDialog, initialDraft, editorOnly = false, readOnly = false, payoffMonth, detailLoanId, detailTab = "Overview", onDetailTab, onDetailClose }: {
+  payoffMonth?: string | null; detailLoanId?: string; detailTab?: DebtDetailTab; onDetailTab?: (tab: DebtDetailTab) => void; onDetailClose?: () => void; initialDraft?: LoanTracker; editorOnly?: boolean; readOnly?: boolean; loans: LoanTracker[]; items: CashflowItem[]; onChange: (loans: LoanTracker[]) => void; onDialog: (open: boolean) => void;
 }) {
   const symbol = householdCurrencySymbol(useHouseholdCurrency());
   const householdCurrency = useHouseholdCurrency();
   const money = createHouseholdMoneyFormatter(householdCurrency, { style: 'currency', });
+  const detailLoan = loans.find(loan => loan.id === detailLoanId);
+  const [advanced, setAdvanced] = useState(false);
   const [activityLoan,setActivityLoan]=useState<LoanTracker|null>(null);
-  const [draft, setDraft] = useState<LoanTracker | null>(initialDraft ?? null);
+  const [draft, setDraft] = useState<LoanTracker | null>(initialDraft ?? (detailLoan ? {...detailLoan, monthlyPayment: regularLoanPayment(detailLoan, items)} : null));
   const [paymentDraft, setPaymentDraft] = useState<{ loan: LoanTracker; amount: number; extra: number; date: string } | null>(null);
   const [error, setError] = useState('');
   const [fieldErrors, setFieldErrors] = useState<Partial<Record<LoanEntryField, string>>>({});
-  const [sourceLoan, setSourceLoan] = useState<LoanTracker | null>(null);
+  const [sourceLoan, setSourceLoan] = useState<LoanTracker | null>(detailLoan ?? null);
   let paymentPreview = null;
   try { if (paymentDraft) paymentPreview = loanPaymentSplit(paymentDraft.loan, paymentDraft.amount, paymentDraft.extra); } catch {}
-  const close = () => { setDraft(null); onDialog(false); };
-  useEffect(() => {
-    if (!draft && !paymentDraft) return;
-    const escape = (event: KeyboardEvent) => { if (event.key === 'Escape') { setDraft(null); setPaymentDraft(null);setActivityLoan(null); onDialog(false); } };
-    window.addEventListener('keydown', escape);
-    return () => window.removeEventListener('keydown', escape);
-  }, [draft, paymentDraft, onDialog]);
+  const close = () => { if (detailLoan) { onDetailTab?.("Overview"); setAdvanced(false); } else setDraft(null); onDialog(false); };
   const open = (loan: LoanTracker) => {
     setError(''); setFieldErrors({}); setSourceLoan(loan);
     setDraft({ ...loan, monthlyPayment: regularLoanPayment(loan, items) });
     onDialog(true);
   };
-  return <section className="loan-progress-section" aria-labelledby={editorOnly ? undefined : "loan-progress-title"}>
-    {!editorOnly && <><header><div><h2 id="loan-progress-title">House & car</h2><p>Loan progress</p></div></header>
+  const editor = draft && <form noValidate onSubmit={event => {
+      event.preventDefault();
+      if (readOnly) return;
+      const existing = loans.find(loan => loan.id === draft.id);
+      const candidate = { ...draft, asOf: existing && existing.remainingAmount !== draft.remainingAmount ? householdDate() : draft.asOf };
+      const errors = loanEntryErrors(candidate);
+      setFieldErrors(errors);
+      const first = Object.keys(errors)[0];
+      if (detailLoan && (first === "originalAmount" || first === "asOf")) setAdvanced(true);
+      if (first) { (event.currentTarget.elements.namedItem(first) as HTMLElement | null)?.focus(); return; }
+      if (sourceLoan && JSON.stringify(existing) !== JSON.stringify(sourceLoan)) { setError('This loan changed. Reopen it to review the latest balance.'); return; }
+      const cents = (value: number) => Math.round((value + Number.EPSILON) * 100) / 100;
+      const normalized = { ...candidate, monthlyPayment: cents(draft.monthlyPayment!), originalAmount: cents(draft.originalAmount), remainingAmount: cents(draft.remainingAmount), ...(draft.escrow === undefined ? {} : { escrow: cents(draft.escrow) }) };
+      const changed = !existing || existing.remainingAmount !== draft.remainingAmount || existing.asOf !== candidate.asOf || existing.balanceKind !== draft.balanceKind;
+      const saved = { ...normalized, name: draft.name.trim(), history: changed ? [...draft.history, { date: candidate.asOf, amount: normalized.remainingAmount, balanceKind: draft.balanceKind, recordedAt: new Date().toISOString() }] : draft.history };
+      onChange(existing ? loans.map(loan => loan.id === saved.id ? saved : loan) : [...loans, saved]); close();
+    }}>{!detailLoan && <header className="back-form-header"><button type="button" data-dialog-close aria-label="Back from loan form" onClick={close}>‹</button><h2 id="loan-dialog-title">{draft.kind === 'house' ? 'Mortgage Details' : 'Car Loan Details'}</h2></header>}
+      <div className="form-grid">
+        <LoanDetailsFields mode={detailLoan ? "info" : "all"} draft={draft} onChange={setDraft} errors={fieldErrors}/>
+        {Object.keys(fieldErrors).length > 0 && <div className="wide form-error" role="alert">Check the highlighted fields.</div>}
+        {error && <p className="wide form-error" role="alert">{error.replace(/\$0(?:\.00)?/g, symbol + "0")}</p>}
+      </div><footer><button className="primary" type="submit" disabled={readOnly}>Save</button>{detailLoan ? <button className="secondary" type="button" onClick={() => setAdvanced(true)}>Advanced</button> : <button className="secondary" type="button" onClick={close}>Cancel</button>}</footer>
+    </form>;
+  return <section className="loan-progress-section" aria-labelledby={editorOnly || detailLoan ? undefined : "loan-progress-title"}>
+    {!editorOnly && !detailLoan && <><header><div><h2 id="loan-progress-title">House & car</h2><p>Loan progress</p></div></header>
     <div className="loan-progress-grid">{loans.map(loan => {
       const progress = loanProgress(loan), payment = regularLoanPayment(loan, items), approximate = loan.balanceKind === 'payoff';
       let split = null;
@@ -57,6 +77,9 @@ export default function LoanProgressPanel({ loans, items, onChange, onDialog, in
       </article>;
     })}</div></>}
     {activityLoan&&<div className="modal-backdrop account-activity-backdrop"><section className="modal account-activity-modal" role="dialog" aria-modal="true" aria-label={`Activity for ${activityLoan.name}`}><header><h2>{activityLoan.name}</h2><button type="button" aria-label="Close activity" onClick={()=>setActivityLoan(null)}>×</button></header><LoanActivityPanel expanded loan={activityLoan}/></section></div>}
+    {!detailLoan && draft && <div className="modal-backdrop"><section className="modal loan-modal loan-details-modal" role="dialog" aria-modal="true" aria-labelledby="loan-dialog-title">{editor}</section></div>}
+    {detailLoan && <DebtDetail name={detailLoan.name} tab={detailTab} onTab={tab => { if (tab === "Info" && detailTab !== "Info") { setDraft({...detailLoan, monthlyPayment:regularLoanPayment(detailLoan, items)}); setSourceLoan(detailLoan); setError(''); setFieldErrors({}); } onDetailTab?.(tab); }} onBack={() => onDetailClose?.()} overview={<DebtOverview payoff={payoffMonth} name={detailLoan.name} balance={detailLoan.remainingAmount} starting={detailLoan.originalAmount} apr={detailLoan.apr} minimum={regularLoanPayment(detailLoan, items)} dueDate={detailLoan.dueDate} readOnly={readOnly} onPayment={() => { setError(''); setPaymentDraft({loan:detailLoan, amount:regularLoanPayment(detailLoan, items) ?? 0, extra:0, date:householdDate()}); onDialog(true); }} onBalance={() => { setDraft({...detailLoan, monthlyPayment:regularLoanPayment(detailLoan, items)}); setSourceLoan(detailLoan); onDetailTab?.("Info"); }}/>} transactions={<><button type="button" className="primary" disabled={readOnly || detailLoan.remainingAmount <= 0} onClick={() => { setError(''); setPaymentDraft({loan:detailLoan, amount:regularLoanPayment(detailLoan, items) ?? 0, extra:0, date:householdDate()}); onDialog(true); }}>Record Payment</button><LoanActivityPanel expanded allHistory loan={detailLoan}/></>} info={<div className="loan-detail-info"><fieldset disabled={readOnly}>{editor}</fieldset></div>}/>}
+    {advanced && draft && <ExperienceOverlay title="Advanced" onBack={() => setAdvanced(false)}><fieldset className="advanced-info-content" disabled={readOnly}><LoanDetailsFields mode="advanced" draft={draft} onChange={setDraft} errors={fieldErrors}/><label>Balance date<input type="date" value={draft.asOf} max={householdDate()} onChange={event => setDraft({...draft, asOf:event.target.value})}/></label><p>{draft.balanceKind === 'principal' ? 'Principal balance' : 'Payoff quote'}</p><p>{draft.budgetItemName}</p><button className="primary" type="button" onClick={() => setAdvanced(false)}>Done</button></fieldset></ExperienceOverlay>}
     {paymentDraft && <div className="modal-backdrop"><section className="modal loan-modal" role="dialog" aria-modal="true" aria-labelledby="loan-payment-title"><form onSubmit={event => {
       event.preventDefault();
       if (readOnly) return;
@@ -65,34 +88,13 @@ export default function LoanProgressPanel({ loans, items, onChange, onDialog, in
         const saved = recordLoanPayment(paymentDraft.loan, paymentDraft.amount, paymentDraft.date, paymentDraft.extra);
         onChange(loans.map(loan => loan.id === saved.id ? saved : loan)); setPaymentDraft(null); onDialog(false);
       } catch (cause) { setError(cause instanceof Error ? cause.message : 'Unable to record payment.'); }
-    }}><header><h2 id="loan-payment-title">Record {paymentDraft.loan.name} payment</h2><button type="button" aria-label="Close payment form" onClick={() => { setPaymentDraft(null); onDialog(false); }}>×</button></header><div className="form-grid">
+    }}><header className="back-form-header"><h2 id="loan-payment-title">Record {paymentDraft.loan.name} payment</h2><button type="button" data-dialog-close aria-label="Back from payment form" onClick={() => { setPaymentDraft(null); onDialog(false); }}>‹</button></header><div className="form-grid">
       <label>Payment date<input type="date" required min={paymentDraft.loan.asOf} max={householdDate()} value={paymentDraft.date} onChange={e => setPaymentDraft({ ...paymentDraft, date: e.target.value })}/></label>
       <label>Regular payment<input type="number" required min="0.01" step="0.01" value={paymentDraft.amount} onChange={e => setPaymentDraft({ ...paymentDraft, amount: Number(e.target.value) })}/></label>
       <label>Extra principal<input type="number" required min="0" step="0.01" value={paymentDraft.extra} onChange={e => setPaymentDraft({ ...paymentDraft, extra: Number(e.target.value) })}/></label>
       {paymentPreview && <div className="wide loan-payment-preview"><p>Interest: {money.format(paymentPreview.interest)} · Escrow: {money.format(paymentPreview.escrow)}</p><p>Principal deducted: {money.format(paymentPreview.principal + paymentPreview.extraPrincipal)}</p><p>New balance: <strong>{money.format(paymentPreview.remainingAmount)}</strong></p><p>Total paid: {money.format(paymentPreview.total)}. This does not add another Budget expense.</p></div>}
       {error && <p className="wide form-error" role="alert">{error.replace(/\$0(?:\.00)?/g, symbol + "0")}</p>}
     </div><footer><button className="secondary" type="button" onClick={() => { setPaymentDraft(null); onDialog(false); }}>Cancel</button><button className="primary" type="submit" disabled={!paymentPreview}>Confirm payment</button></footer></form></section></div>}
-    {draft && <div className="modal-backdrop"><section className="modal loan-modal loan-details-modal" role="dialog" aria-modal="true" aria-labelledby="loan-dialog-title"><form noValidate onSubmit={event => {
-      event.preventDefault();
-      if (readOnly) return;
-      const existing = loans.find(loan => loan.id === draft.id);
-      const candidate = { ...draft, asOf: existing && existing.remainingAmount !== draft.remainingAmount ? householdDate() : draft.asOf };
-      const errors = loanEntryErrors(candidate);
-      setFieldErrors(errors);
-      const first = Object.keys(errors)[0];
-      if (first) { (event.currentTarget.elements.namedItem(first) as HTMLElement | null)?.focus(); return; }
-      if (sourceLoan && JSON.stringify(existing) !== JSON.stringify(sourceLoan)) { setError('This loan changed. Reopen it to review the latest balance.'); return; }
-      const cents = (value: number) => Math.round((value + Number.EPSILON) * 100) / 100;
-      const normalized = { ...candidate, monthlyPayment: cents(draft.monthlyPayment!), originalAmount: cents(draft.originalAmount), remainingAmount: cents(draft.remainingAmount), ...(draft.escrow === undefined ? {} : { escrow: cents(draft.escrow) }) };
-      const changed = !existing || existing.remainingAmount !== draft.remainingAmount || existing.asOf !== candidate.asOf || existing.balanceKind !== draft.balanceKind;
-      const saved = { ...normalized, name: draft.name.trim(), history: changed ? [...draft.history, { date: candidate.asOf, amount: normalized.remainingAmount, balanceKind: draft.balanceKind, recordedAt: new Date().toISOString() }] : draft.history };
-      onChange(existing ? loans.map(loan => loan.id === saved.id ? saved : loan) : [...loans, saved]); close();
-    }}><header><h2 id="loan-dialog-title">{draft.kind === 'house' ? 'Mortgage Details' : 'Car Loan Details'}</h2><button type="button" aria-label="Close loan form" onClick={close}>×</button></header>
-      <div className="form-grid">
-        <LoanDetailsFields draft={draft} onChange={setDraft} errors={fieldErrors}/>
-        {Object.keys(fieldErrors).length > 0 && <div className="wide form-error" role="alert">Check the highlighted fields.</div>}
-        {error && <p className="wide form-error" role="alert">{error.replace(/\$0(?:\.00)?/g, symbol + "0")}</p>}
-      </div><footer><button className="secondary" type="button" onClick={close}>Cancel</button><button className="primary" type="submit" disabled={readOnly}>Save</button></footer>
-    </form></section></div>}
+
   </section>;
 }
