@@ -5,7 +5,7 @@ import { useHouseholdCurrency } from './household-currency-context';
 import { createHouseholdMoneyFormatter } from './household-currency';
 import { trackedPayoffProgress } from './debt-presentation';
 import { effectiveMinimum } from './payoff-engine';
-import { recurringDueDate } from './recurring-due-date';
+import { nextDueDate } from './recurring-due-date';
 import { regularLoanPayment, type LoanTracker } from './loan-progress';
 import type { PayoffSchedule } from './payoff-schedule';
 import OutlineIcon from './outline-icon';
@@ -33,8 +33,8 @@ export function UnifiedDebtList({ accounts, loans, items, onSelect, compact = fa
   const [localSearch, setSearch] = useState('');
   const sort = controls?.sort ?? localSort, search = controls?.search ?? localSearch;
   const rows = useMemo(() => [
-    ...accounts.filter(a => !a.archivedAt).map(a => ({ id: a.id, kind: 'account' as const, name: a.name, type: a.type, balance: a.balance, apr: a.apr, minimum: effectiveMinimum(a), dueDate: recurringDueDate(a.dueDate), color: tone(a.type), progress: trackedPayoffProgress(a) })),
-    ...loans.map(loan => ({ id: loan.id, kind: 'loan' as const, name: loan.name, type: loan.kind === 'house' ? 'Mortgage' : 'Car loan', balance: loan.remainingAmount, apr: loan.apr, minimum: regularLoanPayment(loan, items), dueDate: loan.dueDate, color: tone(loan.kind), progress: loan.originalAmount > 0 ? Math.max(0,Math.min(100,(1-loan.remainingAmount/loan.originalAmount)*100)) : null })),
+    ...accounts.filter(a => !a.archivedAt).map(a => ({ id: a.id, kind: 'account' as const, name: a.name, type: a.type, balance: a.balance, apr: a.apr, minimum: effectiveMinimum(a), dueDate: nextDueDate(a.dueDate), color: tone(a.type), progress: trackedPayoffProgress(a) })),
+    ...loans.map(loan => ({ id: loan.id, kind: 'loan' as const, name: loan.name, type: loan.kind === 'house' ? 'Mortgage' : 'Car loan', balance: loan.remainingAmount, apr: loan.apr, minimum: regularLoanPayment(loan, items), dueDate: nextDueDate(loan.dueDate ?? ''), color: tone(loan.kind), progress: loan.originalAmount > 0 ? Math.max(0,Math.min(100,(1-loan.remainingAmount/loan.originalAmount)*100)) : null })),
   ].filter(a => a.name.toLocaleLowerCase().includes(search.trim().toLocaleLowerCase())).sort((a, b) => (sort === 'apr' ? (b.apr ?? -1) - (a.apr ?? -1) : sort === 'amount' ? b.balance - a.balance : a.name.localeCompare(b.name)) || a.name.localeCompare(b.name)), [accounts, loans, items, search, sort]);
   return <section className={styles.debtSection} aria-label={compact ? 'Your debts' : 'Debt list'}>
     {!controls && <DebtListControls search={search} sort={sort} onSearch={setSearch} onSort={setSort}/>}

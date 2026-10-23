@@ -19,6 +19,7 @@ export default function PayoffSchedule({ schedule, amount, date, readOnly = fals
   const currency = useHouseholdCurrency();
   const money = createHouseholdMoneyFormatter(currency, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const [draft, setDraft] = useState(String(amount));
+  const [typeDraft,setTypeDraft]=useState(excludedTypes);
   const [help,setHelp]=useState(false);
   const [editMinimums,setEditMinimums]=useState(false);
   const [inputError, setInputError] = useState("");
@@ -44,7 +45,7 @@ export default function PayoffSchedule({ schedule, amount, date, readOnly = fals
               <span className={styles.paymentSaying}>You’re<br/>on track! <b>♥</b></span>
             </div>
           </section>
-          <div className={styles.scheduleOptions}><label>Method<select aria-label="Payoff method" disabled={readOnly} value={strategy} onChange={e=>onStrategy(e.target.value as "avalanche"|"snowball")}><option value="avalanche">Avalanche</option><option value="snowball">Snowball</option></select></label><details><summary>Included debt types</summary><div className={styles.includedTypes}>{types.map(type=><label key={type}><input type="checkbox" aria-label={'Include '+type} checked={!excludedTypes.includes(type)} disabled={readOnly} onChange={e=>onTypes(e.target.checked?excludedTypes.filter(t=>t!==type):[...excludedTypes,type])}/>{type}</label>)}</div></details><button type="button" disabled={readOnly||minimums.length===0} onClick={()=>setEditMinimums(true)}>Edit minimums</button></div>
+          <div className={styles.scheduleOptions}><label>Method<select aria-label="Payoff method" disabled={readOnly} value={strategy} onChange={e=>onStrategy(e.target.value as "avalanche"|"snowball")}><option value="avalanche">Avalanche</option><option value="snowball">Snowball</option></select></label><details><summary>Included debt types</summary><div className={styles.includedTypes}>{types.map(type=><label key={type}><input type="checkbox" aria-label={'Include '+type} checked={!typeDraft.includes(type)} disabled={readOnly} onChange={e=>setTypeDraft(e.target.checked?typeDraft.filter(t=>t!==type):[...typeDraft,type])}/>{type}</label>)}<button type="button" aria-label="Apply included debt types" disabled={readOnly} onClick={e=>{onTypes(typeDraft);const details=e.currentTarget.closest("details");details?.removeAttribute("open");details?.querySelector("summary")?.focus();}}><OutlineIcon name="check"/></button></div></details><button type="button" disabled={readOnly||minimums.length===0} onClick={()=>setEditMinimums(true)}>Edit minimums</button></div>
           {schedule.issues.map(issue => <p key={issue} role="alert" className={styles.scheduleMessage}>{issue}</p>)}
           {schedule.rows.length > 0 ? <div className={styles.scheduleTableWrap}><table className={styles.scheduleTable}><caption className="sr-only">Projected interest, balance after payment and debts paid off each month</caption><thead><tr><th>Month</th><th>Interest</th><th>Balance after payment</th><th>Debt paid off</th></tr></thead><tbody>{schedule.rows.map(month => {
             const key = month.month;

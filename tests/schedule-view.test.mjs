@@ -3,6 +3,7 @@ import {createDemoFixture} from '../mobile/demo-fixture.ts';
 import {parseDashboardContract} from '../app/dashboard-data.ts';
 import {scheduleView,scheduleExtra,scheduleMinimums} from '../app/schedule-view.ts';
 import {buildConfiguredPayoffSchedule} from '../app/payoff-schedule.ts';
+import {nextDueDate} from '../app/recurring-due-date.ts';
 import {cardBalanceHistory} from '../app/card-balance-history.ts';
 const date=new Date('2026-10-22T12:00:00Z');
 const card={...createDemoFixture().payload.accounts[0],id:'small',name:'Small',balance:100,apr:0,minimum:25};
@@ -12,7 +13,7 @@ test('extra adds to included minimums; snowball and avalanche allocate the same 
  assert.equal(snowball.monthly,275);assert.equal(avalanche.monthly,275);assert.ok(snowball.rows[0].paidOff.includes('Small'));assert.ok(!avalanche.rows[0].paidOff.includes('Small'));assert.equal(snowball.rows.at(-1).remaining,0);assert.equal(snowball.rows.reduce((n,r)=>n+r.paid-r.interest,0),600+snowball.rows.filter(r=>r.month<=snowball.payoffMonths['loan:home']).length*50);
 });
 test('a missing loan term does not hide a scheduled card payoff date',()=>{
- const result=buildConfiguredPayoffSchedule([card],[{...loan,apr:undefined}],[],100,'avalanche',date);assert.ok(result.issues.length);assert.equal(result.payoffMonths['account:small'],'2026-10');assert.equal(result.debtFreeMonth,null);
+ const result=buildConfiguredPayoffSchedule([card],[{...loan,apr:undefined}],[],100,'avalanche',date);assert.ok(result.issues.length);assert.equal(result.payoffMonths['account:small'],'2026-11');assert.equal(result.debtFreeMonth,null);assert.equal(result.rows.at(-1).remaining,500);
 });
 test('type views filter balances and snapshot copies without replacing saved household anchors',()=>{
  const fixture=createDemoFixture(),p=fixture.payload;const original=structuredClone(p);p.monthlyPlan.payoffExcludedTypes=['Credit card'];
@@ -28,4 +29,15 @@ test('balance history includes current, payments, purchases, fees and adjustment
  const transactions=[...p.transactions,{...p.transactions[0],id:'fee',type:'fee',category:'Fee',amount:20,date:'2026-10-03'},{...p.transactions[0],id:'purchase',type:'charge',category:'Shopping',amount:50,date:'2026-10-04'},{...p.transactions[0],id:'deleted',amount:400,deletedAt:date.toISOString()}];
  const adjustments=[{id:'update',accountId:'demo-card',date:'2026-10-05',difference:-10,balanceBefore:970,balanceAfter:960,createdAt:date.toISOString()}];
  const points=cardBalanceHistory('demo-card',960,transactions,adjustments,'2026-10-22');assert.equal(points.length,6);assert.deepEqual(points.map(p=>p.balance),[1000,900,920,970,960,960]);
+});
+
+test('next due date includes today and rolls past days across short months and years',()=>{
+ for(const [saved,today,expected] of [['2026-10-01','2026-10-22','2026-11-01'],['2026-10-27','2026-10-22','2026-10-27'],['2026-10-22','2026-10-22','2026-10-22'],['2026-01-31','2026-02-28','2026-02-28'],['2026-12-01','2026-12-22','2027-01-01']]) assert.equal(nextDueDate(saved,today),expected);
+});
+test('next-month schedule starts with current balances without repeating posted payments',()=>{
+ const result=buildConfiguredPayoffSchedule([{...card,balance:80,minimum:25}],[],[],0,'avalanche',date);
+ assert.equal(result.rows[0].month,'2026-11');assert.equal(result.rows[0].remaining,55);assert.equal(result.rows[0].paid,25);
+ const unknownAuto={...loan,id:'auto',name:'Auto',kind:'car',balanceKind:'payoff',apr:undefined,remainingAmount:20000};
+ const withAuto=buildConfiguredPayoffSchedule([{...card,balance:80}], [unknownAuto],[],0,'avalanche',date);
+ assert.equal(withAuto.rows[0].remaining,20055);assert.equal(withAuto.rows.at(-1).remaining,20000);assert.equal(withAuto.debtFreeMonth,null);
 });

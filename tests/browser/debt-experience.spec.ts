@@ -296,7 +296,7 @@ test('credit card deletion confirms and retains history; paid off cards archive 
  const paid=await saved(page);expect(paid.transactions).toEqual(before.transactions);expect(paid.balanceAdjustments.at(-1).balanceAfter).toBe(0);expect(paid.snapshots).toEqual(before.snapshots);expect(paid.monthlyPlan.loanTrackers).toEqual(before.monthlyPlan.loanTrackers);
 });
 
-test('schedule choices, extra help and confirmed minimums persist with filtered Home and Progress',async({page})=>{
+test('schedule choices, extra help and confirmed minimums persist without filtering Home, Debts or Progress',async({page})=>{
  const before=await saved(page);
  const nav=page.getByRole('navigation',{name:'Primary navigation'});
  await nav.getByRole('button',{name:'Home',exact:true}).click();
@@ -319,10 +319,10 @@ test('schedule choices, extra help and confirmed minimums persist with filtered 
   expect(await schedule.evaluate(el=>el.scrollWidth<=el.clientWidth+1)).toBe(true);
  }
  await page.setViewportSize({width:390,height:844});
- await schedule.getByText('Included debt types',{exact:true}).click();await schedule.getByLabel('Include Mortgage',{exact:true}).uncheck();await schedule.getByLabel('Include Auto loan',{exact:true}).uncheck();await schedule.getByText('Included debt types',{exact:true}).click();
+ await schedule.getByText('Included debt types',{exact:true}).click();await schedule.getByLabel('Include Mortgage',{exact:true}).uncheck();await schedule.getByLabel('Include Auto loan',{exact:true}).uncheck();expect((await saved(page)).monthlyPlan.payoffExcludedTypes??[]).toEqual([]);await schedule.getByRole('button',{name:'Apply included debt types'}).click();
  await schedule.getByRole('button',{name:'Edit minimums'}).click();
  const editor=page.getByRole('dialog',{name:'Edit minimum payments',exact:true});
- await expect(editor.getByRole('textbox')).toHaveCount(2);await expect(editor).not.toContainText('Sample home');
+ await expect(editor.getByRole('textbox')).toHaveCount(2);await expect(editor.locator('[class*=minimumInput]>span')).toHaveText(['$','$']);await expect(editor).not.toContainText('Sample home');
  await editor.getByLabel('Minimum for Sample card',{exact:true}).fill('1600');await editor.getByRole('button',{name:'Cancel',exact:true}).click();expect((await saved(page)).accounts).toEqual(before.accounts);
  await schedule.getByRole('button',{name:'Edit minimums'}).click();await editor.getByLabel('Minimum for Sample card',{exact:true}).fill('1600');await editor.getByRole('button',{name:'Save',exact:true}).click();
  const warning=page.getByRole('dialog',{name:'Change saved minimums?',exact:true});await expect(warning).toBeVisible();expect((await saved(page)).accounts).toEqual(before.accounts);await warning.getByRole('button',{name:'Cancel',exact:true}).click();
@@ -330,9 +330,9 @@ test('schedule choices, extra help and confirmed minimums persist with filtered 
  await expect.poll(async()=>(await saved(page)).accounts[0].minimum).toBe(1600);
  const after=await saved(page);expect(after.transactions).toEqual(before.transactions);expect(after.snapshots).toEqual(before.snapshots);expect(after.balanceAdjustments).toEqual(before.balanceAdjustments);expect(after.monthlyPlan.loanTrackers).toEqual(before.monthlyPlan.loanTrackers);expect(after.monthlyPlan.progressStartingBalance).toBe(before.monthlyPlan.progressStartingBalance);expect(after.monthlyPlan.payoffPlanAmount).toBe(before.monthlyPlan.payoffPlanAmount);
  await schedule.getByRole('button',{name:'Close payoff schedule and go back'}).click();await page.reload();
- await expect(page.locator('[class*=categoryGrid] h3')).toHaveText(['Credit card']);
+ await expect(page.locator('[class*=categoryGrid] h3')).toHaveText(['Credit card','Mortgage','Auto loan']);await expect(page.getByRole('region',{name:'Plan at a glance'}).getByRole('button',{name:/Total debts/})).toContainText('4');
  await page.getByRole('button',{name:'Open full schedule',exact:false}).click();await expect(schedule.getByLabel('Payoff method')).toHaveValue('snowball');await expect(schedule.getByLabel('Extra payment',{exact:true})).toHaveValue('1500');await schedule.getByText('Included debt types',{exact:true}).click();await expect(schedule.getByLabel('Include Mortgage',{exact:true})).not.toBeChecked();await schedule.getByText('Included debt types',{exact:true}).click();
  await page.screenshot({path:'outputs/redesign/schedule-options.png'});
- await schedule.getByRole('button',{name:'Close payoff schedule and go back'}).click();await nav.getByRole('button',{name:'Progress',exact:true}).click();await expect(page.getByRole('button',{name:'House & car',exact:true})).toHaveCount(0);await expect(page.getByRole('region',{name:'Actual debt progress',exact:true})).toContainText('$48,156.06');
- await nav.getByRole('button',{name:/^Debts?$/,exact:true}).click();await expect(page.getByRole('button',{name:'Open Sample home',exact:true})).toBeVisible();
+ await schedule.getByRole('button',{name:'Close payoff schedule and go back'}).click();await nav.getByRole('button',{name:'Progress',exact:true}).click();await expect(page.getByRole('button',{name:'House & car',exact:true})).toBeVisible();await expect(page.getByRole('region',{name:'Actual debt progress',exact:true})).toContainText('$48,156.06');
+ await nav.getByRole('button',{name:/^Debts?$/,exact:true}).click();await expect(page.getByRole('button',{name:'Open Sample home',exact:true})).toBeVisible();await expect(page.getByRole('region',{name:'Debt summary'})).toContainText('$380,995.61');
 });
