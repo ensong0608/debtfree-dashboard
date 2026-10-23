@@ -2,6 +2,7 @@ import type {DebtAccount, MonthlyPlanSettings, PayoffSnapshot, RemovedProgressAc
 import type {LoanTracker} from './loan-progress.ts';
 import {forecastMinimum, forecastMonthlyRate, round} from './payoff-engine.ts';
 export const SCHEDULE_TYPES = ['Credit card','Mortgage','Auto loan','Personal loan','Student loan','Medical debt','Other'] as const;
+export function scheduleTypeLabel(type:string) {return type==='Auto loan'?'Car loan':type;}
 export function loanScheduleType(loan:LoanTracker) {return loan.kind==='house'?'Mortgage':'Auto loan';}
 export function scheduleMinimums(accounts:DebtAccount[],date=new Date()) {
  return round(accounts.filter(a=>!a.archivedAt&&a.balance>0).reduce((sum,a)=>sum+forecastMinimum(a,round(a.balance*(1+forecastMonthlyRate(a,1,date))),1,date),0));

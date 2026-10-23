@@ -18,3 +18,14 @@ export function nextDueDate(saved: string, today = householdDate()): string {
   next.setUTCMonth(next.getUTCMonth() + 1);
   return recurringDueDate(saved, next.toISOString().slice(0, 7));
 }
+
+/** Display the next occurrence of the recurring day in the household calendar. */
+export function formatRecurringDueDate(saved: string, month?: string): string {
+  const date = month ? recurringDueDate(saved, month) : nextDueDate(saved);
+  if (!date) return "—";
+  return new Date(`${date}T12:00:00Z`).toLocaleDateString("en-US", {
+    timeZone: "UTC",
+    month: "short",
+    day: "numeric",
+  });
+}

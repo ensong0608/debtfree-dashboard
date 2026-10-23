@@ -1,0 +1,42 @@
+import { test, expect } from '@playwright/test';
+import { createDemoFixture } from '../../mobile/demo-fixture';
+import { DASHBOARD_STORAGE_KEY } from '../../app/data-repository';
+
+test('current balance increases stay separate from dated snapshots and incomplete forecasts link to loan terms', async ({ page }) => {
+  await page.clock.setFixedTime(new Date('2026-10-22T19:00:00Z'));
+  const fixture = createDemoFixture();
+  fixture.payload.accounts[0].balance = 2000;
+  fixture.payload.transactions = [];
+  fixture.payload.monthlyPlan!.payoffExtraPayment = 100;
+  fixture.payload.monthlyPlan!.loanTrackers = [{ id: 'home', name: 'Sample home', kind: 'house', originalAmount: 1000, remainingAmount: 1000, balanceKind: 'principal', asOf: '2026-10-01', budgetItemId: '', budgetItemName: '', monthlyPayment: 600, escrow: 100, history: [] }];
+  await page.addInitScript(({ key, fixture }) => {
+    if (!localStorage.getItem(key)) localStorage.setItem(key, JSON.stringify(fixture));
+  }, { key: DASHBOARD_STORAGE_KEY, fixture });
+  await page.goto('/');
+  await expect(page.getByRole('heading', { name: 'Hi Guest!' })).toBeVisible();
+  await expect(page.locator('[class*=progressAmounts]')).toContainText('Balance increased');
+  await expect(page.locator('[class*=progressAmounts]')).toContainText('$1,000.00');
+  await expect(page.locator('[class*=progressAmounts]')).toContainText('$3,500.00');
+  await page.getByRole('button', { name: /Open full schedule/ }).click();
+  const schedule = page.getByRole('dialog', { name: 'Payoff Schedule', exact: true });
+  await expect(schedule.getByRole('group', { name: 'Forecast scope and payments' })).toContainText('Whole household');
+  await expect(schedule.getByRole('alert')).toContainText('Sample home: Enter the loan APR.');
+  await expect(schedule.getByRole('group', { name: 'Forecast scope and payments' })).toContainText('Payoff date unavailable');
+  await schedule.getByRole('button', { name: 'Review loan details', exact: true }).click();
+  const loan = page.getByRole('dialog', { name: 'Sample home', exact: true });
+  await expect(loan.getByRole('tab', { name: 'Info', exact: true })).toHaveAttribute('aria-selected', 'true');
+  await expect(loan.getByLabel('APR*', { exact: true })).toBeVisible();
+  await loan.getByRole('button', { name: 'Back from Sample home', exact: true }).click();
+  await page.getByRole('navigation', { name: 'Primary navigation' }).getByRole('button', { name: 'Progress', exact: true }).click();
+  const progress = page.getByRole('region', { name: 'Cards and other debt progress', exact: true });
+  await expect(progress).toContainText('Balance increased');
+  await expect(progress).toContainText('$1,000.00');
+  await expect(progress).toContainText('$2,500.00');
+  await expect(progress).toContainText('Saved snapshot balances');
+  const after = await page.evaluate(key => JSON.parse(localStorage.getItem(key)!).payload, DASHBOARD_STORAGE_KEY);
+  expect(after.accounts).toEqual(fixture.payload.accounts);
+  expect(after.transactions).toEqual(fixture.payload.transactions);
+  expect(after.snapshots).toEqual(fixture.payload.snapshots);
+  expect(after.monthlyPlan.progressStartingBalance).toBe(1500);
+  expect(after.monthlyPlan.loanTrackers).toEqual(fixture.payload.monthlyPlan!.loanTrackers);
+});

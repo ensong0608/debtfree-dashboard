@@ -1,3 +1,4 @@
+import { householdMonthOffset } from "./household-date.ts";
 import { validDisplayName, type DebtGroup } from "./debt-groups.ts";
 import { validatePaymentLinks } from "./payment-overlap.ts";
 import type { LoanTracker } from "./loan-progress.ts";
@@ -490,7 +491,7 @@ function migratePlanning(value: unknown): unknown {
 function migratePayloadFields(value: unknown): unknown {
   if (!isRecord(value)) return value;
   const legacyCashflow = Array.isArray(value.cashflowItems)
-    ? { [new Date().toISOString().slice(0, 7)]: value.cashflowItems.map(migrateCashflow) }
+    ? { [householdMonthOffset(0)]: value.cashflowItems.map(migrateCashflow) }
     : {};
   const monthlySource = hasOwn(value, "monthlyBudgets") ? value.monthlyBudgets : legacyCashflow;
   const monthlyBudgets = isRecord(monthlySource)

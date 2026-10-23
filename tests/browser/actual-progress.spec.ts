@@ -44,12 +44,15 @@ test("six-month debt activity counts payments and actual progress stays fixed af
  await expect(page.locator(".progress-projection-card,.phase-nine-metrics")).toHaveCount(0);
  await expect(page.getByRole("region",{name:"Snapshots",exact:true})).toBeVisible();
  await page.getByRole("button",{name:"Save snapshot",exact:true}).click();
+ await expect(page.locator(".snapshot-chart-caption")).toContainText("Saved snapshot balances");
+ await expect(page.locator(".snapshot-chart-caption")).toContainText("current balance is shown above");
  await expect(page.locator(".actual-progress-summary")).toContainText("$1,000.00");
  await page.reload();
  await openMore(page);
  await page.getByRole("button",{name:"Progress",exact:true}).filter({visible:true}).click();
  await expect(page.locator(".actual-progress-summary")).toContainText("$350.00");
  await expect(page.locator(".snapshot-controls .saved-check")).toHaveCount(1);
+ await expect(page.locator(".snapshot-chart-labels time").first()).toHaveAttribute("datetime",date.slice(0,7));
  await expect(page.locator(".progress-story")).toContainText("$1,000.00");
  await expect(page.locator(".progress-story")).not.toContainText("Starting comparison unavailable");
  await expect(page.getByRole("button",{name:"Update this month's snapshot",exact:true})).toBeVisible();

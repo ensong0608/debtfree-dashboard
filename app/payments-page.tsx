@@ -1,4 +1,5 @@
 "use client";
+import { householdMonthOffset } from "./household-date";
 import { Fragment, useEffect, useMemo, useState } from "react";
 import type { BalanceAdjustment, DebtAccount, LedgerTransaction } from "./dashboard-data";
 import {householdDate} from "./household-date";
@@ -12,7 +13,7 @@ import styles from "./payments-mobile.module.css";
 
 import { useHouseholdCurrency } from "./household-currency-context";
 import { createHouseholdMoneyFormatter } from "./household-currency";
-function currentMonth() { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`; }
+function currentMonth() { return householdMonthOffset(0); }
 function dateLabel(value: string) { return new Date(value + "T12:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }); }
 
 /** Only limits recovery presentation; no tombstone or financial mutation. */

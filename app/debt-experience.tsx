@@ -5,7 +5,8 @@ import { useHouseholdCurrency } from './household-currency-context';
 import { createHouseholdMoneyFormatter } from './household-currency';
 import { trackedPayoffProgress } from './debt-presentation';
 import { effectiveMinimum } from './payoff-engine';
-import { nextDueDate } from './recurring-due-date';
+import { householdDate } from './household-date';
+import { nextDueDate, formatRecurringDueDate } from './recurring-due-date';
 import { regularLoanPayment, type LoanTracker } from './loan-progress';
 import type { PayoffSchedule } from './payoff-schedule';
 import OutlineIcon from './outline-icon';
@@ -63,7 +64,7 @@ function ProgressRing({ percent, small = false }: { percent: number; small?: boo
 }
 function remainingTime(month: string | null) {
   if (!month) return null;
-  const now = new Date(), end = new Date(month + '-01T12:00:00');
+  const now = new Date(householdDate() + 'T12:00:00'), end = new Date(month + '-01T12:00:00');
   if (end <= now) return [0, 0, 0];
   let years = end.getFullYear() - now.getFullYear(), months = end.getMonth() - now.getMonth(), days = end.getDate() - now.getDate();
   if (days < 0) { months--; days += new Date(end.getFullYear(), end.getMonth(), 0).getDate(); }
@@ -87,7 +88,7 @@ export function HomeExperience({ name, accounts, loans, starting, current, sched
   const totalStart = starting + loans.reduce((sum, loan) => sum + loan.originalAmount, 0), remaining = current + loans.reduce((sum, loan) => sum + loan.remainingAmount, 0), reduction = totalStart - remaining;
   const percent = totalStart > 0 ? Math.max(0, Math.min(100, reduction / totalStart * 100)) : 0;
   const countdown = remainingTime(schedule.debtFreeMonth);
-  const categories = [...accounts.filter(a=>!a.archivedAt).map(a=>({type:a.type, balance:a.balance, starting:a.baselineBalance, month:schedule.payoffMonths[`account:${a.id}`]})), ...loans.map(l=>({type:l.kind==='house'?'Mortgage':'Auto loan',balance:l.remainingAmount,starting:l.originalAmount,month:schedule.payoffMonths[`loan:${l.id}`]}))].reduce((groups, entry) => {
+  const categories = [...accounts.filter(a=>!a.archivedAt).map(a=>({type:a.type==='Auto loan'?'Car loan':a.type, balance:a.balance, starting:a.baselineBalance, month:schedule.payoffMonths[`account:${a.id}`]})), ...loans.map(l=>({type:l.kind==='house'?'Mortgage':'Car loan',balance:l.remainingAmount,starting:l.originalAmount,month:schedule.payoffMonths[`loan:${l.id}`]}))].reduce((groups, entry) => {
     let group=groups.find(g=>g.type===entry.type);
     if(!group) {group={type:entry.type,balance:0,starting:0,known:true,month:null as string|null};groups.push(group);}
     group.balance+=entry.balance; group.starting+=entry.starting??0; group.known &&= entry.starting!==undefined && entry.starting>0;
@@ -112,7 +113,7 @@ export function DebtDetail({ name, tab, onTab, onBack, overview, transactions, i
 export function DebtOverview({ name, balance, starting, apr, minimum, dueDate, readOnly, onPayment, onBalance, payoff, onEdit, history }: { name: string; balance: number; starting?: number; apr?: number; minimum?: number; dueDate?: string; readOnly: boolean; onPayment: () => void; onBalance: () => void; payoff?: string | null; onEdit?: () => void; history?: ReactNode }) {
   const money = createHouseholdMoneyFormatter(useHouseholdCurrency());
   const percent = starting && starting > 0 ? Math.max(0, Math.min(100, (1 - balance / starting) * 100)) : null;
-  return <section className={styles.overview} aria-label={`${name} overview`} role={onEdit ? "button" : undefined} tabIndex={onEdit ? 0 : undefined} onClick={onEdit} onKeyDown={event=>{if(onEdit && (event.key==="Enter"||event.key===" ")){event.preventDefault();onEdit();}}}><span>Current balance</span><strong className={styles.balance}>{money.format(balance)}</strong><dl><div><dt>APR</dt><dd>{apr === undefined ? '—' : `${apr}%`}</dd></div><div><dt>Minimum payment</dt><dd>{minimum === undefined ? '—' : money.format(minimum)}</dd></div><div><dt>Due date</dt><dd>{dueDate || '—'}</dd></div><div><dt>Estimated payoff</dt><dd>{payoff ? monthName(payoff) : balance === 0 ? 'Paid off' : 'Review schedule'}</dd></div></dl>{onEdit && starting!==undefined && <dl className={styles.cardStarting}><div><dt>Starting balance</dt><dd>{money.format(starting)}</dd></div><div><dt>Balance reduced</dt><dd>{money.format(starting-balance)}</dd></div></dl>}{percent !== null && <div className={styles.debtProgress}><span>{percent.toFixed(1)}% reduced</span><progress aria-label="Debt balance reduction" max="100" value={percent}/></div>}{history}{!onEdit && <div className={styles.actions}><button type="button" className="primary" disabled={readOnly || balance <= 0} onClick={onPayment}>Record Payment</button><button type="button" className="secondary" disabled={readOnly} onClick={onBalance}>Update balance</button></div>}</section>;
+  return <section className={styles.overview} aria-label={`${name} overview`} role={onEdit ? "button" : undefined} tabIndex={onEdit ? 0 : undefined} onClick={onEdit} onKeyDown={event=>{if(onEdit && (event.key==="Enter"||event.key===" ")){event.preventDefault();onEdit();}}}><span>Current balance</span><strong className={styles.balance}>{money.format(balance)}</strong><dl><div><dt>APR</dt><dd>{apr === undefined ? '—' : `${apr}%`}</dd></div><div><dt>Minimum payment</dt><dd>{minimum === undefined ? '—' : money.format(minimum)}</dd></div><div><dt>Due date</dt><dd>{formatRecurringDueDate(dueDate ?? '')}</dd></div><div><dt>Estimated payoff</dt><dd>{payoff ? monthName(payoff) : balance === 0 ? 'Paid off' : 'Review schedule'}</dd></div></dl>{onEdit && starting!==undefined && <dl className={styles.cardStarting}><div><dt>Starting balance</dt><dd>{money.format(starting)}</dd></div><div><dt>{starting >= balance ? "Balance reduced" : "Balance increased"}</dt><dd>{money.format(Math.abs(starting-balance))}</dd></div></dl>}{percent !== null && <div className={styles.debtProgress}><span>{starting !== undefined && balance > starting ? `Balance increased ${money.format(balance-starting)}` : `${percent.toFixed(1)}% reduced`}</span><progress aria-label="Debt balance reduction" max="100" value={percent}/></div>}{history}{!onEdit && <div className={styles.actions}><button type="button" className="primary" disabled={readOnly || balance <= 0} onClick={onPayment}>Record Payment</button><button type="button" className="secondary" disabled={readOnly} onClick={onBalance}>Update balance</button></div>}</section>;
 }
 export function ScheduleRows({ schedule, settings }: { schedule: PayoffSchedule; settings: ReactNode }) {
   const money = createHouseholdMoneyFormatter(useHouseholdCurrency());

@@ -9,7 +9,7 @@ const loan = { id: 'loan-a', name: 'Home', kind: 'house', originalAmount: 100000
 test('loan progress handles paid-off and increased balances without negative progress', () => {
   assert.deepEqual(loanProgress(loan), { reduction: 20000, percent: 20 });
   assert.equal(loanProgress({ ...loan, remainingAmount: 0 }).percent, 100);
-  assert.equal(loanProgress({ ...loan, remainingAmount: 120000 }).percent, 0);
+  assert.deepEqual(loanProgress({ ...loan, remainingAmount: 120000 }), { reduction: -20000, percent: 0 });
 });
 test('Budget payment follows edits and monthly copies without guessing ambiguous names', () => {
   const bill = { id: 'bill-a', name: 'Mortgage', kind: 'expense', amount: 2000 };

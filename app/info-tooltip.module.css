@@ -16,3 +16,10 @@
 .help{display:inline;vertical-align:baseline;margin:0;font:inherit;color:inherit;line-height:inherit;letter-spacing:inherit;text-transform:inherit}
 .help>.trigger{display:inline;width:auto;height:auto;min-width:0;min-height:0;margin:0;padding:0;border:0;border-radius:2px;background:transparent;color:inherit;font:inherit;line-height:inherit;letter-spacing:inherit;text-transform:inherit;text-align:inherit;vertical-align:baseline;text-decoration:underline dotted;text-decoration-color:color-mix(in srgb,currentColor 40%,transparent);text-underline-offset:3px;cursor:help}
 .help>.trigger:hover{background:transparent;color:inherit;text-decoration-style:solid}
+/* Keep the approved text-label treatment while giving touch users a generous hit area. */
+@media(pointer:coarse){
+  .help>.trigger{position:relative;z-index:0;touch-action:manipulation}
+  .help>.trigger::after{position:absolute;inset:-15px -6px;content:""}
+  .dialog{max-height:calc(100dvh - 24px);padding:20px;scroll-padding:16px}
+  .dialog>.close{width:44px;height:44px;min-width:44px;min-height:44px;top:8px;right:8px}
+}

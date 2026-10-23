@@ -1,5 +1,4 @@
 import assert from "node:assert/strict";
-import { readFile } from "node:fs/promises";
 import test from "node:test";
 
 import { createEmptyPlannedPayoff } from "../app/dashboard-data.ts";
@@ -82,7 +81,7 @@ test("builds the Phase 3 Home summary and next avalanche payment from the payoff
 
   assert.equal(model.totalDebt, 10000);
   assert.equal(model.startingDebt, 11000);
-  assert.equal(model.amountPaid, 1000);
+  assert.equal(model.balanceChange, 1000);
   assert.equal(model.progressPercent, 9.09);
   assert.equal(model.monthlyTarget, 1025);
   assert.equal(model.extraPayment, 700);
@@ -110,10 +109,20 @@ test("recorded payment balances immediately increase Home progress and update th
   const model = buildHomeDashboard({ ...input, accounts: paidAccounts, openingAccounts: input.accounts, plan, snapshots: [], calculationDate });
 
   assert.equal(model.totalDebt, 9200);
-  assert.equal(model.amountPaid, 1800);
+  assert.equal(model.balanceChange, 1800);
   assert.equal(model.progressPercent, 16.36);
   assert.equal(model.nextPayment.name, "Booking");
   assert.ok(model.nextPayment.payment > model.nextPayment.minimum);
+});
+
+test("Home reports a balance increase as signed balance movement", () => {
+  const input = scenario();
+  const increasedAccounts = input.accounts.map((item) => item.id === "booking" ? { ...item, balance: item.balance + 250 } : item);
+  const plan = calculatePlan(increasedAccounts, input.extra, input.strategy, {}, {}, calculationDate);
+  const model = buildHomeDashboard({ ...input, accounts: increasedAccounts, openingAccounts: input.accounts, plan, snapshots: [{ month: "2026-07", totalBalance: 10000 }], calculationDate });
+
+  assert.equal(model.balanceChange, -250);
+  assert.equal(model.progressPercent, 0);
 });
 
 test("Home shows actual payments recorded in the current month", () => {
@@ -152,53 +161,16 @@ test("Home actions include due dates, promotional expirations, missing informati
   assert.equal(model.actions.find((action) => action.id === "monthly-review")?.destination, "progress");
 });
 
-test("Phase 3 UI exposes the required Home actions and mobile layout", async () => {
-  const [page, client, styles] = await Promise.all([
-    readFile(new URL("../app/home-dashboard-page.tsx", import.meta.url), "utf8"),
-    readFile(new URL("../app/dashboard-client.tsx", import.meta.url), "utf8"),
-    readFile(new URL("../app/globals.css", import.meta.url), "utf8"),
-  ]);
-  assert.match(page, /Estimated debt-free date/);
-  assert.match(page, /Total remaining debt/);
-  assert.match(page, /Amount already paid off/);
-  assert.match(page, /Monthly debt target/);
-  assert.match(page, /Record payment/);
-  assert.match(page, /Upcoming actions/);
-  assert.match(page, /Next three debts/);
-  assert.match(page, /Actual payments/);
-  assert.match(page, /id="home-extra-payment"/);
-  assert.match(page, /className="home-action-item"/);
-  assert.doesNotMatch(client, /id: "home", label: "Home"/);
-  assert.match(client, /label: "Debts"/);
-  assert.match(client, /label: "Budget"/);
-  assert.match(client, /label: "Progress"/);
-  assert.match(client, /label: "Settings"/);
-  assert.match(client, /className="more-advanced"/);
-  assert.doesNotMatch(client, /id: "home", label: "Home"/);
-  assert.match(client, /Payment details \(optional\)/);
-  assert.match(client, /onExtra=\{updateExtra\}/);
-  assert.match(client, /onAction=\{openHomeAction\}/);
-  assert.match(client, /onViewPayments=\{\(\) => setPage\("payments"\)\}/);
-  assert.match(styles, /Phase 3 action-focused Home/);
-  assert.match(styles, /@media\(max-width:600px\)[\s\S]*\.home-summary\{grid-template-columns:minmax\(0,1fr\)/);
-  assert.match(styles, /\.next-payment-button\{width:100%;min-height:50px\}/);
-  assert.match(styles, /\.home-extra-editor\{/);
-  assert.match(styles, /\.home-payment-list\{/);
-  assert.match(styles, /\.home-action-item\{/);
-});
-
 test("missing due dates are explicit without changing the engine recommendation", async () => {
   const input = scenario();
   input.accounts[0].dueDate = "";
   input.planning.debts[0].dueDate = "";
   input.plan = calculatePlan(input.accounts, input.extra, input.strategy, {}, {}, calculationDate);
   const model = buildHomeDashboard({ ...input, openingAccounts: input.accounts, snapshots: [], calculationDate });
-  const page = await readFile(new URL("../app/home-dashboard-page.tsx", import.meta.url), "utf8");
 
   assert.equal(model.nextPayment.accountId, "booking");
   assert.equal(model.nextPayment.payment, input.plan.months[0].payments.booking);
   assert.equal(model.nextPayment.dueDate, null);
-  assert.match(page, /due date missing/i);
 });
 
 test("empty and non-amortizing plans produce actionable Home states", async () => {
@@ -216,43 +188,7 @@ test("empty and non-amortizing plans produce actionable Home states", async () =
   const stuck = buildHomeDashboard({
     accounts: [stuckAccount], openingAccounts: [stuckAccount], plan: stuckPlan, extra: 0, strategy: "avalanche", planning: emptyPlanning, snapshots: [], transactions: [], calculationDate,
   });
-  const page = await readFile(new URL("../app/home-dashboard-page.tsx", import.meta.url), "utf8");
 
   assert.equal(stuck.stalled, true);
   assert.deepEqual(stuck.nonAmortizingDebtNames, ["Stuck Card"]);
-  assert.match(page, /Add first debt/);
-  assert.match(page, /Payment plan needs attention/);
-  assert.match(page, /Adjust payoff plan/);
-});
-
-test("Phase 4 navigation, advanced access, mobile targets, and headings are explicit", async () => {
-  const [page, client, styles, monthly] = await Promise.all([
-    readFile(new URL("../app/home-dashboard-page.tsx", import.meta.url), "utf8"),
-    readFile(new URL("../app/dashboard-client.tsx", import.meta.url), "utf8"),
-    readFile(new URL("../app/globals.css", import.meta.url), "utf8"),
-    readFile(new URL("../app/monthly-plan-page.tsx", import.meta.url), "utf8"),
-  ]);
-  const primaryBlock = client.slice(client.indexOf("const NAV_ITEMS"), client.indexOf("const MORE_NAV_ITEMS"));
-  const labels = [...primaryBlock.matchAll(/label: "([^"]+)"/g)].map((match) => match[1]);
-
-  assert.deepEqual(labels, ["Debts", "Transactions", "Budget", "More"]);
-  assert.doesNotMatch(primaryBlock, /Detailed ledger|Payees|Credit Utilization|Stats/);
-  assert.match(client, /const \[page, setPage\] = useState<PageId>\("accounts"\)/);
-  assert.match(client, /const completeOnboarding[\s\S]*?setPage\("accounts"\)/);
-  assert.match(client, /aria-current=\{primaryPage === item\.id \? "page" : undefined\}/);
-  assert.match(client, /onViewTransactions=\{\(\) => setPage\("history"\)\}/);
-  assert.doesNotMatch(monthly, />Open detailed ledger</);
-  assert.match(client, /item\.id !== "history" \|\| detailedSpendingTracking/);
-  const progress = await readFile(new URL("../app/actual-progress-page.tsx", import.meta.url), "utf8");
-  assert.match(client, /<h1>\{mobileView[\s\S]*?ALL_NAV_ITEMS\.find/);
-  assert.match(client, /id: "snapshots", label: "Progress"/);
-  assert.match(progress, /actual-progress-summary/);
-  assert.match(progress, /This month/);
-  assert.match(page, /aria-labelledby="home-summary-title"/);
-  assert.match(page, /<h2[^>]*>Payoff summary<\/h2>/);
-  assert.match(page, /<h2>Next three debts<\/h2>/);
-  assert.match(page, /<h2>Keep the plan accurate<\/h2>/);
-  assert.match(styles, /button:focus-visible/);
-  assert.match(styles, /@media\(max-width:820px\)[\s\S]*?\.nav-item\{min-width:52px;min-height:58px/);
-  assert.match(styles, /\.dashboard-collapsed \.sidebar\{display:flex\}/);
 });

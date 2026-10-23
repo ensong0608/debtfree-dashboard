@@ -43,7 +43,7 @@ export type HomeActualPayment = {
 export type HomeDashboardModel = {
   totalDebt: number;
   startingDebt: number;
-  amountPaid: number;
+  balanceChange: number;
   progressPercent: number;
   progressLabel: string;
   monthlyTarget: number;
@@ -195,8 +195,8 @@ export function buildHomeDashboard(input: HomeDashboardInput): HomeDashboardMode
   const active = input.accounts.filter((account) => account.balance > 0);
   const totalDebt = round(active.reduce((sum, account) => sum + account.balance, 0));
   const baseline = startingDebt(input, totalDebt);
-  const amountPaid = round(Math.max(0, baseline.amount - totalDebt));
-  const progressPercent = baseline.amount > 0 ? Math.min(100, round(amountPaid / baseline.amount * 100)) : 0;
+  const balanceChange = round(baseline.amount - totalDebt);
+  const progressPercent = baseline.amount > 0 ? Math.max(0, Math.min(100, round(balanceChange / baseline.amount * 100))) : 0;
   const firstMonth = input.plan.months[0];
   const priority = payoffPriority(active, input.strategy, firstMonth?.aprs);
   const actualPayments = actualPaymentsForMonth(input.accounts, input.transactions, calculationDate);
@@ -231,7 +231,7 @@ export function buildHomeDashboard(input: HomeDashboardInput): HomeDashboardMode
   return {
     totalDebt,
     startingDebt: baseline.amount,
-    amountPaid,
+    balanceChange,
     progressPercent,
     progressLabel: baseline.label,
     monthlyTarget: round(input.plan.monthly),

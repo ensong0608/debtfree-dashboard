@@ -56,7 +56,7 @@ export function buildConfiguredPayoffSchedule(accounts:DebtAccount[],loans:LoanT
  const cardInputs=accounts.filter(a=>!a.archivedAt&&a.balance>0).map(a=>({...a,id:'account:'+a.id}));
  const loanInputs=loans.filter(l=>l.remainingAmount>0).flatMap(l=>{
   const payment=regularLoanPayment(l,items),escrow=l.kind==='car'?0:l.escrow;
-  if(l.balanceKind!=='principal'||l.apr===undefined||escrow===undefined||payment===undefined||payment-escrow<=round(l.remainingAmount*l.apr/1200)) {unforecastedBalance=round(unforecastedBalance+l.remainingAmount);unforecastedPayment=round(unforecastedPayment+(payment??0));issues.push('Review payment and principal terms for '+l.name+'.');return [];}
+  if(l.balanceKind!=='principal'||l.apr===undefined||escrow===undefined||payment===undefined||payment-escrow<=round(l.remainingAmount*l.apr/1200)) {unforecastedBalance=round(unforecastedBalance+l.remainingAmount);unforecastedPayment=round(unforecastedPayment+(payment??0));const reason=l.balanceKind!=='principal'?'Enter a remaining principal balance.':l.apr===undefined?'Enter the loan APR.':escrow===undefined?'Enter the mortgage escrow amount.':payment===undefined?'Enter the regular payment amount.':'Increase the regular payment to cover interest and escrow.';issues.push(l.name+': '+reason);return [];}
   return [{id:'loan:'+l.id,name:l.name,type:'Other' as const,balance:l.remainingAmount,apr:l.apr,interestFee:0,minimum:round(payment-escrow),minimumMode:'manual' as const,payoffMode:'priority' as const,creditLimit:0,dueDate:'',promoEndDate:'',postPromoApr:0,postPromoMinimum:0,createdAt:date.toISOString(),escrow}];
  });
  const inputs=[...cardInputs,...loanInputs];
@@ -73,5 +73,7 @@ export function buildConfiguredPayoffSchedule(accounts:DebtAccount[],loans:LoanT
  });
  if(!rows.length&&unforecastedBalance>0) rows.push({month:forecastMonthKey(1,date),paid:0,interest:0,remaining:unforecastedBalance,paidOff:[]});
  const complete=!issues.length&&(rows.at(-1)?.remaining??0)===0;
- return {rows,issues,complete,payoffMonths,debtFreeMonth:complete?rows.at(-1)?.month??null:null,monthly:round(minimums+extra+unforecastedPayment+loanInputs.reduce((n,l)=>n+l.escrow,0)),totalInterest:round(rows.reduce((n,r)=>n+r.interest,0))};
+ const firstPayments:Record<string,number>={...result.plan?.months[0]?.payments};
+ for(const loan of loanInputs) firstPayments[loan.id]=round((firstPayments[loan.id]??forecastMinimum(loan,round(loan.balance*(1+forecastMonthlyRate(loan,1,date))),1,date))+loan.escrow);
+ return {rows,issues,complete,payoffMonths,firstPayments,debtFreeMonth:complete?rows.at(-1)?.month??null:null,monthly:round(minimums+extra+unforecastedPayment+loanInputs.reduce((n,l)=>n+l.escrow,0)),totalInterest:round(rows.reduce((n,r)=>n+r.interest,0))};
 }

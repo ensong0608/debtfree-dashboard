@@ -16,7 +16,7 @@ export default function CreditCardInfo({draft, interestAutomated, readOnly, onCh
   <label className={styles.cardField}><span>Account name</span><input value={draft.name} onChange={event=>onChange({...draft,name:event.target.value})}/></label>
   {numeric('balance','Current balance')}{numeric('apr','APR','%')}
   <div>{numeric('minimum','Minimum payment',symbol,draft.minimumMode==='auto')}<label className={styles.autoMinimum}><input type="checkbox" checked={draft.minimumMode==='auto'} onChange={event=>onChange({...draft,minimumMode:event.target.checked?'auto':'manual'})}/>Auto estimate</label></div>
-  <label className={styles.cardField}><span>Due date</span><input type="date" value={recurringDueDate(draft.dueDate)} onChange={event=>onChange({...draft,dueDate:event.target.value})}/></label>
+  <label className={styles.cardField}><span>Due day</span><input type="date" value={recurringDueDate(draft.dueDate)} onChange={event=>onChange({...draft,dueDate:event.target.value})}/><small>Repeats monthly; shorter months use the last day.</small></label>
   <button className="secondary" type="button" onClick={()=>setAdvanced(true)}>Advanced</button>
   {advanced&&<ExperienceOverlay title="Advanced" onBack={()=>setAdvanced(false)}><fieldset className={styles.cardAdvanced} disabled={readOnly}>
    {numeric('creditLimit','Credit limit (optional)')}

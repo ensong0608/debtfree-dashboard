@@ -178,7 +178,7 @@ test("mobile retains edit/delete/restore dialogs and disables mutations for view
   await render(page, { transactions: [transaction("Editable"), transaction("Recoverable", { deletedAt: now })] });
   await page.getByRole("button", { name: "Edit Editable for Synthetic card", exact: true }).click();
   await expect(page.getByRole("dialog", { name: "Edit transaction", exact: true })).toBeVisible();
-  await page.getByRole("button", { name: "Close transaction", exact: true }).click();
+  await page.getByRole("button", { name: "Back from transaction", exact: true }).click();
   await page.getByRole("button", { name: "Edit Editable for Synthetic card", exact: true }).click();
   await page.getByRole("button", { name: "Delete transaction", exact: true }).click();
   await expect(page.getByRole("dialog", { name: "Delete payment?", exact: true })).toBeVisible();

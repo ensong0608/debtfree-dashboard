@@ -19,8 +19,8 @@ export type LoanTracker = {
 };
 
 export function loanProgress(loan: LoanTracker) {
-  const reduction = Math.max(0, loan.originalAmount - loan.remainingAmount);
-  return { reduction, percent: loan.originalAmount > 0 ? Math.min(100, reduction / loan.originalAmount * 100) : 0 };
+  const reduction = loan.originalAmount - loan.remainingAmount;
+  return { reduction, percent: loan.originalAmount > 0 ? Math.max(0, Math.min(100, reduction / loan.originalAmount * 100)) : 0 };
 }
 
 // Copied monthly budgets get new IDs. Fall back only to an unambiguous exact name.

@@ -26,7 +26,7 @@ function PaymentCalendar({ value, onChange, invalid }: { invalid?: boolean; valu
   const [year, index] = month.split('-').map(Number);
   const first = new Date(year, index - 1, 1).getDay(), count = new Date(year, index, 0).getDate();
   const move = (offset: number) => { const date = new Date(year, index - 1 + offset, 1); setMonth(`${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`); };
-  return <div className="loan-date-field"><label htmlFor="loan-due-date">Next payment DueDate</label><input id="loan-due-date" name="dueDate" type="date" aria-invalid={Boolean(invalid)} aria-describedby={invalid ? 'loan-error-dueDate' : undefined} value={value ?? ''} onChange={event => onChange(event.target.value || undefined)}/>
+  return <div className="loan-date-field"><label htmlFor="loan-due-date">Due day</label><input id="loan-due-date" name="dueDate" type="date" aria-invalid={Boolean(invalid)} aria-describedby={invalid ? 'loan-error-dueDate' : undefined} value={value ?? ''} onChange={event => onChange(event.target.value || undefined)}/><small className="field-help">Repeats monthly on this day; shorter months use the last day.</small>
     <button className="secondary" type="button" aria-expanded={open} onClick={() => { setMonth(householdDate().slice(0, 7)); setOpen(!open); }}>Choose payment date</button>
     {open && <div className="loan-calendar" role="group" aria-label="Payment calendar">
       <div className="loan-calendar-heading"><button type="button" className="secondary" aria-label="Previous month" onClick={() => move(-1)}>‹</button><strong aria-live="polite">{new Date(year, index - 1, 1).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}</strong><button type="button" className="secondary" aria-label="Next month" onClick={() => move(1)}>›</button></div>
@@ -47,7 +47,7 @@ export default function LoanDetailsFields({ draft, onChange, errors, mode = "all
   if (mode === "advanced") return <>{currency('originalAmount', 'Original balance')}</>;
   return <>
     <label>Name*<input autoFocus name="name" aria-label="Name*" required maxLength={100} aria-invalid={Boolean(errors.name)} aria-describedby={described('name')} value={draft.name} onChange={event => onChange({ ...draft, name: event.target.value })}/>{error('name')}</label>
-    <label>Debt type*<select name="kind" aria-label="Debt type*" required aria-invalid={Boolean(errors.kind)} value={draft.kind} onChange={event => onChange({ ...draft, kind: event.target.value as LoanTracker['kind'] })}><option value="house">House</option><option value="car">Car</option></select>{error('kind')}</label>
+    <label>Debt type*<select name="kind" aria-label="Debt type*" required aria-invalid={Boolean(errors.kind)} value={draft.kind} onChange={event => onChange({ ...draft, kind: event.target.value as LoanTracker['kind'] })}><option value="house">Mortgage</option><option value="car">Car loan</option></select>{error('kind')}</label>
     {mode === 'all' && currency('originalAmount', 'Original balance')}
     {currency('remainingAmount', 'Current balance')}
     <label>APR*<span className="loan-percentage-input"><input name="apr" aria-label="APR*" type="number" required min="0" max="100" step="any" aria-invalid={Boolean(errors.apr)} aria-describedby={described('apr')} value={draft.apr ?? ''} onChange={event => onChange({ ...draft, apr: event.target.value === '' ? undefined : Number(event.target.value) })}/><span aria-hidden="true">%</span></span>{error('apr')}</label>

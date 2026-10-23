@@ -22,7 +22,8 @@ test('loans persist, use Budget payments, and do not change existing debt balanc
   await dialog.getByLabel('Escrow amount',{exact:true}).fill('618.37');
   await dialog.getByRole('button', { name:'Save' }).click();
   const card = page.getByRole('article', { name:'Home loan progress' });
-  await expect(card).toContainText('20.00% paid down');
+  await expect(card).toContainText('20.00% reduced');
+  await expect(card).toContainText('Balance reduced $20,000.00');
   await expect(card).toContainText('$2,000.00');
   await expect(card).toContainText('Next payment · principal');
   await expect(page.locator('.simple-total>strong')).toHaveText('$80,000.00');
@@ -42,7 +43,7 @@ test('loans persist, use Budget payments, and do not change existing debt balanc
   await dialog.getByLabel('Current balance').fill('75000');
   await dialog.getByLabel('Mortgage payment', {exact:true}).fill('2100');
   await dialog.getByRole('button',{name:'Save'}).click();
-  await expect(card).toContainText('25.00% paid down');
+  await expect(card).toContainText('25.00% reduced');
 
   await card.getByRole('button',{name:'Activity for Home'}).click();
   await expect(page.getByRole('dialog').locator('.debt-history')).toContainText('$80,000.00');

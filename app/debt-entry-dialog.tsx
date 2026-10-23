@@ -7,6 +7,7 @@ import { householdDate } from "./interest-accrual";
 import { useHouseholdCurrency } from "./household-currency-context";
 import { createHouseholdMoneyFormatter, householdCurrencySymbol } from "./household-currency";
 import styles from "./payments-mobile.module.css";
+import UnsavedChangesDialog from "./unsaved-changes-dialog";
 
 export default function DebtEntryDialog({ state, command, readOnly, onSave, onClose, mobile = false, onRequestDelete, expectedState, accountScope, flexibleScope = false }: { accountScope?: string; flexibleScope?: boolean; mobile?: boolean; onRequestDelete?: (expected: string) => void; expectedState?: string; state: EntryState; command: EntryCommand; readOnly: boolean; onSave: (command: EntryCommand, expected: string) => string | null; onClose: () => void }) {
   const householdCurrency = useHouseholdCurrency();
@@ -17,12 +18,16 @@ export default function DebtEntryDialog({ state, command, readOnly, onSave, onCl
   const [expected] = useState(() => expectedState ?? JSON.stringify(state));
   const movement = transaction ? transaction.amount * (transaction.type === "payment" ? -1 : 1) : adjustment?.difference ?? 0;
   const [fields, setFields] = useState(() => ({ accountId: original?.accountId ?? accountScope ?? state.accounts.find(a => !a.archivedAt)?.id ?? state.accounts[0]?.id ?? "", title: original?.title ?? (transaction?.interestEstimate ? "Monthly interest" : transaction?.type === "payment" || adjustment?.confirmedPayment ? "Payment" : transaction ? transaction.payeeName || "Card purchase" : adjustment ? "Balance update" : ""), date: original?.date ?? householdDate(), note: transaction?.memo ?? adjustment?.note ?? "", amount: original ? (movement >= 0 ? "+" : "") + movement.toFixed(2) : "" }));
+  const [initialFields] = useState(fields);
   const [positiveKind, setPositiveKind] = useState<EntryKind>(() => adjustment?.reportKind === "credit" ? "adjustment" : adjustment?.reportKind ?? (adjustment ? "adjustment" : signedEntryDraft(original, {accountId:"", title:"", date:"", note:"", amount: Math.abs(movement).toFixed(2)}).kind));
+  const [initialPositiveKind] = useState(positiveKind);
   const [negativeKind, setNegativeKind] = useState<"payment" | "credit" | "adjustment">(adjustment ? adjustment.confirmedPayment ? "payment" : adjustment.reportKind === "credit" ? "credit" : "adjustment" : transaction?.reductionKind === "adjustment" ? "adjustment" : transaction?.credit ? "credit" : "payment");
+  const [initialNegativeKind] = useState(negativeKind);
   const [overlapChoice, setOverlapChoice] = useState<PaymentLink | "separate" | null>(null);
+  const [initialOverlapChoice] = useState<PaymentLink | "separate" | null>(null);
   const [reviewOverlap, setReviewOverlap] = useState(false);
   const [saveError, setSaveError] = useState("");
-  useEffect(() => { const key = (event: KeyboardEvent) => { if (event.key === "Escape") onClose(); }; window.addEventListener("keydown", key); return () => window.removeEventListener("keydown", key); }, [onClose]);
+  const [confirmExit, setConfirmExit] = useState(false);
   const draft = signedEntryDraft(original, fields);
   if (draft.direction === "increase") {
     draft.kind = adjustment ? "adjustment" : positiveKind;
@@ -43,15 +48,26 @@ export default function DebtEntryDialog({ state, command, readOnly, onSave, onCl
   const after = transactionAdjustedAccounts(next.accounts, next.transactions);
   const affected = [...new Set([original?.accountId, fields.accountId].filter(Boolean))];
   const dialogTitle = command.action === "save" ? original ? "Edit transaction" : "New transaction" : command.action === "delete" ? transaction?.type === "payment" ? "Delete payment?" : "Delete transaction?" : transaction?.type === "payment" ? "Restore payment?" : "Restore transaction?";
+  const hasUnsavedChanges = command.action === "save" && (JSON.stringify(fields) !== JSON.stringify(initialFields) || positiveKind !== initialPositiveKind || negativeKind !== initialNegativeKind || JSON.stringify(overlapChoice) !== JSON.stringify(initialOverlapChoice));
+  const requestClose = () => { if (hasUnsavedChanges) setConfirmExit(true); else onClose(); };
+  const saveEntry = () => {
+    if (readOnly) return;
+    if (error) { setSaveError(error); setConfirmExit(false); return; }
+    if (matches.length && !overlapChoice) { setReviewOverlap(true); return; }
+    const result = onSave(edited, expected);
+    if (result) setSaveError(result);
+    else { setConfirmExit(false); onClose(); }
+  };
+  useEffect(() => { const key = (event: KeyboardEvent) => { if (event.key === "Escape") { if (hasUnsavedChanges) setConfirmExit(true); else onClose(); } }; window.addEventListener("keydown", key); return () => window.removeEventListener("keydown", key); }, [hasUnsavedChanges, onClose]);
   const change = (key: keyof typeof fields, value: string) => {
     setFields(d => ({ ...d, [key]: value })); setSaveError(""); setOverlapChoice(null); setReviewOverlap(false);
   };
   const setSign = (negative: boolean) => change("amount", (negative ? "-" : "+") + fields.amount.replace(/^[+−-]/, ""));
   const suggestions = [...new Set([...state.transactions, ...state.adjustments].map(t => t.title).filter((t): t is string => Boolean(t)))].slice(0, 100);
   const isNegative = /^[−-]/.test(fields.amount);
-  return <div className="modal-backdrop" onMouseDown={e => { if (e.currentTarget === e.target) onClose(); }}><section className="modal debt-action-modal transaction-compose" role="dialog" aria-modal="true" aria-labelledby="debt-entry-title">
-    <header className="back-form-header"><div><h2 id="debt-entry-title">{dialogTitle}</h2></div><button type="button" data-dialog-close aria-label="Back from transaction" onClick={onClose}>‹</button></header>
-    <form onSubmit={e => { e.preventDefault(); if (readOnly || error) return; if (matches.length && !overlapChoice) { setReviewOverlap(true); return; } const result = onSave(edited, expected); if (result) setSaveError(result); else onClose(); }}><div className="debt-action-form compose-fields">
+  return <><div className="modal-backdrop" onMouseDown={e => { if (e.currentTarget === e.target) requestClose(); }}><section className="modal debt-action-modal transaction-compose" role="dialog" aria-modal="true" aria-labelledby="debt-entry-title">
+    <header className="back-form-header"><div><h2 id="debt-entry-title">{dialogTitle}</h2></div><button type="button" data-dialog-close aria-label="Back from transaction" onClick={requestClose}>‹</button></header>
+    <form onSubmit={e => { e.preventDefault(); saveEntry(); }}><div className="debt-action-form compose-fields">
     {command.action === "save" ? <>
       <label className="compose-field"><span>What’s it for?</span><input aria-label="What’s it for?" list="transaction-title-suggestions" maxLength={160} placeholder="e.g. SFC Henderson grocery run" value={fields.title} onChange={e => change("title", e.target.value)}/></label>
       <datalist id="transaction-title-suggestions">{suggestions.map(title => <option key={title} value={title}/>)}</datalist>
@@ -67,6 +83,6 @@ export default function DebtEntryDialog({ state, command, readOnly, onSave, onCl
 
     {(reviewOverlap || Boolean(error)) && matches.length > 0 && <section className="payment-overlap" aria-label="Review possible overlap"><strong>This payment may already be included</strong>{matches.map(match => <div key={match.link.type+match.link.id}><p>{match.title} · {match.date} · {money.format(match.difference)} balance change</p><button type="button" className="secondary" disabled={!match.canLink} aria-pressed={overlapChoice !== null && overlapChoice !== "separate" && overlapChoice.id===match.link.id} onClick={() => setOverlapChoice(match.link)}>Already included in that update</button>{!match.canLink && <small>This update already has a payment classification.</small>}</div>)}<button type="button" className="secondary" aria-pressed={overlapChoice==="separate"} onClick={() => setOverlapChoice("separate")}>This is another payment</button></section>}
     <p id="entry-validation" className="compose-validation" role={saveError ? "alert" : "status"}>{saveError || (/\d/.test(fields.amount) ? error : "")}</p>
-    </div><footer className={mobile ? styles.entryFooter : undefined}><div><button type="button" className="secondary" onClick={onClose}>Cancel</button><button type="submit" className={command.action === "delete" ? "danger" : "primary"} disabled={readOnly || Boolean(error)}>{command.action === "save" ? "Save transaction" : command.action === "delete" ? "Confirm delete" : "Confirm restore"}</button></div>{mobile && command.action === "save" && original && !original.deletedAt && !transaction?.replacedByTransactionId && onRequestDelete && !readOnly && <button type="button" className={styles.deleteEntry} onClick={() => onRequestDelete(expected)}>Delete transaction</button>}</footer></form>
-  </section></div>;
+    </div><footer className={mobile ? styles.entryFooter : undefined}><div><button type="button" className="secondary" onClick={requestClose}>Cancel</button><button type="submit" className={command.action === "delete" ? "danger" : "primary"} disabled={readOnly || Boolean(error)}>{command.action === "save" ? "Save transaction" : command.action === "delete" ? "Confirm delete" : "Confirm restore"}</button></div>{mobile && command.action === "save" && original && !original.deletedAt && !transaction?.replacedByTransactionId && onRequestDelete && !readOnly && <button type="button" className={styles.deleteEntry} onClick={() => onRequestDelete(expected)}>Delete transaction</button>}</footer></form>
+  </section></div>{confirmExit && <UnsavedChangesDialog subject="transaction" onSave={saveEntry} onDiscard={onClose} onCancel={() => setConfirmExit(false)}/>}</>;
 }

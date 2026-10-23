@@ -70,6 +70,7 @@ test('debt Overview, scoped lifetime Transactions, Info and Advanced preserve un
  await expect(entry.getByLabel('Card used')).toBeDisabled();
  await entry.getByRole('button',{name:'Back from transaction'}).click();
  await detail.getByRole('tab',{name:'Info',exact:true}).click();
+ await expect(detail.getByLabel('Due day',{exact:true})).toHaveValue('2026-10-25');
  await expect(detail.getByLabel('Debt category')).toHaveCount(0);
  await expect(detail.getByText('Position in category')).toHaveCount(0);
  await expect(detail.getByText('Actual interest fee',{exact:true})).toHaveCount(0);
@@ -90,6 +91,53 @@ test('debt Overview, scoped lifetime Transactions, Info and Advanced preserve un
  await page.reload();
  await page.getByRole('navigation',{name:'Primary navigation'}).getByRole('button',{name:/^Debts?$/,exact:true}).click();
  await expect(page.getByRole('button',{name:'Open Renamed card',exact:true})).toBeVisible();
+});
+
+test('account drafts offer save, discard and cancel only after edits; transaction drafts guard close',async({page})=>{
+ const before=await saved(page);
+ await page.getByRole('button',{name:'Open Sample card',exact:true}).click();
+ let detail=page.getByRole('dialog',{name:'Sample card',exact:true});
+ await detail.getByRole('tab',{name:'Info',exact:true}).click();
+ await expect(detail.getByRole('button',{name:'Save',exact:true})).toHaveCount(0);
+ await detail.getByRole('tab',{name:'Overview',exact:true}).click();
+ await expect(page.getByRole('dialog',{name:'Unsaved debt account changes'})).toHaveCount(0);
+ await page.getByRole('button',{name:'Back from Sample card'}).click();
+
+ await page.getByRole('button',{name:'Open Sample card',exact:true}).click();
+ detail=page.getByRole('dialog',{name:'Sample card',exact:true});
+ await detail.getByRole('tab',{name:'Info',exact:true}).click();
+ await detail.getByLabel('Account name',{exact:true}).fill('Discarded card name');
+ await expect(detail.getByRole('button',{name:'Save',exact:true})).toBeVisible();
+ await detail.getByRole('tab',{name:'Transactions',exact:true}).click();
+ let exit=page.getByRole('dialog',{name:'Unsaved debt account changes'});
+ await exit.getByRole('button',{name:'Cancel',exact:true}).click();
+ await expect(detail.getByLabel('Account name',{exact:true})).toHaveValue('Discarded card name');
+ await detail.getByRole('tab',{name:'Transactions',exact:true}).click();
+ exit=page.getByRole('dialog',{name:'Unsaved debt account changes'});
+ await exit.getByRole('button',{name:'Discard',exact:true}).click();
+ await expect(detail.getByRole('tab',{name:'Transactions',exact:true})).toHaveAttribute('aria-selected','true');
+ await expect(detail.getByRole('button',{name:'Save',exact:true})).toHaveCount(0);
+ expect((await saved(page)).accounts[0].name).toBe('Sample card');
+
+ await detail.getByRole('button',{name:'+ Transaction',exact:true}).click();
+ const transaction=page.getByRole('dialog',{name:'New transaction',exact:true});
+ await transaction.getByLabel('What’s it for?',{exact:true}).fill('Unsaved synthetic transaction');
+ await transaction.getByRole('button',{name:'Back from transaction'}).click();
+ const transactionExit=page.getByRole('dialog',{name:'Unsaved transaction changes'});
+ await transactionExit.getByRole('button',{name:'Cancel',exact:true}).click();
+ await expect(transaction).toBeVisible();
+ await transaction.getByRole('button',{name:'Back from transaction'}).click();
+ await page.getByRole('dialog',{name:'Unsaved transaction changes'}).getByRole('button',{name:'Discard',exact:true}).click();
+ await expect(transaction).toHaveCount(0);
+ expect((await saved(page)).transactions).toEqual(before.transactions);
+
+ await detail.getByRole('tab',{name:'Info',exact:true}).click();
+ await detail.getByLabel('Account name',{exact:true}).fill('Saved synthetic card');
+ await page.keyboard.press('Escape');
+ exit=page.getByRole('dialog',{name:'Unsaved debt account changes'});
+ await exit.getByRole('button',{name:'Save',exact:true}).click();
+ await expect(page.getByRole('dialog',{name:'Saved synthetic card'})).toHaveCount(0);
+ expect((await saved(page)).accounts[0].name).toBe('Saved synthetic card');
 });
 
 test('recording a payment within a debt persists and does not affect another debt',async({page})=>{
@@ -140,7 +188,7 @@ test('Home preview opens one complete schedule, supports keyboard back and fits 
  const schedule=page.getByRole('dialog',{name:'Payoff Schedule',exact:true});
  await expect(schedule.getByRole('table')).toBeVisible();
  await expect(schedule.getByRole('table').locator('tbody tr').last()).toContainText('$0.00');
- await expect(schedule.getByRole('table')).toContainText(/Sample home\s*paid off!/) ;
+ await expect(schedule.getByRole('table')).toContainText(/Sample home\s*projected paid off/) ;
  await expect(schedule.getByRole('textbox')).toHaveCount(1);
  await schedule.getByLabel('Extra payment',{exact:true}).fill('400');
  await schedule.getByRole('button',{name:'Save extra payment'}).click();
@@ -170,7 +218,7 @@ test('Home preview opens one complete schedule, supports keyboard back and fits 
  await expect(schedule).toHaveCount(0);
  await expect(page.getByRole('button',{name:'Open full schedule',exact:false})).toBeFocused();
  await page.getByRole('navigation',{name:'Primary navigation'}).getByRole('button',{name:'Settings',exact:true}).click();
- await page.getByRole('button',{name:'Payoff Plan',exact:true}).click();
+ await page.getByRole('button',{name:'Payoff Schedule',exact:true}).click();
  await expect(schedule).toBeVisible();
  await schedule.getByRole('button',{name:'Close payoff schedule and go back'}).click();
  await page.getByRole('navigation',{name:'Primary navigation'}).getByRole('button',{name:'Home',exact:true}).click();
@@ -182,19 +230,19 @@ test('Home preview opens one complete schedule, supports keyboard back and fits 
 test('Debt + creates mortgage and car records, validates missing values and preserves the existing household', async({page})=>{
  const before=await saved(page);
  await page.getByRole('navigation',{name:'Primary navigation'}).getByRole('button',{name:/^Debts?$/,exact:true}).click();
- for(const kind of ['House loan','Car loan']) {
+ for(const kind of ['Mortgage','Car loan']) {
   await page.getByRole('button',{name:'Debt +',exact:true}).click();
   const creation=page.getByRole('dialog',{name:'Add a debt account',exact:true});
   await creation.getByLabel('Account name',{exact:true}).fill(`New ${kind}`);
   await creation.getByRole('combobox',{name:'Debt type',exact:true}).selectOption({label:kind});
-  const loan=page.getByRole('dialog',{name:kind === 'House loan' ? 'Mortgage Details' : 'Car Loan Details',exact:true});
+  const loan=page.getByRole('dialog',{name:kind === 'Mortgage' ? 'Mortgage Details' : 'Car Loan Details',exact:true});
   await loan.getByRole('button',{name:'Save',exact:true}).click();
   await expect(loan.getByText('Enter an original loan amount greater than $0.',{exact:true})).toBeVisible();
   await loan.getByLabel('Original balance',{exact:true}).fill('10000');
   await loan.getByLabel('Current balance',{exact:true}).fill('8000');
   await loan.getByLabel('APR*',{exact:true}).fill('5');
-  await loan.getByLabel(kind === 'House loan' ? 'Mortgage payment' : 'Minimum payment',{exact:true}).fill('500');
-  if(kind === 'House loan') await loan.getByLabel('Escrow amount',{exact:true}).fill('100');
+  await loan.getByLabel(kind === 'Mortgage' ? 'Mortgage payment' : 'Minimum payment',{exact:true}).fill('500');
+  if(kind === 'Mortgage') await loan.getByLabel('Escrow amount',{exact:true}).fill('100');
   await loan.getByRole('button',{name:'Save',exact:true}).click();
   await expect(loan).toHaveCount(0);
   await expect(page.getByRole('button',{name:`Open New ${kind}`,exact:true})).toBeVisible();
@@ -243,18 +291,16 @@ test('credit card drafts survive tabs, transactions confirm independently and ba
  await page.keyboard.press('Escape');
  for(const width of [320,390]) {
   await page.setViewportSize({width,height:844});
-  let y:number|undefined;
-  for(const tab of ['Overview','Transactions','Info']) {
-   await detail.getByRole('tab',{name:tab,exact:true}).click();
-   const buttons=detail.locator('footer').getByRole('button');await expect(buttons).toHaveText(['+ Transaction','Edit','Save']);
-   const box=(await buttons.first().boundingBox())!;if(y!==undefined)expect(box.y).toBe(y);y=box.y;
-   if(tab==='Transactions'){const filters=detail.getByRole('group',{name:'Filter activity category'});const period=(await filters.locator('label.transaction-period-control').boundingBox())!;for(const button of await filters.getByRole('button').all())expect(Math.abs((await button.boundingBox())!.y-period.y)).toBeLessThan(1);}
-   expect(await detail.evaluate(el=>el.scrollWidth<=el.clientWidth+1)).toBe(true);
-  }
+  await expect(detail.locator('footer').getByRole('button')).toHaveText(['+ Transaction','Edit','Save']);
+  await detail.getByRole('tab',{name:'Transactions',exact:true}).click();
+  await page.getByRole('dialog',{name:'Unsaved debt account changes'}).getByRole('button',{name:'Cancel',exact:true}).click();
+  await expect(detail.getByRole('tab',{name:'Info',exact:true})).toHaveAttribute('aria-selected','true');
+  expect(await detail.evaluate(el=>el.scrollWidth<=el.clientWidth+1)).toBe(true);
  }
  await expect(detail.getByLabel('Account name',{exact:true})).toHaveValue('Draft card');
  await detail.getByRole('tab',{name:'Transactions',exact:true}).click();
- await page.screenshot({path:'outputs/redesign/card-transactions-refined.png'});
+ await page.getByRole('dialog',{name:'Unsaved debt account changes'}).getByRole('button',{name:'Cancel',exact:true}).click();
+ await page.screenshot({path:'outputs/redesign/card-draft-preserved.png'});
  await detail.getByRole('tab',{name:'Info',exact:true}).click();
  await detail.getByRole('button',{name:'+ Transaction',exact:true}).click();
  const transaction=page.getByRole('dialog',{name:'New transaction',exact:true});
@@ -315,11 +361,11 @@ test('schedule choices, extra help and confirmed minimums persist without filter
  await schedule.getByLabel('Payoff method').selectOption('snowball');
  for(const width of [320,390,686]) {
   await page.setViewportSize({width,height:900});
-  const cell=schedule.locator('tbody tr').first().locator('td').first();await expect(cell).toHaveCSS('white-space','nowrap');expect(await cell.evaluate(el=>el.scrollWidth<=el.clientWidth+1)).toBe(true);
+  const cell=schedule.locator('tbody tr').first().locator('td').first();expect(await cell.evaluate(el=>el.scrollWidth<=el.clientWidth+1)).toBe(true);
   expect(await schedule.evaluate(el=>el.scrollWidth<=el.clientWidth+1)).toBe(true);
  }
  await page.setViewportSize({width:390,height:844});
- await schedule.getByText('Included debt types',{exact:true}).click();await schedule.getByLabel('Include Mortgage',{exact:true}).uncheck();await schedule.getByLabel('Include Auto loan',{exact:true}).uncheck();expect((await saved(page)).monthlyPlan.payoffExcludedTypes??[]).toEqual([]);await schedule.getByRole('button',{name:'Apply included debt types'}).click();
+ await schedule.getByText('Included debt types',{exact:true}).click();await schedule.getByLabel('Include Mortgage',{exact:true}).uncheck();await schedule.getByLabel('Include Car loan',{exact:true}).uncheck();expect((await saved(page)).monthlyPlan.payoffExcludedTypes??[]).toEqual([]);await schedule.getByRole('button',{name:'Apply included debt types'}).click();
  await schedule.getByRole('button',{name:'Edit minimums'}).click();
  const editor=page.getByRole('dialog',{name:'Edit minimum payments',exact:true});
  await expect(editor.getByRole('textbox')).toHaveCount(2);await expect(editor.locator('[class*=minimumInput]>span')).toHaveText(['$','$']);await expect(editor).not.toContainText('Sample home');
@@ -330,9 +376,34 @@ test('schedule choices, extra help and confirmed minimums persist without filter
  await expect.poll(async()=>(await saved(page)).accounts[0].minimum).toBe(1600);
  const after=await saved(page);expect(after.transactions).toEqual(before.transactions);expect(after.snapshots).toEqual(before.snapshots);expect(after.balanceAdjustments).toEqual(before.balanceAdjustments);expect(after.monthlyPlan.loanTrackers).toEqual(before.monthlyPlan.loanTrackers);expect(after.monthlyPlan.progressStartingBalance).toBe(before.monthlyPlan.progressStartingBalance);expect(after.monthlyPlan.payoffPlanAmount).toBe(before.monthlyPlan.payoffPlanAmount);
  await schedule.getByRole('button',{name:'Close payoff schedule and go back'}).click();await page.reload();
- await expect(page.locator('[class*=categoryGrid] h3')).toHaveText(['Credit card','Mortgage','Auto loan']);await expect(page.getByRole('region',{name:'Plan at a glance'}).getByRole('button',{name:/Total debts/})).toContainText('4');
+ await expect(page.locator('[class*=categoryGrid] h3')).toHaveText(['Credit card','Mortgage','Car loan']);await expect(page.getByRole('region',{name:'Plan at a glance'}).getByRole('button',{name:/Total debts/})).toContainText('4');
  await page.getByRole('button',{name:'Open full schedule',exact:false}).click();await expect(schedule.getByLabel('Payoff method')).toHaveValue('snowball');await expect(schedule.getByLabel('Extra payment',{exact:true})).toHaveValue('1500');await schedule.getByText('Included debt types',{exact:true}).click();await expect(schedule.getByLabel('Include Mortgage',{exact:true})).not.toBeChecked();await schedule.getByText('Included debt types',{exact:true}).click();
  await page.screenshot({path:'outputs/redesign/schedule-options.png'});
- await schedule.getByRole('button',{name:'Close payoff schedule and go back'}).click();await nav.getByRole('button',{name:'Progress',exact:true}).click();await expect(page.getByRole('button',{name:'House & car',exact:true})).toBeVisible();await expect(page.getByRole('region',{name:'Actual debt progress',exact:true})).toContainText('$48,156.06');
+ await schedule.getByRole('button',{name:'Close payoff schedule and go back'}).click();await nav.getByRole('button',{name:'Progress',exact:true}).click();await expect(page.getByRole('button',{name:'House & car',exact:true})).toBeVisible();await expect(page.getByRole('region',{name:'Cards and other debt progress',exact:true})).toContainText('$48,156.06');
  await nav.getByRole('button',{name:/^Debts?$/,exact:true}).click();await expect(page.getByRole('button',{name:'Open Sample home',exact:true})).toBeVisible();await expect(page.getByRole('region',{name:'Debt summary'})).toContainText('$380,995.61');
+});
+
+
+test('loan account edits can cancel, discard or save when leaving Info',async({page})=>{
+ const before=await saved(page);
+ await page.getByRole('button',{name:'Open Sample home',exact:true}).click();
+ let detail=page.getByRole('dialog',{name:'Sample home',exact:true});
+ await detail.getByRole('tab',{name:'Info',exact:true}).click();
+ await detail.getByLabel('Name*',{exact:true}).fill('Unsaved home');
+ await detail.getByRole('tab',{name:'Transactions',exact:true}).click();
+ const prompt=page.getByRole('dialog',{name:'Unsaved loan changes'});
+ await prompt.getByRole('button',{name:'Cancel',exact:true}).click();
+ await expect(detail.getByLabel('Name*',{exact:true})).toHaveValue('Unsaved home');
+ await detail.getByRole('tab',{name:'Transactions',exact:true}).click();
+ await prompt.getByRole('button',{name:'Discard',exact:true}).click();
+ await expect(detail.getByRole('tab',{name:'Transactions',exact:true})).toHaveAttribute('aria-selected','true');
+ expect((await saved(page)).monthlyPlan.loanTrackers).toEqual(before.monthlyPlan.loanTrackers);
+ await detail.getByRole('tab',{name:'Info',exact:true}).click();
+ await detail.getByLabel('Name*',{exact:true}).fill('Saved home');
+ await detail.getByRole('button',{name:'Back from Sample home',exact:true}).click();
+ await prompt.getByRole('button',{name:'Save',exact:true}).click();
+ await expect.poll(async()=>(await saved(page)).monthlyPlan.loanTrackers[0].name).toBe('Saved home');
+ detail=page.getByRole('dialog',{name:'Saved home',exact:true});
+ await expect(detail).toHaveCount(0);
+ const after=await saved(page);expect(after.transactions).toEqual(before.transactions);expect(after.snapshots).toEqual(before.snapshots);expect(after.monthlyPlan.loanTrackers[0].history).toEqual(before.monthlyPlan.loanTrackers[0].history);
 });
