@@ -28,7 +28,7 @@ import LoanProgressPanel from "./loan-progress-panel";
 import { settlementReports } from "./plan-settlements";
 /* eslint-disable @next/next/no-img-element */
 
-import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useId, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import type { DashboardUser } from "./cloudflare-auth";
 import {
   createDashboardBackup,
@@ -1543,6 +1543,7 @@ function BalanceUpdateModal({ account, error, onClose, onSave }: { account: Debt
 }
 
 function AccountModal({ inline = false, dirty, readOnly = false, onArchive, onMarkPaidOff, onLoanType, draft, editing, autoFocusField, onChange, onClose, onSave, onRemove }: { inline?: boolean; dirty: boolean; readOnly?: boolean; onArchive?: () => void; onMarkPaidOff?: () => void; onLoanType: (kind: "house" | "car") => void; draft: AccountDraft; editing: boolean; autoFocusField: "name" | "balance"; onChange: (draft: AccountDraft) => void; onClose: () => void; onSave: () => void; onRemove: () => void }) {
+  const dueDayHelpId = useId();
   const inheritedCurrency = useHouseholdCurrency();
   const symbol = householdCurrencySymbol(useHouseholdCurrency());
   const [advanced, setAdvanced] = useState(false);
@@ -1560,7 +1561,7 @@ function AccountModal({ inline = false, dirty, readOnly = false, onArchive, onMa
         {!editing && <Field label="Current balance" prefix={symbol} value={draft.balance} placeholder="0" autoFocus={autoFocusField === "balance"} onChange={(balance) => onChange({ ...draft, balance })}/>}
         <Field label="APR" suffix="%" value={draft.apr} placeholder="0.00" step=".01" onChange={(apr) => onChange({ ...draft, apr })}/>
         <div className="minimum-editor"><div><span>{draft.minimumMode === "auto" ? "Estimated minimum" : "Minimum payment"}</span><button type="button" className={draft.minimumMode === "auto" ? "mode active" : "mode"} onClick={() => onChange({ ...draft, minimumMode: draft.minimumMode === "auto" ? "manual" : "auto" })}>{draft.minimumMode === "auto" ? "Auto estimate" : "Use auto"}</button></div><Field label={draft.minimumMode === "auto" ? "Estimated minimum" : "Minimum payment"} prefix={symbol} value={draft.minimumMode === "auto" ? autoMinimum : draft.minimum} placeholder="0" disabled={draft.minimumMode === "auto"} onChange={(minimum) => onChange({ ...draft, minimum })}/><small>{draft.minimumMode === "auto" ? "Estimated; replace with your statement minimum anytime." : "Statement amount."}</small></div>
-        <label><span>Due day</span><input type="date" value={draft.dueDate} onChange={(event) => onChange({ ...draft, dueDate: event.target.value })}/><small className="field-help">Repeats monthly on this day; shorter months use the last day.</small></label>
+        <label><span>Due day</span><input aria-label="Due day" aria-describedby={dueDayHelpId} type="date" value={draft.dueDate} onChange={(event) => onChange({ ...draft, dueDate: event.target.value })}/><small id={dueDayHelpId} className="field-help">Repeats monthly on this day; shorter months use the last day.</small></label>
       </div></div>
       <footer><div>{(!editing || dirty) && <button className="primary" type="button" disabled={readOnly || !draft.name.trim() || Boolean(invalidInterestDate)} onClick={onSave}>{editing ? "Save account" : "Add debt"}</button>}<button className="secondary" type="button" onClick={() => setAdvanced(true)}>Advanced</button></div></footer></fieldset>
       {advanced && <ExperienceOverlay title="Advanced" onBack={() => setAdvanced(false)}><fieldset className="advanced-info-content" disabled={readOnly}>        <div className="form-grid">
