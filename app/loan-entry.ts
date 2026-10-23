@@ -1,11 +1,13 @@
+import { validOptionalInstitution } from './institutions.ts';
 import { householdDate } from './household-date.ts';
 import type { LoanTracker } from './loan-progress.ts';
 
-export type LoanEntryField = 'name' | 'originalAmount' | 'remainingAmount' | 'asOf' | 'apr' | 'escrow' | 'kind' | 'monthlyPayment' | 'dueDate';
+export type LoanEntryField = 'institutionKey' | 'name' | 'originalAmount' | 'remainingAmount' | 'asOf' | 'apr' | 'escrow' | 'kind' | 'monthlyPayment' | 'dueDate';
 const money = (value: number) => Number.isFinite(value) && value >= 0 && Number.isSafeInteger(Math.round(value * 100));
 
 export function loanEntryErrors(loan: LoanTracker, today = householdDate()): Partial<Record<LoanEntryField, string>> {
   const errors: Partial<Record<LoanEntryField, string>> = {};
+  if (!validOptionalInstitution(loan.institutionKey)) errors.institutionKey = 'Choose an institution from the list.';
   if (!['house', 'car'].includes(loan.kind)) errors.kind = 'Choose a category.';
   if (!loan.name.trim()) errors.name = 'Enter a loan name.';
   if (!money(loan.originalAmount) || Math.round(loan.originalAmount * 100) <= 0) errors.originalAmount = 'Enter an original loan amount greater than $0.';

@@ -21,6 +21,11 @@ test('changed or removed card details reject a stale save without mutation',()=>
  const next=state();next.accounts[0].apr=24;const snapshot=structuredClone(next);assert.throws(()=>saveCreditCardDetails(next,'card',card,{account:card,balance:1000}),/details changed/);assert.deepEqual(next,snapshot);
  assert.throws(()=>saveCreditCardDetails({...state(),accounts:[]},'card',card,{account:card,balance:1000}),/no longer active/);
 });
+test('card group changes save without changing balances or transaction history',()=>{
+ const before=state();before.accounts[0].displayGroup='Mama';before.accounts[0].displayOrder=0;
+ const saved=saveCreditCardDetails(before,'card',{...before.accounts[0],displayGroup:'Papi'},{account:before.accounts[0],balance:1000});
+ assert.equal(saved.accounts[0].displayGroup,'Papi');assert.equal(saved.accounts[0].displayOrder,0);assert.equal(balance(saved),1000);assert.deepEqual(saved.transactions,before.transactions);assert.deepEqual(saved.adjustments,before.adjustments);assert.deepEqual(saved.accounts[1],before.accounts[1]);
+});
 test('mark paid off records an adjustment and archives without erasing ledger or starting balance',()=>{
  const next=changeDebtEntry(state(),{action:'save',draft:{accountId:'card',kind:'payment',direction:'decrease',amount:100,date:'2026-10-22',title:'Payment',note:''}});
  const paid=markCreditCardPaidOff(next,'card');assert.equal(balance(paid),0);assert.ok(paid.accounts[0].archivedAt);assert.equal(paid.accounts[0].baselineBalance,1000);assert.deepEqual(paid.transactions,next.transactions);assert.equal(paid.adjustments.at(-1).difference,-900);assert.deepEqual(paid.accounts[1],next.accounts[1]);

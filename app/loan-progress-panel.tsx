@@ -4,6 +4,7 @@ import { DebtDetail, DebtOverview, ExperienceOverlay, type DebtDetailTab } from 
 import InfoTooltip from "./info-tooltip";
 import { createHouseholdMoneyFormatter, householdCurrencySymbol } from "./household-currency";
 import { useHouseholdCurrency } from "./household-currency-context";
+import InstitutionIcon from "./institution-icon";
 import OutlineIcon from "./outline-icon";
 import LoanDetailsFields from "./loan-details-fields";
 import LoanActivityPanel from "./loan-activity-panel";
@@ -83,7 +84,7 @@ export default function LoanProgressPanel({ loans, items, onChange, onDialog, in
       let split = null;
       try { if (payment) split = loanPaymentSplit(loan, payment); } catch {}
       return <article key={loan.id} className={`loan-progress-card loan-${loan.kind}`} aria-label={`${loan.name} loan progress`}>
-        <button type="button" className="compact-debt-edit" disabled={readOnly} aria-label={`Edit details for ${loan.name}`} onClick={()=>open(loan)}><span className="loan-kind">{loan.kind === 'house' ? 'Mortgage' : 'Car loan'}</span><h3><span className="debt-name-icon"><OutlineIcon name={loan.kind === "house" ? "home" : "car"}/></span>{loan.name}</h3>
+        <button type="button" className="compact-debt-edit" disabled={readOnly} aria-label={`Edit details for ${loan.name}`} onClick={()=>open(loan)}><span className="loan-kind">{loan.kind === 'house' ? 'Mortgage' : 'Car loan'}</span><h3><InstitutionIcon institutionKey={loan.institutionKey} debtType={loan.kind}/>{loan.name}</h3>
         <span>{approximate ? 'Payoff quote' : 'Remaining principal'}</span><strong className="loan-balance">{money.format(loan.remainingAmount)}</strong>
         <div className="loan-progress-track" role="progressbar" aria-label={`${loan.name} balance reduction percentage`} aria-valuenow={Number(progress.percent.toFixed(2))} aria-valuemin={0} aria-valuemax={100}><i style={{ width: `${progress.percent}%` }}/></div>
         <div className="loan-progress-caption"><strong>{approximate ? '≈ ' : ''}{progress.percent.toFixed(2)}% reduced</strong><span>Balance {progress.reduction >= 0 ? 'reduced' : 'increased'} {money.format(Math.abs(progress.reduction))}</span></div>

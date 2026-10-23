@@ -36,7 +36,7 @@ test('Progress matches the summary-first design and mobile entry choices never o
  await dialog.getByRole('radio',{name:'Refund / credit',exact:true}).check();await expect(dialog).toContainText('Debt decreases by $150.00');await expect(dialog).toContainText('$4,916.96');
  await dialog.locator('.signed-amount-controls').scrollIntoViewIfNeeded();await screenshot('transaction');await dialog.getByRole('button',{name:'Save transaction',exact:true}).click();await expect(page.locator('.simple-total>strong')).toHaveText('$0.00');
  await page.reload();await openMore(page);await page.getByRole('button',{name:'Progress',exact:true}).filter({visible:true}).click();
- const hero=page.locator('.actual-progress-summary');await expect(hero).toContainText('$10,000.00');await expect(hero).toContainText('$4,916.96');await expect(hero.locator('.progress-snapshot-chart circle')).toHaveCount(2);await expect(page.locator('.paid-off-card')).toContainText('1');
+ const hero=page.locator('.actual-progress-summary');await expect(hero).toContainText('$10,000.00');await expect(hero).toContainText('$4,916.96');await expect(page.locator('.progress-snapshot-chart circle')).toHaveCount(2);await expect(page.locator('.paid-off-card')).toContainText('1');
  for(const amount of await page.locator('.snapshot-chart-labels strong').all())expect(await amount.evaluate(e=>e.scrollWidth<=e.clientWidth+1&&e.getBoundingClientRect().height<26)).toBe(true);
  await expect(page.getByRole('region',{name:'Snapshots'}).locator('.saved-check')).toHaveCount(2);await screenshot('progress');
  const axe=await new AxeBuilder({page}).include('.actual-progress-screen').withRules(['color-contrast']).analyze();expect(axe.violations).toEqual([]);

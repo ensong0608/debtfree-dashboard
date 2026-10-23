@@ -73,7 +73,7 @@ test("removing an isolated test account retains its last balance in Progress", a
   await expect(page.locator(".actual-progress-summary")).toContainText("$1,000.00");
   await page.getByText("Account breakdown", {exact:true}).click();
   await expect(page.getByText("Removed from Debts · last balance retained", { exact: true })).toBeVisible();
-  await expect(page.locator(".progress-story")).toContainText("$0.00");
+  await expect(page.locator(".actual-progress-summary")).toContainText("$0.00");
   await page.getByRole("button", { name: "Save snapshot", exact: true }).click();
   await expect(page.locator(".snapshot-controls .saved-check")).toContainText("$1,000.00");
   await page.reload();

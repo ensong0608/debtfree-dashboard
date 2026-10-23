@@ -1,4 +1,5 @@
 'use client';
+import InstitutionPicker from './institution-picker';
 import { useState } from 'react';
 import { householdDate } from './household-date';
 import { ExplanationDialog } from './info-tooltip';
@@ -47,6 +48,7 @@ export default function LoanDetailsFields({ draft, onChange, errors, mode = "all
   if (mode === "advanced") return <>{currency('originalAmount', 'Original balance')}</>;
   return <>
     <label>Name*<input autoFocus name="name" aria-label="Name*" required maxLength={100} aria-invalid={Boolean(errors.name)} aria-describedby={described('name')} value={draft.name} onChange={event => onChange({ ...draft, name: event.target.value })}/>{error('name')}</label>
+    <InstitutionPicker value={draft.institutionKey} onChange={institutionKey => onChange({ ...draft, institutionKey })}/>{error('institutionKey')}
     <label>Debt type*<select name="kind" aria-label="Debt type*" required aria-invalid={Boolean(errors.kind)} value={draft.kind} onChange={event => onChange({ ...draft, kind: event.target.value as LoanTracker['kind'] })}><option value="house">Mortgage</option><option value="car">Car loan</option></select>{error('kind')}</label>
     {mode === 'all' && currency('originalAmount', 'Original balance')}
     {currency('remainingAmount', 'Current balance')}

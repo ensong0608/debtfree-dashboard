@@ -1,11 +1,12 @@
+import { validOptionalInstitution } from './institutions.ts';
 import type { DebtAccount, DebtAuditCreator } from './dashboard-data.ts';
 import type { EntryState } from './debt-transactions.ts';
 import { transactionAdjustedAccounts } from './progress-balances.ts';
 import { createBalanceAdjustment, setDebtArchived } from './debts-screen.ts';
 import { householdDate, reconcileInterest } from './interest-accrual.ts';
 
-const editableKeys = ['name', 'apr', 'interestFee', 'minimum', 'minimumMode', 'creditLimit', 'dueDate', 'promoEndDate', 'postPromoApr', 'postPromoMinimum'] as const;
-export type CreditCardDraft = Pick<DebtAccount, typeof editableKeys[number]> & {balance: number};
+const editableKeys = ['institutionKey', 'displayGroup', 'name', 'apr', 'interestFee', 'minimum', 'minimumMode', 'creditLimit', 'dueDate', 'promoEndDate', 'postPromoApr', 'postPromoMinimum'] as const;
+export type CreditCardDraft = Pick<DebtAccount, typeof editableKeys[number]> & {balance: number; displayPosition?: number};
 export type CardEditBaseline = {account: DebtAccount; balance: number};
 
 function reconcileBalance(state: EntryState, account: DebtAccount, balance: number, creator?: DebtAuditCreator): EntryState {
@@ -22,6 +23,7 @@ export function saveCreditCardDetails(state: EntryState, id: string, draft: Cred
   const account = state.accounts.find(item => item.id === id);
   if (!account || account.type !== 'Credit card' || account.archivedAt) throw new Error('This card is no longer active. Reopen Debts.');
   if (editableKeys.some(key => account[key] !== baseline.account[key])) throw new Error('Card details changed. Reopen the card before saving.');
+  if (!validOptionalInstitution(draft.institutionKey)) throw new Error('Choose an institution from the list.');
   if (!draft.name.trim()) throw new Error('Enter an account name.');
   for (const key of ['balance', 'apr', 'interestFee', 'minimum', 'creditLimit', 'postPromoApr', 'postPromoMinimum'] as const) {
     const value = draft[key];
@@ -32,7 +34,7 @@ export function saveCreditCardDetails(state: EntryState, id: string, draft: Cred
   const current = transactionAdjustedAccounts(state.accounts, state.transactions).find(item => item.id === id)!;
   if (balanceChanged && current.balance !== baseline.balance) throw new Error('The balance changed. Reopen the card before editing its balance.');
   const next = balanceChanged ? reconcileBalance(state, account, draft.balance, creator) : state;
-  const changes = Object.fromEntries(editableKeys.map(key => [key, key === 'name' ? draft.name.trim() : draft[key]]));
+  const changes = Object.fromEntries(editableKeys.map(key => [key, key === 'name' ? draft.name.trim() : key === 'displayGroup' ? draft.displayGroup ?? baseline.account.displayGroup : draft[key]]));
   return {...next, accounts: next.accounts.map(item => item.id === id ? {...item, ...changes} : item)};
 }
 
