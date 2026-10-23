@@ -1,7 +1,7 @@
 # DebtFree — approved Light and Dark redesign handoff
 Date: October 23, 2026 (Pacific)
 Repository: ensong0608/debtfree-dashboard
-Status: Sections 0–8 are implemented in the local checkout. Section 9 integration findings and focused acceptance are recorded below; visual deviations and physical-device limits remain. No application changes have been committed or published. Earlier section checkpoints describe their historical verification state.
+Status: Sections 0–9 are implemented and the approved redesign was published on October 23, 2026 (Pacific), app source c2c200fe425737cb616aac3170eefefd677382e9, Worker c5b205d5-cd06-40ee-b164-393680dfedaa, successful release run 40037264277. Section 9 findings below remain the visual/physical-device limits. Earlier checkpoints describe historical verification state. Dependency remediation was explicitly deferred; see docs/PRIVATE_PRODUCTION_RELEASE_20261015.md for publication safeguards and results.
 
 ## Start here
 
