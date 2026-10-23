@@ -58,7 +58,7 @@ test.beforeEach(async ({ page }) => {
     if (!localStorage.getItem(key)) localStorage.setItem(key, JSON.stringify(fixture));
   }, { key: DASHBOARD_STORAGE_KEY, fixture });
   await page.goto('/');
-  await expect(page.getByRole('heading', { name: 'Hi Guest!' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: /Welcome,/ })).toBeVisible();
 });
 
 test('extra, method and minimum edits update Budget and both payment entries, surviving reload and rollover', async ({ page }) => {

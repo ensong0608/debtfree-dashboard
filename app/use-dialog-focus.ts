@@ -29,7 +29,14 @@ export function useDialogFocus() {
       if (!current && next) returnTo = lastOutside;
       current = next;
       if (current) { current.tabIndex = -1; if (!current.contains(document.activeElement)) (focusable(current)[0] ?? current).focus(); }
-      else if (returnTo?.isConnected) returnTo.focus();
+      else {
+        // Moving a debt to another group remounts its list button. Resolve the
+        // same record's replacement rather than losing keyboard focus.
+        const returnId = returnTo?.dataset.dialogReturnId;
+        const target = returnTo?.isConnected ? returnTo : returnId
+          ? document.querySelector<HTMLElement>(`[data-dialog-return-id="${CSS.escape(returnId)}"]`) : null;
+        target?.focus();
+      }
     };
     const keydown = (event: KeyboardEvent) => {
       if (current && event.key === "Escape") {

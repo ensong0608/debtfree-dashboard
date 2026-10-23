@@ -1,0 +1,34 @@
+import { test, expect } from '@playwright/test';
+import { createDemoFixture } from '../../mobile/demo-fixture';
+import { DASHBOARD_STORAGE_KEY } from '../../app/data-repository';
+
+test('Budget reporting month stays independent of the shared Home/Schedule forecast', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.clock.setFixedTime(new Date('2026-10-23T19:00:00Z'));
+  const fixture = createDemoFixture();
+  await page.addInitScript(({ key, fixture }) => { if (!localStorage.getItem(key)) localStorage.setItem(key, JSON.stringify(fixture)); }, { key: DASHBOARD_STORAGE_KEY, fixture });
+  await page.goto('/');
+  const schedule = page.getByRole('dialog', { name: 'Payoff Schedule', exact: true });
+  await page.getByRole('region', { name: 'Payoff Schedule preview' }).getByRole('button', { name: /See all/ }).click();
+  await expect(schedule).toBeVisible();
+  const homeText = await schedule.innerText();
+  await schedule.getByRole('button', { name: 'Close payoff schedule and go back' }).click();
+  await page.getByRole('navigation', { name: 'Primary navigation' }).getByRole('button', { name: 'Budget', exact: true }).click();
+  const sections = page.getByRole('navigation', { name: 'Budget sections' });
+  await expect(sections.getByRole('button', { name: 'Overview', exact: true })).toHaveAttribute('aria-pressed', 'true');
+  await page.getByRole('button', { name: 'Previous month', exact: true }).click();
+  await expect(page.getByRole('region', { name: 'Select plan month' })).toContainText('September 2026');
+  await sections.getByRole('button', { name: 'Transactions', exact: true }).click();
+  await expect(page.getByRole('combobox', { name: 'Period', exact: true })).toHaveValue('month:2026-09');
+  await page.getByRole('combobox', { name: 'Period', exact: true }).selectOption('lifetime');
+  await expect(page.getByRole('region', { name: 'Debt transaction activity' })).toBeVisible();
+  await sections.getByRole('button', { name: 'Schedule', exact: true }).click();
+  await page.getByRole('button', { name: 'View full Payoff Schedule', exact: true }).click();
+  await expect(schedule).toBeVisible();
+  expect(await schedule.innerText()).toBe(homeText);
+  await schedule.getByRole('button', { name: 'Close payoff schedule and go back' }).click();
+  await expect(sections.getByRole('button', { name: 'Schedule', exact: true })).toHaveAttribute('aria-pressed', 'true');
+  await sections.getByRole('button', { name: 'Overview', exact: true }).click();
+  await expect(page.getByRole('region', { name: 'Select plan month' })).toContainText('September 2026');
+  for (const label of ['Income +', 'Spending +', 'One-off +']) await expect(page.getByRole('button', { name: label, exact: true })).toBeVisible();
+});

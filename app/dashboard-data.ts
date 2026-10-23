@@ -1,3 +1,4 @@
+import { validOptionalInstitution, type InstitutionKey } from "./institutions.ts";
 import { householdMonthOffset } from "./household-date.ts";
 import { validDisplayName, type DebtGroup } from "./debt-groups.ts";
 import { validatePaymentLinks } from "./payment-overlap.ts";
@@ -41,6 +42,7 @@ export type BalanceReconciliation = {
 };
 
 export type DebtAccount = OwnershipMetadata & {
+  institutionKey?: InstitutionKey;
   id: string;
   name: string;
   type: DebtType;
@@ -654,6 +656,7 @@ function validateAccount(value: unknown, path: string, issues: string[]) {
   if (!item) return;
   requiredString(item.id, `${path}.id`, issues);
   requiredString(item.name, `${path}.name`, issues);
+  if (!validOptionalInstitution(item.institutionKey)) issues.push(`${path}.institutionKey must be a catalog key.`);
   enumValue(item.type, debtTypes, `${path}.type`, issues);
   requiredNumber(item.balance, `${path}.balance`, issues);
   if (item.reconciliation !== undefined) validateReconciliation(item.reconciliation, path + ".reconciliation", issues);
@@ -914,6 +917,7 @@ function validateMonthlyPlan(value: unknown, path: string, issues: string[]) {
       const p = path + ".loanTrackers[" + i + "]";
       const loan = requiredRecord(raw, p, issues);
       if (!loan) return;
+      if (!validOptionalInstitution(loan.institutionKey)) issues.push(p + ".institutionKey must be a catalog key.");
       for (const key of ["id", "name"]) requiredString(loan[key], p + "." + key, issues);
       for (const key of ["budgetItemId", "budgetItemName"]) requiredString(loan[key], p + "." + key, issues, true);
       if (typeof loan.budgetItemId === "string" && typeof loan.budgetItemName === "string" && Boolean(loan.budgetItemId.trim()) !== Boolean(loan.budgetItemName.trim())) issues.push(p + ".budgetItemId and budgetItemName must both be set or both be empty.");

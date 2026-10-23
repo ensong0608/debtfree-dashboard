@@ -24,7 +24,7 @@ test('F10 schedule keeps long names and large amounts usable at narrow mobile wi
     data: fixture,
   });
   await page.goto('/');
-  await expect(page.getByRole('heading', { name: 'Hi Guest!' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: /Welcome,/ })).toBeVisible();
   await page.getByRole('button', { name: 'Open full schedule', exact: false }).click();
   const schedule = page.getByRole('dialog', { name: 'Payoff Schedule', exact: true });
   await expect(schedule.getByRole('table')).toBeVisible();

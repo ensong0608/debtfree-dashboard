@@ -9,6 +9,8 @@ import { householdDate } from './household-date';
 import { nextDueDate, formatRecurringDueDate } from './recurring-due-date';
 import { regularLoanPayment, type LoanTracker } from './loan-progress';
 import type { PayoffSchedule } from './payoff-schedule';
+import type { DebtGroup } from './debt-groups';
+import InstitutionIcon from './institution-icon';
 import OutlineIcon from './outline-icon';
 import { navigateTabs } from './tab-navigation';
 import styles from './debt-experience.module.css';
@@ -24,43 +26,49 @@ function useDebtPreference(scope:string, name:string, fallback:string, allowed:s
  return [value,(next:string)=>{if(!allowed.includes(next))return;preferenceFallback.set(key,next);try{localStorage.setItem(key,next);}catch{}window.dispatchEvent(new Event('debt-view-preference'));}] as const;
 }
 
-type DebtControls = {search: string; sort: string; onSearch: (value: string) => void; onSort: (value: string) => void};
-function DebtListControls({search, sort, onSearch, onSort}: DebtControls) {
- return <div className={styles.toolbar}><label className={styles.sort}><OutlineIcon name="sort"/><span>Sort</span><select aria-label="Sort debts" value={sort} onChange={event => onSort(event.target.value)}><option value="name">A - Z</option><option value="apr">Highest APR</option><option value="amount">Highest AMT</option></select></label><label className={styles.search}><span className="sr-only">Search debts</span><input type="search" placeholder="Search debts" value={search} onChange={event => onSearch(event.target.value)}/></label></div>;
-}
-export function UnifiedDebtList({ accounts, loans, items, onSelect, compact = false, controls, preferenceScope = "device" }: { accounts: DebtAccount[]; loans: LoanTracker[]; items: CashflowItem[]; onSelect: (selection: DebtSelection) => void; compact?: boolean; controls?: DebtControls; preferenceScope?: string }) {
+export function UnifiedDebtList({ accounts, loans, items, groups = [], onSelect, compact = false, preferenceScope = "device" }: { accounts: DebtAccount[]; loans: LoanTracker[]; items: CashflowItem[]; groups?: DebtGroup[]; onSelect: (selection: DebtSelection) => void; compact?: boolean; preferenceScope?: string }) {
   const money = createHouseholdMoneyFormatter(useHouseholdCurrency());
   const [localSort, setSort] = useDebtPreference(preferenceScope,'sort','name',['name','apr','amount']);
   const [localSearch, setSearch] = useState('');
-  const sort = controls?.sort ?? localSort, search = controls?.search ?? localSearch;
+  const [category, setCategory] = useState<'all'|'cards'|'loans'>('all');
+  const [groupFilter, setGroupFilter] = useState('all');
+  const sort = localSort, search = localSearch;
   const rows = useMemo(() => [
-    ...accounts.filter(a => !a.archivedAt).map(a => ({ id: a.id, kind: 'account' as const, name: a.name, type: a.type, balance: a.balance, apr: a.apr, minimum: effectiveMinimum(a), dueDate: nextDueDate(a.dueDate), color: tone(a.type), progress: trackedPayoffProgress(a) })),
-    ...loans.map(loan => ({ id: loan.id, kind: 'loan' as const, name: loan.name, type: loan.kind === 'house' ? 'Mortgage' : 'Car loan', balance: loan.remainingAmount, apr: loan.apr, minimum: regularLoanPayment(loan, items), dueDate: nextDueDate(loan.dueDate ?? ''), color: tone(loan.kind), progress: loan.originalAmount > 0 ? Math.max(0,Math.min(100,(1-loan.remainingAmount/loan.originalAmount)*100)) : null })),
-  ].filter(a => a.name.toLocaleLowerCase().includes(search.trim().toLocaleLowerCase())).sort((a, b) => (sort === 'apr' ? (b.apr ?? -1) - (a.apr ?? -1) : sort === 'amount' ? b.balance - a.balance : a.name.localeCompare(b.name)) || a.name.localeCompare(b.name)), [accounts, loans, items, search, sort]);
+    ...accounts.filter(a => !a.archivedAt).map(a => { const baseline=a.baselineBalance; return { id: a.id, kind: 'account' as const, institutionKey: a.institutionKey, name: a.name, type: a.type, group: a.displayGroup ?? 'Other', displayOrder: a.displayOrder ?? Number.MAX_SAFE_INTEGER, balance: a.balance, apr: a.apr, minimum: effectiveMinimum(a), dueDate: nextDueDate(a.dueDate), color: tone(a.type), baseline, progress: trackedPayoffProgress(a) }; }),
+    ...loans.map(loan => ({ id: loan.id, kind: 'loan' as const, institutionKey: loan.institutionKey, name: loan.name, type: loan.kind === 'house' ? 'Mortgage' : 'Car loan', group: 'Loans', displayOrder: Number.MAX_SAFE_INTEGER, balance: loan.remainingAmount, apr: loan.apr, minimum: regularLoanPayment(loan, items), dueDate: nextDueDate(loan.dueDate ?? ''), color: tone(loan.kind), baseline: loan.originalAmount > 0 ? loan.originalAmount : undefined, progress: loan.originalAmount > 0 ? Math.max(0,Math.min(100,(1-loan.remainingAmount/loan.originalAmount)*100)) : null })),
+  ].filter(a => a.name.toLocaleLowerCase().includes(search.trim().toLocaleLowerCase()))
+    .filter(a => category==='all' || (category==='cards' ? a.kind==='account' && a.type==='Credit card' : !(a.kind==='account' && a.type==='Credit card')))
+    .filter(a => groupFilter==='all' || a.group===groupFilter)
+    .sort((a, b) => (sort === 'apr' ? (b.apr ?? -1) - (a.apr ?? -1) : sort === 'amount' ? b.balance - a.balance : ([...groups.map(group=>group.id),'Loans'].indexOf(a.group)-[...groups.map(group=>group.id),'Loans'].indexOf(b.group)) || a.displayOrder-b.displayOrder || a.name.localeCompare(b.name)) || a.name.localeCompare(b.name)), [accounts, loans, items, groups, search, sort, category, groupFilter]);
+  const categoryCounts={all:accounts.filter(a=>!a.archivedAt).length+loans.length,cards:accounts.filter(a=>!a.archivedAt&&a.type==='Credit card').length,loans:accounts.filter(a=>!a.archivedAt&&a.type!=='Credit card').length+loans.length};
+  const filterGroups=[...groups.map(group=>group.id),...(loans.length?['Loans']:[])];
+  const displayedGroups=[...new Set(rows.map(row=>row.group))];
   return <section className={styles.debtSection} aria-label={compact ? 'Your debts' : 'Debt list'}>
-    {!controls && <DebtListControls search={search} sort={sort} onSearch={setSearch} onSort={setSort}/>}
-    <div className={styles.debtGrid}>{rows.map(row => <button key={row.kind + row.id} className={styles.debtCard} data-debt-tone={row.color} onClick={() => onSelect({ kind: row.kind, id: row.id })} aria-label={`Open ${row.name}`} type="button"><span className={styles.cardTop}><span className={styles.typeIcon}><OutlineIcon name={row.color === 'house' ? 'home' : row.color === 'car' ? 'car' : 'card'}/></span><span>{row.type}</span><span className={styles.chevron} aria-hidden="true">›</span></span><h3>{row.name}</h3><strong className={styles.balance}>{money.format(row.balance)}</strong><span className={styles.cardMetrics}><span>APR<b className={row.apr===undefined?undefined:row.apr>=24?styles.highApr:styles.lowApr}>{row.apr === undefined ? '—' : `${row.apr}%`}</b></span><span>Minimum payment<b>{row.minimum === undefined ? '—' : money.format(row.minimum)}</b></span></span>{row.progress!==null && <span className={styles.listProgress}><span>{row.progress.toFixed(1)}% paid</span><span role="progressbar" aria-label={row.name+' balance reduction'} aria-valuenow={Number(row.progress.toFixed(1))} aria-valuemin={0} aria-valuemax={100}><i style={{width:row.progress+'%'}}/></span></span>}{row.dueDate && <span className={styles.due}>Due {new Date(row.dueDate + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span>}</button>)}</div>
+    <nav className={styles.debtFilters} aria-label="Debt type filters">{([['all','All'],['cards','Credit cards'],['loans','Loans & other']] as const).map(([id,label])=><button type="button" key={id} aria-pressed={category===id} onClick={()=>setCategory(id)}>{label}<span>{categoryCounts[id]}</span></button>)}</nav>
+    {filterGroups.length>0&&<nav className={styles.groupFilters} aria-label="Household group filters"><button type="button" aria-pressed={groupFilter==='all'} onClick={()=>setGroupFilter('all')}>All groups</button>{filterGroups.map(id=><button type="button" key={id} aria-pressed={groupFilter===id} onClick={()=>setGroupFilter(id)}>{groups.find(group=>group.id===id)?.name??id}</button>)}</nav>}
+    <div className={styles.toolbar}><label className={styles.sort}><OutlineIcon name="sort"/><span>Sort</span><select aria-label="Sort debts" value={sort} onChange={event => setSort(event.target.value)}><option value="name">Group order</option><option value="apr">Highest APR</option><option value="amount">Highest balance</option></select></label><label className={styles.search}><span className="sr-only">Search debts</span><input type="search" placeholder="Search debts" value={search} onChange={event => setSearch(event.target.value)}/></label></div>
+    {displayedGroups.map(group=><section key={group} className={styles.debtGroup} aria-label={`${groups.find(item=>item.id===group)?.name??group} debts`}><h2>{groups.find(item=>item.id===group)?.name??group}</h2><div className={styles.debtGrid}>{rows.filter(row=>row.group===group).map(row=>{const delta=row.baseline===undefined||row.baseline<=0?null:row.baseline-row.balance;const increased=delta!==null&&delta<0;const percent=row.progress;return <button key={row.kind + row.id} className={styles.debtCard} data-debt-tone={row.color} data-dialog-return-id={row.kind + ":" + row.id} onClick={() => onSelect({ kind: row.kind, id: row.id })} aria-label={`Open ${row.name}`} type="button"><span className={styles.cardTop}><InstitutionIcon institutionKey={row.institutionKey} debtType={row.type}/><span>{row.type}</span><span className={styles.chevron} aria-hidden="true">›</span></span><h3>{row.name}</h3><strong className={styles.balance}>{money.format(row.balance)}</strong><span className={styles.cardMetrics}><span>APR<b className={row.apr===undefined?undefined:row.apr>=24?styles.highApr:styles.lowApr}>{row.apr === undefined ? '—' : `${row.apr}%`}</b></span><span>Minimum payment<b>{row.minimum === undefined ? '—' : money.format(row.minimum)}</b></span></span><span className={styles.listProgress}><span>{percent===null?'Progress unavailable':increased?`Balance increased ${money.format(-delta!)}`:`${percent.toFixed(1)}% reduced`}</span>{percent!==null&&<span role="progressbar" aria-label={row.name+' balance reduction'} aria-valuenow={Number(percent.toFixed(1))} aria-valuemin={0} aria-valuemax={100}><i style={{width:percent+'%'}}/></span>}</span>{row.dueDate && <span className={styles.due}>Due {new Date(row.dueDate + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span>}</button>})}</div></section>)}
     {!rows.length && <p className={styles.empty}>{search ? 'No debts match your search.' : 'Add your first debt with Debt +.'}</p>}
   </section>;
 }
 function Landscape() {
   const id = useId().replaceAll(':', '');
   return <svg className={styles.scenery} viewBox="0 0 800 260" preserveAspectRatio="xMidYMax slice" aria-hidden="true">
-    <defs><linearGradient id={`${id}sky`} x2="0" y2="1"><stop stopColor="#d9f5f6"/><stop offset="1" stopColor="#f4faf1"/></linearGradient><linearGradient id={`${id}lake`} x2="0" y2="1"><stop stopColor="#8ddbdc"/><stop offset="1" stopColor="#d4f2df"/></linearGradient></defs>
-    <path fill={`url(#${id}sky)`} d="M0 0h800v260H0z"/><circle cx="663" cy="73" r="39" fill="#ffe39a"/>
-    <g fill="#fff" opacity=".8"><path d="M500 64c0-14 19-17 24-7 13-23 43-13 40 7h18v7h-94v-7z"/><path d="M180 35c0-9 13-11 17-5 9-15 29-9 27 5h12v5h-65v-5z"/></g>
-    <path d="m130 219 172-106 60 42 115-111 68 71 52-35 126 100 77-42v122H0z" fill="#add9e4"/>
-    <path d="m305 223 172-179 48 50 36 62 36-76 126 100 77-42v122H180z" fill="#73b8d2"/>
-    <path d="m477 44-35 70 34-14 18 15 12-16 19-5z" fill="#eff8f5"/><path d="m375 221 136-91 62 57 62-56 96 65 69-32v96H260z" fill="#459eac"/>
+    <defs><linearGradient id={`${id}sky`} x2="0" y2="1"><stop stopColor="var(--theme-art-sky)"/><stop offset="1" stopColor="var(--theme-art-cloud)"/></linearGradient><linearGradient id={`${id}lake`} x2="0" y2="1"><stop stopColor="var(--theme-art-water)"/><stop offset="1" stopColor="var(--theme-art-sky)"/></linearGradient></defs>
+    <path fill={`url(#${id}sky)`} d="M0 0h800v260H0z"/><circle cx="663" cy="73" r="39" fill="var(--theme-art-sun)"/>
+    <g fill="var(--theme-art-cloud)" opacity=".8"><path d="M500 64c0-14 19-17 24-7 13-23 43-13 40 7h18v7h-94v-7z"/><path d="M180 35c0-9 13-11 17-5 9-15 29-9 27 5h12v5h-65v-5z"/></g>
+    <path d="m130 219 172-106 60 42 115-111 68 71 52-35 126 100 77-42v122H0z" fill="var(--theme-art-mountain-back)"/>
+    <path d="m305 223 172-179 48 50 36 62 36-76 126 100 77-42v122H180z" fill="var(--theme-art-mountain-front)"/>
+    <path d="m477 44-35 70 34-14 18 15 12-16 19-5z" fill="var(--theme-art-cloud)"/><path d="m375 221 136-91 62 57 62-56 96 65 69-32v96H260z" fill="var(--theme-art-mountain-front)"/>
     <path d="M0 215q170-40 310-7t295-6 195-5v63H0" fill={`url(#${id}lake)`}/>
-    <path d="M426 224h174m-207 10h157m-85 13h188" stroke="#f4fff3" strokeWidth="3" opacity=".8"/>
-    {[15,42,70,106,638,662,687,715,745,775,798].map((x,i)=><g key={x} transform={`translate(${x} ${150+i%3*16}) scale(${.65+i%3*.2})`}><path d="M0-53-17-17h9L-23 8h14L-28 34h56L9 8h14L8-17h9Z" fill={i%2 ? '#286f75' : '#368b80'}/><path d="M-2 24h4v23h-4z" fill="#285d5b"/></g>)}
-    <path d="M0 239q102-28 199 21H0m800-32q-104 8-135 32h135" fill="#6aaa86"/>
-    {[4,30,55,85,730,758,790].map((x,i)=><g key={x} transform={`translate(${x} 265) rotate(${i%2?15:-15})`}><ellipse cy="-25" rx="8" ry="31" fill={i%2?'#3a8f84':'#81c2a1'}/><path d="M0 0v-48" stroke="#c4e5b6"/></g>)}
+    <path d="M426 224h174m-207 10h157m-85 13h188" stroke="var(--theme-art-cloud)" strokeWidth="3" opacity=".8"/>
+    {[15,42,70,106,638,662,687,715,745,775,798].map((x,i)=><g key={x} transform={`translate(${x} ${150+i%3*16}) scale(${.65+i%3*.2})`}><path d="M0-53-17-17h9L-23 8h14L-28 34h56L9 8h14L8-17h9Z" fill={i%2 ? 'var(--theme-art-tree)' : 'var(--theme-art-mountain-front)'}/><path d="M-2 24h4v23h-4z" fill="var(--theme-art-tree)"/></g>)}
+    <path d="M0 239q102-28 199 21H0m800-32q-104 8-135 32h135" fill="var(--theme-art-mountain-back)"/>
+    {[4,30,55,85,730,758,790].map((x,i)=><g key={x} transform={`translate(${x} 265) rotate(${i%2?15:-15})`}><ellipse cy="-25" rx="8" ry="31" fill={i%2?'var(--theme-art-tree)':'var(--theme-art-mountain-back)'}/><path d="M0 0v-48" stroke="var(--theme-art-cloud)"/></g>)}
   </svg>;
 }
 function ProgressRing({ percent, small = false }: { percent: number; small?: boolean }) {
-  return <div className={`${styles.ring} ${small ? styles.smallRing : ''}`} style={{ background: `conic-gradient(var(--ring-color, #26b5bc) ${percent}%, var(--ring-track, #dcf4f3) 0)` }}><span><strong>{percent.toFixed(1)}%</strong>reduced</span></div>;
+  return <div className={`${styles.ring} ${small ? styles.smallRing : ''}`} style={{ background: `conic-gradient(var(--ring-color, var(--theme-chart-1)) ${percent}%, var(--ring-track, var(--theme-track)) 0)` }}><span><strong>{percent.toFixed(1)}%</strong>reduced</span></div>;
 }
 function remainingTime(month: string | null) {
   if (!month) return null;

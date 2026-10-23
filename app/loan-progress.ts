@@ -1,6 +1,8 @@
+import type { InstitutionKey } from './institutions.ts';
 import type { CashflowItem } from './dashboard-data.ts';
 
 export type LoanTracker = {
+  institutionKey?: InstitutionKey;
   id: string;
   name: string;
   kind: 'house' | 'car';
