@@ -37,7 +37,6 @@ test('Debt + adds house and car loans directly with actionable validation and no
   }
   await dialog.getByLabel('Mortgage payment',{exact:true}).fill('2000.50');
   await dialog.getByLabel('Escrow amount',{exact:true}).fill('600.25');
-  await dialog.getByRole('button',{name:'Choose payment date'}).click();
   const now=new Date();
   await expect(dialog.locator('.loan-calendar-heading strong')).toHaveText(now.toLocaleDateString('en-US',{month:'long',year:'numeric',timeZone:'America/Los_Angeles'}));
   await dialog.getByRole('button',{name:'Next month',exact:true}).click();

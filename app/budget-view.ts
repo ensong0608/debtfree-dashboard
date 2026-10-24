@@ -54,7 +54,7 @@ export function buildBudgetView(input: { items: CashflowItem[]; transactions: Le
   const payoff = monthlyBudgetCommitment(settings, month, currentMonth, commitment.budgetCommitment);
   const recorded = purchases.filter(row => row.date.slice(0, 7) === month && (!row.plannedItemId || !linkedIds.has(row.plannedItemId)));
   return { month, allocations, planned: { income, spending, payoff, afterSpending: round(income - spending), remaining: round(income - spending - payoff), safetyBuffer: settings.months[month]?.safetyBuffer ?? 0 },
-    actual: settings.detailedSpendingTracking && recorded.length && !recorded.some(row => ambiguousIds.has(row.plannedItemId)) ? { recordedSpending: round(recorded.reduce((sum, row) => sum + row.amount, 0)), coverage: 'recorded-only' as const } : null,
+    actual: settings.detailedSpendingTracking && recorded.length && !recorded.some(row => ambiguousIds.has(row.plannedItemId)) ? { recordedSpending: round(recorded.reduce((sum, row) => sum + row.amount, 0)), records: recorded.map(row => ({id: row.id, title: row.title || row.payeeName || row.category, date: row.date, amount: row.amount, markedPaid: row.id.startsWith('settlement:')})), coverage: 'recorded-only' as const } : null,
     // No persisted coverage attestation or actual-income ledger exists. Recording
     // some purchases cannot establish comparable full-month or prior-month coverage.
     spendingComparison: null,

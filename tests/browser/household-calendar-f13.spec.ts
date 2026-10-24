@@ -58,10 +58,10 @@ for (const timezoneId of ['UTC', 'Asia/Manila', 'America/Los_Angeles']) {
         await mount(page, '/app/payments-page.tsx', { readOnly: false, accounts: [], transactions: [], adjustments: [], storedAccounts: [], message: '' });
         await expect(page.getByLabel('Period', { exact: true })).toHaveValue(`month:${month}`);
         await mount(page, '/app/plan-settlement-dialog.tsx', { request: { targetId: 'test', name: 'Boundary spending', kind: 'spending', amount: 10, source: 'debit' }, month });
-        await expect(page.getByLabel('Date paid', { exact: true })).toHaveValue(day);
+        await expect(page.getByRole('group',{name:'Date paid',exact:true}).getByRole('button',{name:day,exact:true})).toHaveAttribute('aria-pressed','true');
         await expect(page.getByLabel('Date paid', { exact: true })).toHaveAttribute('max', day);
         await mount(page, '/app/plan-settlement-dialog.tsx', { request: { targetId: 'test', name: 'Historical spending', kind: 'spending', amount: 10, source: 'debit' }, month: '2026-09' });
-        await expect(page.getByLabel('Date paid', { exact: true })).toHaveValue('2026-09-01');
+        await expect(page.getByRole('group',{name:'Date paid',exact:true}).getByRole('button',{name:'2026-09-01',exact:true})).toHaveAttribute('aria-pressed','true');
         const nextMonth = month === '2026-12' ? '2027-01' : '2028-03';
         await mount(page, '/app/debt-experience.tsx', { name: 'Synthetic', accounts: [], loans: [], starting: 0, current: 0, schedule: { debtFreeMonth: nextMonth, payoffMonths: {}, rows: [], issues: [], monthly: 0, complete: true } }, 'HomeExperience');
         await expect(page.locator('section').filter({ hasText: 'DEBT-FREE COUNTDOWN' }).locator('strong')).toHaveText(['0','0','1']);

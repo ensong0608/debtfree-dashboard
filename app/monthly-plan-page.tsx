@@ -109,7 +109,7 @@ export default function MonthlyPlanPage(props: Props) {
       </div>}
     </section>}
 
-    {props.view.actual && <section className={styles.recorded} aria-label="Recorded spending"><span>Recorded spending</span><strong>{currency.format(props.view.actual.recordedSpending)}</strong><small>Recorded activity for {monthLabel(month)}.</small></section>}
+    {props.view.actual && <details className={styles.recorded} aria-label="Recorded spending"><summary><span>Recorded spending</span><strong>{currency.format(props.view.actual.recordedSpending)}</strong><span aria-hidden="true">⌄</span></summary><small>Recorded purchases and spending marked Paid for {monthLabel(month)}. Planned-only bills, debt payments and interest are excluded.</small><ul>{props.view.actual.records.map(row=><li key={row.id}><div><strong>{row.title}</strong><small>{new Date(row.date+'T12:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric'})}{row.markedPaid?' · Marked Paid':''}</small></div><strong>{currency.format(row.amount)}</strong></li>)}</ul></details>}
 
     <section className={styles.categorySection} aria-label="Planned spending by category">
       <header className={styles.sectionHeading}><h2>Spending by Category</h2><button type="button" onClick={props.onViewTransactions}>See all <OutlineIcon name="chevron" /></button></header>

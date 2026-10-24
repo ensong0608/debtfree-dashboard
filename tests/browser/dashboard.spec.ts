@@ -315,7 +315,9 @@ test("Costco interest starts next cycle, survives refresh, and reconciles withou
   await page.getByRole("button", { name: "Debts", exact: true }).click();
   await card.getByRole("button", {name:"Update balance for Costco",exact:true}).click();
   await dialog.getByLabel("New current balance").fill("10260.00");
-  await dialog.getByLabel("Date",{exact:true}).fill("2026-11-03");
+  const dateCalendar=dialog.getByRole('group',{name:'Date',exact:true});
+  await dateCalendar.getByRole('button',{name:'Next month for Date'}).click();
+  await dateCalendar.getByRole('button',{name:'2026-11-03',exact:true}).click();
   await dialog.getByRole("button", {name:"Save balance"}).click();
   await expect(card.locator(".simple-balance")).toHaveText("$10,260.00");
   await page.reload();
