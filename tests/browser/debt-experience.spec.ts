@@ -250,7 +250,7 @@ test('Debt + creates mortgage and car records, validates missing values and pres
   await expect(loan.getByText('Enter an original loan amount greater than $0.',{exact:true})).toBeVisible();
   await loan.getByLabel('Original balance',{exact:true}).fill('10000');
   await loan.getByLabel('Current balance',{exact:true}).fill('8000');
-  await loan.getByLabel('APR*',{exact:true}).fill('5');
+  await loan.getByLabel(kind === 'Mortgage' ? 'APR*' : 'APR (optional)',{exact:true}).fill('5');
   await loan.getByLabel(kind === 'Mortgage' ? 'Mortgage payment' : 'Minimum payment',{exact:true}).fill('500');
   if(kind === 'Mortgage') await loan.getByLabel('Escrow amount',{exact:true}).fill('100');
   await loan.getByRole('button',{name:'Save',exact:true}).click();
@@ -474,17 +474,21 @@ test('Home preview keeps approved header alignment, dark carousels and recurring
 test('loan balance classification enables auto forecast without changing balances',async({page})=>{
  const before=await saved(page),nav=page.getByRole('navigation',{name:'Primary navigation'});
  await nav.getByRole('button',{name:'Home',exact:true}).click();await page.getByRole('region',{name:'Payoff Strategy preview'}).getByRole('button',{name:'See all'}).click();
- const strategy=page.getByRole('dialog',{name:'Payoff Strategy',exact:true});await expect(strategy).toContainText('Sample auto: Enter a remaining principal balance.');
- await strategy.getByRole('button',{name:'Review loan details',exact:true}).click();
- const loan=page.getByRole('dialog',{name:'Sample auto',exact:true});await expect(loan.getByLabel('Balance type',{exact:true})).toHaveValue('payoff');
+ const strategy=page.getByRole('dialog',{name:'Payoff Strategy',exact:true});await expect(strategy.getByRole('alert')).toHaveCount(0);
+ await strategy.getByRole('button',{name:'Close payoff strategy and go back',exact:true}).click();
+ await nav.getByRole('button',{name:'Debt',exact:true}).click();await page.getByRole('button',{name:'Open Sample auto',exact:true}).click();await page.getByRole('tab',{name:'Info',exact:true}).click();
+ const loan=page.getByRole('dialog',{name:'Sample auto',exact:true});await expect(loan.getByLabel('Balance type',{exact:true})).toHaveCount(0);
+ await loan.getByLabel('APR (optional)',{exact:true}).fill('');await loan.getByRole('button',{name:'Save',exact:true}).click();
+ await expect.poll(async()=>(await saved(page)).monthlyPlan.loanTrackers.find((r:{id:string})=>r.id==='auto-quote')?.apr).toBeUndefined();
+ await loan.getByRole('tab',{name:'Info',exact:true}).click();await expect(loan).toContainText('Assumed 6% APR for planning.');
  await expect(loan.getByLabel('Current balance',{exact:true})).toHaveValue('1,000.00');
- await expect(loan.getByLabel('Remaining principal',{exact:true})).toHaveValue('');
- await loan.getByLabel('Remaining principal',{exact:true}).fill('950');
+ await expect(loan.getByLabel('Remaining principal (optional)',{exact:true})).toHaveValue('');
+ await loan.getByLabel('Remaining principal (optional)',{exact:true}).fill('950');
  const calendar=loan.getByRole('group',{name:'Due date',exact:true});await expect(calendar).toBeVisible();
  for(const width of [320,390]){await page.setViewportSize({width,height:900});expect(await calendar.evaluate(el=>el.scrollWidth<=el.clientWidth+1)).toBe(true);}
  await loan.getByLabel('Current balance',{exact:true}).fill('1100');
- await expect(loan.getByLabel('Remaining principal',{exact:true})).toHaveValue('');
- await loan.getByLabel('Current balance',{exact:true}).fill('1000');await loan.getByLabel('Remaining principal',{exact:true}).fill('950');
+ await expect(loan.getByLabel('Remaining principal (optional)',{exact:true})).toHaveValue('');
+ await loan.getByLabel('Current balance',{exact:true}).fill('1000');await loan.getByLabel('Remaining principal (optional)',{exact:true}).fill('950');
  await expect(loan.locator('input[type=date]')).toHaveCount(0);await expect(loan.getByText('Choose payment date',{exact:true})).toHaveCount(0);
  await loan.getByRole('button',{name:'Save',exact:true}).click();
  await expect.poll(async()=>(await saved(page)).monthlyPlan.loanTrackers.find((r:{id:string})=>r.id==='auto-quote')?.principalBalance).toBe(950);

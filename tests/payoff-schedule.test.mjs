@@ -26,7 +26,7 @@ test('mixed debt schedule includes fixed loans and escrow once, caps final princ
  assert.equal(schedule.rows.reduce((sum,row)=>sum+row.paid-row.interest,0),2300); // 2,000 principal + three escrow installments
 });
 test('missing loan terms, payoff quotes, insufficient minimums and non-amortizing payments never yield a finish date', () => {
- for(const bad of [{...loan,apr:undefined},{...loan,balanceKind:'payoff'},{...loan,monthlyPayment:105}]) {
+ for(const bad of [{...loan,apr:undefined},{...loan,monthlyPayment:105}]) {
   const result=buildPayoffSchedule([account],[bad],[],300,'avalanche',date);
   assert.equal(result.complete,false);assert.equal(result.debtFreeMonth,null);assert.ok(result.issues.length);
  }
@@ -49,7 +49,17 @@ test('explicit principal forecasts a quote loan without changing its quoted bala
   assert.deepEqual(actual,expected); assert.equal(actual.complete,true);
  }
  assert.deepEqual(quote,before);
- for(const principalBalance of [undefined,NaN,-1,Infinity]) {
+ for(const principalBalance of [NaN,-1,Infinity]) {
   assert.equal(buildConfiguredPayoffSchedule([], [{...quote,principalBalance}], [], 0, 'snowball', date).complete,false);
  }
+});
+
+test('auto assumptions keep forecast working while exact values and zero APR override defaults', () => {
+ const car={...loan,kind:'car',balanceKind:'payoff',apr:undefined,escrow:undefined};
+ const before=structuredClone(car);
+ const assumed=buildConfiguredPayoffSchedule([], [car], [], 0, 'snowball', date);
+ const explicit=buildConfiguredPayoffSchedule([], [{...car,apr:6,balanceKind:'principal'}], [], 0, 'snowball', date);
+ assert.deepEqual(assumed,explicit);assert.equal(assumed.complete,true);assert.deepEqual(car,before);
+ assert.equal(buildConfiguredPayoffSchedule([], [{...car,apr:0}], [], 0, 'snowball', date).totalInterest,0);
+ assert.notEqual(buildConfiguredPayoffSchedule([], [{...car,apr:5.85}], [], 0, 'snowball', date).totalInterest,assumed.totalInterest);
 });

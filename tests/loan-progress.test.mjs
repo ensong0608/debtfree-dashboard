@@ -79,3 +79,13 @@ test('new optional payment/date fields roundtrip alongside unchanged legacy hist
   assert.throws(()=>parseDashboardContract(invalid));
  }
 });
+
+test('auto payment estimates are explicit and preserve known principal and zero rates', () => {
+ const car={...loan,kind:'car',remainingAmount:1000,balanceKind:'payoff',apr:undefined};
+ assert.equal(loanPaymentSplit(car,100).interest,5);
+ assert.equal(recordLoanPayment(car,100,'2026-10-08').history[0].estimated,true);
+ const known={...car,principalBalance:950,apr:0};
+ const result=recordLoanPayment(known,100,'2026-10-08');
+ assert.equal(result.remainingAmount,900);assert.equal(result.principalBalance,850);
+ assert.equal(known.remainingAmount,1000);assert.equal(result.history[0].interest,0);
+});

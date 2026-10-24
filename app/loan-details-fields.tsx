@@ -3,7 +3,7 @@ import DateCalendar from './date-calendar';
 import InstitutionPicker from './institution-picker';
 import { useState } from 'react';
 import { ExplanationDialog } from './info-tooltip';
-import type { LoanTracker } from './loan-progress';
+import { AUTO_PLANNING_APR, loanForecastAssumptions, type LoanTracker } from './loan-progress';
 import type { LoanEntryField } from './loan-entry';
 
 const usd = new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -34,9 +34,9 @@ export default function LoanDetailsFields({ draft, onChange, errors, mode = "all
     <label>Debt type*<select name="kind" aria-label="Debt type*" required aria-invalid={Boolean(errors.kind)} value={draft.kind} onChange={event => onChange({ ...draft, kind: event.target.value as LoanTracker['kind'] })}><option value="house">Mortgage</option><option value="car">Car loan</option></select>{error('kind')}</label>
     {mode === 'all' && currency('originalAmount', 'Original balance')}
     {currency('remainingAmount', 'Current balance')}
-    <label>Balance type<select name="balanceKind" aria-label="Balance type" value={draft.balanceKind} onChange={event=>onChange({...draft,principalBalance:undefined,balanceKind:event.target.value as LoanTracker['balanceKind']})}><option value="principal">Remaining principal</option><option value="payoff">Payoff quote</option></select></label>
-    {draft.balanceKind === 'payoff' && currency('principalBalance', 'Remaining principal', 'Enter the unpaid principal from your lender statement for the payoff forecast, excluding accrued interest and fees.')}
-    <label>APR*<span className="loan-percentage-input"><input name="apr" aria-label="APR*" type="number" required min="0" max="100" step="any" aria-invalid={Boolean(errors.apr)} aria-describedby={described('apr')} value={draft.apr ?? ''} onChange={event => onChange({ ...draft, apr: event.target.value === '' ? undefined : Number(event.target.value) })}/><span aria-hidden="true">%</span></span>{error('apr')}</label>
+    {currency('principalBalance', 'Remaining principal (optional)', 'Enter the unpaid principal from your lender statement for the payoff forecast, excluding accrued interest and fees.')}
+    <label>{draft.kind === "car" ? "APR (optional)" : "APR*"}<span className="loan-percentage-input"><input name="apr" aria-label={draft.kind === "car" ? "APR (optional)" : "APR*"} placeholder={draft.kind === "car" ? `${AUTO_PLANNING_APR}% assumed` : undefined} type="number" required={draft.kind !== "car"} min="0" max="100" step="any" aria-invalid={Boolean(errors.apr)} aria-describedby={described('apr')} value={draft.apr ?? ''} onChange={event => onChange({ ...draft, apr: event.target.value === '' ? undefined : Number(event.target.value) })}/><span aria-hidden="true">%</span></span>{error('apr')}</label>
+    {loanForecastAssumptions(draft).length > 0 && <small className="field-help" role="status">{loanForecastAssumptions(draft).join(' ')}</small>}
     {currency('monthlyPayment', draft.kind === 'house' ? 'Mortgage payment' : 'Minimum payment', draft.kind === 'house' ? 'Enter the total regular monthly payment, including principal, interest, and escrow. Enter its escrow portion separately below; it is subtracted once when calculating principal.' : 'Enter the regular monthly payment required by your lender, including principal and interest. Extra principal can be recorded separately.')}
     {draft.kind === 'house' && currency('escrow', 'Escrow amount', 'Enter the escrow portion included in your mortgage payment for property taxes and homeowners insurance. Enter $0 if you pay these separately. Escrow does not reduce your loan balance.')}
     <DateCalendar label="Due date" recurring invalid={Boolean(errors.dueDate)} describedBy={described("dueDate")} value={draft.dueDate} onChange={dueDate => onChange({ ...draft, dueDate })}/>{error('dueDate')}
