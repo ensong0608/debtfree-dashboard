@@ -161,3 +161,6 @@
 .integratedSummary{border:1px solid var(--theme-border);border-radius:16px;background:linear-gradient(135deg,var(--theme-gradient-start),var(--theme-gradient-end));overflow:hidden}.integratedSummary .summary{background:transparent;border:0;box-shadow:none;margin:0}.integratedSummary :global([aria-label="Progress scope"]>div:first-child){margin-bottom:0}
 
 .integratedSummary .summary{display:block}.integratedSummary .compactProgressCopy>strong{margin:0;font-size:calc(20px * var(--theme-text-scale,1));line-height:1.15}.integratedSummary .compactProgressCopy>span,.integratedSummary .compactSummary .compactBaseline{font-size:12px;line-height:1.25}.integratedSummary .compactProgressCopy>strong>small{display:inline;font-size:12px}
+
+.screen{width:100%;padding:0 0 calc(32px + env(safe-area-inset-bottom))}.compactSummaryMain{justify-content:flex-start;min-height:120px;gap:14px}.compactProgressRing{width:108px;height:108px}.compactProgressRing>span{width:86px;height:86px;font-size:calc(22px * var(--theme-text-scale,1))}
+@media(max-width:360px){.compactProgressRing{width:100px;height:100px}.compactProgressRing>span{width:80px;height:80px}}

@@ -15,3 +15,6 @@
 .chartWrap>.textLink{position:static;display:flex;margin:5px 0 0 auto;min-height:44px}
 
 .debtSummary{padding:10px 14px}.progressCompact{min-height:88px;gap:14px;padding:0 2px}.compactRing{width:74px;height:74px}.compactRing>span{width:60px;height:60px}.compactCopy>strong{font-size:calc(20px * var(--theme-text-scale,1))}.compactCopy>span{font-size:12px}.compactCopy .textLink{font-size:12px;min-height:32px}
+
+.home{width:100%;max-width:none;margin:0;padding:0 0 calc(28px + env(safe-area-inset-bottom))}.debtSummary{margin-top:0}.progressCompact{justify-content:flex-start;min-height:120px;padding:8px 0;gap:14px}.compactRing{width:108px;height:108px}.compactRing>span{width:86px;height:86px;font-size:calc(22px * var(--theme-text-scale,1))}.scheduleCard :global(.payoff-strategy-list){gap:0}.scheduleCard :global(.payoff-strategy-list>li){padding:10px 0;background:transparent;border:0;border-radius:0;border-bottom:1px solid var(--theme-border)}.scheduleCard :global(.payoff-strategy-list>li:last-child){border:0}
+@media(max-width:360px){.compactRing{width:100px;height:100px}.compactRing>span{width:80px;height:80px}.compactCopy>strong{font-size:calc(18px * var(--theme-text-scale,1))}}

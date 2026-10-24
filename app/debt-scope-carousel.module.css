@@ -11,3 +11,6 @@
 .viewport::-webkit-scrollbar { display: none; }
 .viewport:focus-visible { outline: 3px solid var(--theme-focus); outline-offset: 3px; border-radius: 12px; }
 .slide { flex: 0 0 100%; min-width: 0; scroll-snap-align: start; scroll-snap-stop: always; }
+
+.controls{margin:0;gap:0}.dots{gap:0}.dots>button{width:36px;height:36px}.dots>button::before{width:5px;height:5px}.dots>button.activeDot::before{width:12px}
+@media(pointer:coarse){.dots>button{width:44px;height:44px}}

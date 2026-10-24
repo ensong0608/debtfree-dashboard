@@ -33,16 +33,12 @@ export default function DebtScopeCarousel({ slides, value, onChange, label = "De
   }
 
   if (!slides.length) return null;
-  const previous = () => slides[Math.max(0, activeIndex - 1)] && onChange(slides[activeIndex - 1].scope);
-  const next = () => slides[Math.min(slides.length - 1, activeIndex + 1)] && onChange(slides[activeIndex + 1].scope);
 
   return <section className={styles.carousel} aria-label={label}>
     <div className={styles.controls}>
-      <button type="button" onClick={previous} disabled={activeIndex === 0} aria-label={`Previous ${label.toLowerCase()}`}><span aria-hidden="true">‹</span></button>
       <div className={styles.dots} role="group" aria-label={`${label} pages`}>
         {slides.map((slide, index) => <button key={slide.scope} type="button" className={index === activeIndex ? styles.activeDot : ""} aria-label={`Show ${slide.label}`} aria-current={index === activeIndex ? "page" : undefined} onClick={() => onChange(slide.scope)} />)}
       </div>
-      <button type="button" onClick={next} disabled={activeIndex === slides.length - 1} aria-label={`Next ${label.toLowerCase()}`}><span aria-hidden="true">›</span></button>
     </div>
     <div className={styles.viewport} ref={viewport} onScrollEnd={handleScroll} onKeyDown={handleKeyDown} tabIndex={0} aria-label={`${slides[activeIndex]?.label ?? label}. Swipe or use left and right arrow keys to change scope.`}>
       {slides.map((slide, index) => <div key={slide.scope} className={styles.slide} aria-hidden={index !== activeIndex} inert={index !== activeIndex}>{slide.content}</div>)}
