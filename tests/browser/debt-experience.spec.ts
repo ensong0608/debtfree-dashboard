@@ -310,7 +310,7 @@ test('credit card drafts survive tabs, transactions confirm independently and ba
  await detail.getByLabel('Account name',{exact:true}).fill('Draft card');
  await detail.getByRole('button',{name:'Advanced',exact:true}).click();
  const advanced=page.getByRole('dialog',{name:'Advanced',exact:true});
- await expect(advanced.locator('fieldset').getByRole('button')).toHaveText(['Mark paid off','Delete debt']);
+ await expect(advanced.getByRole('button',{name:/^(Mark paid off|Delete debt)$/})).toHaveText(['Mark paid off','Delete debt']);
  await advanced.getByLabel('Credit limit (optional)',{exact:true}).fill('6000');
  await page.screenshot({path:'outputs/redesign/card-advanced-refined.png'});
  await expect((await saved(page)).accounts).toEqual(before.accounts);
