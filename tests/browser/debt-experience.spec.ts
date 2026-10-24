@@ -45,7 +45,7 @@ test('five tabs, separate Home summary and searchable unified Debt list', async(
  const debts=page.getByRole('region',{name:'Debt list',exact:true});
  await expect(page.getByRole('region',{name:'Debt summary',exact:true})).not.toContainText('Minimum payments');
  await expect(debts.getByRole('button',{name:/^Open /})).toHaveText([/Sample card/,/Sample home/,/Sample travel/]);
- const filters=debts.getByRole('navigation',{name:'Debt type filters'});
+ const filters=page.getByRole('navigation',{name:'Debt type filters'});
  await filters.getByRole('button',{name:/Cards & loans/}).click();
  await expect(debts.getByRole('button',{name:/^Open /})).toHaveCount(2);
  await filters.getByRole('button',{name:/House & auto/}).click();
@@ -63,9 +63,9 @@ test('five tabs, separate Home summary and searchable unified Debt list', async(
  await nav.getByRole('button',{name:/^Debts?$/,exact:true}).click();
  await expect(page.getByRole('region',{name:'Debt list'}).getByRole('button',{name:/^Open /})).toHaveCount(3);
  await expect(page.getByRole('tab',{name:'Show House & Auto',exact:true})).toHaveCount(0);
- for(const name of ['Budget','Settings']) {await nav.getByRole('button',{name,exact:true}).click();await expect(page.locator('.page-heading h1')).toHaveText(name==='Budget'?'Budget monthly':name);}
+ for(const name of ['Budget','Settings']) {await nav.getByRole('button',{name,exact:true}).click();await expect(page.locator('.page-heading h1')).toHaveText(name==='Budget'?'Budget planned':name);}
  await expect(page.getByRole('button',{name:'Open Settings',exact:true})).toHaveCount(0);
- if((await page.viewportSize())!.width<=820) {await page.getByRole('button',{name:'Open Account',exact:true}).click();await expect(page.locator('.page-heading h1')).toHaveText('Account');await page.getByRole('button',{name:'Close Account',exact:true}).click();await nav.getByRole('button',{name:'Progress',exact:true}).click();await expect(page.locator('.page-heading h1')).toHaveText('Progress');}
+ if((await page.viewportSize())!.width<=820) {await nav.getByRole('button',{name:'Home',exact:true}).click();await page.getByRole('button',{name:'Open Account',exact:true}).click();await expect(page.locator('.page-heading h1')).toHaveText('Account');await page.getByRole('button',{name:'Close Account',exact:true}).click();await nav.getByRole('button',{name:'Progress',exact:true}).click();await expect(page.locator('.page-heading h1')).toHaveText('Progress overview');}
  expect(await page.evaluate(()=>document.documentElement.scrollWidth <= innerWidth+1)).toBe(true);
 });
 
@@ -233,15 +233,17 @@ test('Home preview opens one complete schedule, supports keyboard back and fits 
  await expect(preview.getByRole('button',{name:'See all'})).toBeFocused();
  await page.getByRole('navigation',{name:'Primary navigation'}).getByRole('button',{name:'Budget',exact:true}).click();
  await page.getByRole('navigation',{name:'Budget sections'}).getByRole('button',{name:'Strategy',exact:true}).click();
- await expect(strategy).toBeVisible();await strategy.getByRole('button',{name:'Close payoff strategy and go back'}).click();
- await expect(page.getByRole('heading',{name:'Budget monthly',exact:true})).toBeVisible();
+ await expect(page.getByRole('region',{name:'Payoff Strategy',exact:true})).toBeVisible();
+ await expect(page.getByRole('heading',{name:'Payoff strategy',exact:true})).toBeVisible();
+ await page.getByRole('navigation',{name:'Budget sections'}).getByRole('button',{name:'Planned',exact:true}).click();
+ await expect(page.getByRole('heading',{name:'Budget planned',exact:true})).toBeVisible();
 });
 
 test('Debt + creates mortgage and car records, validates missing values and preserves the existing household', async({page})=>{
  const before=await saved(page);
  await page.getByRole('navigation',{name:'Primary navigation'}).getByRole('button',{name:/^Debts?$/,exact:true}).click();
  for(const kind of ['Mortgage','Car loan']) {
-  await page.getByRole('button',{name:'Debt +',exact:true}).click();
+  await page.getByRole('button',{name:'Add debt',exact:true}).click();
   const creation=page.getByRole('dialog',{name:'Add a debt account',exact:true});
   await creation.getByLabel('Account name',{exact:true}).fill(`New ${kind}`);
   await creation.getByRole('combobox',{name:'Debt type',exact:true}).selectOption({label:kind});
@@ -270,7 +272,7 @@ test('mortgage and car forms keep long names readable in Light and Dark',async({
  for(const theme of ['light','dark'] as const){
   await page.evaluate(({key,event,value})=>{localStorage.setItem(key,JSON.stringify(value));window.dispatchEvent(new CustomEvent(event,{detail:value}));},{key:APPEARANCE_KEY,event:APPEARANCE_EVENT,value:THEMES[theme]});
   for(const kind of ['Mortgage','Car loan']){
-   await page.getByRole('button',{name:'Debt +',exact:true}).click();
+   await page.getByRole('button',{name:'Add debt',exact:true}).click();
    const creation=page.getByRole('dialog',{name:'Add a debt account',exact:true});
    await creation.getByLabel('Account name',{exact:true}).fill('Long household account name for the vehicle or primary residence loan');
    await creation.getByRole('combobox',{name:'Debt type',exact:true}).selectOption({label:kind});
@@ -430,17 +432,17 @@ test('Home preview keeps approved header alignment, dark carousels and recurring
  const before=await saved(page);
  for(const width of info.project.name==='phone'?[320,360,390,430,1440]:[1440]){
   await page.setViewportSize({width,height:1000});
-  let baseline:null|number=null;
   for(const tab of ['Home','Debt','Progress','Budget','Settings']){
    await nav.getByRole('button',{name:tab,exact:true}).click();
    await page.locator('.page-body').evaluate(el=>{el.scrollTop=0;});
    const header=page.locator('.shared-dashboard-header');
-   await expect(header.getByLabel('DebtFree',{exact:true})).toBeVisible();
-   expect(await header.locator('.page-heading').evaluate(el=>getComputedStyle(el).backgroundColor)).toBe('rgba(0, 0, 0, 0)');
-   const box=(await page.locator('.viewer-readonly-surface').boundingBox())!;
-   const firstContent=page.locator('.viewer-readonly-surface').locator(tab==='Home'?'[aria-label="Debt summary"]':tab==='Debt'?'[aria-label="Debt type filters"]':tab==='Progress'?'[aria-label="Progress sections"]':tab==='Budget'?'[aria-label="Budget sections"]':'[aria-label="Household currency"]');
-   expect(Math.abs((await firstContent.boundingBox())!.y-box.y)).toBeLessThan(2);
-   if(baseline===null)baseline=box.y;else expect(Math.abs(box.y-baseline)).toBeLessThan(2);
+   await expect(header.getByLabel('DebtFree',{exact:true})).toHaveCount(tab==='Home'?1:0);
+   await expect(header.getByRole('button',{name:'Open Account',exact:true})).toHaveCount(tab==='Home'?1:0);
+   expect(await header.evaluate(el=>getComputedStyle(el).backgroundColor)).toBe('rgb(24, 43, 69)');
+   if(['Debt','Progress','Budget'].includes(tab)) {
+    const buttons=await header.locator('.compact-segments>button').all();
+    for(const button of buttons)expect((await button.boundingBox())!.height).toBeGreaterThanOrEqual(44);
+   }
    expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1)).toBe(true);
    if(width===390||width===1440)await page.screenshot({path:`outputs/redesign/approved-${tab.toLowerCase()}-${width}.png`});
   }
@@ -507,7 +509,7 @@ test('Home preview keeps recorded activity in Transactions and a shared date cal
  await expect(page.getByRole('region',{name:'Debt transaction activity'})).toContainText('Test purchase 0');
  await expect(page.getByRole('region',{name:'Debt transaction activity'})).toContainText('Test purchase 1');
  expect((await saved(page)).transactions).toEqual(original.transactions);
- await page.getByRole('button',{name:'Overview',exact:true}).click();
+ await page.getByRole('button',{name:'Planned',exact:true}).click();
  await page.getByRole('button',{name:'Add planned spending',exact:true}).click();const dialog=page.getByRole('dialog',{name:'Add planned entry',exact:true});const calendar=dialog.getByRole('group',{name:'Due date',exact:true});
  await expect(calendar).toBeVisible();await expect(dialog.locator('input[type=date]')).toHaveCount(0);
  for(const theme of ['light','dark'] as const){await page.evaluate(({key,event,value})=>{localStorage.setItem(key,JSON.stringify(value));window.dispatchEvent(new CustomEvent(event,{detail:value}));},{key:APPEARANCE_KEY,event:APPEARANCE_EVENT,value:THEMES[theme]});for(const width of [320,360,390,430]){await page.setViewportSize({width,height:900});expect(await calendar.evaluate(el=>el.scrollWidth<=el.clientWidth+1)).toBe(true);}}

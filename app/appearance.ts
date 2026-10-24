@@ -4,7 +4,13 @@ export const APPEARANCE_EVENT = 'debtfree-appearance-change';
 export const FONTS = { default: 'Helvetica,"Helvetica Neue",Arial,sans-serif', system: 'system-ui,sans-serif', serif: 'Georgia,"Times New Roman",serif' } as const;
 export type Theme = 'light' | 'dark';
 type Colors = { accent: string; background: string; surface: string; text: string };
-export type Appearance = Colors & { version: 2; theme: Theme; font: keyof typeof FONTS; size: 'standard' | 'large' | 'larger'; legacyColors?: Colors };
+export type Appearance = Colors & { version: 2; theme: Theme; font: keyof typeof FONTS; size: 'standard' | 'large' | 'larger'; legacyColors?: Colors; primaryLight?: string; primaryDark?: string };
+export const PRIMARY_DEFAULTS = { light: '#cfe7fa', dark: '#182b45' };
+export const PRIMARY_PRESETS = {
+  dark: [{ name: 'Midnight Navy', color: '#182b45' }, { name: 'Deep Indigo', color: '#292343' }, { name: 'Deep Teal', color: '#123639' }, { name: 'Graphite', color: '#252b35' }],
+  light: [{ name: 'Soft Blue', color: '#cfe7fa' }, { name: 'Lavender', color: '#e4dcf6' }, { name: 'Mint', color: '#d2eee5' }, { name: 'Silver', color: '#e1e6ed' }],
+} satisfies Record<Theme, { name: string; color: string }[]>;
+export function primaryColor(p: Appearance, theme = p.theme) { return (theme === 'dark' ? p.primaryDark : p.primaryLight) ?? PRIMARY_DEFAULTS[theme]; }
 const LIGHT: Colors = { accent: '#0961d9', background: '#f3f7fd', surface: '#ffffff', text: '#101b31' };
 const DARK: Colors = { accent: '#42cfff', background: '#080e16', surface: '#131e2b', text: '#edf3ff' };
 export const DEFAULT_APPEARANCE: Appearance = { version: 2, theme: 'light', font: 'default', size: 'standard', ...LIGHT };
@@ -34,6 +40,7 @@ export function appearanceError(value: unknown): string | null {
   const p = value as Record<string, unknown>;
   if (p.version !== 2 || !['light', 'dark'].includes(p.theme as string) || typeof p.font !== 'string' || !Object.hasOwn(FONTS, p.font) || !['standard', 'large', 'larger'].includes(p.size as string)) return 'Choose a supported theme, font and text size.';
   if (!validColors(p)) return 'Use six-digit hex colors, such as #0961d9.';
+  if (['primaryLight', 'primaryDark'].some(key => p[key] !== undefined && (typeof p[key] !== 'string' || !/^#[0-9a-f]{6}$/i.test(p[key] as string)))) return 'Use a six-digit primary color, such as #182b45.';
   if (!readableColors(p)) return 'Text and accent need more contrast against background and surface.';
   if ((p.theme === 'light' && !lightSurfaces(p)) || (p.theme === 'dark' && [p.background, p.surface].some(bg => contrast('#ffffff', bg) <= contrast('#000000', bg)))) return 'Choose surfaces that match the selected theme.';
   if (p.legacyColors !== undefined && (!validColors(p.legacyColors) || !readableColors(p.legacyColors) || !lightSurfaces(p.legacyColors))) return 'Saved custom colors are invalid.';
@@ -56,11 +63,11 @@ export function parseAppearance(raw: string | null): Appearance {
       return { ...DEFAULT_APPEARANCE, font, size };
     }
     if (appearanceError(p)) return { ...DEFAULT_APPEARANCE };
-    return { version: 2, theme: p.theme, font: p.font, size: p.size, ...normalizeColors(p), ...(p.legacyColors ? { legacyColors: normalizeColors(p.legacyColors) } : {}) };
+    return { version: 2, theme: p.theme, font: p.font, size: p.size, ...normalizeColors(p), ...(p.legacyColors ? { legacyColors: normalizeColors(p.legacyColors) } : {}), ...(p.primaryLight ? { primaryLight: p.primaryLight.toLowerCase() } : {}), ...(p.primaryDark ? { primaryDark: p.primaryDark.toLowerCase() } : {}) };
   } catch { return { ...DEFAULT_APPEARANCE }; }
 }
 export function withTheme(p: Appearance, theme: Theme): Appearance {
-  return { ...THEMES[theme], font: p.font, size: p.size, ...(p.legacyColors ? { legacyColors: p.legacyColors } : {}) };
+  return { ...THEMES[theme], font: p.font, size: p.size, ...(p.legacyColors ? { legacyColors: p.legacyColors } : {}), ...(p.primaryLight ? { primaryLight: p.primaryLight } : {}), ...(p.primaryDark ? { primaryDark: p.primaryDark } : {}) };
 }
 type PreferenceStorage = Pick<Storage, 'getItem' | 'setItem' | 'removeItem'>;
 export function loadAppearance(storage: PreferenceStorage): Appearance { return parseAppearance(storage.getItem(APPEARANCE_KEY)); }
@@ -70,7 +77,7 @@ export function saveAppearance(storage: PreferenceStorage, value: Appearance) {
 }
 export function resetAppearance(storage: PreferenceStorage) { storage.removeItem(APPEARANCE_KEY); }
 export function appearanceFlags(p: Appearance) {
-  return { colors: colorKeys.some(k => p[k] !== THEMES[p.theme][k]), font: p.font !== 'default', size: p.size !== 'standard' };
+  return { colors: colorKeys.some(k => p[k] !== THEMES[p.theme][k]) || primaryColor(p) !== PRIMARY_DEFAULTS[p.theme], font: p.font !== 'default', size: p.size !== 'standard' };
 }
 function mix(a: string, b: string, amount: number) {
   return '#' + [1, 3, 5].map(i => Math.round(parseInt(a.slice(i, i + 2), 16) * amount + parseInt(b.slice(i, i + 2), 16) * (1 - amount)).toString(16).padStart(2, '0')).join('');
@@ -79,7 +86,14 @@ function mix(a: string, b: string, amount: number) {
 // foregrounds rather than retaining fixed dark labels or light semantic panels.
 export function appearanceTokens(p: Appearance): Record<string, string> {
   const dark = p.theme === 'dark';
-  const { surface, background, text, accent } = p;
+  const { surface, background, text } = p;
+  const primary = primaryColor(p);
+  const customizedPrimary = p.theme === 'dark' ? p.primaryDark : p.primaryLight;
+  let accent = p.accent;
+  if (customizedPrimary) {
+    accent = primary;
+    for (let amount = 1; amount >= 0 && [surface, background].some(bg => contrast(accent, bg) < 4.5); amount -= .02) accent = mix(primary, text, Math.max(0, amount));
+  }
   const tint = (color: string, amount: number) => {
     let result = mix(color, surface, amount);
     while (amount > 0 && [text, accent].some(fg => contrast(fg, result) < 4.5)) {
@@ -92,12 +106,17 @@ export function appearanceTokens(p: Appearance): Record<string, string> {
   const mutedCandidate = mix(text, surface, .76);
   const readable = (candidate: string, surfaces = [surface, background, raised], ratio = 4.5) => surfaces.every(bg => contrast(candidate, bg) >= ratio) ? candidate : text;
   const on = (bg: string) => contrast('#ffffff', bg) >= 4.5 ? '#ffffff' : '#000000';
+  const headerRail = mix(primary, '#000000', .82);
+  const headerSelected = mix(primary, on(primary), .8);
   const t: Record<string, string> = {
+    '--theme-primary': primary, '--theme-on-primary': on(primary),
+    '--theme-header-rail': headerRail, '--theme-on-header-rail': on(headerRail),
+    '--theme-header-selected': headerSelected, '--theme-on-header-selected': on(headerSelected),
     '--theme-background': background, '--theme-surface': surface, '--theme-raised': raised,
     '--theme-text': text, '--theme-muted': readable(mutedCandidate), '--theme-border': mix(text, surface, .24),
     '--theme-control-border': readable(mix(text, surface, .6), [surface, background, raised], 3),
-    '--theme-accent': readable(accent, [surface, background, raised, accentSoft]), '--theme-accent-fill': dark ? '#5842c4' : accent,
-    '--theme-on-accent': on(dark ? '#5842c4' : accent), '--theme-accent-soft': accentSoft,
+    '--theme-accent': readable(accent, [surface, background, raised, accentSoft]), '--theme-accent-fill': primary,
+    '--theme-on-accent': on(primary), '--theme-accent-soft': accentSoft,
     '--theme-strong-surface': dark ? '#19263c' : '#182c4a', '--theme-on-strong': '#edf3ff',
     '--theme-track': mix(text, surface, .16), '--theme-overlay': '#030a16b3',
     '--theme-focus': readable(accent), '--theme-shadow': dark ? '#00000040' : '#17243a12',

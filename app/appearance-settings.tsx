@@ -1,10 +1,11 @@
 'use client';
 import { useEffect, useRef, useState } from 'react';
-import { APPEARANCE_EVENT, APPEARANCE_KEY, DEFAULT_APPEARANCE, FONTS, THEMES, appearanceError, loadAppearance, resetAppearance, saveAppearance, withTheme, type Appearance, type Theme } from './appearance';
+import { APPEARANCE_EVENT, APPEARANCE_KEY, DEFAULT_APPEARANCE, FONTS, THEMES, PRIMARY_PRESETS, primaryColor, appearanceError, appearanceTokens, loadAppearance, resetAppearance, saveAppearance, withTheme, type Appearance, type Theme } from './appearance';
+import type { CSSProperties } from 'react';
 import styles from './appearance-settings.module.css';
 
-type EditableKey = 'font' | 'size' | 'accent' | 'background' | 'surface' | 'text';
-const EDITABLE_KEYS: EditableKey[] = ['font', 'size', 'accent', 'background', 'surface', 'text'];
+type EditableKey = 'font' | 'size' | 'accent' | 'background' | 'surface' | 'text' | 'primaryLight' | 'primaryDark';
+const EDITABLE_KEYS: EditableKey[] = ['font', 'size', 'accent', 'background', 'surface', 'text', 'primaryLight', 'primaryDark'];
 function announce(value?: Appearance) { window.dispatchEvent(new CustomEvent(APPEARANCE_EVENT, { detail: value })); }
 function isAppearanceStorageEvent(event: StorageEvent) {
   if (event.key !== APPEARANCE_KEY && event.key !== null) return false;
@@ -19,6 +20,8 @@ export default function AppearanceSettings() {
   const [ready, setReady] = useState(false);
   const [storageError, setStorageError] = useState(false);
   const error = appearanceError(draft);
+  const primaryKey = draft.theme === 'dark' ? 'primaryDark' : 'primaryLight';
+  const previewTokens = !error ? appearanceTokens(draft) : undefined;
 
   useEffect(() => {
     const readSaved = () => {
@@ -144,13 +147,17 @@ export default function AppearanceSettings() {
         {saved.theme === theme && <span className={styles.check} aria-hidden="true">✓</span>}
       </button>)}
     </div></fieldset>
+    <fieldset className={styles.primaryColors}><legend>Primary color · {draft.theme === 'dark' ? 'Dark' : 'Light'}</legend>
+      <div className={styles.colorPresets} role="group" aria-label="Primary color presets">{PRIMARY_PRESETS[draft.theme].map(preset => <button type="button" key={preset.name} aria-pressed={primaryColor(draft).toLowerCase() === preset.color} disabled={!ready || storageError} onClick={() => edit(primaryKey, preset.color)}><span aria-hidden="true" style={{ background: preset.color }}/>{preset.name}</button>)}</div>
+      <div className={styles.colorPicker}><label>Custom color<input type="color" aria-label="Custom primary color" value={/^#[0-9a-f]{6}$/i.test(primaryColor(draft)) ? primaryColor(draft) : primaryColor(saved)} disabled={!ready || storageError} onChange={event => edit(primaryKey, event.target.value)}/></label><label>Hex color<input type="text" aria-label="Primary color hex" value={draft[primaryKey] ?? primaryColor(draft)} maxLength={7} spellCheck={false} autoComplete="off" disabled={!ready || storageError} aria-invalid={Boolean(error)} onChange={event => edit(primaryKey, event.target.value)}/></label></div>
+    </fieldset>
     <div className={styles.fields}>
       <label>Font<select aria-label="Font" value={draft.font} disabled={!ready || storageError} onChange={e => edit('font', e.target.value as Appearance['font'])}><option value="default">Helvetica / Arial</option><option value="system">System</option><option value="serif">Georgia / serif</option></select></label>
       <label>Text size<select aria-label="Text size" value={draft.size} disabled={!ready || storageError} onChange={e => edit('size', e.target.value as Appearance['size'])}><option value="standard">Standard</option><option value="large">Large</option><option value="larger">Larger</option></select></label>
     </div>
-    <details className={styles.customColors}><summary>Custom colors</summary><p>Choosing Light or Dark applies that built-in palette. Older saved custom colors remain preserved for compatibility.</p>{saved.legacyColors && <button type="button" className="secondary" disabled={!ready || storageError} onClick={() => { setDraft(current => ({ ...current, theme: 'light', ...saved.legacyColors })); setMessage('Legacy custom colors previewed. Save changes to keep them active.'); announce({ ...saved, theme: 'light', ...saved.legacyColors }); }}>Preview saved custom colors</button>}<div className={styles.fields}>{(['accent', 'background', 'surface', 'text'] as const).map(key => <label key={key}>{key[0].toUpperCase() + key.slice(1)}<input type="text" spellCheck={false} autoComplete="off" maxLength={7} value={draft[key]} disabled={!ready || storageError} aria-invalid={Boolean(error)} onChange={e => edit(key, e.target.value)}/></label>)}</div></details>
+    <details className={styles.customColors}><summary>Custom colors</summary>{saved.legacyColors && <button type="button" className="secondary" disabled={!ready || storageError} onClick={() => { setDraft(current => ({ ...current, theme: 'light', ...saved.legacyColors })); setMessage('Legacy custom colors previewed. Save changes to keep them active.'); announce({ ...saved, theme: 'light', ...saved.legacyColors }); }}>Preview saved custom colors</button>}<div className={styles.fields}>{(['accent', 'background', 'surface', 'text'] as const).map(key => <label key={key}>{key[0].toUpperCase() + key.slice(1)}<input type="text" spellCheck={false} autoComplete="off" maxLength={7} value={draft[key]} disabled={!ready || storageError} aria-invalid={Boolean(error)} onChange={e => edit(key, e.target.value)}/></label>)}</div></details>
     {error && <p role="alert" className={styles.error}>{error}</p>}
-    <div className={styles.preview} aria-label="Appearance preview" style={!error ? { background: draft.background, color: draft.text, fontFamily: FONTS[draft.font], fontSize: draft.size === 'standard' ? '16px' : draft.size === 'large' ? '18px' : '20px' } : undefined}><div style={!error ? { background: draft.surface } : undefined}><strong>Preview</strong><p>Your totals and cards keep their layout.</p><span style={!error ? { color: draft.accent } : undefined}>Sample balance · $1,250</span></div></div>
+    <div className={styles.preview} aria-label="Appearance preview" style={!error ? { ...previewTokens, background: draft.background, color: draft.text, fontFamily: FONTS[draft.font], fontSize: draft.size === 'standard' ? '16px' : draft.size === 'large' ? '18px' : '20px' } as CSSProperties : undefined}><div className={styles.previewHeader}>Preview</div><div style={!error ? { background: draft.surface } : undefined}><p>Your totals and cards keep their layout.</p><span style={!error ? { color: previewTokens?.['--theme-accent'] } : undefined}>Sample balance · $1,250</span></div></div>
     <div className={styles.actions}><button type="button" className="primary" disabled={!ready || storageError || Boolean(error)} onClick={save}>Save changes</button><button type="button" className="secondary" disabled={!ready} onClick={cancel}>Cancel edits</button><button type="button" className="secondary" disabled={!ready} onClick={reset}>Reset to Light</button></div>
     {message && <p role={storageError ? 'alert' : 'status'}>{message}</p>}
   </section>;
