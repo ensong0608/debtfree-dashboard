@@ -940,7 +940,7 @@ function validateMonthlyPlan(value: unknown, path: string, issues: string[]) {
       requiredNumber(loan.originalAmount, p + ".originalAmount", issues);
       if (typeof loan.originalAmount === "number" && loan.originalAmount <= 0) issues.push(p + ".originalAmount must be positive.");
       requiredNumber(loan.remainingAmount, p + ".remainingAmount", issues);
-      for (const key of ["apr", "escrow", "principalAndInterest", "monthlyPayment"]) if (loan[key] !== undefined) requiredNumber(loan[key], p + "." + key, issues);
+      for (const key of ["apr", "escrow", "principalAndInterest", "monthlyPayment", "principalBalance"]) if (loan[key] !== undefined) requiredNumber(loan[key], p + "." + key, issues);
       if (loan.dueDate !== undefined && (typeof loan.dueDate !== "string" || !validDate(loan.dueDate))) issues.push(p + ".dueDate must be a valid date.");
       if (typeof loan.asOf !== "string" || !validDate(loan.asOf)) issues.push(p + ".asOf must be a valid date.");
       requiredArray(loan.history, p + ".history", issues)?.forEach((raw, index) => {

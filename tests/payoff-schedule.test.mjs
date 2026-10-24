@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { buildPayoffSchedule } from '../app/payoff-schedule.ts';
+import { buildConfiguredPayoffSchedule, buildPayoffSchedule } from '../app/payoff-schedule.ts';
 import { calculateMinimumPayoffPlan } from '../app/payoff-calculator.ts';
 const date = new Date('2026-10-22T12:00:00Z');
 const account = {id:'card',name:'Card',type:'Credit card',balance:1000,apr:12,minimum:25,minimumMode:'manual',payoffMode:'priority',interestFee:0,creditLimit:2000,dueDate:'',promoEndDate:'',postPromoApr:0,postPromoMinimum:0,createdAt:date.toISOString()};
@@ -37,4 +37,19 @@ test('loan-only, linked legacy payments, zero APR and empty households remain va
  const result=buildPayoffSchedule([],[{...loan,apr:0,monthlyPayment:undefined,budgetItemId:'mortgage'}],[{id:'mortgage',kind:'expense',amount:600}],0,'avalanche',date);
  assert.equal(result.complete,true);assert.equal(result.rows.length,2);assert.equal(result.rows[1].remaining,0);
  const empty=buildPayoffSchedule([],[],[],0,'avalanche',date);assert.deepEqual(empty.rows,[]);assert.deepEqual(empty.issues,[]);
+});
+
+test('explicit principal forecasts a quote loan without changing its quoted balance or history', () => {
+ const quote={...loan,kind:'car',balanceKind:'payoff',remainingAmount:1000,principalBalance:950,escrow:undefined};
+ const before=structuredClone(quote);
+ const principal={...quote,balanceKind:'principal',remainingAmount:950,principalBalance:undefined};
+ for(const build of [buildPayoffSchedule,buildConfiguredPayoffSchedule]) {
+  const actual=build([], [quote], [], 0, 'snowball', date);
+  const expected=build([], [principal], [], 0, 'snowball', date);
+  assert.deepEqual(actual,expected); assert.equal(actual.complete,true);
+ }
+ assert.deepEqual(quote,before);
+ for(const principalBalance of [undefined,NaN,-1,Infinity]) {
+  assert.equal(buildConfiguredPayoffSchedule([], [{...quote,principalBalance}], [], 0, 'snowball', date).complete,false);
+ }
 });

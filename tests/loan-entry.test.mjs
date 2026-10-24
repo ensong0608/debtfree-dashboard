@@ -30,3 +30,11 @@ test('loan validation rejects invalid money, APR and dates; zero APR, escrow and
 test('car loans do not require escrow; a due date is optional and may be in a future month',()=>{
  assert.deepEqual(loanEntryErrors({...loan,kind:'car',escrow:undefined,dueDate:'2027-01-15'},today),{});
 });
+
+test('separate quote principal is optional, validated and never substitutes the saved quote', () => {
+ const quote={...loan,kind:'car',balanceKind:'payoff',remainingAmount:1000,principalBalance:950};
+ assert.deepEqual(loanEntryErrors(quote,today),{});
+ for(const principalBalance of [-1,Infinity,NaN,1001]) assert.ok(loanEntryErrors({...quote,principalBalance},today).principalBalance);
+ assert.deepEqual(loanEntryErrors({...quote,principalBalance:undefined},today),{});
+ assert.equal(quote.remainingAmount,1000);
+});

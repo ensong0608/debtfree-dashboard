@@ -21,7 +21,7 @@ test.beforeEach(async ({page}, info) => {
   const key=new Date().toISOString().slice(0,7);
   fixture.payload.monthlyBudgets[key]=[{id:'salary',kind:'income',name:'Salary',category:'Salary',amount:5000,paymentMethod:'debit',creditAccountId:'',createdAt:key+'-01T12:00:00Z',recurring:true},{id:'insurance',kind:'expense',name:'Insurance',category:'Insurance',amount:180,paymentMethod:'debit',creditAccountId:'',createdAt:key+'-01T12:00:00Z',recurring:true},{id:'gpt',kind:'expense',name:'OpenAI GPT',category:'Subscriptions',amount:20,paymentMethod:'debit',creditAccountId:'',createdAt:key+'-01T12:00:00Z',recurring:true}];
   fixture.payload.monthlyPlan!.months[key]={safetyBuffer:0,debtPaymentTarget:0};
-  if(info.title.includes('traceable')){
+  if(info.title.includes('recorded activity')){
    fixture.payload.monthlyPlan!.detailedSpendingTracking=true;
    for(const [i,amount] of [40,42.68].entries())fixture.payload.transactions.push({...fixture.payload.transactions[0],id:'spend-'+i,type:'charge',amount,payeeName:'Test purchase '+i,category:'Purchases',date:key+'-02'});
   }
@@ -478,25 +478,32 @@ test('loan balance classification enables auto forecast without changing balance
  await strategy.getByRole('button',{name:'Review loan details',exact:true}).click();
  const loan=page.getByRole('dialog',{name:'Sample auto',exact:true});await expect(loan.getByLabel('Balance type',{exact:true})).toHaveValue('payoff');
  await expect(loan.getByLabel('Current balance',{exact:true})).toHaveValue('1,000.00');
- await loan.getByLabel('Balance type',{exact:true}).selectOption('principal');
+ await expect(loan.getByLabel('Remaining principal',{exact:true})).toHaveValue('');
+ await loan.getByLabel('Remaining principal',{exact:true}).fill('950');
  const calendar=loan.getByRole('group',{name:'Due date',exact:true});await expect(calendar).toBeVisible();
  for(const width of [320,390]){await page.setViewportSize({width,height:900});expect(await calendar.evaluate(el=>el.scrollWidth<=el.clientWidth+1)).toBe(true);}
+ await loan.getByLabel('Current balance',{exact:true}).fill('1100');
+ await expect(loan.getByLabel('Remaining principal',{exact:true})).toHaveValue('');
+ await loan.getByLabel('Current balance',{exact:true}).fill('1000');await loan.getByLabel('Remaining principal',{exact:true}).fill('950');
  await expect(loan.locator('input[type=date]')).toHaveCount(0);await expect(loan.getByText('Choose payment date',{exact:true})).toHaveCount(0);
  await loan.getByRole('button',{name:'Save',exact:true}).click();
- await expect.poll(async()=>(await saved(page)).monthlyPlan.loanTrackers.find((r:{id:string})=>r.id==='auto-quote')?.balanceKind).toBe('principal');
- const after=await saved(page);expect(after.monthlyPlan.loanTrackers.find((r:{id:string})=>r.id==='auto-quote').remainingAmount).toBe(1000);
+ await expect.poll(async()=>(await saved(page)).monthlyPlan.loanTrackers.find((r:{id:string})=>r.id==='auto-quote')?.principalBalance).toBe(950);
+ const after=await saved(page);expect(after.monthlyPlan.loanTrackers.find((r:{id:string})=>r.id==='auto-quote').remainingAmount).toBe(1000);expect(after.monthlyPlan.loanTrackers.find((r:{id:string})=>r.id==='auto-quote').balanceKind).toBe('payoff');
  for(const key of ['accounts','transactions','snapshots','balanceAdjustments','monthlyBudgets'])expect(after[key]).toEqual(before[key]);expect(after.monthlyPlan.progressStartingBalance).toBe(before.monthlyPlan.progressStartingBalance);
  await loan.getByRole('button',{name:'Back from Sample auto',exact:true}).click();await nav.getByRole('button',{name:'Home',exact:true}).click();
  await page.getByRole('region',{name:'Payoff Strategy preview'}).getByRole('button',{name:'See all'}).click();await expect(strategy.getByRole('alert')).toHaveCount(0);
  const auto=strategy.getByRole('listitem').filter({hasText:'Sample auto'});await expect(auto.locator('time')).toBeVisible();
 });
 
-test('Home preview keeps traceable recorded spending and a shared date calendar',async({page})=>{
+test('Home preview keeps recorded activity in Transactions and a shared date calendar',async({page})=>{
  const nav=page.getByRole('navigation',{name:'Primary navigation'});await nav.getByRole('button',{name:'Budget',exact:true}).click();
- const recorded=page.getByRole('group',{name:'Recorded spending',exact:true});
- await recorded.locator('summary').click();await expect(recorded).toContainText('$82.68');await expect(recorded.getByRole('listitem')).toHaveCount(2);
- await expect(recorded).toContainText('Test purchase 0');await expect(recorded).toContainText('$40.00');await expect(recorded).toContainText('$42.68');
- await page.screenshot({path:'outputs/redesign/recorded-spending-breakdown.png'});
+ await expect(page.getByText('Recorded spending',{exact:true})).toHaveCount(0);
+ const original=await saved(page);
+ await page.getByRole('button',{name:'Transactions',exact:true}).click();
+ await expect(page.getByRole('region',{name:'Debt transaction activity'})).toContainText('Test purchase 0');
+ await expect(page.getByRole('region',{name:'Debt transaction activity'})).toContainText('Test purchase 1');
+ expect((await saved(page)).transactions).toEqual(original.transactions);
+ await page.getByRole('button',{name:'Overview',exact:true}).click();
  await page.getByRole('button',{name:'Add planned spending',exact:true}).click();const dialog=page.getByRole('dialog',{name:'Add planned entry',exact:true});const calendar=dialog.getByRole('group',{name:'Due date',exact:true});
  await expect(calendar).toBeVisible();await expect(dialog.locator('input[type=date]')).toHaveCount(0);
  for(const theme of ['light','dark'] as const){await page.evaluate(({key,event,value})=>{localStorage.setItem(key,JSON.stringify(value));window.dispatchEvent(new CustomEvent(event,{detail:value}));},{key:APPEARANCE_KEY,event:APPEARANCE_EVENT,value:THEMES[theme]});for(const width of [320,360,390,430]){await page.setViewportSize({width,height:900});expect(await calendar.evaluate(el=>el.scrollWidth<=el.clientWidth+1)).toBe(true);}}
