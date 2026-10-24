@@ -1,6 +1,7 @@
-export type IconName = "card" | "list" | "chart" | "more" | "refresh" | "money" | "cart" | "calendar" | "home" | "car" | "receipt" | "chevron" | "settings" | "grid" | "calculator" | "pie" | "check" | "trend" | "percent" | "shield" | "plus" | "sort" | "menu" | "account" | "filter" | "search";
+export type IconName = "insurance" | "card" | "list" | "chart" | "more" | "refresh" | "money" | "cart" | "calendar" | "home" | "car" | "receipt" | "chevron" | "settings" | "grid" | "calculator" | "pie" | "check" | "trend" | "percent" | "shield" | "plus" | "sort" | "menu" | "account" | "filter" | "search";
 export default function OutlineIcon({ name }: { name: IconName }) {
   const shapes = {
+    insurance: <><path d="M3 16h4l4 3h6l4-4-2-2-4 3h-4l-3-3H3v7h4"/><path d="M12 11s-5-3-5-6a3 3 0 0 1 5-2 3 3 0 0 1 5 2c0 3-5 6-5 6Z"/></>,
     search: <><circle cx="10.8" cy="10.8" r="6.8"/><path d="m16 16 5 5"/></>,
     filter: <><path d="M3 5h18M6 12h12M10 19h4"/></>,
     menu: <path d="M3 6h18M3 12h18M3 18h18"/>,

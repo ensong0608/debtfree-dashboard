@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { householdMonthOffset } from "./household-date";
 import { createHouseholdMoneyFormatter } from "./household-currency";
 import { useHouseholdCurrency } from "./household-currency-context";
 import OutlineIcon from "./outline-icon";
@@ -12,7 +11,6 @@ import { round } from "./payoff-engine";
 import type { ActivePayoffCommitment } from "./payoff-commitment";
 import styles from "./monthly-plan-page.module.css";
 
-function currentMonthKey() { return householdMonthOffset(0); }
 function shiftMonth(month: string, offset: number) {
   const [year, index] = month.split("-").map(Number);
   const date = new Date(year, index - 1 + offset, 1);
@@ -23,6 +21,7 @@ function monthLabel(month: string) {
   return new Date(year, index - 1, 1).toLocaleDateString("en-US", { month: "long", year: "numeric" });
 }
 function categoryIcon(category: string) {
+  if (/insurance/i.test(category)) return "insurance" as const;
   if (/housing|mortgage|home|rent/i.test(category)) return "home" as const;
   if (/transport|car|auto|travel/i.test(category)) return "car" as const;
   if (/food|grocery|dining/i.test(category)) return "cart" as const;
@@ -61,7 +60,6 @@ export default function MonthlyPlanPage(props: Props) {
   const currency = createHouseholdMoneyFormatter(householdCurrency, { style: "currency", minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const { month, hasMonth, previousHasItems, items } = props;
   const [incomeEditorOpen, setIncomeEditorOpen] = useState(false);
-  const isCurrent = month === currentMonthKey();
   const incomeItems = items.filter(isPlannedIncome);
   const spendingItems = items.filter(item => !isPlannedIncome(item));
   const groupedSpending = [...spendingItems.reduce((groups, item) => {
@@ -83,12 +81,10 @@ export default function MonthlyPlanPage(props: Props) {
   return <div className={`screen ${styles.page}`}>
     <h1 className="sr-only">Budget</h1>
     <header className={styles.header}>
-      <h1>Monthly budget</h1>
       <section className={styles.monthPicker} aria-label="Select plan month">
         <button type="button" onClick={() => props.onMonth(shiftMonth(month, -1))} aria-label="Previous month">&lsaquo;</button>
         <strong>{monthLabel(month)}</strong>
         <button type="button" onClick={() => props.onMonth(shiftMonth(month, 1))} aria-label="Next month">&rsaquo;</button>
-        <button className={styles.today} type="button" disabled={isCurrent} onClick={() => props.onMonth(currentMonthKey())}>This month</button>
       </section>
     </header>
 
@@ -125,7 +121,7 @@ export default function MonthlyPlanPage(props: Props) {
           {groupedSpending.map(([category, categoryItems]) => {
             const total = round(categoryItems.reduce((sum, item) => sum + item.amount, 0));
             const shareOfIncome = income > 0 ? total / income * 100 : 0;
-            return <details className={styles.category} key={category}>
+            return <details className={styles.category} data-category-tone={categoryIcon(category)} key={category}>
               <summary>
                 <span className={styles.categoryIcon}><OutlineIcon name={categoryIcon(category)} /></span>
                 <span className={styles.categoryName}><strong>{category}</strong><i><b style={{ width: `${Math.min(100,shareOfIncome)}%` }} /></i></span>
@@ -145,7 +141,7 @@ export default function MonthlyPlanPage(props: Props) {
               </div>
             </details>;
           })}
-          {debtPayments > 0 && <details className={`${styles.category} ${styles.debtCategory}`}>
+          {debtPayments > 0 && <details className={`${styles.category} ${styles.debtCategory}`} data-category-tone="card">
             <summary><span className={styles.categoryIcon}><OutlineIcon name="card" /></span><span className={styles.categoryName}><strong>Debt payments</strong><i><b style={{ width: `${income > 0 ? debtShare / 100 * income / income * 100 : 0}%` }} /></i></span><strong className={styles.categoryAmount}>{currency.format(debtPayments)}</strong><small className={styles.categoryShare}>{income > 0 ? (debtPayments / income * 100).toFixed(0) : 0}%</small><span className={styles.categoryChevron}><OutlineIcon name="chevron" /></span></summary>
             <div className={styles.categoryItems}><p className={styles.debtDetail}>{props.commitment ? <>Household payment {currency.format(props.commitment.householdPayment)} · Schedule {currency.format(props.commitment.schedule.monthly)}{props.commitment.missingLoanPayments > 0 && " · Add missing loan payment amounts"}</> : "Saved debt payment commitment for this month."}</p></div>
           </details>}

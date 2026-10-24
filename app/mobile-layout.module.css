@@ -11,3 +11,6 @@
 .avatarButton span{display:grid;place-items:center;width:34px;height:34px;border-radius:50%;background:linear-gradient(140deg,var(--theme-success-soft),var(--theme-info-soft));border:2px solid var(--theme-border);box-shadow:0 0 0 1px var(--theme-shadow);color:var(--theme-text);font-size:calc(12px * var(--theme-text-scale,1));font-weight:750}
 .shell[data-view-page="home"] :global(.page-heading){background:var(--theme-info-soft)}.shell[data-view-page="home"] :global(.page-heading h1){color:var(--theme-text)}
 .homeBrand{font-size:calc(22px * var(--theme-text-scale,1))!important;font-weight:800!important;letter-spacing:-1px!important}.homeBrand b{color:var(--theme-accent)}
+
+.shell[data-view-page] :global(.shared-dashboard-header .page-heading){display:block;position:static;min-height:64px;margin:0;padding:12px 2px 2px;background:transparent;border:0;box-shadow:none}
+.shell[data-view-page] :global(.shared-dashboard-header .page-heading h1){text-align:left;font-size:calc(22px * var(--theme-text-scale,1));font-weight:400;letter-spacing:-.4px;line-height:1.25;background:transparent}
