@@ -22,9 +22,10 @@ test('Budget payment follows edits and monthly copies without guessing ambiguous
 });
 test('loan data survives backup roundtrip; malformed balances and dates are rejected', () => {
   const contract = parseDashboardContract(JSON.parse(readFileSync('tests/fixtures/legacy-v0.json', 'utf8')));
-  contract.payload.monthlyPlan.loanTrackers = [loan];
-  assert.deepEqual(JSON.parse(serializeDashboardBackup(contract)).payload.monthlyPlan.loanTrackers, [loan]);
-  for (const change of [{ originalAmount: 0 }, { remainingAmount: -1 }, { remainingAmount: Infinity }, { asOf: '2026-02-30' }, { kind: 'unknown' }, { history: [{ date: 'bad', amount: 1 }] }]) {
+  const stored={...loan,balanceKind:'payoff',principalBalance:79000};
+  contract.payload.monthlyPlan.loanTrackers = [stored];
+  assert.deepEqual(JSON.parse(serializeDashboardBackup(contract)).payload.monthlyPlan.loanTrackers, [stored]);
+  for (const change of [{ originalAmount: 0 }, { remainingAmount: -1 }, { remainingAmount: Infinity }, {principalBalance: -1}, {principalBalance: Infinity}, { asOf: '2026-02-30' }, { kind: 'unknown' }, { history: [{ date: 'bad', amount: 1 }] }]) {
     const invalid = structuredClone(contract); invalid.payload.monthlyPlan.loanTrackers = [{ ...loan, ...change }];
     assert.throws(() => parseDashboardContract(invalid));
   }

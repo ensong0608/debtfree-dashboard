@@ -67,7 +67,7 @@ export default function LoanProgressPanel({ loans, items, onChange, onDialog, in
       if (first) { (event.currentTarget.elements.namedItem(first) as HTMLElement | null)?.focus(); return; }
       if (sourceLoan && JSON.stringify(existing) !== JSON.stringify(sourceLoan)) { setError('This loan changed. Reopen it to review the latest balance.'); return; }
       const cents = (value: number) => Math.round((value + Number.EPSILON) * 100) / 100;
-      const normalized = { ...candidate, monthlyPayment: cents(draft.monthlyPayment!), originalAmount: cents(draft.originalAmount), remainingAmount: cents(draft.remainingAmount), ...(draft.escrow === undefined ? {} : { escrow: cents(draft.escrow) }) };
+      const normalized = { ...candidate, monthlyPayment: cents(draft.monthlyPayment!), originalAmount: cents(draft.originalAmount), remainingAmount: cents(draft.remainingAmount), ...(draft.principalBalance === undefined ? {} : {principalBalance: cents(draft.principalBalance)}), ...(draft.escrow === undefined ? {} : { escrow: cents(draft.escrow) }) };
       const changed = !existing || existing.remainingAmount !== draft.remainingAmount || existing.asOf !== candidate.asOf || existing.balanceKind !== draft.balanceKind;
       const saved = { ...normalized, name: draft.name.trim(), history: changed ? [...draft.history, { date: candidate.asOf, amount: normalized.remainingAmount, balanceKind: draft.balanceKind, recordedAt: new Date().toISOString() }] : draft.history };
       onChange(existing ? loans.map(loan => loan.id === saved.id ? saved : loan) : [...loans, saved]); close();

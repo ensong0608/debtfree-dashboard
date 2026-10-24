@@ -9,6 +9,7 @@ export type LoanTracker = {
   originalAmount: number;
   remainingAmount: number;
   balanceKind: 'principal' | 'payoff';
+  principalBalance?: number; // Separate forecast principal when remainingAmount is a payoff quote.
   asOf: string;
   budgetItemId: string;
   budgetItemName: string;
@@ -19,6 +20,12 @@ export type LoanTracker = {
   dueDate?: string;
   history: { date: string; amount: number; balanceKind: 'principal' | 'payoff'; recordedAt: string; payment?: number; principal?: number; interest?: number; escrow?: number; extraPrincipal?: number }[];
 };
+
+/** A payoff quote can include interest/fees; only explicit unpaid principal is forecast. */
+export function forecastLoanPrincipal(loan: LoanTracker) {
+  const value = loan.balanceKind === 'principal' ? loan.remainingAmount : loan.principalBalance;
+  return value !== undefined && Number.isFinite(value) && value >= 0 && value <= loan.remainingAmount ? value : undefined;
+}
 
 export function loanProgress(loan: LoanTracker) {
   const reduction = loan.originalAmount - loan.remainingAmount;
