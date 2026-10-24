@@ -15,11 +15,16 @@ test.beforeEach(async ({page}, info) => {
   fixture.payload.monthlyPlan!.loanTrackers![0]={...fixture.payload.monthlyPlan!.loanTrackers![0],originalAmount:350000,remainingAmount:312700.58,apr:5,monthlyPayment:2500};
   fixture.payload.monthlyPlan!.loanTrackers!.push({id:'car',name:'Sample auto',kind:'car',originalAmount:40000,remainingAmount:20138.97,balanceKind:'principal',asOf:'2026-10-01',budgetItemId:'',budgetItemName:'',apr:5,monthlyPayment:587.30,history:[]});
  }
+ if(info.title.startsWith('loan balance classification'))fixture.payload.monthlyPlan!.loanTrackers!.push({id:'auto-quote',name:'Sample auto',kind:'car',originalAmount:10000,remainingAmount:1000,balanceKind:'payoff',asOf:'2026-10-01',budgetItemId:'',budgetItemName:'',apr:5,monthlyPayment:100,history:[]});
  if(info.title.startsWith('Home preview keeps')) {
   for(let i=0;i<3;i++)fixture.payload.accounts.push({...fixture.payload.accounts[0],id:'extra-'+i,name:'Additional card '+i,balance:1000+i*100,baselineBalance:1500});
   const key=new Date().toISOString().slice(0,7);
   fixture.payload.monthlyBudgets[key]=[{id:'salary',kind:'income',name:'Salary',category:'Salary',amount:5000,paymentMethod:'debit',creditAccountId:'',createdAt:key+'-01T12:00:00Z',recurring:true},{id:'insurance',kind:'expense',name:'Insurance',category:'Insurance',amount:180,paymentMethod:'debit',creditAccountId:'',createdAt:key+'-01T12:00:00Z',recurring:true},{id:'gpt',kind:'expense',name:'OpenAI GPT',category:'Subscriptions',amount:20,paymentMethod:'debit',creditAccountId:'',createdAt:key+'-01T12:00:00Z',recurring:true}];
   fixture.payload.monthlyPlan!.months[key]={safetyBuffer:0,debtPaymentTarget:0};
+  if(info.title.includes('traceable')){
+   fixture.payload.monthlyPlan!.detailedSpendingTracking=true;
+   for(const [i,amount] of [40,42.68].entries())fixture.payload.transactions.push({...fixture.payload.transactions[0],id:'spend-'+i,type:'charge',amount,payeeName:'Test purchase '+i,category:'Purchases',date:key+'-02'});
+  }
   await page.addInitScript(({key,theme})=>localStorage.setItem(key,JSON.stringify(theme)),{key:APPEARANCE_KEY,theme:THEMES.dark});
  }
  await page.addInitScript(({key,fixture})=>{if(!localStorage.getItem(key)) localStorage.setItem(key,JSON.stringify(fixture));},{key:DASHBOARD_STORAGE_KEY,fixture});
@@ -87,7 +92,7 @@ test('debt Overview, scoped lifetime Transactions, Info and Advanced preserve un
  await expect(entry.getByLabel('Card used')).toBeDisabled();
  await entry.getByRole('button',{name:'Back from transaction'}).click();
  await detail.getByRole('tab',{name:'Info',exact:true}).click();
- await expect(detail.getByLabel('Due day',{exact:true})).toHaveValue('2026-10-25');
+ await expect(detail.getByRole('group',{name:'Due date',exact:true}).getByRole('button',{name:new Date().toISOString().slice(0,7)+'-25',exact:true})).toHaveAttribute('aria-pressed','true');
  await expect(detail.getByLabel('Debt category')).toHaveCount(0);
  await expect(detail.getByText('Position in category')).toHaveCount(0);
  await expect(detail.getByLabel('Household group')).toHaveCount(0);
@@ -168,7 +173,7 @@ test('recording a payment within a debt persists and does not affect another deb
  await expect(payment.getByRole('heading',{name:'New transaction',exact:true})).toBeVisible();
  await payment.getByLabel('What’s it for?',{exact:true}).fill('Payment');
  await payment.getByLabel('Transaction amount',{exact:true}).fill('-50');
- await expect(payment.getByLabel('Transaction date')).toBeEnabled();
+ await expect(payment.getByRole('group',{name:'Transaction date',exact:true})).toBeEnabled();
  await payment.getByRole('button',{name:'Save transaction',exact:true}).click();
  await expect.poll(async()=>(await saved(page)).transactions.length).toBe(before.transactions.length+1);
  const after=await saved(page);
@@ -452,15 +457,51 @@ test('Home preview keeps approved header alignment, dark carousels and recurring
  await page.getByRole('button',{name:'Add planned spending',exact:true}).click();
  const dialog=page.getByRole('dialog',{name:'Add planned entry',exact:true});
  await expect(dialog.getByRole('radio',{name:'Recurring',exact:true})).toBeChecked();
- await expect(dialog.getByLabel('Monthly due date')).toBeVisible();
+ await expect(dialog.getByRole('group',{name:'Due date',exact:true})).toBeVisible();
  await expect(dialog.getByText('Item type',{exact:true})).toHaveCount(0);
  for(const width of [320,390]){await page.setViewportSize({width,height:900});expect(await dialog.evaluate(el=>el.scrollWidth<=el.clientWidth+1)).toBe(true);const amount=(await dialog.getByRole('spinbutton').boundingBox())!,form=(await dialog.locator('.cashflow-amount-frequency').boundingBox())!;expect(amount.width).toBeLessThan(form.width*.6);}
  await page.screenshot({path:'outputs/redesign/approved-recurring-form.png'});
- await dialog.getByRole('radio',{name:'One time purchase',exact:true}).check();await expect(dialog.getByLabel('Monthly due date')).toHaveCount(0);
+ await dialog.getByRole('radio',{name:'One time purchase',exact:true}).check();await expect(dialog.getByRole('group',{name:'Due date',exact:true})).toHaveCount(0);
  await expect(dialog.getByLabel('Category')).toHaveValue('Shopping');
- await dialog.getByRole('radio',{name:'Recurring',exact:true}).check();await expect(dialog.getByLabel('Monthly due date')).toBeVisible();
- await dialog.getByLabel('Name',{exact:true}).fill('Test recurring entry');await dialog.getByRole('spinbutton').fill('20');await dialog.getByLabel('Monthly due date').fill(new Date().toISOString().slice(0,7)+'-28');
+ await dialog.getByRole('radio',{name:'Recurring',exact:true}).check();await expect(dialog.getByRole('group',{name:'Due date',exact:true})).toBeVisible();
+ await dialog.getByLabel('Name',{exact:true}).fill('Test recurring entry');await dialog.getByRole('spinbutton').fill('20');await dialog.getByRole('group',{name:'Due date',exact:true}).getByRole('button',{name:new Date().toISOString().slice(0,7)+'-28',exact:true}).click();
  await dialog.getByRole('button',{name:'Add planned entry',exact:true}).click();
  await expect(dialog).toHaveCount(0);await expect.poll(async()=>(await saved(page)).monthlyBudgets[new Date().toISOString().slice(0,7)].find((r:{name:string})=>r.name==='Test recurring entry')?.dueDay).toBe(28);
  const after=await saved(page);for(const key of ['accounts','transactions','balanceAdjustments','snapshots'])expect(after[key]).toEqual(before[key]);
+});
+
+
+test('loan balance classification enables auto forecast without changing balances',async({page})=>{
+ const before=await saved(page),nav=page.getByRole('navigation',{name:'Primary navigation'});
+ await nav.getByRole('button',{name:'Home',exact:true}).click();await page.getByRole('region',{name:'Payoff Strategy preview'}).getByRole('button',{name:'See all'}).click();
+ const strategy=page.getByRole('dialog',{name:'Payoff Strategy',exact:true});await expect(strategy).toContainText('Sample auto: Enter a remaining principal balance.');
+ await strategy.getByRole('button',{name:'Review loan details',exact:true}).click();
+ const loan=page.getByRole('dialog',{name:'Sample auto',exact:true});await expect(loan.getByLabel('Balance type',{exact:true})).toHaveValue('payoff');
+ await expect(loan.getByLabel('Current balance',{exact:true})).toHaveValue('1,000.00');
+ await loan.getByLabel('Balance type',{exact:true}).selectOption('principal');
+ const calendar=loan.getByRole('group',{name:'Due date',exact:true});await expect(calendar).toBeVisible();
+ for(const width of [320,390]){await page.setViewportSize({width,height:900});expect(await calendar.evaluate(el=>el.scrollWidth<=el.clientWidth+1)).toBe(true);}
+ await expect(loan.locator('input[type=date]')).toHaveCount(0);await expect(loan.getByText('Choose payment date',{exact:true})).toHaveCount(0);
+ await loan.getByRole('button',{name:'Save',exact:true}).click();
+ await expect.poll(async()=>(await saved(page)).monthlyPlan.loanTrackers.find((r:{id:string})=>r.id==='auto-quote')?.balanceKind).toBe('principal');
+ const after=await saved(page);expect(after.monthlyPlan.loanTrackers.find((r:{id:string})=>r.id==='auto-quote').remainingAmount).toBe(1000);
+ for(const key of ['accounts','transactions','snapshots','balanceAdjustments','monthlyBudgets'])expect(after[key]).toEqual(before[key]);expect(after.monthlyPlan.progressStartingBalance).toBe(before.monthlyPlan.progressStartingBalance);
+ await loan.getByRole('button',{name:'Back from Sample auto',exact:true}).click();await nav.getByRole('button',{name:'Home',exact:true}).click();
+ await page.getByRole('region',{name:'Payoff Strategy preview'}).getByRole('button',{name:'See all'}).click();await expect(strategy.getByRole('alert')).toHaveCount(0);
+ const auto=strategy.getByRole('listitem').filter({hasText:'Sample auto'});await expect(auto.locator('time')).toBeVisible();
+});
+
+test('Home preview keeps traceable recorded spending and a shared date calendar',async({page})=>{
+ const nav=page.getByRole('navigation',{name:'Primary navigation'});await nav.getByRole('button',{name:'Budget',exact:true}).click();
+ const recorded=page.getByRole('group',{name:'Recorded spending',exact:true});
+ await recorded.locator('summary').click();await expect(recorded).toContainText('$82.68');await expect(recorded.getByRole('listitem')).toHaveCount(2);
+ await expect(recorded).toContainText('Test purchase 0');await expect(recorded).toContainText('$40.00');await expect(recorded).toContainText('$42.68');
+ await page.screenshot({path:'outputs/redesign/recorded-spending-breakdown.png'});
+ await page.getByRole('button',{name:'Add planned spending',exact:true}).click();const dialog=page.getByRole('dialog',{name:'Add planned entry',exact:true});const calendar=dialog.getByRole('group',{name:'Due date',exact:true});
+ await expect(calendar).toBeVisible();await expect(dialog.locator('input[type=date]')).toHaveCount(0);
+ for(const theme of ['light','dark'] as const){await page.evaluate(({key,event,value})=>{localStorage.setItem(key,JSON.stringify(value));window.dispatchEvent(new CustomEvent(event,{detail:value}));},{key:APPEARANCE_KEY,event:APPEARANCE_EVENT,value:THEMES[theme]});for(const width of [320,360,390,430]){await page.setViewportSize({width,height:900});expect(await calendar.evaluate(el=>el.scrollWidth<=el.clientWidth+1)).toBe(true);}}
+ await calendar.getByRole('button',{name:new Date().toISOString().slice(0,7)+'-31',exact:true}).click();
+ const before=await saved(page);await calendar.getByRole('button',{name:'Next month for Due date'}).click();await expect(calendar.getByRole('button',{pressed:true})).toHaveAttribute('aria-label','2026-11-30');
+ await calendar.getByRole('button',{name:'Previous month for Due date'}).click();await page.screenshot({path:'outputs/redesign/shared-calendar-dark.png'});
+ await dialog.getByRole('button',{name:'Cancel',exact:true}).click();expect((await saved(page)).monthlyBudgets).toEqual(before.monthlyBudgets);
 });

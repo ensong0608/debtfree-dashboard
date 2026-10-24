@@ -1,4 +1,5 @@
 "use client";
+import DateCalendar from './date-calendar';
 import { createHouseholdMoneyFormatter, householdCurrencySymbol } from "./household-currency";
 import { useHouseholdCurrency } from "./household-currency-context";
 
@@ -184,9 +185,9 @@ export default function OnboardingFlow({ onCurrencyChange, planning, importMessa
             <details className="onboarding-advanced">
               <summary>Advanced details</summary>
               <div>
-                <label><span>Due day</span><input type="date" value={debt.dueDate} onChange={(event) => updateDebt(debt.id, { dueDate: event.target.value })}/><small className="field-help">Repeats monthly on this day; shorter months use the last day.</small></label>
+                <DateCalendar label="Due date" recurring value={debt.dueDate} onChange={date => updateDebt(debt.id, { dueDate: date })}/>
                 <label><span>Credit limit</span><div className="onboarding-money"><b aria-hidden="true">{symbol}</b><input type="number" min="0" step="0.01" inputMode="decimal" value={debt.creditLimit || ""} onChange={(event) => updateDebt(debt.id, { creditLimit: numberValue(event.target.value) })}/></div></label>
-                <label><span>Promotional expiration</span><input type="date" value={debt.promoEndDate} onChange={(event) => updateDebt(debt.id, { promoEndDate: event.target.value })}/></label>
+                <DateCalendar label="Promotional expiration" value={debt.promoEndDate} onChange={date => updateDebt(debt.id, { promoEndDate: date })}/>
                 <label><span>Post-promotional APR</span><div className="onboarding-money suffix"><input type="number" min="0" step="0.01" inputMode="decimal" value={debt.postPromoApr || ""} onChange={(event) => updateDebt(debt.id, { postPromoApr: numberValue(event.target.value) })}/><b aria-hidden="true">%</b></div></label>
                 <label><span>Post-promotion minimum</span><div className="onboarding-money"><b aria-hidden="true">{symbol}</b><input type="number" min="0" step="0.01" inputMode="decimal" value={debt.postPromoMinimum || ""} onChange={(event) => updateDebt(debt.id, { postPromoMinimum: numberValue(event.target.value) })}/></div></label>
 

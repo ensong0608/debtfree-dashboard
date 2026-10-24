@@ -24,6 +24,8 @@ test('recorded-only actuals exclude payments, credits, fees, interest and delete
   const view = buildBudgetView(input({ transactions, settings: { ...settings, detailedSpendingTracking: true } }));
   assert.equal(view.actual.recordedSpending, 40);
   assert.equal(view.actual.coverage, 'recorded-only');
+  assert.deepEqual(view.actual.records.map(row=>[row.id,row.amount,row.markedPaid]), [['buy',40,false]]);
+  assert.equal(view.actual.records.reduce((sum,row)=>sum+row.amount,0),view.actual.recordedSpending);
   assert.equal(view.allocations[1].recordedPaid, 40);
   assert.equal(view.spendingComparison, null);
 });
@@ -33,6 +35,7 @@ test('settlements remain reporting-only, deduplicate by ID and never by equal am
   const view = buildBudgetView(input({ settings: configured }));
   assert.equal(view.allocations[1].recordedPaid, 100);
   assert.equal(view.actual.recordedSpending, 100);
+  assert.equal(view.actual.records.length,2);assert.ok(view.actual.records.every(row=>row.markedPaid));
   assert.equal(budgetReports([], configured).length, 2);
   assert.equal(buildBudgetActivity([], [], configured, '2026-10').totals.netDebtChange, 0);
 });
