@@ -2,7 +2,7 @@
 import { createHouseholdMoneyFormatter, householdCurrencySymbol, resolveHouseholdCurrency } from "./household-currency";
 import HouseholdCurrencySettings from "./household-currency-settings";
 import { HouseholdCurrencyProvider, useHouseholdCurrency } from "./household-currency-context";
-import { DebtCategorySettings } from "./debt-category-controls";
+import { captureAutomaticSnapshot, recordDueBudgetItems } from "./automatic-activity";
 import { migrateLegacyGroups, neutralGroups, type DebtGroup } from "./debt-groups";
 import HouseholdLifecyclePanel from "./household-lifecycle-panel";
 import AppearanceSettings from "./appearance-settings";
@@ -19,7 +19,7 @@ import { buildActivePayoffCommitment, capturePayoffCommitment } from "./payoff-c
 import { DebtSummary, UnifiedDebtList, DebtDetail, DebtOverview, ExperienceOverlay, type DebtSelection, type DebtDetailTab } from "./debt-experience";
 import mobileStyles from "./mobile-layout.module.css";
 import { householdMonthOffset } from "./household-date";
-import { buildProgressView } from "./progress-view";
+import { buildScopedProgressViews } from "./progress-view";
 
 import { nextDueDate } from "./recurring-due-date";
 import InstitutionPicker from "./institution-picker";
@@ -106,7 +106,7 @@ import { scanReceipt, type ReceiptScanResult } from "./receipt-ocr";
 type PageId = "payments" | "more" | "home" | "accounts" | "history" | "calculator" | "plan" | "monthly" | "snapshots" | "utilization" | "stats" | "profile" | "settings" | "debt-tools";
 
 type AccountDraft = { displayPosition?: number; newCategory?: DebtGroup; actualInterest?: { amount: number; date: string } } & Pick<DebtAccount, "institutionKey" | "displayGroup" | "interestAutomation" | "name" | "type" | "balance" | "apr" | "interestFee" | "minimum" | "minimumMode" | "payoffMode" | "creditLimit" | "dueDate" | "promoEndDate" | "postPromoApr" | "postPromoMinimum">;
-type CashflowDraft = Pick<CashflowItem, "name" | "kind" | "category" | "amount" | "paymentMethod" | "creditAccountId" | "recurring">;
+type CashflowDraft = Pick<CashflowItem, "name" | "kind" | "category" | "amount" | "paymentMethod" | "creditAccountId" | "recurring" | "dueDay">;
 type TransactionDraft = Pick<LedgerTransaction, "date" | "accountId" | "payeeId" | "payeeName" | "type" | "category" | "memo" | "amount" | "plannedItemId"> & { paymentKind: PaymentKind };
 type LinkedCardExpenseItems = Record<string, CashflowItem[]>;
 type LinkedCardPurchaseItems = Record<string, CashflowItem[]>;
@@ -155,78 +155,6 @@ function paymentKindLabel(kind?: PaymentKind) {
 function emptyTransactionDraft(accounts: DebtAccount[]): TransactionDraft {
   return { date: dateInputValue(), accountId: accounts[0]?.id ?? "", payeeId: "", payeeName: "", type: "charge", category: "Other", memo: "", amount: 0, plannedItemId: "", paymentKind: "combined" };
 }
-function parseCsv(text: string) {
-  const rows: string[][] = [];
-  let row: string[] = [], cell = "", quoted = false;
-  for (let index = 0; index < text.length; index++) {
-    const character = text[index];
-    if (quoted) {
-      if (character === '"' && text[index + 1] === '"') { cell += '"'; index++; }
-      else if (character === '"') quoted = false;
-      else cell += character;
-    } else if (character === '"') quoted = true;
-    else if (character === ",") { row.push(cell); cell = ""; }
-    else if (character === "\n") { row.push(cell.replace(/\r$/, "")); rows.push(row); row = []; cell = ""; }
-    else cell += character;
-  }
-  if (cell.length || row.length) { row.push(cell.replace(/\r$/, "")); rows.push(row); }
-  return rows;
-}
-function csvNumber(value: string | undefined) {
-  const normalized = (value ?? "").replace(/[$,%\s]/g, "");
-  return Number.isFinite(Number(normalized)) ? Math.max(0, Number(normalized)) : 0;
-}
-function inferDebtType(name: string): DebtType {
-  const value = name.toLowerCase();
-  if (/card|visa|mastercard|amex|discover|chase|citi|capital one|costco/.test(value)) return "Credit card";
-  if (/auto|car|vehicle/.test(value)) return "Auto loan";
-  if (/student|school|education/.test(value)) return "Student loan";
-  if (/medical|hospital|health/.test(value)) return "Medical debt";
-  if (/loan|lending|finance/.test(value)) return "Personal loan";
-  return "Other";
-}
-function extractDebtFreeAccounts(text: string): DebtAccount[] {
-  const rows = parseCsv(text.replace(/^\uFEFF/, ""));
-  const sectionIndex = rows.findIndex((row) => (row[0] ?? "").trim().toUpperCase() === "CURRENT DEBT STATUS");
-  if (sectionIndex < 0 || !rows[sectionIndex + 1]) throw new Error("This file does not contain the CURRENT DEBT STATUS section from DebtFree.");
-  const headers = rows[sectionIndex + 1].map((header) => header.trim().toLowerCase());
-  const find = (...names: string[]) => headers.findIndex((header) => names.includes(header));
-  const nameIndex = find("debt", "name");
-  const currentBalanceIndex = find("current estimated balance", "current balance", "balance");
-  const originalBalanceIndex = find("original balance", "starting balance");
-  const aprIndex = find("apr", "apr %", "interest rate");
-  const modeIndex = find("minimum mode");
-  const minimumIndex = find("current minimum", "minimum payment", "minimum");
-  if (nameIndex < 0 || (currentBalanceIndex < 0 && originalBalanceIndex < 0) || aprIndex < 0 || minimumIndex < 0) throw new Error("The debt columns in this export are not recognized.");
-  const imported: DebtAccount[] = [];
-  for (let index = sectionIndex + 2; index < rows.length; index++) {
-    const row = rows[index];
-    if (!row.some((cell) => cell.trim())) break;
-    const name = (row[nameIndex] ?? "").trim();
-    if (!name || name.toUpperCase() === "DEBT") continue;
-    const mode = (row[modeIndex] ?? "").toLowerCase();
-    imported.push({
-      id: `import-${Date.now()}-${index}-${Math.random()}`,
-      name,
-      type: inferDebtType(name),
-      balance: csvNumber(row[currentBalanceIndex >= 0 ? currentBalanceIndex : originalBalanceIndex]),
-      apr: csvNumber(row[aprIndex]),
-      interestFee: 0,
-      minimum: csvNumber(row[minimumIndex]),
-      minimumMode: mode.includes("auto") || mode.includes("estimate") ? "auto" : "manual",
-      payoffMode: "priority",
-      creditLimit: 0,
-      dueDate: "",
-      promoEndDate: "",
-      postPromoApr: 0,
-      postPromoMinimum: 0,
-      createdAt: new Date().toISOString(),
-    });
-  }
-  const unique = new Map(imported.map((account) => [account.name.trim().toLowerCase(), account]));
-  if (!unique.size) throw new Error("No debt accounts were found in the export.");
-  return [...unique.values()];
-}
 function monthAfter(offset: number) {
   const date = new Date(householdMonthOffset(offset) + "-01T12:00:00Z");
   return date.toLocaleDateString("en-US", { timeZone: "UTC", month: "short", year: "numeric" });
@@ -255,7 +183,8 @@ const serverViewportSnapshot = () => false;
 
 export default function DashboardClient({ user, householdId, lifecycleEnabled = false, repository: suppliedRepository, syntheticDemo = false, managedHousehold }: { managedHousehold?: { name: string; role: HouseholdRole; readOnly: boolean }; user: DashboardUser; householdId?: string; lifecycleEnabled?: boolean; repository?: DataRepository; syntheticDemo?: boolean }) {
   const mobileView = useSyncExternalStore(subscribeMobileViewport, mobileViewportSnapshot, serverViewportSnapshot);
-  const [toolsOpen, setToolsOpen] = useState(false);
+  const [automaticDate, setAutomaticDate] = useState(householdDate);
+  useEffect(() => { const refresh = () => setAutomaticDate(householdDate()); const timer = window.setInterval(refresh, 60000); window.addEventListener("focus", refresh); return () => { clearInterval(timer); window.removeEventListener("focus", refresh); }; }, []);
   const repository = useMemo(() => suppliedRepository ?? createBrowserDataRepository(hasMeaningfulData, undefined, householdId ? user.email + ":" + householdId : undefined), [suppliedRepository, user.email, householdId]);
   useDialogFocus();
   const cloudWritesEnabled = useRef(false);
@@ -303,7 +232,6 @@ export default function DashboardClient({ user, householdId, lifecycleEnabled = 
   const [extra, setExtra] = useState(0);
   const [strategy, setStrategy] = useState<PayoffStrategy>("avalanche");
   const [customDebtOrder, setCustomDebtOrder] = useState<string[]>([]);
-  const [importMessage, setImportMessage] = useState("");
   const [cashflowModalOpen, setCashflowModalOpen] = useState(false);
   const [editingCashflowId, setEditingCashflowId] = useState<string | null>(null);
   const [cashflowDraft, setCashflowDraft] = useState<CashflowDraft>(EMPTY_CASHFLOW_DRAFT);
@@ -330,8 +258,7 @@ export default function DashboardClient({ user, householdId, lifecycleEnabled = 
   const contentRef = useRef<HTMLDivElement>(null);
   useEffect(() => { contentRef.current?.scrollTo({ top: 0 }); }, [page]);
   const primaryPage = (mobileView ? MOBILE_NAV_ITEMS : NAV_ITEMS).some(item => item.id === page) ? page : "settings";
-  const navigateMobile = (next: PageId) => { if (next === "plan") setScheduleOpen(true); else setPage(next); setToolsOpen(false); };
-  const toggleAccount = () => { setToolsOpen(false); if (page === "profile") setPage(accountReturnPage.current); else { accountReturnPage.current = page; setPage("profile"); } };
+  const toggleAccount = () => { if (page === "profile") setPage(accountReturnPage.current); else { accountReturnPage.current = page; setPage("profile"); } };
   const deviceOnly = Boolean(managedHousehold) || user.email === "Local device storage only";
   const [online, setOnline] = useState(true);
   useEffect(() => {
@@ -553,14 +480,14 @@ export default function DashboardClient({ user, householdId, lifecycleEnabled = 
   };
 
   const openNew = () => { const group=(monthlyPlan.debtGroups ?? neutralGroups)[0].id; const next = { ...EMPTY_DRAFT, displayGroup: group, displayPosition: (groupedDisplayDebts(accounts).find(item=>item.group===group)?.accounts.length ?? 0)+1 }; setEditingId(null); setAccountAutoFocus("name"); setDraft(next); setAccountDraftBaseline(next); setModalExitPrompt(false); setModalOpen(true); };
-  const openNewCashflow = (kind: CashflowKind) => {
+  const openNewCashflow = (kind: CashflowKind, category?: string) => {
     setEditingCashflowId(null);
-    setCashflowDraft({ ...EMPTY_CASHFLOW_DRAFT, kind, category: CASHFLOW_CATEGORIES[kind][0], recurring: kind !== "purchase" });
+    setCashflowDraft({ ...EMPTY_CASHFLOW_DRAFT, kind, category: category ?? CASHFLOW_CATEGORIES[kind][0], recurring: kind !== "purchase" });
     setCashflowModalOpen(true);
   };
   const openEditCashflow = (item: CashflowItem) => {
     setEditingCashflowId(item.id);
-    setCashflowDraft({ name: item.name, kind: item.kind, category: item.category, amount: item.amount, paymentMethod: item.paymentMethod, creditAccountId: item.creditAccountId, recurring: item.recurring ?? item.kind !== "purchase" });
+    setCashflowDraft({ name: item.name, kind: item.kind, category: item.category, amount: item.amount, paymentMethod: item.paymentMethod, creditAccountId: item.creditAccountId, recurring: item.recurring ?? item.kind !== "purchase", dueDay: item.dueDay });
     setCashflowModalOpen(true);
   };
   const saveCashflow = () => {
@@ -569,6 +496,7 @@ export default function DashboardClient({ user, householdId, lifecycleEnabled = 
     const normalized = { ...cashflowDraft, name: cashflowDraft.name.trim(), creditAccountId: (cashflowDraft.kind === "expense" || cashflowDraft.kind === "purchase") && cashflowDraft.paymentMethod === "credit" ? cashflowDraft.creditAccountId : "" };
     if (editingCashflowId) setCashflowItems((current) => current.map((item) => item.id === editingCashflowId ? { ...item, ...normalized } : item));
     else setCashflowItems((current) => [...current, { ...normalized, id: `${Date.now()}-${Math.random()}`, createdAt: new Date().toISOString() }]);
+    if (editingCashflowId && selectedMonth === currentMonthKey()) setMonthlyPlan(current => ({ ...current, months: { ...current.months, [selectedMonth]: { ...(current.months[selectedMonth] ?? { safetyBuffer: 0, debtPaymentTarget: 0 }), skippedRecurringPayments: (current.months[selectedMonth]?.skippedRecurringPayments ?? []).filter(id => id !== editingCashflowId) } } }));
     setCashflowModalOpen(false);
   };
   const removeCashflow = () => {
@@ -777,30 +705,6 @@ export default function DashboardClient({ user, householdId, lifecycleEnabled = 
     setDebtActionMessage(account.name + " is paid off and retained for progress reporting. You can archive it in Advanced.");
     if (confirm(account.name + " is paid off. Archive it now? It will remain restorable with all history preserved.")) archiveStoredDebt(id, true);
   };
-  const importDebtFreeCsv = async (file: File) => {
-    try {
-      const imported = extractDebtFreeAccounts(await file.text());
-      const existingNames = new Set(accounts.map((account) => account.name.trim().toLowerCase()));
-      const newAccounts = imported.filter((account) => !existingNames.has(account.name.trim().toLowerCase()));
-      const added = newAccounts.length;
-      const updated = imported.length - added;
-      setAccounts((current) => {
-        const importedByName = new Map(imported.map((account) => [account.name.trim().toLowerCase(), account]));
-        const merged = current.map((account) => {
-          const match = importedByName.get(account.name.trim().toLowerCase());
-          if (!match) return account;
-          importedByName.delete(account.name.trim().toLowerCase());
-          return { ...account, balance: match.balance, apr: match.apr, minimum: match.minimum, minimumMode: match.minimumMode };
-        });
-        return [...merged, ...importedByName.values()];
-      });
-      setCustomDebtOrder((current) => [...current, ...newAccounts.map((account) => account.id).filter((id) => !current.includes(id))]);
-      setImportMessage(`Imported ${imported.length} account${imported.length === 1 ? "" : "s"}: ${added} added${updated ? `, ${updated} updated` : ""}. Add credit limits and due dates when ready.`);
-    } catch (error) {
-      setImportMessage(`Import failed: ${error instanceof Error ? error.message : "The file could not be read."}`);
-    }
-  };
-
   const exportDashboardBackup = async () => {
     const payload = createDashboardPayload(dashboardContract.current?.payload, { accounts, monthlyBudgets, payees, transactions, snapshots, extra, strategy, planning, balanceAdjustments, monthlyPlan, customDebtOrder });
     const backup = createDashboardBackup(payload, dashboardContract.current);
@@ -1058,8 +962,18 @@ export default function DashboardClient({ user, householdId, lifecycleEnabled = 
   const activePayoff = useMemo(() => buildActivePayoffCommitment(payoffAccounts, loans, planningCashflowItems, monthlyPlan, new Date(forecastDate + "T12:00:00Z")), [payoffAccounts, loans, planningCashflowItems, monthlyPlan, forecastDate]);
   const progressViews = useMemo(() => {
     const input = { accounts, transactions, adjustments: balanceAdjustments, snapshots, loans, startingBalance: monthlyPlan.progressStartingBalance, removedAccounts: monthlyPlan.removedProgressAccounts ?? [], date: new Date(forecastDate + "T12:00:00Z"), forecast: { settings: monthlyPlan, items: planningCashflowItems } };
-    return { accounts: buildProgressView(input, "accounts"), loans: buildProgressView(input, "loans"), household: buildProgressView(input, "household") };
+    return buildScopedProgressViews(input);
   }, [accounts, transactions, balanceAdjustments, snapshots, loans, monthlyPlan, forecastDate, planningCashflowItems]);
+  useEffect(() => {
+    if (!loaded || isViewer || (!deviceOnly && cloudStatus !== 'synced') || deviceSaveStatus !== 'synced') return;
+    const timer = window.setTimeout(() => {
+      const now = new Date();
+      setMonthlyPlan(current => recordDueBudgetItems(current, monthlyBudgets[householdDate(now).slice(0, 7)] ?? [], transactions, loans, now));
+      const capturedAccounts = buildActualProgress(accounts, transactions, balanceAdjustments, snapshots, now, monthlyPlan.progressStartingBalance, monthlyPlan.removedProgressAccounts).groups.flatMap(group => group.accounts);
+      setSnapshots(current => captureAutomaticSnapshot(current, capturedAccounts, loans, now));
+    }, 0);
+    return () => clearTimeout(timer);
+  }, [loaded, isViewer, deviceOnly, cloudStatus, deviceSaveStatus, automaticDate, monthlyBudgets, transactions, loans, progressViews, accounts, balanceAdjustments, snapshots, monthlyPlan.progressStartingBalance, monthlyPlan.removedProgressAccounts]);
   const extraPayment = activePayoff.extra;
   const payoffSchedule = activePayoff.schedule;
   const budgetView = buildBudgetView({ items: cashflowItems, transactions, settings: monthlyPlan, loans, month: selectedMonth, currentMonth: currentMonthKey(), commitment: activePayoff });
@@ -1160,7 +1074,6 @@ export default function DashboardClient({ user, householdId, lifecycleEnabled = 
     <main className="main-area">
       <div ref={contentRef} className="page-body" role="region" aria-label="Dashboard content" tabIndex={0}>
         <div className="page-heading">
-          {mobileView && <button className={mobileStyles.headerButton} type="button" aria-label="Open Tools" aria-expanded={toolsOpen} aria-controls="mobile-tools" onClick={() => setToolsOpen(true)}><OutlineIcon name="menu"/></button>}
           <h1 className={mobileView && page === "home" ? mobileStyles.homeBrand : undefined}>{mobileView && page === "home" ? <><span>Debt</span><b>Free</b></> : mobileView && page === "profile" ? "Account" : (mobileView ? MOBILE_NAV_ITEMS.find(item => item.id === page)?.label : undefined) ?? ALL_NAV_ITEMS.find((item) => item.id === page)?.label}{syntheticDemo && <small className="eyebrow" style={{ display: "block" }}>Synthetic demo</small>}</h1>
           {!mobileView && <button className="account-bubble" type="button" onClick={toggleAccount} aria-label={page === "profile" ? "Return to previous page" : "Open My Account"}>{user.displayName.split(/\s+/).filter(Boolean).map(part => part[0]).slice(0,2).join("").toUpperCase()}<span className={`sync-dot ${deviceOnly ? deviceSaveStatus : cloudStatus}`} aria-hidden="true"/></button>}
           {!mobileView && <span className="save-status" role="status">{deviceOnly ? deviceSaveStatus === "synced" ? "Saved on device" : "Saving on device" : cloudStatus === "synced" && deviceSaveStatus === "synced" ? "Saved" : cloudStatus === "conflict" ? "Save conflict" : cloudStatus === "error" || cloudStatus === "too-large" ? "Save failed" : cloudStatus === "unauthorized" ? "Sign in required" : "Saving"}</span>}
@@ -1189,29 +1102,27 @@ export default function DashboardClient({ user, householdId, lifecycleEnabled = 
         {page === "payments" && <PaymentsPage mobile={mobileView} readOnly={isViewer} accounts={calculatedAccounts} transactions={transactions} adjustments={balanceAdjustments} message={undoEntry ? "" : debtActionMessage} onConfirm={confirmBalancePayment} onUndoConfirmation={undoBalancePayment} storedAccounts={accounts} onChange={changeTransactionEntry} onDialog={setDebtEntryOpen}/>}
         <fieldset className="viewer-readonly-surface" disabled={isViewer && !["home", "accounts", "snapshots", "monthly", "profile", "settings"].includes(page)}>
 
-        {page === "home" && <HomeDashboardPage name={user.displayName} accounts={payoffAccounts} loans={loans} schedule={payoffSchedule} householdPayment={activePayoff.householdPayment} scopeLabel={activePayoff.scopeLabel} progress={householdProgress} transactions={transactions} adjustments={balanceAdjustments} onSchedule={() => setScheduleOpen(true)} onAccount={toggleAccount} onViewProgress={() => setPage("snapshots")} onViewDebts={() => setPage("accounts")}/> }
+        {page === "home" && <HomeDashboardPage name={user.displayName} accounts={payoffAccounts} loans={progressViews.presentationLoans} progressViews={progressViews} schedule={payoffSchedule} householdPayment={activePayoff.householdPayment} scopeLabel={activePayoff.scopeLabel} progress={householdProgress} transactions={transactions} adjustments={balanceAdjustments} onSchedule={() => setScheduleOpen(true)} onAccount={toggleAccount} onViewProgress={() => setPage("snapshots")} onViewDebts={() => setPage("accounts")}/> }
         {page === "monthly" && <div className="budget-workspace"><nav className="budget-tabs" aria-label="Budget sections">{(["Overview", "Transactions", "Schedule"] as const).map(tab => <button key={tab} type="button" aria-pressed={budgetTab === tab} onClick={() => setBudgetTab(tab)}>{tab}</button>)}</nav>
-        {budgetTab === "Transactions" && <PaymentsPage loans={loans} onLoan={id => openDebt({ kind: "loan", id })} budgetSettings={monthlyPlan} reportingMonth={selectedMonth} onReportingMonth={setSelectedMonth} mobile={mobileView} readOnly={isViewer} accounts={calculatedAccounts} transactions={transactions} adjustments={balanceAdjustments} message={debtActionMessage} onConfirm={confirmBalancePayment} onUndoConfirmation={undoBalancePayment} storedAccounts={accounts} onChange={changeTransactionEntry} onDialog={setDebtEntryOpen}/>}
+        {budgetTab === "Transactions" && <PaymentsPage onUndoBudgetPaid={id => { if (isViewer) return; const month = selectedMonth; setMonthlyPlan(current => { const plan = current.months[month]; if (!plan) return current; const entry = plan.settlements?.find(row => row.id === id); return {...current, months:{...current.months,[month]:{...plan,settlements:plan.settlements?.filter(row=>row.id!==id),skippedRecurringPayments:entry?.automatic ? [...new Set([...(plan.skippedRecurringPayments??[]),entry.targetId])] : plan.skippedRecurringPayments}}}; }); }} loans={loans} onLoan={id => openDebt({ kind: "loan", id })} budgetSettings={monthlyPlan} reportingMonth={selectedMonth} onReportingMonth={setSelectedMonth} mobile={mobileView} readOnly={isViewer} accounts={calculatedAccounts} transactions={transactions} adjustments={balanceAdjustments} message={debtActionMessage} onConfirm={confirmBalancePayment} onUndoConfirmation={undoBalancePayment} storedAccounts={accounts} onChange={changeTransactionEntry} onDialog={setDebtEntryOpen}/>}
         {budgetTab === "Schedule" && <BudgetScheduleEntry commitment={activePayoff} onOpen={() => setScheduleOpen(true)}/>}
         {budgetTab === "Overview" && <MonthlyPlanPage readOnly={isViewer} view={budgetView} payoffAmount={budgetPayoffAmount} commitment={selectedMonth === currentMonthKey() ? activePayoff : undefined} month={selectedMonth} hasMonth={Object.prototype.hasOwnProperty.call(monthlyBudgets, selectedMonth)} previousHasItems={(monthlyBudgets[shiftMonth(selectedMonth, -1)] ?? []).some((item) => item.recurring ?? item.kind !== "purchase")} items={cashflowItems} accounts={calculatedAccounts} transactions={transactions} settings={selectedPlanSettings} trackingEnabled={detailedSpendingTracking} plannedMinimums={selectedPlanSettings.minimums ?? (selectedMonth === currentMonthKey() ? monthlyTargets.minimums : {})} plannedPayments={selectedMonth === currentMonthKey() ? monthlyTargets.payments : selectedPlanSettings.payments ?? {}} onMonth={setSelectedMonth} onCopyPrevious={copyPreviousBudget} onStartBlank={startBlankBudget} onAdd={openNewCashflow} onEdit={openEditCashflow} onSettings={updateSelectedPlanSettings} onTracking={setDetailedSpendingTracking} onViewTransactions={() => setBudgetTab("Transactions")}/>}</div>}
         {(page === "accounts" || page === "debt-tools") && <><DebtSummary preferenceScope={householdId + ":" + user.email} accounts={calculatedAccounts} loans={loans} items={planningCashflowItems}/><UnifiedDebtList preferenceScope={householdId + ":" + user.email} accounts={payoffAccounts} loans={loans} items={planningCashflowItems} groups={monthlyPlan.debtGroups ?? neutralGroups} onSelect={openDebt}/></>}
-        {page === "settings" && <div className={mobileStyles.settings}><HouseholdCurrencySettings readOnly={isViewer} onChange={currency => { if (!isViewer) setMonthlyPlan(current => ({ ...current, currency })); }}/><AppearanceSettings/><section className={mobileStyles.accountTools} aria-label="Notifications"><h2>Notifications</h2><p>Notification preferences are not available yet.</p></section><DebtCategorySettings groups={monthlyPlan.debtGroups ?? neutralGroups} onChange={debtGroups => { if (!isViewer) setMonthlyPlan(current => ({ ...current, debtGroups })); }} readOnly={isViewer}/><section className={mobileStyles.accountTools} aria-label="Settings tools"><h2>Account &amp; tools</h2>{[...MORE_NAV_ITEMS, ...ADVANCED_NAV_ITEMS].map(item => <button type="button" key={item.id} onClick={() => item.id === "plan" ? setScheduleOpen(true) : item.id === "profile" ? toggleAccount() : setPage(item.id)}>{item.label}</button>)}</section><section className={mobileStyles.archives} aria-label="Archived debts"><h2>Archived debts</h2>{calculatedAccounts.filter(a => a.archivedAt).map(account => <article key={account.id}><button type="button" onClick={() => openDebt({kind:"account", id:account.id})}>{account.name}</button><button type="button" className="secondary" disabled={isViewer} onClick={() => restoreAccount(account.id)}>Restore</button></article>)}</section></div>}
+        {page === "settings" && <div className={mobileStyles.settings}><HouseholdCurrencySettings readOnly={isViewer} onChange={currency => { if (!isViewer) setMonthlyPlan(current => ({ ...current, currency })); }}/><AppearanceSettings/><section className={mobileStyles.accountTools} aria-label="Notifications"><h2>Notifications</h2><p>Notification preferences are not available yet.</p></section><section className={mobileStyles.accountTools} aria-label="Settings tools"><h2>Account &amp; tools</h2>{[...MORE_NAV_ITEMS, ...ADVANCED_NAV_ITEMS].map(item => <button type="button" key={item.id} onClick={() => item.id === "plan" ? setScheduleOpen(true) : item.id === "profile" ? toggleAccount() : setPage(item.id)}>{item.label}</button>)}</section><section className={mobileStyles.archives} aria-label="Archived debts"><h2>Archived debts</h2>{calculatedAccounts.filter(a => a.archivedAt).map(account => <article key={account.id}><button type="button" onClick={() => openDebt({kind:"account", id:account.id})}>{account.name}</button><button type="button" className="secondary" disabled={isViewer} onClick={() => restoreAccount(account.id)}>Restore</button></article>)}</section></div>}
         {page === "history" && detailedSpendingTracking && <TransactionsPage accounts={calculatedAccounts} payees={payees} transactions={transactions} onQuickAdd={openNewTransaction} onEdit={openEditTransaction} onAudit={setAuditTransactionId} onDelete={softDeleteTransaction} onRestore={restoreTransaction} onBatchAdd={addBatchTransactions} onManagePayees={() => setPayeeModalOpen(true)}/>}
 
 
-        {page === "snapshots" && <ActualProgressPage groups={monthlyPlan.debtGroups ?? neutralGroups} readOnly={isViewer} accounts={accounts} removedAccounts={monthlyPlan.removedProgressAccounts??[]} transactions={transactions} adjustments={balanceAdjustments} snapshots={snapshots} loans={loans} progressViews={progressViews} onLoanSnapshot={()=>{if(isViewer)return;setMonthlyPlan(current=>({...current,loanTrackers:(current.loanTrackers??[]).map(loan=>({...loan,history:[...loan.history,{date:loan.asOf,amount:loan.remainingAmount,balanceKind:loan.balanceKind,recordedAt:new Date().toISOString()}]}))}));} } onCapture={captureSnapshot} onUpdateNote={updateSnapshotNote} onDelete={removeSnapshot} onActivity={() => setPage("accounts")} onAccounts={() => setPage("accounts")}/>}
+        {page === "snapshots" && <ActualProgressPage utilization={<UtilizationPage accounts={calculatedAccounts} onEditAccount={account => { openDebt({kind:"account",id:account.id}); setDetailTab("Info"); }}/>} groups={monthlyPlan.debtGroups ?? neutralGroups} readOnly={isViewer} accounts={accounts} removedAccounts={monthlyPlan.removedProgressAccounts??[]} transactions={transactions} adjustments={balanceAdjustments} snapshots={snapshots} loans={progressViews.presentationLoans} progressViews={progressViews} onLoanSnapshot={()=>{if(isViewer)return;setMonthlyPlan(current=>({...current,loanTrackers:(current.loanTrackers??[]).map(loan=>({...loan,history:[...loan.history,{date:loan.asOf,amount:loan.remainingAmount,balanceKind:loan.balanceKind,recordedAt:new Date().toISOString()}]}))}));} } onCapture={captureSnapshot} onUpdateNote={updateSnapshotNote} onDelete={removeSnapshot} onActivity={() => setPage("accounts")} onAccounts={() => setPage("accounts")}/>}
         {page === "profile" && <ProfilePage connected={Boolean(managedHousehold)} syntheticDemo={syntheticDemo} lifecycleEnabled={lifecycleEnabled} householdId={householdId} readOnly={isViewer} user={user} householdName={managedHousehold?.name ?? householdName} role={managedHousehold?.role ?? householdRole} members={householdMembers} cloudStatus={cloudStatus} deviceOnly={deviceOnly} transferMessage={transferMessage} onExportBackup={exportDashboardBackup} onImportBackup={importDashboardBackup} onReset={resetDashboardData} onRecover={async () => { if (isViewer) return; try { const checkpoint = await repository.loadCheckpoint(); if (!checkpoint) { setTransferMessage("No recovery checkpoint is available."); return; } if (!confirm("Restore the saved recovery checkpoint? Current data will be saved as the automatic backup.")) return; await repository.saveHousehold(checkpoint); applyDashboardPayload(checkpoint); } catch (error) { setTransferMessage(dashboardDataErrorMessage(error)); } }} onInvite={inviteMember} onRemove={removeAdmin}/>}
-        {page === "profile" && <><section className={mobileStyles.accountTools} aria-label="Account tools"><h2>Account tools</h2><button type="button" onClick={() => navigateMobile("settings")}>Settings</button><label className="secondary import-file">Import DebtFree CSV<input type="file" accept=".csv,text/csv" disabled={isViewer} onChange={event => { const file = event.currentTarget.files?.[0]; if (file) void importDebtFreeCsv(file); event.currentTarget.value = ""; }}/></label>{importMessage && <p role="status">{importMessage}</p>}</section><section className={mobileStyles.archives} aria-label="Paid off & archived"><h2>Paid off &amp; archived</h2>{calculatedAccounts.filter(account => account.archivedAt).length === 0 && <p>No archived debts.</p>}{calculatedAccounts.filter(account => account.archivedAt).map(account => <article key={account.id}><div><strong>{account.name}</strong><small>{account.balance === 0 ? "PAID OFF" : "ARCHIVED"}</small></div><button type="button" className="secondary" aria-label={"Restore " + account.name} disabled={isViewer} onClick={() => { if (confirm("Restore " + account.name + " to current debts?")) restoreAccount(account.id); }}>Restore</button></article>)}</section></>}
+        {page === "profile" && <><section className={mobileStyles.archives} aria-label="Paid off & archived"><h2>Paid off &amp; archived</h2>{calculatedAccounts.filter(account => account.archivedAt).length === 0 && <p>No archived debts.</p>}{calculatedAccounts.filter(account => account.archivedAt).map(account => <article key={account.id}><div><strong>{account.name}</strong><small>{account.balance === 0 ? "PAID OFF" : "ARCHIVED"}</small></div><button type="button" className="secondary" aria-label={"Restore " + account.name} disabled={isViewer} onClick={() => { if (confirm("Restore " + account.name + " to current debts?")) restoreAccount(account.id); }}>Restore</button></article>)}</section></>}
         {page === "utilization" && <UtilizationPage accounts={calculatedAccounts} onEditAccount={account => { openDebt({kind:"account",id:account.id}); setDetailTab("Info"); }}/>}
         {page === "stats" && <DebtInsightsPage accounts={calculatedAccounts} onPlan={()=>setScheduleOpen(true)} onProgress={()=>setPage("snapshots")}/>}
         </fieldset>
       </div>
       {page === "payments" && !debtEntryOpen && <section className="bottom-action-bar transaction-add-bar" aria-label="Add a record"><button type="button" aria-label="Add record" disabled={isViewer || !accounts.length} onClick={() => { setNewRecordOpen(true); setDebtEntryOpen(true); }}><OutlineIcon name="plus"/>Record New Transaction</button></section>}
         {page === "accounts" && <section hidden={debtEntryOpen} className="bottom-action-bar debt-add-bar" aria-label="Add a debt"><button type="button" disabled={isViewer} onClick={openNew}>Debt +</button></section>}
-      {page === "monthly" && !cashflowModalOpen && <section className="bottom-action-bar budget-add-bar" aria-label="Add a budget entry"><button type="button" className="income-action" disabled={isViewer} onClick={() => openNewCashflow("income")}><OutlineIcon name="money"/>Income +</button><button type="button" className="expense-action" disabled={isViewer} onClick={() => openNewCashflow("expense")}><OutlineIcon name="cart"/>Spending +</button><button type="button" className="purchase-action" aria-label="One-off +" disabled={isViewer} onClick={() => openNewCashflow("purchase")}><OutlineIcon name="plus"/>One-off +</button></section>}
     </main>
 
-    {mobileView && toolsOpen && <div className={mobileStyles.backdrop} onClick={event => { if (event.target === event.currentTarget) setToolsOpen(false); }} onKeyDown={event => { if (event.key === "Escape") setToolsOpen(false); }}><section id="mobile-tools" className={mobileStyles.tools} role="dialog" aria-modal="true" aria-label="Tools"><header><h2>Tools</h2><button type="button" className={mobileStyles.headerButton} aria-label="Close Tools" onClick={() => setToolsOpen(false)}>×</button></header><nav aria-label="Tools">{[...MORE_NAV_ITEMS.filter(item => item.id !== "profile" && item.id !== "calculator"), ...ADVANCED_NAV_ITEMS, { id: "debt-tools" as PageId, label: "Debt details & import" }].map(item => <button type="button" key={item.id} onClick={() => navigateMobile(item.id)}>{item.label}</button>)}</nav><section aria-label="Settings"><h3>Settings</h3><button type="button" onClick={() => navigateMobile("settings")}>Appearance &amp; preferences</button></section><section aria-label="Account"><h3>Account</h3><button type="button" onClick={() => navigateMobile("profile")}>Account &amp; backups</button></section></section></div>}
     {selectedAccount && <DebtDetail name={selectedAccount.name} tab={detailTab} onTab={requestDetailTab} onBack={requestDetailClose} overview={<DebtOverview name={selectedAccount.name} balance={selectedAccount.balance} starting={selectedAccount.baselineBalance??[...snapshots].sort((a,b)=>a.capturedAt.localeCompare(b.capturedAt)).flatMap(s=>s.accounts).find(a=>a.accountId===selectedAccount.id)?.balance} apr={selectedAccount.apr} minimum={effectiveMinimum(selectedAccount)} dueDate={nextDueDate(selectedAccount.dueDate)} readOnly={isViewer} onEdit={cardDetails?()=>requestDetailTab("Info"):undefined} onPayment={() => openRecommendedPayment(selectedAccount.id, activePayoff.accountSuggestions[selectedAccount.id] ?? effectiveMinimum(selectedAccount))} onBalance={() => openBalanceEdit(selectedAccount)} history={cardDetails?<CardProgressChart id={selectedAccount.id} current={selectedAccount.balance} transactions={transactions} adjustments={balanceAdjustments}/>:undefined} payoff={payoffSchedule.payoffMonths[`account:${selectedAccount.id}`]??null}/>} transactions={<>{!cardDetails&&<button type="button" className="primary" disabled={isViewer} onClick={() => openRecommendedPayment(selectedAccount.id, activePayoff.accountSuggestions[selectedAccount.id] ?? effectiveMinimum(selectedAccount))}>Record Payment</button>}<PaymentsPage cardDetail={cardDetails} accountScope={selectedAccount.id} mobile={mobileView} readOnly={isViewer} accounts={calculatedAccounts} transactions={transactions} adjustments={balanceAdjustments} message={debtActionMessage} onConfirm={confirmBalancePayment} onUndoConfirmation={undoBalancePayment} storedAccounts={accounts} onChange={changeTransactionEntry} onDialog={setDebtEntryOpen}/></>} info={detailInfo} actions={cardDetails?<>{cardEditError&&<p className="form-error" role="alert">{cardEditError}</p>}<button className="primary" type="button" disabled={isViewer} onClick={()=>setCardTransactionOpen(true)}><OutlineIcon name="plus"/><span>+ Transaction</span></button><button className="secondary" type="button" disabled={isViewer} onClick={()=>requestDetailTab("Info")}><OutlineIcon name="receipt"/><span>Edit</span></button>{detailTab === "Info" && accountDraftDirty && <button className="primary" type="button" disabled={isViewer} onClick={saveCard}><OutlineIcon name="check"/><span>Save</span></button>}</>:undefined}/> }
     {selectedAccount && cardTransactionOpen && <DebtEntryDialog accountScope={selectedAccount.id} flexibleScope mobile={mobileView} state={{accounts,transactions,adjustments:balanceAdjustments}} command={{action:"save"}} readOnly={isViewer} onSave={changeTransactionEntry} onClose={()=>setCardTransactionOpen(false)}/>}
     {selectedLoan && <LoanProgressPanel paymentSuggestion={activePayoff.loanSuggestions[selectedLoan.id]} payoffMonth={payoffSchedule.payoffMonths[`loan:${selectedLoan.id}`]??null} key={selectedLoan.id} detailLoanId={selectedLoan.id} detailTab={detailTab} onDetailTab={setDetailTab} onDetailClose={() => setSelectedDebt(null)} readOnly={isViewer} loans={loans} items={planningCashflowItems} onChange={loanTrackers => setMonthlyPlan(current => ({ ...current, loanTrackers }))} onDialog={setDebtEntryOpen}/>}
@@ -1481,7 +1392,7 @@ function CashflowModal({ draft, editing, accounts, onChange, onClose, onSave, on
   const amountLabel = draft.kind === "purchase" ? "Adjustment amount" : draft.recurring ? "Monthly amount" : "One-time amount";
   const placeholder = draft.kind === "income" ? "Example: Salary" : draft.kind === "expense" ? "Example: Electric bill" : draft.kind === "purchase" ? "Example: New tires" : "Example: Emergency fund";
   const modalDescription = draft.kind === "purchase" ? "This adjustment affects only this month and is not copied forward." : "This planned entry is expected cash flow. It never changes a current debt balance.";
-  return <div className="modal-backdrop" onMouseDown={(event) => { if (event.currentTarget === event.target) onClose(); }}><section className="modal cashflow-modal" role="dialog" aria-modal="true" aria-labelledby="cashflow-modal-title"><header><div><span>{editing ? `Edit ${title}` : `New ${title}`}</span><h2 id="cashflow-modal-title">{editing ? draft.name || "Planned entry" : `Add ${title}`}</h2><p>{modalDescription}</p></div><button type="button" onClick={onClose} aria-label="Close planned entry form">&times;</button></header><div className="form-grid"><div className="wide kind-editor"><span>Item type</span><div>{(["income", "expense", "purchase"] as CashflowKind[]).map((kind) => <button type="button" key={kind} className={draft.kind === kind ? `active ${kind}` : kind} onClick={() => changeKind(kind)}>{kind === "income" ? "Income" : kind === "expense" ? "Planned spending" : "One-time adjustment"}</button>)}</div></div><label className="wide"><span>Name</span><input autoFocus value={draft.name} placeholder={placeholder} onChange={(event) => onChange({ ...draft, name: event.target.value })}/></label><Field label={amountLabel} prefix={symbol} value={draft.amount} placeholder="0" onChange={(amount) => onChange({ ...draft, amount })}/><label><span>Category</span><select value={draft.category} onChange={(event) => onChange({ ...draft, category: event.target.value })}>{CASHFLOW_CATEGORIES[draft.kind].map((category) => <option key={category}>{category}</option>)}</select></label>{draft.kind !== "purchase" && <label className="wide recurring-choice"><input type="checkbox" checked={draft.recurring ?? true} onChange={(event) => onChange({ ...draft, recurring: event.target.checked })}/><span>Repeat this planned entry every month</span></label>}{isOutflow && <div className="wide payment-editor"><span>Paid with</span><div><button type="button" className={draft.paymentMethod === "debit" ? "active" : ""} onClick={() => onChange({ ...draft, paymentMethod: "debit", creditAccountId: "" })}><i>DB</i><span>Debit</span><small>Paid from checking</small></button><button type="button" className={draft.paymentMethod === "credit" ? "active" : ""} onClick={() => onChange({ ...draft, paymentMethod: "credit" })}><i>CC</i><span>Credit</span><small>Charged to a card</small></button></div></div>}{needsCreditAccount && <label className="wide credit-account-field"><span>Credit card</span><select value={draft.creditAccountId} onChange={(event) => onChange({ ...draft, creditAccountId: event.target.value })}><option value="">Select the card used for this {draft.kind === "purchase" ? "purchase" : "expense"}</option>{creditAccounts.map((account) => <option value={account.id} key={account.id}>{account.name}</option>)}</select><small>{creditAccounts.length ? (draft.kind === "purchase" ? "This records how you paid without turning the purchase into a recurring card charge." : "This links the recurring expense to the card you use.") : `Add a credit card under Debt Accounts before assigning this ${draft.kind === "purchase" ? "purchase" : "expense"} to credit.`}</small></label>}</div><footer>{editing ? <button className="danger" type="button" onClick={onRemove}>Remove item</button> : <span/>}<div><button className="secondary" type="button" onClick={onClose}>Cancel</button><button className="primary" type="button" disabled={!canSave} onClick={onSave}>{editing ? "Save changes" : draft.kind === "purchase" ? "Add one-time adjustment" : "Add planned entry"}</button></div></footer></section></div>;
+  return <div className="modal-backdrop" onMouseDown={(event) => { if (event.currentTarget === event.target) onClose(); }}><section className="modal cashflow-modal" role="dialog" aria-modal="true" aria-labelledby="cashflow-modal-title"><header><div><span>{editing ? `Edit ${title}` : `New ${title}`}</span><h2 id="cashflow-modal-title">{editing ? draft.name || "Planned entry" : `Add ${title}`}</h2><p>{modalDescription}</p></div><button type="button" onClick={onClose} aria-label="Close planned entry form">&times;</button></header><div className="form-grid"><div className="wide kind-editor"><span>Item type</span><div>{(["income", "expense", "purchase"] as CashflowKind[]).map((kind) => <button type="button" key={kind} className={draft.kind === kind ? `active ${kind}` : kind} onClick={() => changeKind(kind)}>{kind === "income" ? "Income" : kind === "expense" ? "Planned spending" : "One-time adjustment"}</button>)}</div></div><label className="wide"><span>Name</span><input autoFocus value={draft.name} placeholder={placeholder} onChange={(event) => onChange({ ...draft, name: event.target.value })}/></label><Field label={amountLabel} prefix={symbol} value={draft.amount} placeholder="0" onChange={(amount) => onChange({ ...draft, amount })}/><label><span>Category</span><select value={draft.category} onChange={(event) => onChange({ ...draft, category: event.target.value })}>{[...new Set([draft.category, ...CASHFLOW_CATEGORIES[draft.kind]])].map((category) => <option key={category}>{category}</option>)}</select></label>{isOutflow && draft.recurring && <label><span>Monthly due day</span><select aria-label="Monthly due day" value={draft.dueDay ?? ''} onChange={event => onChange({ ...draft, dueDay: event.target.value ? Number(event.target.value) : undefined })}><option value="">Choose a day</option>{Array.from({length:31},(_,index)=><option key={index+1} value={index+1}>{index+1}</option>)}</select><small>Marked Paid in Budget when due. Current debt balances stay unchanged.</small></label>}{draft.kind !== "purchase" && <label className="wide recurring-choice"><input type="checkbox" checked={draft.recurring ?? true} onChange={(event) => onChange({ ...draft, recurring: event.target.checked })}/><span>Repeat this planned entry every month</span></label>}{isOutflow && <div className="wide payment-editor"><span>Paid with</span><div><button type="button" className={draft.paymentMethod === "debit" ? "active" : ""} onClick={() => onChange({ ...draft, paymentMethod: "debit", creditAccountId: "" })}><i>DB</i><span>Debit</span><small>Paid from checking</small></button><button type="button" className={draft.paymentMethod === "credit" ? "active" : ""} onClick={() => onChange({ ...draft, paymentMethod: "credit" })}><i>CC</i><span>Credit</span><small>Charged to a card</small></button></div></div>}{needsCreditAccount && <label className="wide credit-account-field"><span>Credit card</span><select value={draft.creditAccountId} onChange={(event) => onChange({ ...draft, creditAccountId: event.target.value })}><option value="">Select the card used for this {draft.kind === "purchase" ? "purchase" : "expense"}</option>{creditAccounts.map((account) => <option value={account.id} key={account.id}>{account.name}</option>)}</select><small>{creditAccounts.length ? (draft.kind === "purchase" ? "This records how you paid without turning the purchase into a recurring card charge." : "This links the recurring expense to the card you use.") : `Add a credit card under Debt Accounts before assigning this ${draft.kind === "purchase" ? "purchase" : "expense"} to credit.`}</small></label>}</div><footer>{editing ? <button className="danger" type="button" onClick={onRemove}>Remove item</button> : <span/>}<div><button className="secondary" type="button" onClick={onClose}>Cancel</button><button className="primary" type="button" disabled={!canSave} onClick={onSave}>{editing ? "Save changes" : draft.kind === "purchase" ? "Add one-time adjustment" : "Add planned entry"}</button></div></footer></section></div>;
 }
 function PaymentModal({ account, accounts, transactions, adjustments, onAccountChange, error, suggestedAmount, onClose, onSave }: { account: DebtAccount; accounts: DebtAccount[]; transactions: LedgerTransaction[]; adjustments: BalanceAdjustment[]; onAccountChange: (id: string) => void; error: string; suggestedAmount: number; onClose: () => void; onSave: (draft: PaymentDraft) => void }) {
   const householdCurrency = useHouseholdCurrency();
@@ -1563,7 +1474,7 @@ function BalanceUpdateModal({ account, error, onClose, onSave }: { account: Debt
   </div>;
 }
 
-function AccountModal({ inline = false, dirty, readOnly = false, onArchive, onMarkPaidOff, onLoanType, draft, editing, editingAccountId, autoFocusField, groups = neutralGroups, accounts = [], onChange, onClose, onSave, onRemove }: { inline?: boolean; dirty: boolean; readOnly?: boolean; onArchive?: () => void; onMarkPaidOff?: () => void; onLoanType: (kind: "house" | "car") => void; draft: AccountDraft; editing: boolean; editingAccountId?: string; autoFocusField: "name" | "balance"; groups?: DebtGroup[]; accounts?: DebtAccount[]; onChange: (draft: AccountDraft) => void; onClose: () => void; onSave: () => void; onRemove: () => void }) {
+function AccountModal({ inline = false, dirty, readOnly = false, onArchive, onMarkPaidOff, onLoanType, draft, editing, autoFocusField, onChange, onClose, onSave, onRemove }: { inline?: boolean; dirty: boolean; readOnly?: boolean; onArchive?: () => void; onMarkPaidOff?: () => void; onLoanType: (kind: "house" | "car") => void; draft: AccountDraft; editing: boolean; editingAccountId?: string; autoFocusField: "name" | "balance"; groups?: DebtGroup[]; accounts?: DebtAccount[]; onChange: (draft: AccountDraft) => void; onClose: () => void; onSave: () => void; onRemove: () => void }) {
   const dueDayHelpId = useId();
   const inheritedCurrency = useHouseholdCurrency();
   const symbol = householdCurrencySymbol(useHouseholdCurrency());
@@ -1579,8 +1490,6 @@ function AccountModal({ inline = false, dirty, readOnly = false, onArchive, onMa
       <div className="debt-action-form"><div className="form-grid">
         <label className="wide"><span>Account name</span><input autoFocus={autoFocusField === "name"} value={draft.name} placeholder="Example: Everyday Rewards" onChange={(event) => onChange({ ...draft, name: event.target.value })}/></label>
         <InstitutionPicker value={draft.institutionKey} onChange={institutionKey => onChange({ ...draft, institutionKey })}/>
-        <label><span>Household group</span><select aria-label="Household group" value={draft.displayGroup} onChange={event=>{const displayGroup=event.target.value;onChange({...draft,displayGroup,displayPosition:1});}}>{groups.map(group=><option key={group.id} value={group.id}>{group.name}</option>)}</select></label>
-        <label><span>Position in group</span><select aria-label="Position in group" value={draft.displayPosition??1} onChange={event=>onChange({...draft,displayPosition:Number(event.target.value)})}>{Array.from({length:Math.max(1,accounts.filter(account=>!account.archivedAt&&account.id!==editingAccountId&&(account.displayGroup??'Other')===draft.displayGroup).length+(editing?1:0))},(_,index)=><option key={index+1} value={index+1}>{index+1}</option>)}</select></label>
         <label><span>Debt type</span><select value={draft.type} onChange={(event) => { const type = event.target.value; if (!editing && (type === "House loan" || type === "Auto loan")) { onLoanType(type === "House loan" ? "house" : "car"); return; } onChange({ ...draft, type: type as DebtType }); }}>{!editing && <option value="House loan">Mortgage</option>}{DEBT_TYPES.map((type) => <option key={type} value={type}>{type === "Auto loan" ? "Car loan" : type}</option>)}</select></label>
         {!editing && <Field label="Current balance" prefix={symbol} value={draft.balance} placeholder="0" autoFocus={autoFocusField === "balance"} onChange={(balance) => onChange({ ...draft, balance })}/>}
         <Field label="APR" suffix="%" value={draft.apr} placeholder="0.00" step=".01" onChange={(apr) => onChange({ ...draft, apr })}/>

@@ -4,12 +4,10 @@ import type { CashflowItem, DebtAccount } from './dashboard-data';
 import { useHouseholdCurrency } from './household-currency-context';
 import { createHouseholdMoneyFormatter } from './household-currency';
 import { trackedPayoffProgress } from './debt-presentation';
-import { effectiveMinimum } from './payoff-engine';
 import { householdDate } from './household-date';
 import { nextDueDate, formatRecurringDueDate } from './recurring-due-date';
-import { regularLoanPayment, type LoanTracker } from './loan-progress';
+import type { LoanTracker } from './loan-progress';
 import type { PayoffSchedule } from './payoff-schedule';
-import type { DebtGroup } from './debt-groups';
 import InstitutionIcon from './institution-icon';
 import OutlineIcon from './outline-icon';
 import { navigateTabs } from './tab-navigation';
@@ -26,28 +24,32 @@ function useDebtPreference(scope:string, name:string, fallback:string, allowed:s
  return [value,(next:string)=>{if(!allowed.includes(next))return;preferenceFallback.set(key,next);try{localStorage.setItem(key,next);}catch{}window.dispatchEvent(new Event('debt-view-preference'));}] as const;
 }
 
-export function UnifiedDebtList({ accounts, loans, items, groups = [], onSelect, compact = false, preferenceScope = "device" }: { accounts: DebtAccount[]; loans: LoanTracker[]; items: CashflowItem[]; groups?: DebtGroup[]; onSelect: (selection: DebtSelection) => void; compact?: boolean; preferenceScope?: string }) {
+function debtListCategory(type: string): 'cardsLoans' | 'houseAuto' {
+  return type === 'House loan' || type === 'Auto loan' || type === 'Mortgage' || type === 'Car loan' ? 'houseAuto' : 'cardsLoans';
+}
+
+export function UnifiedDebtList({ accounts, loans, onSelect, compact = false, preferenceScope = "device" }: { accounts: DebtAccount[]; loans: LoanTracker[]; items: CashflowItem[]; groups?: unknown[]; onSelect: (selection: DebtSelection) => void; compact?: boolean; preferenceScope?: string }) {
   const money = createHouseholdMoneyFormatter(useHouseholdCurrency());
   const [localSort, setSort] = useDebtPreference(preferenceScope,'sort','name',['name','apr','amount']);
   const [localSearch, setSearch] = useState('');
-  const [category, setCategory] = useState<'all'|'cards'|'loans'>('all');
-  const [groupFilter, setGroupFilter] = useState('all');
+  const [category, setCategory] = useState<'all'|'cardsLoans'|'houseAuto'>('all');
   const sort = localSort, search = localSearch;
   const rows = useMemo(() => [
-    ...accounts.filter(a => !a.archivedAt).map(a => { const baseline=a.baselineBalance; return { id: a.id, kind: 'account' as const, institutionKey: a.institutionKey, name: a.name, type: a.type, group: a.displayGroup ?? 'Other', displayOrder: a.displayOrder ?? Number.MAX_SAFE_INTEGER, balance: a.balance, apr: a.apr, minimum: effectiveMinimum(a), dueDate: nextDueDate(a.dueDate), color: tone(a.type), baseline, progress: trackedPayoffProgress(a) }; }),
-    ...loans.map(loan => ({ id: loan.id, kind: 'loan' as const, institutionKey: loan.institutionKey, name: loan.name, type: loan.kind === 'house' ? 'Mortgage' : 'Car loan', group: 'Loans', displayOrder: Number.MAX_SAFE_INTEGER, balance: loan.remainingAmount, apr: loan.apr, minimum: regularLoanPayment(loan, items), dueDate: nextDueDate(loan.dueDate ?? ''), color: tone(loan.kind), baseline: loan.originalAmount > 0 ? loan.originalAmount : undefined, progress: loan.originalAmount > 0 ? Math.max(0,Math.min(100,(1-loan.remainingAmount/loan.originalAmount)*100)) : null })),
+    ...accounts.filter(a => !a.archivedAt).map(a => { const baseline=a.baselineBalance; return { id: a.id, kind: 'account' as const, institutionKey: a.institutionKey, name: a.name, type: a.type, balance: a.balance, apr: a.apr, dueDate: nextDueDate(a.dueDate), color: tone(a.type), baseline, progress: trackedPayoffProgress(a) }; }),
+    ...loans.map(loan => ({ id: loan.id, kind: 'loan' as const, institutionKey: loan.institutionKey, name: loan.name, type: loan.kind === 'house' ? 'Mortgage' : 'Car loan', balance: loan.remainingAmount, apr: loan.apr, dueDate: nextDueDate(loan.dueDate ?? ''), color: tone(loan.kind), baseline: loan.originalAmount > 0 ? loan.originalAmount : undefined, progress: loan.originalAmount > 0 ? Math.max(0,Math.min(100,(1-loan.remainingAmount/loan.originalAmount)*100)) : null })),
   ].filter(a => a.name.toLocaleLowerCase().includes(search.trim().toLocaleLowerCase()))
-    .filter(a => category==='all' || (category==='cards' ? a.kind==='account' && a.type==='Credit card' : !(a.kind==='account' && a.type==='Credit card')))
-    .filter(a => groupFilter==='all' || a.group===groupFilter)
-    .sort((a, b) => (sort === 'apr' ? (b.apr ?? -1) - (a.apr ?? -1) : sort === 'amount' ? b.balance - a.balance : ([...groups.map(group=>group.id),'Loans'].indexOf(a.group)-[...groups.map(group=>group.id),'Loans'].indexOf(b.group)) || a.displayOrder-b.displayOrder || a.name.localeCompare(b.name)) || a.name.localeCompare(b.name)), [accounts, loans, items, groups, search, sort, category, groupFilter]);
-  const categoryCounts={all:accounts.filter(a=>!a.archivedAt).length+loans.length,cards:accounts.filter(a=>!a.archivedAt&&a.type==='Credit card').length,loans:accounts.filter(a=>!a.archivedAt&&a.type!=='Credit card').length+loans.length};
-  const filterGroups=[...groups.map(group=>group.id),...(loans.length?['Loans']:[])];
-  const displayedGroups=[...new Set(rows.map(row=>row.group))];
+    .filter(a => category==='all' || debtListCategory(a.type)===category)
+    .sort((a, b) => (sort === 'apr' ? (b.apr ?? -1) - (a.apr ?? -1) : sort === 'amount' ? b.balance - a.balance : a.name.localeCompare(b.name)) || a.name.localeCompare(b.name)), [accounts, loans, search, sort, category]);
+  const categoryCounts={all:accounts.filter(a=>!a.archivedAt).length+loans.length,cardsLoans:accounts.filter(a=>!a.archivedAt&&debtListCategory(a.type)==='cardsLoans').length,houseAuto:accounts.filter(a=>!a.archivedAt&&debtListCategory(a.type)==='houseAuto').length+loans.length};
+  const progressCopy = (row: typeof rows[number]) => {
+    const delta = row.baseline === undefined || row.baseline <= 0 ? null : row.baseline - row.balance;
+    if (row.progress === null || row.progress === undefined || delta === null) return 'Progress unavailable';
+    return delta < 0 ? `Balance increased ${money.format(-delta)}` : `${row.progress.toFixed(1)}% reduced`;
+  };
   return <section className={styles.debtSection} aria-label={compact ? 'Your debts' : 'Debt list'}>
-    <nav className={styles.debtFilters} aria-label="Debt type filters">{([['all','All'],['cards','Credit cards'],['loans','Loans & other']] as const).map(([id,label])=><button type="button" key={id} aria-pressed={category===id} onClick={()=>setCategory(id)}>{label}<span>{categoryCounts[id]}</span></button>)}</nav>
-    {filterGroups.length>0&&<nav className={styles.groupFilters} aria-label="Household group filters"><button type="button" aria-pressed={groupFilter==='all'} onClick={()=>setGroupFilter('all')}>All groups</button>{filterGroups.map(id=><button type="button" key={id} aria-pressed={groupFilter===id} onClick={()=>setGroupFilter(id)}>{groups.find(group=>group.id===id)?.name??id}</button>)}</nav>}
-    <div className={styles.toolbar}><label className={styles.sort}><OutlineIcon name="sort"/><span>Sort</span><select aria-label="Sort debts" value={sort} onChange={event => setSort(event.target.value)}><option value="name">Group order</option><option value="apr">Highest APR</option><option value="amount">Highest balance</option></select></label><label className={styles.search}><span className="sr-only">Search debts</span><input type="search" placeholder="Search debts" value={search} onChange={event => setSearch(event.target.value)}/></label></div>
-    {displayedGroups.map(group=><section key={group} className={styles.debtGroup} aria-label={`${groups.find(item=>item.id===group)?.name??group} debts`}><h2>{groups.find(item=>item.id===group)?.name??group}</h2><div className={styles.debtGrid}>{rows.filter(row=>row.group===group).map(row=>{const delta=row.baseline===undefined||row.baseline<=0?null:row.baseline-row.balance;const increased=delta!==null&&delta<0;const percent=row.progress;return <button key={row.kind + row.id} className={styles.debtCard} data-debt-tone={row.color} data-dialog-return-id={row.kind + ":" + row.id} onClick={() => onSelect({ kind: row.kind, id: row.id })} aria-label={`Open ${row.name}`} type="button"><span className={styles.cardTop}><InstitutionIcon institutionKey={row.institutionKey} debtType={row.type}/><span>{row.type}</span><span className={styles.chevron} aria-hidden="true">›</span></span><h3>{row.name}</h3><strong className={styles.balance}>{money.format(row.balance)}</strong><span className={styles.cardMetrics}><span>APR<b className={row.apr===undefined?undefined:row.apr>=24?styles.highApr:styles.lowApr}>{row.apr === undefined ? '—' : `${row.apr}%`}</b></span><span>Minimum payment<b>{row.minimum === undefined ? '—' : money.format(row.minimum)}</b></span></span><span className={styles.listProgress}><span>{percent===null?'Progress unavailable':increased?`Balance increased ${money.format(-delta!)}`:`${percent.toFixed(1)}% reduced`}</span>{percent!==null&&<span role="progressbar" aria-label={row.name+' balance reduction'} aria-valuenow={Number(percent.toFixed(1))} aria-valuemin={0} aria-valuemax={100}><i style={{width:percent+'%'}}/></span>}</span>{row.dueDate && <span className={styles.due}>Due {new Date(row.dueDate + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span>}</button>})}</div></section>)}
+    <nav className={styles.debtFilters} aria-label="Debt type filters">{([['all','All'],['cardsLoans','Cards & loans'],['houseAuto','House & auto']] as const).map(([id,label])=><button type="button" key={id} aria-pressed={category===id} onClick={()=>setCategory(id)}>{label}<span>{categoryCounts[id]}</span></button>)}</nav>
+    <div className={styles.toolbar}><label className={styles.sort}><OutlineIcon name="sort"/><span>Sort</span><select aria-label="Sort debts" value={sort} onChange={event => setSort(event.target.value)}><option value="name">Name</option><option value="apr">Highest APR</option><option value="amount">Highest balance</option></select></label><label className={styles.search}><span className="sr-only">Search debts</span><input type="search" placeholder="Search debts" value={search} onChange={event => setSearch(event.target.value)}/></label></div>
+    <div className={styles.debtGrid}>{rows.map(row=>{const percent=row.progress;const label=progressCopy(row);return <button key={row.kind + row.id} className={styles.debtCard} data-debt-tone={row.color} data-dialog-return-id={row.kind + ":" + row.id} onClick={() => onSelect({ kind: row.kind, id: row.id })} aria-label={`Open ${row.name}`} type="button"><span className={styles.debtRowTop}><span className={styles.debtIdentity}><InstitutionIcon institutionKey={row.institutionKey} debtType={row.type}/><span><strong>{row.name}</strong><small>{row.type}</small></span></span><span className={styles.debtBalance}><strong>{money.format(row.balance)}</strong>{row.baseline !== undefined && row.baseline > 0 && <small>of {money.format(row.baseline)}</small>}</span><span className={styles.chevron} aria-hidden="true">›</span></span><span className={styles.listProgress}><span>{label}</span><span className={styles.remainingBalance}>{money.format(row.balance)} left</span>{percent!==null&&percent!==undefined&&<span role="progressbar" aria-label={row.name+' balance reduction'} aria-valuenow={Number(percent.toFixed(1))} aria-valuemin={0} aria-valuemax={100}><i style={{width:percent+'%'}}/></span>}</span></button>})}</div>
     {!rows.length && <p className={styles.empty}>{search ? 'No debts match your search.' : 'Add your first debt with Debt +.'}</p>}
   </section>;
 }
@@ -79,16 +81,23 @@ function remainingTime(month: string | null) {
   if (months < 0) { years--; months += 12; }
   return [years, months, days];
 }
-export function DebtSummary({ accounts, loans, items, preferenceScope = 'device' }: { accounts: DebtAccount[]; loans: LoanTracker[]; items: CashflowItem[]; preferenceScope?: string }) {
+export function DebtSummary({ accounts, loans, preferenceScope = 'device' }: { accounts: DebtAccount[]; loans: LoanTracker[]; items: CashflowItem[]; preferenceScope?: string }) {
  const money=createHouseholdMoneyFormatter(useHouseholdCurrency());
- const [view,setView]=useDebtPreference(preferenceScope,'summary','total',['total','cards']);
+ const [view,setView]=useDebtPreference(preferenceScope,'summary','total',['total','cardsLoans']);
  const pointer=useRef<{x:number;y:number}|null>(null);
- const active=accounts.filter(a=>!a.archivedAt && (view==='total'||a.type==='Credit card')), includedLoans=view==='total'?loans:[];
+ const matchesView=(type:string)=>view==='total'||debtListCategory(type)==='cardsLoans';
+ const active=accounts.filter(a=>!a.archivedAt&&matchesView(a.type));
+ const includedLoans=view==='total'?loans:[];
  const total=active.reduce((n,a)=>n+a.balance,0)+includedLoans.reduce((n,l)=>n+l.remainingAmount,0);
- const monthly=active.reduce((n,a)=>n+effectiveMinimum(a),0)+includedLoans.reduce((n,l)=>n+(regularLoanPayment(l,items)??0),0);
- return <section className={styles.debtSummary} aria-label="Debt summary" onPointerDown={event=>{pointer.current={x:event.clientX,y:event.clientY};}} onPointerUp={event=>{const start=pointer.current;pointer.current=null;if(start&&Math.abs(event.clientX-start.x)>45&&Math.abs(event.clientX-start.x)>Math.abs(event.clientY-start.y)*1.5)setView(view==='total'?'cards':'total');}} onPointerCancel={()=>{pointer.current=null;}}>
-  <nav className={styles.summaryDots} aria-label="Debt summary views">{[{id:'total',label:'Total outstanding debt'},{id:'cards',label:'Card debts'}].map(option=><button type="button" key={option.id} aria-label={option.label} aria-pressed={view===option.id} onClick={()=>setView(option.id)}><i/></button>)}</nav>
-  <span>{view==='total'?'Total debt outstanding':'Card debts'}</span><strong>{money.format(total)}</strong><div><span>Active debts<b>{active.filter(a=>a.balance>0).length+includedLoans.filter(l=>l.remainingAmount>0).length}</b></span><span>Minimum payments<b>{money.format(monthly)}</b></span><span>Average APR<b>{total>0&&includedLoans.every(l=>l.remainingAmount<=0||l.apr!==undefined)?((active.reduce((n,a)=>n+a.balance*a.apr,0)+includedLoans.reduce((n,l)=>n+l.remainingAmount*(l.apr??0),0))/total).toFixed(2)+'%':'—'}</b></span></div>
+ const trackedAccounts=active.filter(a=>typeof a.baselineBalance==='number'&&Number.isFinite(a.baselineBalance)&&a.baselineBalance>0);
+ const trackedLoans=includedLoans.filter(l=>Number.isFinite(l.originalAmount)&&l.originalAmount>0);
+ const starting=trackedAccounts.reduce((n,a)=>n+a.baselineBalance!,0)+trackedLoans.reduce((n,l)=>n+l.originalAmount,0);
+ const trackedCurrent=trackedAccounts.reduce((n,a)=>n+a.balance,0)+trackedLoans.reduce((n,l)=>n+l.remainingAmount,0);
+ const delta=starting-trackedCurrent;
+ const progress=starting>0?Math.max(0,Math.min(100,delta/starting*100)):null;
+ return <section className={styles.debtSummary} aria-label="Debt summary" onPointerDown={event=>{pointer.current={x:event.clientX,y:event.clientY};}} onPointerUp={event=>{const start=pointer.current;pointer.current=null;if(start&&Math.abs(event.clientX-start.x)>45&&Math.abs(event.clientX-start.x)>Math.abs(event.clientY-start.y)*1.5)setView(view==='total'?'cardsLoans':'total');}} onPointerCancel={()=>{pointer.current=null;}}>
+  <nav className={styles.summaryDots} aria-label="Debt summary views">{[{id:'total',label:'Total debt balance'},{id:'cardsLoans',label:'Cards and loans balance'}].map(option=><button type="button" key={option.id} aria-label={option.label} aria-pressed={view===option.id} onClick={()=>setView(option.id)}><i/></button>)}</nav>
+  <div className={styles.summaryRow}><div><span>{view==='total'?'Total balance':'Cards & loans'}</span><strong>{money.format(total)}</strong></div><div className={styles.summaryBadge}>{progress===null?<small>Progress unavailable</small>:<><b>{delta>=0?'↓':'↑'} {Math.abs(delta/starting*100).toFixed(1)}%</b><small>{delta>=0?'reduced':'increased'} across tracked debts</small></>}</div></div>
  </section>;
 }
 export function HomeExperience({ name, accounts, loans, starting, current, schedule, onSchedule, onProgress, onDebts, onAccount }: { name: string; accounts: DebtAccount[]; loans: LoanTracker[]; starting: number; current: number; schedule: PayoffSchedule; onSchedule: () => void; onProgress: () => void; onDebts: () => void; onAccount: () => void }) {

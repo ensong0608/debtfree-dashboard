@@ -72,6 +72,15 @@ export function buildProgressView(input: Input, scope: ProgressScope = 'accounts
     id: 'loans:' + day, month: day.slice(0, 7), balance: sum([...entries.values()].map(entry => entry.amount)), source: 'loan-history',
     observedOn: day, recordedAt: null, comparable: true,
   }));
+  // Automatic observations capture stored loan balances at the actual opening
+  // date, independently of the lender balance date retained in loan history.
+  for (const snapshot of input.snapshots) {
+    const entries = snapshot.loanBalances;
+    const recordedAt = timestamp(snapshot.capturedAt);
+    const day = recordedAt ? householdDate(new Date(recordedAt)) : null;
+    if (!snapshot.autoCheckpoint || !entries || !day || day > today || !input.loans.length || entries.length !== input.loans.length || new Set(entries.map(entry => entry.loanId)).size !== input.loans.length || !input.loans.every(loan => entries.some(entry => entry.loanId === loan.id && entry.balanceKind === loan.balanceKind))) continue;
+    loanObservations.push({ id: 'loans:' + snapshot.id, month: snapshot.month, balance: sum(entries.map(entry => entry.amount)), source: 'loan-history', observedOn: day, recordedAt, comparable: true });
+  }
   let observations = hasAccounts ? accountObservations : loanObservations;
   if (hasAccounts && hasLoans) observations = accountObservations.flatMap(account => {
     const loan = loanObservations.find(loan => account.observedOn && loan.observedOn === account.observedOn);
@@ -82,7 +91,7 @@ export function buildProgressView(input: Input, scope: ProgressScope = 'accounts
   const byMonth = new Map(observations.filter(point => point.comparable).map(point => [point.month, point]));
   const activity = paymentActivity(input.transactions, input.adjustments).filter(row => accountIds.has(row.accountId) && row.date <= today);
   const firstMonth = [...byMonth.keys(), ...(includeAccounts ? activity.map(row => row.date.slice(0, 7)) : []), month].sort()[0];
-  const trend = Array.from({ length: monthNumber(month) - monthNumber(firstMonth) + 1 }, (_, index) => {
+  const monthlyTrend = Array.from({ length: monthNumber(month) - monthNumber(firstMonth) + 1 }, (_, index) => {
     const key = new Date(Date.UTC(Number(firstMonth.slice(0, 4)), Number(firstMonth.slice(5, 7)) - 1 + index, 1)).toISOString().slice(0, 7);
     const point = byMonth.get(key) ?? null;
     const previousKey = new Date(Date.UTC(Number(key.slice(0, 4)), Number(key.slice(5, 7)) - 2, 1)).toISOString().slice(0, 7);
@@ -93,6 +102,12 @@ export function buildProgressView(input: Input, scope: ProgressScope = 'accounts
       observedNetChange: point && previous ? round(point.balance - previous.balance) : null,
       recordedAccountChange: includeAccounts && rows.length ? sum(rows.map(row => row.difference)) : null };
   });
+
+  const hasAutomatic = input.snapshots.some(snapshot => snapshot.autoCheckpoint);
+  const trend: (typeof monthlyTrend[number] & { date?: string; id?: string })[] = hasAutomatic ? monthlyTrend.flatMap(period => {
+    const points = observations.filter(point => point.comparable && point.month === period.month);
+    return points.length ? points.map(point => ({ ...period, id: point.id, date: point.observedOn ?? undefined, savedBalance: point.balance, observation: point })) : [period];
+  }) : monthlyTrend;
 
   let forecast: ReturnType<typeof buildActivePayoffCommitment> | null = null;
   if (input.forecast) {
@@ -140,4 +155,24 @@ export function buildProgressView(input: Input, scope: ProgressScope = 'accounts
     // Saved forecast dates do not preserve comparable scope/origin/assumptions.
     fasterPayoffComparison: null,
   };
+}
+
+/** Fixed presentation groups retain the canonical whole-household authority.
+ * Legacy Auto loan accounts stay persisted as accounts; only their view moves. */
+export function buildScopedProgressViews(input: Input) {
+  const legacyAutos = input.accounts.filter(account => account.type === 'Auto loan');
+  const household = buildProgressView(input, 'household');
+  if (!legacyAutos.length) return { accounts: buildProgressView(input, 'accounts'), loans: buildProgressView(input, 'loans'), household, presentationLoans: input.loans };
+  const all = household.actual.groups.flatMap(group => group.accounts);
+  const baseline = (id: string) => all.find(account => account.id === id)?.baselineBalance;
+  const virtual: LoanTracker[] = legacyAutos.map(account => ({ id: 'legacy-auto:' + account.id, name: account.name, kind: 'car', originalAmount: baseline(account.id) ?? 0, remainingAmount: all.find(item => item.id === account.id)?.balance ?? account.balance, balanceKind: 'principal', asOf: household.live.asOf, budgetItemId: '', budgetItemName: '', history: input.snapshots.flatMap(snapshot => {
+    const saved = snapshot.accounts.find(item => item.accountId === account.id);
+    const date = timestamp(snapshot.capturedAt) ? householdDate(new Date(snapshot.capturedAt)) : null;
+    return saved && date?.startsWith(snapshot.month) ? [{date, amount:saved.balance, balanceKind:'principal' as const, recordedAt:snapshot.capturedAt}] : [];
+  }) }));
+  const ids = new Set(legacyAutos.map(account => account.id));
+  const snapshots = input.snapshots.map(snapshot => { const accounts = snapshot.accounts.filter(account => !ids.has(account.accountId));return {...snapshot,accounts,totalBalance:sum(accounts.map(account=>account.balance))}; });
+  const autoStart = virtual.every(loan => loan.originalAmount > 0) ? sum(virtual.map(loan => loan.originalAmount)) : null;
+  const startingBalance = input.startingBalance !== undefined && autoStart !== null && input.startingBalance >= autoStart ? round(input.startingBalance-autoStart) : undefined;
+  return { accounts: buildProgressView({...input,accounts:input.accounts.filter(account=>!ids.has(account.id)),snapshots,startingBalance},'accounts'), loans:buildProgressView({...input,accounts:[],removedAccounts:[],snapshots:input.snapshots.map(snapshot=>({...snapshot,loanBalances:[...(snapshot.loanBalances??[]),...snapshot.accounts.filter(account=>ids.has(account.accountId)).map(account=>({loanId:'legacy-auto:'+account.accountId,amount:account.balance,balanceKind:'principal' as const}))]})),loans:[...input.loans,...virtual],startingBalance:undefined,forecast:undefined},'loans'),household,presentationLoans:[...input.loans,...virtual] };
 }
