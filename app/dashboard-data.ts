@@ -93,6 +93,7 @@ export type CashflowItem = OwnershipMetadata & {
   creditAccountId: string;
   createdAt: string;
   recurring?: boolean;
+  dueDay?: number;
   [key: string]: unknown;
 };
 
@@ -162,6 +163,8 @@ export type SnapshotAccount = {
 };
 
 export type PayoffSnapshot = OwnershipMetadata & {
+  autoCheckpoint?: string;
+  loanBalances?: { loanId: string; amount: number; balanceKind: "principal" | "payoff" }[];
   id: string;
   month: string;
   capturedAt: string;
@@ -252,9 +255,10 @@ export type DashboardPayloadV3 = DashboardPayloadV2 & {
   balanceAdjustments?: BalanceAdjustment[];
 };
 
-export type PlanSettlement = { id: string; targetId: string; name: string; kind: "spending" | "minimum"; amount: number; date: string; createdAt: string; source: "debit" | "included" };
+export type PlanSettlement = { automatic?: boolean; id: string; targetId: string; name: string; kind: "spending" | "minimum"; amount: number; date: string; createdAt: string; source: "debit" | "included" };
 
 export type MonthlyPlanMonth = {
+  skippedRecurringPayments?: string[];
   settlements?: PlanSettlement[];
   payments?: Record<string, number>;
   minimums?: Record<string, number>;
@@ -705,6 +709,7 @@ function validateCashflow(value: unknown, path: string, issues: string[]) {
   requiredString(item.creditAccountId, `${path}.creditAccountId`, issues, true);
   requiredString(item.createdAt, `${path}.createdAt`, issues);
   if (hasOwn(item, "recurring")) requiredBoolean(item.recurring, `${path}.recurring`, issues);
+  if (item.dueDay !== undefined && (!Number.isInteger(item.dueDay) || Number(item.dueDay) < 1 || Number(item.dueDay) > 31)) issues.push(`${path}.dueDay must be a day from 1 to 31.`);
 }
 
 function validatePayee(value: unknown, path: string, issues: string[]) {
@@ -810,6 +815,14 @@ function validateSnapshot(value: unknown, path: string, issues: string[]) {
   requiredNumber(item.activeAccountCount, `${path}.activeAccountCount`, issues, true);
   nullableString(item.projectedDebtFreeMonth, `${path}.projectedDebtFreeMonth`, issues);
   requiredString(item.note, `${path}.note`, issues, true);
+  if (item.autoCheckpoint !== undefined && (typeof item.autoCheckpoint !== 'string' || !validDate(item.autoCheckpoint) || item.autoCheckpoint.slice(0, 7) !== item.month)) issues.push(path + '.autoCheckpoint must belong to its month.');
+  if (item.loanBalances !== undefined) requiredArray(item.loanBalances, path + '.loanBalances', issues)?.forEach((raw, index) => {
+    const entry = requiredRecord(raw, path + '.loanBalances[' + index + ']', issues);
+    if (!entry) return;
+    requiredString(entry.loanId, path + '.loanBalances.loanId', issues);
+    requiredNumber(entry.amount, path + '.loanBalances.amount', issues);
+    enumValue(entry.balanceKind, new Set(['principal', 'payoff']), path + '.loanBalances.balanceKind', issues);
+  });
   const accounts = requiredArray(item.accounts, `${path}.accounts`, issues);
   accounts?.forEach((account, index) => validateSnapshotAccount(account, `${path}.accounts[${index}]`, issues));
 }
@@ -948,11 +961,13 @@ function validateMonthlyPlan(value: unknown, path: string, issues: string[]) {
   if (months) Object.entries(months).forEach(([month, raw]) => {
     const settings = requiredRecord(raw, path + ".months[" + JSON.stringify(month) + "]", issues);
     if (settings) {
+      if (settings.skippedRecurringPayments !== undefined) requiredArray(settings.skippedRecurringPayments, path + '.skippedRecurringPayments', issues)?.forEach((id, index) => requiredString(id, path + '.skippedRecurringPayments[' + index + ']', issues));
       if (settings.settlements !== undefined) requiredArray(settings.settlements, path + ".settlements", issues)?.forEach((raw, i) => {
         const entry = requiredRecord(raw, path + ".settlements[" + i + "]", issues);
         if (!entry) return;
         for (const key of ["id", "targetId", "name", "date", "createdAt"]) requiredString(entry[key], path + ".settlements." + key, issues);
         requiredNumber(entry.amount, path + ".settlements.amount", issues);
+        if (entry.automatic !== undefined) requiredBoolean(entry.automatic, path + ".settlements.automatic", issues);
         if (!["spending", "minimum"].includes(String(entry.kind))) issues.push(path + ".settlements.kind is invalid.");
         if (!["debit", "included"].includes(String(entry.source))) issues.push(path + ".settlements.source is invalid.");
         if (entry.kind === "minimum" && entry.source !== "included") issues.push("Previously paid minimums must already be included in balances.");

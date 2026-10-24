@@ -21,7 +21,7 @@ Cloudflare Workers is the sole production hosting target. The production Worker 
 - Preserve explicitly removed text and sections. Do not restore them during audits or redesigns without the user's request.
 - Debt cards must not display "Lender date unknown", "Lender last checked", or household-saving/lender-verification explanations. Due dates recur on the chosen day in the current month; show only the concise due-date label and value.
 
-- Keep the Progress snapshot controls and saved snapshot list directly visible. Do not hide the snapshot feature inside nested dropdowns.
+- October 23 evaluation overrides the earlier snapshot UI: hide manual snapshot/history controls on Progress Overview. Preserve all existing snapshots, revisions and the original baseline. Capture stored balances on app opening after the latest elapsed 1st/15th/last-day checkpoint, with actual capture timestamps; never backfill missed dates. Fixed visible scopes are Cards & Loans, House & Auto, All. Custom household debt-group controls and Account Tools/hamburger navigation were explicitly removed; preserve their stored metadata. Recurring Budget entries with an explicitly selected due day auto-create current-month Paid acknowledgements through the reporting-only settlement path; do not post guessed lender balance changes or double-count real payments.
 
 - Progress must preserve its first recorded starting total in `monthlyPlan.progressStartingBalance`. Later snapshots, balance edits, and removed accounts must not replace or hide that starting amount. Do not invent a starting date when none is saved.
 

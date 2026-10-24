@@ -1,46 +1,25 @@
 "use client";
 
+import { useState } from "react";
 import type { DebtAccount, LedgerTransaction, BalanceAdjustment } from "./dashboard-data";
 import type { buildActualProgress } from "./debt-activity";
 import type { PayoffSchedule as Schedule } from "./payoff-schedule";
 import type { LoanTracker } from "./loan-progress";
+import type { ProgressScope, buildProgressView } from "./progress-view";
 import { createHouseholdMoneyFormatter } from "./household-currency";
 import { useHouseholdCurrency } from "./household-currency-context";
 import { paymentActivity } from "./payments";
 import OutlineIcon from "./outline-icon";
+import DebtScopeCarousel from "./debt-scope-carousel";
+import type { CSSProperties } from "react";
 import styles from "./home-dashboard.module.css";
 
 const monthLabel = (key: string, short = false) => new Date(key + "-01T12:00:00").toLocaleDateString("en-US", { month: short ? "short" : "long", year: "numeric" });
 
-function SnapshotChart({ progress, money, onViewProgress }: { progress: ReturnType<typeof buildActualProgress>; money: Intl.NumberFormat; onViewProgress: () => void }) {
-  const points = progress.snapshots.filter(snapshot => Number.isFinite(snapshot.totalBalance)).slice(-6);
-  if (!points.length) return <div className={styles.chartEmpty}>Save a Progress snapshot to start a balance trend.</div>;
-  const values = points.map(point => point.totalBalance);
-  const min = Math.min(...values), max = Math.max(...values), range = Math.max(1, max - min);
-  const coords = values.map((value, index) => ({ x: points.length === 1 ? 50 : 8 + index * 84 / (points.length - 1), y: 76 - (value - min) / range * 58 }));
-  const segments = coords.flatMap((point, index) => {
-    if (!index) return [];
-    const previousMonth = new Date(points[index - 1].month + "-01T12:00:00");
-    previousMonth.setMonth(previousMonth.getMonth() + 1);
-    if (previousMonth.getFullYear() !== Number(points[index].month.slice(0, 4)) || previousMonth.getMonth() + 1 !== Number(points[index].month.slice(5))) return [];
-    return [{ previous: coords[index - 1], point }];
-  });
-  const summary = points.map(point => `${monthLabel(point.month, true)} ${money.format(point.totalBalance)}`).join("; ");
-  return <div className={styles.chartWrap}>
-    <svg className={styles.chart} viewBox="0 0 100 86" role="img" aria-label={`Saved account balance snapshots: ${summary}`} preserveAspectRatio="none">
-      <defs><linearGradient id="home-chart-fill" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stopColor="var(--theme-accent)" stopOpacity=".30"/><stop offset="1" stopColor="var(--theme-accent)" stopOpacity=".02"/></linearGradient></defs>
-      <line x1="0" y1="82" x2="100" y2="82" stroke="var(--theme-chart-grid)" strokeWidth=".6"/>
-      {segments.map(({previous,point},index)=><g key={index}><path d={`M${previous.x},82 ${previous.x},${previous.y} ${point.x},${point.y} ${point.x},82 Z`} fill="url(#home-chart-fill)"/><line x1={previous.x} y1={previous.y} x2={point.x} y2={point.y} stroke="var(--theme-chart-1)" strokeWidth="2.2" vectorEffect="non-scaling-stroke"/></g>)}
-      {coords.map((point,index)=><circle key={points[index].id} cx={point.x} cy={point.y} r="1.8" fill="var(--theme-chart-1)" vectorEffect="non-scaling-stroke"/>)}
-    </svg>
-    <div className={styles.chartLabels}><span>{monthLabel(points[0].month, true)}</span>{points.length > 1 && <span>{monthLabel(points.at(-1)!.month, true)}</span>}</div>
-    <button type="button" className={styles.textLink} onClick={onViewProgress}>Account snapshots <OutlineIcon name="chevron"/></button>
-  </div>;
-}
-
-export default function HomeDashboardPage({ name, accounts, schedule, householdPayment, scopeLabel = "Whole household", loans, progress, transactions, adjustments, onSchedule, onAccount, onViewDebts, onViewProgress }: {
+export default function HomeDashboardPage({ name, accounts, schedule, householdPayment, scopeLabel = "Whole household", loans, progress, progressViews, transactions, adjustments, onSchedule, onAccount, onViewDebts, onViewProgress }: {
   name: string; accounts: DebtAccount[]; schedule: Schedule; scopeLabel?: string; loans: LoanTracker[];
   householdPayment?: number;
+  progressViews?: Record<ProgressScope, ReturnType<typeof buildProgressView>>;
   progress: ReturnType<typeof buildActualProgress>; transactions: LedgerTransaction[]; adjustments: BalanceAdjustment[];
   onSchedule: () => void; onAccount: () => void; onViewDebts: () => void; onViewProgress: () => void;
 }) {
@@ -59,6 +38,26 @@ export default function HomeDashboardPage({ name, accounts, schedule, householdP
   const hasForecast = schedule.debtFreeMonth !== null;
   const forecastNeedsReview = !hasForecast && (schedule.issues.length > 0 || schedule.rows.length > 0);
   const forecastState = forecastNeedsReview ? "Forecast needs review" : hasForecast ? "Projected payoff" : "No payoff projection yet";
+  const [scope, setScope] = useState<ProgressScope>(accounts.length ? "accounts" : loans.length ? "loans" : "household");
+  const progressSlides = progressViews ? ([
+    { scope: "accounts" as const, label: "Cards & Loans" },
+    { scope: "loans" as const, label: "House & Auto" },
+    { scope: "household" as const, label: "All" },
+  ].filter(slide => slide.scope === "accounts" ? accounts.length > 0 : slide.scope === "loans" ? loans.length > 0 : accounts.length > 0 && loans.length > 0).map(slide => {
+    const view = progressViews[slide.scope];
+    const percent = view.summary.percent;
+    const arc = percent === null ? 0 : Math.max(0, Math.min(100, Math.abs(percent)));
+    const ringStyle = { "--home-ring": `${arc * 3.6}deg` } as CSSProperties;
+    return { ...slide, content: <div className={styles.progressCompact}>
+      <div className={styles.compactRing} style={ringStyle} role="img" aria-label={`${slide.label}: ${percent === null ? "starting comparison unavailable" : `${Math.abs(percent).toFixed(1)} percent ${percent >= 0 ? "reduced" : "increased"}`}`}><span>{percent === null ? "—" : `${Math.abs(percent).toFixed(0)}%`}</span></div>
+      <div className={styles.compactCopy}>
+        <strong>{money.format(view.summary.current)} <small>left</small></strong>
+        <span>{slide.label} · {view.summary.reduction === null ? "Starting comparison unavailable" : `${money.format(Math.abs(view.summary.reduction))} ${view.summary.reduction >= 0 ? "reduced" : "increased"}`}</span>
+        <button type="button" className={styles.textLink} onClick={onViewProgress}>View progress <OutlineIcon name="chevron"/></button>
+      </div>
+    </div> };
+  })) : null;
+  const activeScope = progressSlides?.some(slide => slide.scope === scope) ? scope : progressSlides?.[0]?.scope ?? "household";
 
   return <div className={styles.home}>
     <header className={styles.topbar}>
@@ -67,11 +66,12 @@ export default function HomeDashboardPage({ name, accounts, schedule, householdP
     </header>
     <section className={styles.greeting} aria-label="Welcome"><h1>Welcome, {firstName}</h1><p>Your household debt overview</p></section>
 
-    <section className={styles.debtSummary} aria-label="Total household debt">
-      <div className={styles.summaryHead}><span>Total household debt</span><button type="button" onClick={onViewDebts}>View debts <OutlineIcon name="chevron"/></button></div>
-      <strong className={styles.total}>{money.format(current)}</strong>
-      {progressPercent !== null && <p className={styles.balanceChange}>{money.format(Math.abs(reduction))} {reduction >= 0 ? "below" : "above"} recorded starting balances · {Math.abs(progressPercent).toFixed(1)}%</p>}
-      <SnapshotChart progress={progress} money={money} onViewProgress={onViewProgress}/>
+    <section className={styles.debtSummary} aria-label="Debt summary">
+      <div className={styles.summaryHead}><span>Total debt</span><button type="button" onClick={onViewDebts}>View debts <OutlineIcon name="chevron"/></button></div>
+      {progressViews && progressSlides?.length ? <DebtScopeCarousel slides={progressSlides} value={activeScope} onChange={setScope} label="Debt progress scope" /> : <div className={styles.progressCompact}>
+        <div className={styles.compactRing} role="img" aria-label={progressPercent === null ? "Starting comparison unavailable" : `${Math.abs(progressPercent).toFixed(1)} percent ${progressPercent >= 0 ? "reduced" : "increased"}`}><span>{progressPercent === null ? "—" : `${Math.abs(progressPercent).toFixed(0)}%`}</span></div>
+        <div className={styles.compactCopy}><strong>{money.format(current)} <small>left</small></strong><span>{progressPercent === null ? "Starting comparison unavailable" : `${money.format(Math.abs(reduction))} ${reduction >= 0 ? "reduced" : "increased"}`}</span><button type="button" className={styles.textLink} onClick={onViewProgress}>View progress <OutlineIcon name="chevron"/></button></div>
+      </div>}
     </section>
 
     <section className={styles.payoffCard} aria-label="Payoff summary">

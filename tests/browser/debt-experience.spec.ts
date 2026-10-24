@@ -18,6 +18,7 @@ test.beforeEach(async ({page}, info) => {
  await page.addInitScript(({key,fixture})=>{if(!localStorage.getItem(key)) localStorage.setItem(key,JSON.stringify(fixture));},{key:DASHBOARD_STORAGE_KEY,fixture});
  await page.goto('/');
  await expect(page.getByRole('heading',{name:/Welcome,/})).toBeVisible();
+ await expect.poll(async()=>(await saved(page)).snapshots.some((snapshot:{autoCheckpoint?:string})=>Boolean(snapshot.autoCheckpoint))).toBe(true);
  if (!info.title.startsWith('five tabs') && !info.title.startsWith('Home preview')) await page.getByRole('navigation',{name:'Primary navigation'}).getByRole('button',{name:/^Debts?$/,exact:true}).click();
 });
 const saved=(page:import('@playwright/test').Page)=>page.evaluate(key=>JSON.parse(localStorage.getItem(key)!).payload,DASHBOARD_STORAGE_KEY);
@@ -25,24 +26,21 @@ const saved=(page:import('@playwright/test').Page)=>page.evaluate(key=>JSON.pars
 test('five tabs, separate Home summary and searchable unified Debt list', async({page})=>{
  const nav=page.getByRole('navigation',{name:'Primary navigation'});
  await expect(nav.getByRole('button')).toHaveText(['Home','Debt','Progress','Budget','Settings']);
- await expect(page.getByRole('region',{name:'Total household debt',exact:true})).toBeVisible();
+ await expect(page.getByRole('region',{name:'Debt summary',exact:true})).toBeVisible();
  await expect(page.getByRole('button',{name:/^Open Sample/})).toHaveCount(0);
  await expect(page.getByRole('searchbox',{name:'Search debts'})).toHaveCount(0);
  await nav.getByRole('button',{name:/^Debts?$/,exact:true}).click();
  const debts=page.getByRole('region',{name:'Debt list',exact:true});
- await expect(page.getByRole('region',{name:'Debt summary',exact:true})).toContainText('Minimum payments');
- await expect(debts.getByRole('button',{name:/^Open /})).toHaveText([/Sample card/,/Sample travel/,/Sample home/]);
+ await expect(page.getByRole('region',{name:'Debt summary',exact:true})).not.toContainText('Minimum payments');
+ await expect(debts.getByRole('button',{name:/^Open /})).toHaveText([/Sample card/,/Sample home/,/Sample travel/]);
  const filters=debts.getByRole('navigation',{name:'Debt type filters'});
- await filters.getByRole('button',{name:/Credit cards/}).click();
+ await filters.getByRole('button',{name:/Cards & loans/}).click();
  await expect(debts.getByRole('button',{name:/^Open /})).toHaveCount(2);
- await filters.getByRole('button',{name:/Loans & other/}).click();
+ await filters.getByRole('button',{name:/House & auto/}).click();
  await expect(debts.getByRole('button',{name:/^Open /})).toHaveCount(1);
  await expect(debts.getByRole('button',{name:'Open Sample home'})).toBeVisible();
  await filters.getByRole('button',{name:/All/}).click();
- await debts.getByRole('navigation',{name:'Household group filters'}).getByRole('button',{name:'Travel',exact:true}).click();
- await expect(debts.getByRole('button',{name:/^Open /})).toHaveCount(1);
- await expect(debts.getByRole('button',{name:'Open Sample travel'})).toBeVisible();
- await debts.getByRole('navigation',{name:'Household group filters'}).getByRole('button',{name:'All groups',exact:true}).click();
+ await expect(debts.getByRole('navigation',{name:'Household group filters'})).toHaveCount(0);
  await page.getByLabel('Sort debts').selectOption('apr');
  await expect(debts.getByRole('button',{name:/^Open /}).first()).toHaveAttribute('aria-label','Open Sample travel');
  await page.getByLabel('Sort debts').selectOption('amount');
@@ -52,7 +50,7 @@ test('five tabs, separate Home summary and searchable unified Debt list', async(
  await page.getByRole('searchbox',{name:'Search debts'}).fill('');
  await nav.getByRole('button',{name:/^Debts?$/,exact:true}).click();
  await expect(page.getByRole('region',{name:'Debt list'}).getByRole('button',{name:/^Open /})).toHaveCount(3);
- await expect(page.getByRole('tab',{name:'House & car',exact:true})).toHaveCount(0);
+ await expect(page.getByRole('tab',{name:'Show House & Auto',exact:true})).toHaveCount(0);
  for(const name of ['Budget','Settings']) {await nav.getByRole('button',{name,exact:true}).click();await expect(page.locator('.page-heading h1')).toHaveText(name);}
  await expect(page.getByRole('button',{name:'Open Settings',exact:true})).toHaveCount(0);
  if((await page.viewportSize())!.width<=820) {await page.getByRole('button',{name:'Open Account',exact:true}).click();await expect(page.locator('.page-heading h1')).toHaveText('Account');await page.getByRole('button',{name:'Close Account',exact:true}).click();await nav.getByRole('button',{name:'Progress',exact:true}).click();await expect(page.locator('.page-heading h1')).toHaveText('Progress');}
@@ -85,9 +83,8 @@ test('debt Overview, scoped lifetime Transactions, Info and Advanced preserve un
  await expect(detail.getByLabel('Due day',{exact:true})).toHaveValue('2026-10-25');
  await expect(detail.getByLabel('Debt category')).toHaveCount(0);
  await expect(detail.getByText('Position in category')).toHaveCount(0);
- await expect(detail.getByLabel('Household group')).toHaveValue('Other');
- await detail.getByLabel('Household group').selectOption('group-travel');
- await detail.getByLabel('Position in group').selectOption('1');
+ await expect(detail.getByLabel('Household group')).toHaveCount(0);
+ await expect(detail.getByLabel('Position in group')).toHaveCount(0);
  await expect(detail.getByText('Actual interest fee',{exact:true})).toHaveCount(0);
  await detail.getByLabel('Account name',{exact:true}).fill('Renamed card');
  await detail.getByRole('button',{name:'Advanced',exact:true}).click();
@@ -97,7 +94,7 @@ test('debt Overview, scoped lifetime Transactions, Info and Advanced preserve un
  await expect(advanced).toHaveCount(0);
  await detail.getByRole('button',{name:'Save',exact:true}).click();
  await expect.poll(async()=>(await saved(page)).accounts[0].name).toBe('Renamed card');
- await expect.poll(async()=>(await saved(page)).accounts[0].displayGroup).toBe('group-travel');
+ await expect.poll(async()=>(await saved(page)).accounts[0].displayGroup).toBe(before.accounts[0].displayGroup);
  const after=await saved(page);
  for(const key of ['transactions','balanceAdjustments','snapshots','monthlyBudgets']) expect(after[key]).toEqual(before[key]);
  expect(after.monthlyPlan.progressStartingBalance).toBe(before.monthlyPlan.progressStartingBalance);
@@ -293,19 +290,17 @@ test('mortgage and car forms keep long names readable in Light and Dark',async({
 test('summary swipe and remembered sort keep card totals separate from loans',async({page})=>{
  const summary=page.getByRole('region',{name:'Debt summary',exact:true});
  await expect(summary).toContainText('$2,400.00');
- await summary.getByRole('button',{name:'Card debts',exact:true}).click();
+ await summary.getByRole('button',{name:'Cards and loans balance',exact:true}).click();
  await expect(summary).toContainText('$1,400.00');await expect(summary).not.toContainText('$2,400.00');
  await page.getByLabel('Sort debts').selectOption('amount');
  await page.reload();await page.getByRole('navigation',{name:'Primary navigation'}).getByRole('button',{name:/^Debts?$/,exact:true}).click();
- await expect(summary.getByRole('button',{name:'Card debts',exact:true})).toHaveAttribute('aria-pressed','true');
+ await expect(summary.getByRole('button',{name:'Cards and loans balance',exact:true})).toHaveAttribute('aria-pressed','true');
  await expect(page.getByLabel('Sort debts')).toHaveValue('amount');
  const box=(await summary.boundingBox())!;
  await page.mouse.move(box.x+70,box.y+70);await page.mouse.down();await page.mouse.move(box.x+180,box.y+70,{steps:6});await page.mouse.up();
- await expect(summary.getByRole('button',{name:'Total outstanding debt',exact:true})).toHaveAttribute('aria-pressed','true');
+ await expect(summary.getByRole('button',{name:'Total debt balance',exact:true})).toHaveAttribute('aria-pressed','true');
  await expect(summary).toContainText('$2,400.00');
  await expect(page.getByRole('button',{name:'Open Sample card',exact:true}).getByRole('progressbar')).toHaveAttribute('aria-valuenow','10');
- await expect(page.getByRole('button',{name:'Open Sample travel',exact:true}).locator('[class*=highApr]')).toHaveCSS('color', 'rgb(179, 33, 67)');
- await expect(page.getByRole('button',{name:'Open Sample card',exact:true}).locator('[class*=lowApr]')).toHaveCSS('color', 'rgb(0, 116, 88)');
  await page.screenshot({path:'outputs/redesign/debts-refined.png'});
 });
 
@@ -380,10 +375,10 @@ test('schedule choices, extra help and confirmed minimums persist without filter
  const before=await saved(page);
  const nav=page.getByRole('navigation',{name:'Primary navigation'});
  await nav.getByRole('button',{name:'Home',exact:true}).click();
- const householdTotal=await page.getByRole('region',{name:'Total household debt',exact:true}).locator(':scope > strong').textContent();
+ const householdTotal=await page.getByRole('region',{name:'Debt summary',exact:true}).locator('[aria-hidden="false"] strong').first().textContent();
  for(const width of [320,390,686]) {
   await page.setViewportSize({width,height:900});
-  await expect(page.locator('[aria-label="Total household debt"]')).toBeVisible();
+  await expect(page.getByRole('region',{name:'Debt summary',exact:true})).toBeVisible();
   expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1)).toBe(true);
  }
  await page.setViewportSize({width:390,height:844});
@@ -411,11 +406,11 @@ test('schedule choices, extra help and confirmed minimums persist without filter
  await expect.poll(async()=>(await saved(page)).accounts[0].minimum).toBe(1600);
  const after=await saved(page);expect(after.transactions).toEqual(before.transactions);expect(after.snapshots).toEqual(before.snapshots);expect(after.balanceAdjustments).toEqual(before.balanceAdjustments);expect(after.monthlyPlan.loanTrackers).toEqual(before.monthlyPlan.loanTrackers);expect(after.monthlyPlan.progressStartingBalance).toBe(before.monthlyPlan.progressStartingBalance);expect(after.monthlyPlan.payoffPlanAmount).toBe(before.monthlyPlan.payoffPlanAmount);
  await schedule.getByRole('button',{name:'Close payoff schedule and go back'}).click();await page.reload();
- await expect(page.getByRole('region',{name:'Total household debt',exact:true}).locator(':scope > strong')).toHaveText(householdTotal!);
+ await expect(page.getByRole('region',{name:'Debt summary',exact:true}).locator('[aria-hidden="false"] strong').first()).toHaveText(householdTotal!);
  await expect(page.getByRole('region',{name:'Payoff summary'})).toBeVisible();
  await page.getByRole('button',{name:'Open full schedule',exact:false}).click();await expect(schedule.getByLabel('Payoff method')).toHaveValue('snowball');await expect(schedule.getByLabel('Extra payment',{exact:true})).toHaveValue('1500');await schedule.getByText('Included debt types',{exact:true}).click();await expect(schedule.getByLabel('Include Mortgage',{exact:true})).not.toBeChecked();await schedule.getByText('Included debt types',{exact:true}).click();
  await page.screenshot({path:'outputs/redesign/schedule-options.png'});
- await schedule.getByRole('button',{name:'Close payoff schedule and go back'}).click();await nav.getByRole('button',{name:'Progress',exact:true}).click();await expect(page.getByRole('button',{name:'House & car',exact:true})).toBeVisible();await expect(page.getByRole('region',{name:'accounts debt progress',exact:true})).toContainText('$48,156.06');
+ await schedule.getByRole('button',{name:'Close payoff schedule and go back'}).click();await nav.getByRole('button',{name:'Progress',exact:true}).click();await expect(page.getByRole('button',{name:'Show House & Auto',exact:true})).toBeVisible();await expect(page.getByRole('region',{name:'Cards & Loans debt progress',exact:true})).toContainText('$48,156.06');
  await nav.getByRole('button',{name:/^Debts?$/,exact:true}).click();await expect(page.getByRole('button',{name:'Open Sample home',exact:true})).toBeVisible();await expect(page.getByRole('region',{name:'Debt summary'})).toContainText('$380,995.61');
 });
 

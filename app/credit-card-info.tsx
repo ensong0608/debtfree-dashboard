@@ -11,7 +11,7 @@ import styles from './debt-experience.module.css';
 import type { DebtGroup } from './debt-groups';
 import type { DebtAccount } from './dashboard-data';
 
-export default function CreditCardInfo({accountId, draft, interestAutomated, readOnly, groups = [], accounts = [], onChange, onPaidOff, onDelete}: {accountId: string; draft: CreditCardDraft; interestAutomated: boolean; readOnly: boolean; groups?: DebtGroup[]; accounts?: DebtAccount[]; onChange: (draft: CreditCardDraft) => void; onPaidOff: () => void; onDelete: () => void}) {
+export default function CreditCardInfo({draft, interestAutomated, readOnly, onChange, onPaidOff, onDelete}: {accountId: string; draft: CreditCardDraft; interestAutomated: boolean; readOnly: boolean; groups?: DebtGroup[]; accounts?: DebtAccount[]; onChange: (draft: CreditCardDraft) => void; onPaidOff: () => void; onDelete: () => void}) {
  const [advanced,setAdvanced]=useState(false);
  const dueDayHelpId=useId();
  const symbol=householdCurrencySymbol(useHouseholdCurrency());
@@ -19,8 +19,6 @@ export default function CreditCardInfo({accountId, draft, interestAutomated, rea
  return <fieldset className={styles.cardInfo} disabled={readOnly}>
   <label className={styles.cardField}><span>Account name</span><input value={draft.name} onChange={event=>onChange({...draft,name:event.target.value})}/></label>
   <InstitutionPicker value={draft.institutionKey} onChange={institutionKey=>onChange({...draft,institutionKey})}/>
-  <label className={styles.cardField}><span>Household group</span><select aria-label="Household group" value={draft.displayGroup??'Other'} onChange={event=>onChange({...draft,displayGroup:event.target.value,displayPosition:1})}>{groups.map(group=><option key={group.id} value={group.id}>{group.name}</option>)}</select></label>
-  <label className={styles.cardField}><span>Position in group</span><select aria-label="Position in group" value={draft.displayPosition??1} onChange={event=>onChange({...draft,displayPosition:Number(event.target.value)})}>{Array.from({length:Math.max(1,accounts.filter(account=>!account.archivedAt&&account.id!==accountId&&(account.displayGroup??'Other')===(draft.displayGroup??'Other')).length+1)},(_,index)=><option key={index+1} value={index+1}>{index+1}</option>)}</select></label>
   {numeric('balance','Current balance')}{numeric('apr','APR','%')}
   <div>{numeric('minimum','Minimum payment',symbol,draft.minimumMode==='auto')}<label className={styles.autoMinimum}><input type="checkbox" checked={draft.minimumMode==='auto'} onChange={event=>onChange({...draft,minimumMode:event.target.checked?'auto':'manual'})}/>Auto estimate</label></div>
   <label className={styles.cardField}><span>Due day</span><input aria-label="Due day" aria-describedby={dueDayHelpId} type="date" value={recurringDueDate(draft.dueDate)} onChange={event=>onChange({...draft,dueDate:event.target.value})}/><small id={dueDayHelpId}>Repeats monthly; shorter months use the last day.</small></label>

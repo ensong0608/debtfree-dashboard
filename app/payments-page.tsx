@@ -32,8 +32,8 @@ function SummaryExplanation({ kind, onClose }: { kind: keyof typeof explanations
   return <ExplanationDialog title={explanations[kind].title} onClose={onClose}><p>{explanations[kind].body}</p></ExplanationDialog>;
 }
 
-export default function PaymentsPage({ readOnly, accounts, transactions, adjustments, message, storedAccounts, onChange, onDialog, mobile = false, accountScope, cardDetail = false, reportingMonth, onReportingMonth, budgetSettings, loans = [], onLoan }: {
-  loans?: LoanTracker[]; onLoan?: (id: string) => void;
+export default function PaymentsPage({ readOnly, accounts, transactions, adjustments, message, storedAccounts, onChange, onDialog, mobile = false, accountScope, cardDetail = false, reportingMonth, onReportingMonth, budgetSettings, loans = [], onLoan, onUndoBudgetPaid }: {
+  loans?: LoanTracker[]; onLoan?: (id: string) => void; onUndoBudgetPaid?: (id: string) => void;
   budgetSettings?: MonthlyPlanSettings;
   reportingMonth?: string; onReportingMonth?: (month: string) => void;
   accountScope?: string; cardDetail?: boolean; mobile?: boolean; readOnly: boolean; accounts: DebtAccount[]; transactions: LedgerTransaction[]; adjustments: BalanceAdjustment[]; message: string;
@@ -108,8 +108,15 @@ export default function PaymentsPage({ readOnly, accounts, transactions, adjustm
     {budgetSettings && <label className="budget-transaction-search"><OutlineIcon name="search"/><span className="sr-only">Search transactions</span><input aria-label="Search transactions" type="search" value={search} onChange={event => setSearch(event.target.value)} placeholder="Search transactions"/><small>{rows.length} {rows.length === 1 ? "result" : "results"}</small></label>}
     <div className={"transaction-kind-filters"+(cardDetail?" "+styles.cardFilters:"")} role="group" aria-label="Filter activity category">{cardDetail && periodControl}{[{id:"all",label:"All"},{id:"payments",label:"Payments only"},{id:"interest",label:"Interest & fees"}].map(filter => <button type="button" key={filter.id} aria-pressed={kindFilter === filter.id} onClick={() => setKindFilter(filter.id)}>{filter.label} ({filter.id === "all" ? periodRows.length : filter.id === "payments" ? paymentCount : interestCount})</button>)}</div>
 
-    {budgetSettings && budgetLoanActivity(loans, month, period).length > 0 && <section aria-label="Recorded loan payments"><h2>Recorded loan payments</h2>{budgetLoanActivity(loans, month, period).map(row => <article key={row.id}><button type="button" className="secondary" onClick={() => onLoan?.(row.loanId)}>{row.name} · {row.date} · {currency.format(row.payment ?? 0)}</button><p>{row.principal !== undefined && <>Principal {currency.format(row.principal)} · </>}{row.interest !== undefined && <>Interest {currency.format(row.interest)} · </>}{row.escrow !== undefined && <>Escrow {currency.format(row.escrow)}</>}</p></article>)}</section>}
-    {budgetActivity && budgetActivity.settlements.length > 0 && <section aria-label="Budget paid records"><h2>Budget paid records</h2><p>Reported separately from debt balance changes.</p>{budgetActivity.settlements.map(row => <article key={row.id}><strong>{row.payeeName}</strong><span> · {row.date} · {row.type === "payment" ? "Minimum paid" : "Spending paid"} · {currency.format(row.amount)}</span></article>)}</section>}
+    {budgetSettings && <section className="payment-activity budget-paid-activity" aria-label="Budget paid activity">
+      {[
+        ...(budgetActivity?.settlements ?? []).map(row => ({id: row.id, title: row.payeeName, date: row.date, amount: row.amount, loanId: undefined as string | undefined, settlementId: row.id.slice('settlement:'.length), automatic: row.memo.includes('Automatically')})),
+        ...budgetLoanActivity(loans, month, period).map(row => ({id: row.id, title: row.name, date: row.date, amount: row.payment ?? 0, loanId: row.loanId, settlementId: undefined as string | undefined, automatic: false}))
+      ].filter(row => (!search.trim() || `${row.title} ${row.date}`.toLowerCase().includes(search.trim().toLowerCase())) && kindFilter !== 'interest').sort((a,b)=>b.date.localeCompare(a.date)).map(row => <article className="clean-transaction-card" key={row.id} data-paid-record={row.id}>
+        <button type="button" className="transaction-edit-surface" disabled={!row.loanId} onClick={() => row.loanId && onLoan?.(row.loanId)}><span className="transaction-icon decrease"><OutlineIcon name="check"/></span><span className="transaction-clean-name"><strong>{row.title}</strong><span>{dateLabel(row.date)} · {row.automatic ? 'Automatic' : 'Recorded'}</span></span><span className="transaction-amount"><strong>{currency.format(row.amount)}</strong><small>Paid</small></span></button>
+        {row.settlementId && onUndoBudgetPaid && <button type="button" className="secondary" disabled={readOnly} onClick={() => onUndoBudgetPaid(row.settlementId!)} aria-label={`Undo paid record for ${row.title}`}>Undo paid</button>}
+      </article>)}
+    </section>}
     <section className="payment-activity" aria-label="Debt transaction activity">
       {rows.length ? rows.map((row, index) => {
         const kind = row.kind === "payment" ? "Payment" : row.kind === "credit" ? "Refund / credit" : row.kind === "interest" ? (transactions.find(t => "transaction:" + t.id === row.id)?.interestEstimate ? "Estimated interest" : "Interest") : row.kind === "purchase" ? "Purchase" : row.kind === "fee" ? "Fee" : "Balance adjustment";

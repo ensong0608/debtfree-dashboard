@@ -10,7 +10,7 @@ test.beforeAll(async()=>{
   script=result.outputFiles.find(f=>f.path.endsWith('.js'))!.text;css=result.outputFiles.find(f=>f.path.endsWith('.css'))!.text;
 });
 test('viewer navigates themed screens and portals while mutation controls and writes remain blocked',async({page})=>{
-  const fixture=createDemoFixture();let writes=0;
+  const fixture=createDemoFixture();fixture.payload.monthlyBudgets['2026-10']=[];let writes=0;
   await page.route('**/*',route=>{const url=new URL(route.request().url());if(url.origin!=='http://section9-viewer.test'){writes++;return route.abort();}return route.fulfill({contentType:'text/html',body:'<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><style>'+css+'</style></head><body><div id="viewer"></div></body></html>'});});
   await page.addInitScript(({key,fixture})=>localStorage.setItem(key,JSON.stringify(fixture)),{key:DASHBOARD_STORAGE_KEY,fixture});
   await page.goto('http://section9-viewer.test/');await page.addScriptTag({content:script});
@@ -22,8 +22,8 @@ test('viewer navigates themed screens and portals while mutation controls and wr
     await page.getByRole('button',{name:'Open Sample card',exact:true}).click();const debt=page.getByRole('dialog',{name:'Sample card',exact:true});
     await debt.getByRole('tab',{name:'Info'}).click();await expect(debt.getByLabel('Account name',{exact:true})).toBeDisabled();await expect(debt.getByLabel('Institution (optional)')).toBeDisabled();
     await debt.getByRole('button',{name:'Back from Sample card'}).click();
-    await nav.getByRole('button',{name:'Progress',exact:true}).click();await expect(page.getByRole('button',{name:'Save snapshot',exact:true})).toBeDisabled();
-    await nav.getByRole('button',{name:'Budget',exact:true}).click();for(const name of ['Income +','Spending +','One-off +']) await expect(page.getByRole('button',{name,exact:true})).toBeDisabled();
+    await nav.getByRole('button',{name:'Progress',exact:true}).click();await expect(page.getByRole('button',{name:'Save snapshot',exact:true})).toHaveCount(0);
+    await nav.getByRole('button',{name:'Budget',exact:true}).click();await page.getByRole('navigation',{name:'Budget sections'}).getByRole('button',{name:'Overview',exact:true}).click();await expect(page.getByRole('region',{name:'Monthly budget summary'}).getByRole('button',{name:'Edit',exact:true})).toBeDisabled();await expect(page.getByRole('button',{name:'Add planned spending',exact:true})).toBeDisabled();
     await page.getByRole('navigation',{name:'Budget sections'}).getByRole('button',{name:'Schedule',exact:true}).click();await page.getByRole('button',{name:'View full Payoff Schedule'}).click();const schedule=page.getByRole('dialog',{name:'Payoff Schedule',exact:true});
     await expect(schedule.getByLabel('Extra payment',{exact:true})).toBeDisabled();await expect(schedule.getByLabel('Payoff method')).toBeDisabled();await schedule.getByRole('button',{name:'Close payoff schedule and go back'}).click();
   }
