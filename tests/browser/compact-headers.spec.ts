@@ -52,7 +52,7 @@ test('compact headers stay aligned, readable and pinned across themes, phone wid
   await nav.getByRole('button',{name:'Debt',exact:true}).click();
   await header.getByRole('button',{name:'Add debt',exact:true}).click();
   const debtDialog=page.getByRole('dialog');await expect(debtDialog.getByLabel('Institution (optional)')).toHaveCount(0);
-  await debtDialog.getByRole('button',{name:'Cancel',exact:true}).click();
+  await debtDialog.getByRole('button',{name:'Back from account form',exact:true}).click();
   await expect(page.locator('.debt-add-bar')).toHaveCount(0);
   await nav.getByRole('button',{name:'Budget',exact:true}).click();
   await expect(header.getByRole('heading')).toHaveText('Budget planned');
