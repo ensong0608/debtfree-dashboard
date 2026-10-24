@@ -947,6 +947,7 @@ function validateMonthlyPlan(value: unknown, path: string, issues: string[]) {
         const entry = requiredRecord(raw, p + ".history[" + index + "]", issues);
         if (!entry) return;
         requiredNumber(entry.amount, p + ".history.amount", issues);
+        if (entry.estimated !== undefined) requiredBoolean(entry.estimated, p + ".history.estimated", issues);
         for (const key of ["payment", "principal", "interest", "escrow", "extraPrincipal"]) if (entry[key] !== undefined) requiredNumber(entry[key], p + ".history." + key, issues);
         enumValue(entry.balanceKind, new Set(["principal", "payoff"]), p + ".history.balanceKind", issues);
         if (typeof entry.date !== "string" || !validDate(entry.date)) issues.push(p + ".history.date must be a valid date.");

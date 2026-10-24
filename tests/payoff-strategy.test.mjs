@@ -29,6 +29,6 @@ test('missing auto terms preserve the row without inventing a payoff date and le
  const before=structuredClone({accounts,invalid});
  const schedule=buildActivePayoffCommitment(accounts,[invalid],[],fixedStrategySettings(settings),date).schedule;
  const rows=buildPayoffStrategyRows(accounts,[invalid],schedule,'avalanche');
- assert.deepEqual(rows.map(r=>r.id),['account:active','loan:car']);assert.equal(rows[1].payoffMonth,null);assert.ok(schedule.issues.length);
+ assert.deepEqual(rows.map(r=>r.id),['account:active','loan:car']);assert.ok(rows[1].payoffMonth);assert.equal(rows[1].apr,6);assert.equal(rows[1].rateEstimated,true);assert.equal(rows[1].estimated,true);assert.equal(schedule.issues.length,0);
  assert.deepEqual({accounts,invalid},before);
 });

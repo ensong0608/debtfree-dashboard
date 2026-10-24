@@ -38,3 +38,9 @@ test('separate quote principal is optional, validated and never substitutes the 
  assert.deepEqual(loanEntryErrors({...quote,principalBalance:undefined},today),{});
  assert.equal(quote.remainingAmount,1000);
 });
+
+test('auto APR and principal may be omitted without inventing persisted values', () => {
+ const car={...loan,kind:'car',apr:undefined,principalBalance:undefined};
+ assert.deepEqual(loanEntryErrors(car,today),{}); assert.equal(car.apr,undefined);
+ for(const apr of [NaN,-1,101]) assert.ok(loanEntryErrors({...car,apr},today).apr);
+});

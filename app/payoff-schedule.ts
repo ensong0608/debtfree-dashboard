@@ -1,7 +1,7 @@
 import type { CashflowItem, DebtAccount, PayoffStrategy } from './dashboard-data.ts';
 import { calculateMinimumPayoffPlan } from './payoff-calculator.ts';
 import { forecastMonthKey, forecastMinimum, forecastMonthlyRate, round, PAYOFF_PLAN_MONTH_LIMIT } from './payoff-engine.ts';
-import { forecastLoanPrincipal, regularLoanPayment, type LoanTracker } from './loan-progress.ts';
+import { forecastLoanApr, forecastLoanPrincipal, regularLoanPayment, type LoanTracker } from './loan-progress.ts';
 
 export type ScheduleMonth = { month: string; paid: number; interest: number; remaining: number; paidOff: string[] };
 /** Presentation only: minimums consume the existing account commitment. Fixed loan
@@ -12,12 +12,12 @@ export function buildPayoffSchedule(accounts: DebtAccount[], loans: LoanTracker[
   if (cards.plan?.stalled) issues.push('Increase the debt payment budget to reach a payoff date.');
   const activeLoans = loans.filter(loan => loan.remainingAmount > 0);
   const validLoans = activeLoans.flatMap(loan => {
-    const balance = forecastLoanPrincipal(loan);
+    const balance = forecastLoanPrincipal(loan), apr = forecastLoanApr(loan);
     const payment = regularLoanPayment(loan, items), escrow = loan.kind === 'car' ? 0 : loan.escrow;
-    if (balance === undefined || loan.apr === undefined || escrow === undefined || payment === undefined || !Number.isFinite(payment) || payment <= 0 || loan.apr < 0 || payment - escrow <= round(balance * loan.apr / 1200)) {
+    if (balance === undefined || apr === undefined || escrow === undefined || payment === undefined || !Number.isFinite(payment) || payment <= 0 || apr < 0 || payment - escrow <= round(balance * apr / 1200)) {
       issues.push(`Review payment and principal terms for ${loan.name}.`); return [];
     }
-    return [{ ...loan, balance, payment, escrow }];
+    return [{ ...loan, apr, balance, payment, escrow }];
   });
   const rows: ScheduleMonth[] = [];
   const payoffMonths: Record<string, string> = {};
@@ -56,10 +56,10 @@ export function buildConfiguredPayoffSchedule(accounts:DebtAccount[],loans:LoanT
  let unforecastedBalance=0, unforecastedPayment=0;
  const cardInputs=accounts.filter(a=>!a.archivedAt&&a.balance>0).map(a=>({...a,id:'account:'+a.id}));
  const loanInputs=loans.filter(l=>l.remainingAmount>0).flatMap(l=>{
-  const balance=forecastLoanPrincipal(l);
+  const balance=forecastLoanPrincipal(l),apr=forecastLoanApr(l);
   const payment=regularLoanPayment(l,items),escrow=l.kind==='car'?0:l.escrow;
-  if(balance===undefined||l.apr===undefined||escrow===undefined||payment===undefined||payment-escrow<=round(balance*l.apr/1200)) {unforecastedBalance=round(unforecastedBalance+l.remainingAmount);unforecastedPayment=round(unforecastedPayment+(payment??0));const reason=balance===undefined?'Enter a remaining principal balance.':l.apr===undefined?'Enter the loan APR.':escrow===undefined?'Enter the mortgage escrow amount.':payment===undefined?'Enter the regular payment amount.':'Increase the regular payment to cover interest and escrow.';issues.push(l.name+': '+reason);return [];}
-  return [{id:'loan:'+l.id,name:l.name,type:'Other' as const,balance,apr:l.apr,interestFee:0,minimum:round(payment-escrow),minimumMode:'manual' as const,payoffMode:'priority' as const,creditLimit:0,dueDate:'',promoEndDate:'',postPromoApr:0,postPromoMinimum:0,createdAt:date.toISOString(),escrow}];
+  if(balance===undefined||apr===undefined||escrow===undefined||payment===undefined||payment-escrow<=round(balance*apr/1200)) {unforecastedBalance=round(unforecastedBalance+l.remainingAmount);unforecastedPayment=round(unforecastedPayment+(payment??0));const reason=balance===undefined?'Enter a remaining principal balance.':apr===undefined?'Enter the loan APR.':escrow===undefined?'Enter the mortgage escrow amount.':payment===undefined?'Enter the regular payment amount.':'Increase the regular payment to cover interest and escrow.';issues.push(l.name+': '+reason);return [];}
+  return [{id:'loan:'+l.id,name:l.name,type:'Other' as const,balance,apr,interestFee:0,minimum:round(payment-escrow),minimumMode:'manual' as const,payoffMode:'priority' as const,creditLimit:0,dueDate:'',promoEndDate:'',postPromoApr:0,postPromoMinimum:0,createdAt:date.toISOString(),escrow}];
  });
  const inputs=[...cardInputs,...loanInputs];
  const minimums=round(inputs.reduce((sum,a)=>sum+forecastMinimum(a,round(a.balance*(1+forecastMonthlyRate(a,1,date))),1,date),0));
