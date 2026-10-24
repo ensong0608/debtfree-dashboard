@@ -11,7 +11,7 @@ import DebtScopeCarousel from "./debt-scope-carousel";
 import styles from "./actual-progress-page.module.css";
 
 type ProgressView = ReturnType<typeof buildProgressView>;
-type ProgressTab = "overview" | "utilization" | "milestones";
+export type ProgressTab = "overview" | "utilization" | "milestones";
 type Range = "3M" | "6M" | "1Y" | "ALL";
 const ranges: Range[] = ["3M", "6M", "1Y", "ALL"];
 const monthDate = (month: string) => new Date(`${month}-01T12:00:00Z`);
@@ -99,13 +99,14 @@ function MilestoneItem({ item }: { item: ProgressView["milestones"][number] }) {
   </li>;
 }
 
-export default function ActualProgressPage({ accounts, loans, removedAccounts = [], progressViews, onAccounts, utilization }: {
-  groups?: DebtGroup[]; accounts: DebtAccount[]; transactions: LedgerTransaction[]; adjustments: BalanceAdjustment[]; snapshots?: PayoffSnapshot[]; loans: LoanTracker[]; removedAccounts?: RemovedProgressAccount[];
+export default function ActualProgressPage({ accounts, loans, removedAccounts = [], progressViews, onAccounts, utilization, tab: controlledTab, onTab }: {
+  tab?: ProgressTab; onTab?: (tab: ProgressTab) => void; groups?: DebtGroup[]; accounts: DebtAccount[]; transactions: LedgerTransaction[]; adjustments: BalanceAdjustment[]; snapshots?: PayoffSnapshot[]; loans: LoanTracker[]; removedAccounts?: RemovedProgressAccount[];
   progressViews: Record<ProgressScope, ProgressView>; readOnly?: boolean; onLoanSnapshot?: () => void; onCapture?: (note: string) => void; onDelete?: (id: string) => void; onUpdateNote?: (id: string, note: string) => void; onAccounts: () => void; onActivity?: () => void; utilization?: ReactNode;
 }) {
   const householdCurrency = useHouseholdCurrency();
   const money = createHouseholdMoneyFormatter(householdCurrency, { style: "currency" });
-  const [tab, setTab] = useState<ProgressTab>("overview");
+  const [localTab, setLocalTab] = useState<ProgressTab>("overview");
+  const tab = controlledTab ?? localTab, setTab = onTab ?? setLocalTab;
   const [scope, setScope] = useState<ProgressScope>(() => accounts.length || removedAccounts.length ? "accounts" : loans.length ? "loans" : "household");
   const [range, setRange] = useState<Range>("6M");
   const scopeOptions: { value: ProgressView["scope"]; label: string }[] = [];
@@ -160,7 +161,7 @@ export default function ActualProgressPage({ accounts, loans, removedAccounts = 
 
   return <div className={`screen snapshots-screen actual-progress-screen ${styles.screen}`}>
     {!accounts.length && !removedAccounts.length && !loans.length ? <section className="large-empty"><h2>Add a debt to start tracking progress</h2><button className="primary" onClick={onAccounts}>Add debt</button></section> : <>
-      <nav className={styles.tabs} aria-label="Progress sections">{([['overview', 'Overview'], ['utilization', 'Utilization'], ['milestones', 'Milestones']] as const).map(([value, label]) => <button key={value} type="button" aria-current={tab === value ? "page" : undefined} onClick={() => setTab(value)}>{label}</button>)}</nav>
+      {!onTab && <nav className="compact-segments" aria-label="Progress sections">{([['overview', 'Overview'], ['utilization', 'Utilization'], ['milestones', 'Milestones']] as const).map(([value, label]) => <button key={value} type="button" aria-current={tab === value ? "page" : undefined} onClick={() => setTab(value)}>{label}</button>)}</nav>}
 
       {tab === "overview" && <div className={styles.stack}>
         <div className={styles.integratedSummary}><DebtScopeCarousel slides={scopeSlides} value={currentScope} onChange={setScope} label="Progress scope" /></div>

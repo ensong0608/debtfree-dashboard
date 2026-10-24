@@ -146,7 +146,6 @@ export default function MonthlyPlanPage(props: Props) {
           </details>}
           {!groupedSpending.length && debtPayments <= 0 && <p className={styles.empty}>No spending categories for this month yet.</p>}
         </div>
-        <button type="button" className={styles.addCategory} disabled={props.readOnly} onClick={() => props.onAdd("expense")}><OutlineIcon name="plus" /> Add planned spending</button>
       </>}
     </section>
   </div>;

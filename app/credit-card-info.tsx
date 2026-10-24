@@ -1,6 +1,5 @@
 "use client";
 import DateCalendar from './date-calendar';
-import InstitutionPicker from './institution-picker';
 import {useState} from 'react';
 import type {CreditCardDraft} from './credit-card-editor';
 import {ExperienceOverlay} from './debt-experience';
@@ -17,7 +16,7 @@ export default function CreditCardInfo({draft, interestAutomated, readOnly, onCh
  const numeric=(key: 'balance'|'apr'|'minimum'|'creditLimit'|'interestFee'|'postPromoApr'|'postPromoMinimum',label:string,affix=symbol,disabled=false)=><label className={styles.cardField}><span>{label}</span><div className="field-input">{affix!== '%' && <b>{affix}</b>}<input aria-label={label} type="number" inputMode="decimal" min="0" step="0.01" disabled={disabled} value={key==='minimum' && draft.minimumMode==='auto'?estimatedMinimum(draft.balance,draft.apr):['balance','apr','minimum'].includes(key)?draft[key]:draft[key] || ''} onChange={event=>onChange({...draft,[key]:event.target.value===''?0:Number(event.target.value)})}/>{affix==='%'&&<b>%</b>}</div></label>;
  return <fieldset className={styles.cardInfo} disabled={readOnly}>
   <label className={styles.cardField}><span>Account name</span><input value={draft.name} onChange={event=>onChange({...draft,name:event.target.value})}/></label>
-  <InstitutionPicker value={draft.institutionKey} onChange={institutionKey=>onChange({...draft,institutionKey})}/>
+
   {numeric('balance','Current balance')}{numeric('apr','APR','%')}
   <div>{numeric('minimum','Minimum payment',symbol,draft.minimumMode==='auto')}<label className={styles.autoMinimum}><input type="checkbox" checked={draft.minimumMode==='auto'} onChange={event=>onChange({...draft,minimumMode:event.target.checked?'auto':'manual'})}/>Auto estimate</label></div>
   <DateCalendar label="Due date" recurring value={draft.dueDate} onChange={date => onChange({...draft,dueDate:date})}/>

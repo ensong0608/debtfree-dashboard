@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { APPEARANCE_KEY, DEFAULT_APPEARANCE, THEMES, PRESETS, withTheme, appearanceError, appearanceFlags, appearanceTokens, contrast, parseAppearance, loadAppearance, saveAppearance, resetAppearance } from '../app/appearance.ts';
+import { APPEARANCE_KEY, DEFAULT_APPEARANCE, THEMES, PRESETS, PRIMARY_PRESETS, primaryColor, withTheme, appearanceError, appearanceFlags, appearanceTokens, contrast, parseAppearance, loadAppearance, saveAppearance, resetAppearance } from '../app/appearance.ts';
 const legacy = { version: 1, font: 'serif', size: 'larger', accent: '#795325', background: '#faf6ef', surface: '#fffdfa', text: '#30251b' };
 
 test('new/reset/corrupt/unknown preferences use Light without rewriting storage', () => {
@@ -47,4 +47,28 @@ test('storage failures propagate for truthful UI errors; invalid saves never wri
   const storage={getItem:()=>{throw Error('blocked');},setItem:()=>{throw Error('quota');},removeItem:()=>{throw Error('blocked');}};
   assert.throws(()=>loadAppearance(storage),/blocked/);assert.throws(()=>saveAppearance(storage,DEFAULT_APPEARANCE),/quota/);assert.throws(()=>resetAppearance(storage),/blocked/);
   assert.throws(()=>saveAppearance({setItem:()=>assert.fail('invalid write')},{...DEFAULT_APPEARANCE,text:'#ffffff'}),/contrast/);
+});
+
+test('separate primary colors survive theme changes, saving and normalization without changing financial storage', () => {
+  const values = new Map([['financial-sentinel', 'unchanged']]);
+  const storage = {getItem:key=>values.get(key)??null,setItem:(key,value)=>values.set(key,value)};
+  const light = {...DEFAULT_APPEARANCE, primaryLight:'#AACCEE', primaryDark:'#123639'};
+  saveAppearance(storage,light);
+  const dark = withTheme(loadAppearance(storage),'dark');
+  assert.equal(primaryColor(dark),'#123639');
+  assert.equal(primaryColor(withTheme(dark,'light')),'#aaccee');
+  saveAppearance(storage,{...dark,primaryDark:'#292343'});
+  assert.equal(primaryColor(withTheme(loadAppearance(storage),'light')),'#aaccee');
+  assert.equal(values.get('financial-sentinel'),'unchanged');
+  assert.equal(primaryColor(THEMES.dark),'#182b45');
+  assert.ok(appearanceError({...dark,primaryLight:'url(bad)'}));
+});
+
+test('all presets and extreme custom primary colors keep headers, segments and action labels readable', () => {
+  for(const theme of ['light','dark']) for(const color of [...PRIMARY_PRESETS[theme].map(p=>p.color),'#000000','#ffffff','#ff0000','#ffff00']) {
+    const p={...THEMES[theme],[theme==='dark'?'primaryDark':'primaryLight']:color};
+    assert.equal(appearanceError(p),null);
+    const t=appearanceTokens(p);
+    for(const [fg,bg] of [['on-primary','primary'],['on-header-rail','header-rail'],['on-header-selected','header-selected'],['on-accent','accent-fill'],['accent','surface'],['accent','background']]) assert.ok(contrast(t['--theme-'+fg],t['--theme-'+bg])>=4.5,`${theme} ${color} ${fg}`);
+  }
 });

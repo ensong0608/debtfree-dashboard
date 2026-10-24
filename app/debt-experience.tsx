@@ -14,6 +14,7 @@ import { navigateTabs } from './tab-navigation';
 import styles from './debt-experience.module.css';
 export type DebtSelection = { kind: 'account' | 'loan'; id: string };
 export type DebtDetailTab = 'Overview' | 'Transactions' | 'Info';
+export type DebtCategory = 'all' | 'cardsLoans' | 'houseAuto';
 export function monthName(month: string | null) { return month ? new Date(month + '-01T12:00:00').toLocaleDateString('en-US', { month: 'long', year: 'numeric' }) : 'Set your payment target'; }
 function tone(type: string) { return type === 'Credit card' ? 'credit' : type === 'house' ? 'house' : type === 'car' || type === 'Auto loan' ? 'car' : type === 'Personal loan' ? 'personal' : 'other'; }
 
@@ -28,11 +29,16 @@ function debtListCategory(type: string): 'cardsLoans' | 'houseAuto' {
   return type === 'House loan' || type === 'Auto loan' || type === 'Mortgage' || type === 'Car loan' ? 'houseAuto' : 'cardsLoans';
 }
 
-export function UnifiedDebtList({ accounts, loans, onSelect, compact = false, preferenceScope = "device", summary }: { summary?: ReactNode; accounts: DebtAccount[]; loans: LoanTracker[]; items: CashflowItem[]; groups?: unknown[]; onSelect: (selection: DebtSelection) => void; compact?: boolean; preferenceScope?: string }) {
+export function DebtTypeFilters({ accounts, loans, category, onCategory }: { accounts: DebtAccount[]; loans: LoanTracker[]; category: DebtCategory; onCategory: (category: DebtCategory) => void }) {
+  const categoryCounts={all:accounts.filter(a=>!a.archivedAt).length+loans.length,cardsLoans:accounts.filter(a=>!a.archivedAt&&debtListCategory(a.type)==='cardsLoans').length,houseAuto:accounts.filter(a=>!a.archivedAt&&debtListCategory(a.type)==='houseAuto').length+loans.length};
+  return <nav className="compact-segments" aria-label="Debt type filters">{([['all','All'],['cardsLoans','Cards & loans'],['houseAuto','House & auto']] as const).map(([id,label])=><button type="button" key={id} aria-pressed={category===id} onClick={()=>onCategory(id)}>{label}<span className="sr-only"> · {categoryCounts[id]}</span></button>)}</nav>;
+}
+export function UnifiedDebtList({ accounts, loans, onSelect, compact = false, preferenceScope = "device", summary, category: controlledCategory, onCategory, hideFilters = false }: { category?: DebtCategory; onCategory?: (category: DebtCategory) => void; hideFilters?: boolean; summary?: ReactNode; accounts: DebtAccount[]; loans: LoanTracker[]; items: CashflowItem[]; groups?: unknown[]; onSelect: (selection: DebtSelection) => void; compact?: boolean; preferenceScope?: string }) {
   const money = createHouseholdMoneyFormatter(useHouseholdCurrency());
   const [localSort, setSort] = useDebtPreference(preferenceScope,'sort','name',['name','apr','amount']);
   const [localSearch, setSearch] = useState('');
-  const [category, setCategory] = useState<'all'|'cardsLoans'|'houseAuto'>('all');
+  const [localCategory, setLocalCategory] = useState<DebtCategory>('all');
+  const category = controlledCategory ?? localCategory, setCategory = onCategory ?? setLocalCategory;
   const sort = localSort, search = localSearch;
   const rows = useMemo(() => [
     ...accounts.filter(a => !a.archivedAt).map(a => { const baseline=a.baselineBalance; return { id: a.id, kind: 'account' as const, institutionKey: a.institutionKey, name: a.name, type: a.type, balance: a.balance, apr: a.apr, dueDate: nextDueDate(a.dueDate), color: tone(a.type), baseline, progress: trackedPayoffProgress(a) }; }),
@@ -40,14 +46,13 @@ export function UnifiedDebtList({ accounts, loans, onSelect, compact = false, pr
   ].filter(a => a.name.toLocaleLowerCase().includes(search.trim().toLocaleLowerCase()))
     .filter(a => category==='all' || debtListCategory(a.type)===category)
     .sort((a, b) => (sort === 'apr' ? (b.apr ?? -1) - (a.apr ?? -1) : sort === 'amount' ? b.balance - a.balance : a.name.localeCompare(b.name)) || a.name.localeCompare(b.name)), [accounts, loans, search, sort, category]);
-  const categoryCounts={all:accounts.filter(a=>!a.archivedAt).length+loans.length,cardsLoans:accounts.filter(a=>!a.archivedAt&&debtListCategory(a.type)==='cardsLoans').length,houseAuto:accounts.filter(a=>!a.archivedAt&&debtListCategory(a.type)==='houseAuto').length+loans.length};
   const progressCopy = (row: typeof rows[number]) => {
     const delta = row.baseline === undefined || row.baseline <= 0 ? null : row.baseline - row.balance;
     if (row.progress === null || row.progress === undefined || delta === null) return 'Progress unavailable';
     return delta < 0 ? `Balance increased ${money.format(-delta)}` : `${row.progress.toFixed(1)}% reduced`;
   };
   return <section className={styles.debtSection} aria-label={compact ? 'Your debts' : 'Debt list'}>
-    <nav className={styles.debtFilters} aria-label="Debt type filters">{([['all','All'],['cardsLoans','Cards & loans'],['houseAuto','House & auto']] as const).map(([id,label])=><button type="button" key={id} aria-pressed={category===id} onClick={()=>setCategory(id)}>{label}<span>{categoryCounts[id]}</span></button>)}</nav>
+    {!hideFilters && <DebtTypeFilters accounts={accounts} loans={loans} category={category} onCategory={setCategory}/>}
     {summary}
     <div className={styles.toolbar}><label className={styles.sort}><OutlineIcon name="sort"/><span>Sort</span><select aria-label="Sort debts" value={sort} onChange={event => setSort(event.target.value)}><option value="name">Name</option><option value="apr">Highest APR</option><option value="amount">Highest balance</option></select></label><label className={styles.search}><span className="sr-only">Search debts</span><input type="search" placeholder="Search debts" value={search} onChange={event => setSearch(event.target.value)}/></label></div>
     <div className={styles.debtGrid}>{rows.map(row=>{const percent=row.progress;const label=progressCopy(row);return <button key={row.kind + row.id} className={styles.debtCard} data-debt-tone={row.color} data-dialog-return-id={row.kind + ":" + row.id} onClick={() => onSelect({ kind: row.kind, id: row.id })} aria-label={`Open ${row.name}`} type="button"><span className={styles.debtRowTop}><span className={styles.debtIdentity}><InstitutionIcon institutionKey={row.institutionKey} debtType={row.type}/><span><strong>{row.name}</strong><small>{row.type}</small></span></span><span className={styles.debtBalance}><strong>{money.format(row.balance)}</strong>{row.baseline !== undefined && row.baseline > 0 && <small>of {money.format(row.baseline)}</small>}</span><span className={styles.chevron} aria-hidden="true">›</span></span><span className={styles.listProgress}><span>{label}</span><span className={styles.remainingBalance}>{money.format(row.balance)} left</span>{percent!==null&&percent!==undefined&&<span role="progressbar" aria-label={row.name+' balance reduction'} aria-valuenow={Number(percent.toFixed(1))} aria-valuemin={0} aria-valuemax={100}><i style={{width:percent+'%'}}/></span>}</span></button>})}</div>
@@ -126,7 +131,7 @@ export function ExperienceOverlay({ title, onBack, children, wide = false, cardL
   return <div className={styles.backdrop}><section className={`${styles.overlay} ${wide ? styles.wide : ''} ${cardLayout ? styles.cardOverlay : ''}`}  role="dialog" aria-modal="true" aria-label={title}><header className={styles.overlayHeader}><button type="button" data-dialog-close aria-label={`Back from ${title}`} onClick={onBack}>‹</button><h2>{title}</h2></header>{children}</section></div>;
 }
 export function DebtDetail({ name, tab, onTab, onBack, overview, transactions, info, actions }: { name: string; tab: DebtDetailTab; onTab: (tab: DebtDetailTab) => void; onBack: () => void; overview: ReactNode; transactions: ReactNode; info: ReactNode; actions?: ReactNode }) {
-  return <ExperienceOverlay title={name} onBack={onBack} cardLayout={Boolean(actions)}><div role="tablist" aria-label="Debt detail" className={styles.tabs}>{(['Overview', 'Transactions', 'Info'] as const).map(value => <button key={value} type="button" role="tab" id={`debt-${value}`} aria-controls="debt-detail-panel" aria-selected={tab === value} tabIndex={tab === value ? 0 : -1} onKeyDown={navigateTabs} onClick={() => onTab(value)}>{value}</button>)}</div><div className={actions ? styles.detailContent+" "+styles.withCardActions : styles.detailContent} id="debt-detail-panel" role="tabpanel" aria-labelledby={`debt-${tab}`}>{tab === 'Overview' ? overview : tab === 'Transactions' ? transactions : info}</div>{actions&&<footer className={styles.cardActions}>{actions}</footer>}</ExperienceOverlay>;
+  return <ExperienceOverlay title={name} onBack={onBack} cardLayout={Boolean(actions)}><div role="tablist" aria-label="Debt detail" className={styles.tabs+" compact-segments"}>{(['Overview', 'Transactions', 'Info'] as const).map(value => <button key={value} type="button" role="tab" id={`debt-${value}`} aria-controls="debt-detail-panel" aria-selected={tab === value} tabIndex={tab === value ? 0 : -1} onKeyDown={navigateTabs} onClick={() => onTab(value)}>{value}</button>)}</div><div className={actions ? styles.detailContent+" "+styles.withCardActions : styles.detailContent} id="debt-detail-panel" role="tabpanel" aria-labelledby={`debt-${tab}`}>{tab === 'Overview' ? overview : tab === 'Transactions' ? transactions : info}</div>{actions&&<footer className={styles.cardActions}>{actions}</footer>}</ExperienceOverlay>;
 }
 export function DebtOverview({ name, balance, starting, apr, minimum, dueDate, readOnly, onPayment, onBalance, payoff, onEdit, history }: { name: string; balance: number; starting?: number; apr?: number; minimum?: number; dueDate?: string; readOnly: boolean; onPayment: () => void; onBalance: () => void; payoff?: string | null; onEdit?: () => void; history?: ReactNode }) {
   const money = createHouseholdMoneyFormatter(useHouseholdCurrency());

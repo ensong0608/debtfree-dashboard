@@ -91,3 +91,6 @@
 .summaryDots button{width:44px;height:44px}.debtFilters button{min-height:44px}.debtIdentity small,.debtBalance small,.listProgress{font-size:calc(12px * var(--theme-text-scale,1))}.listProgress>[role=progressbar]{grid-row:1}.listProgress>span:first-child{grid-row:2}.remainingBalance{grid-row:2}.listProgress>[role=progressbar] i{background:linear-gradient(90deg,var(--theme-accent-fill),var(--theme-accent))}
 
 .debtSection{width:100%;max-width:none;margin:0;padding:0}.debtFilters{margin-top:0}.debtSummary{margin:0 0 12px}.sort select,.sort select option{background:var(--theme-surface);color:var(--theme-text)}.summaryDots i{width:5px;height:5px;background:var(--theme-muted);opacity:.5}.summaryDots button[aria-pressed=true] i{background:var(--theme-accent-fill);opacity:1}
+.overlayHeader{background:var(--theme-primary,#cfe7fa);color:var(--theme-on-primary,#000)}
+.overlayHeader h2,.overlayHeader button{color:inherit}
+.overlay>.tabs{background:var(--theme-primary,#cfe7fa);padding-inline:16px;padding-bottom:8px}

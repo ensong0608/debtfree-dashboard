@@ -12,7 +12,8 @@ import OutlineIcon from "./outline-icon";
 import PayoffStrategyList from "./payoff-strategy-list";
 import styles from "./payoff-home.module.css";
 
-export default function PayoffSchedule({ schedule, rows, amount, date, readOnly = false, onAmount, onClose, strategy, onStrategy, minimums, minimumExpected, onMinimums, onReviewTerms }: {
+export default function PayoffSchedule({ schedule, rows, amount, date, readOnly = false, onAmount, onClose, strategy, onStrategy, minimums, minimumExpected, onMinimums, onReviewTerms, inline = false }: {
+  inline?: boolean;
   onReviewTerms?: (issue: string) => void;
   schedule: Schedule; rows: PayoffStrategyRow[]; amount: number; date: Date; readOnly?: boolean;
   onAmount: (amount: number) => void; onClose: () => void;
@@ -23,7 +24,7 @@ export default function PayoffSchedule({ schedule, rows, amount, date, readOnly 
   const [draft, setDraft] = useState(String(amount));
   const [editMinimums,setEditMinimums]=useState(false);
   const [inputError, setInputError] = useState("");
-  useEffect(() => { const overflow = document.body.style.overflow; document.body.style.overflow = "hidden"; return () => { document.body.style.overflow = overflow; }; }, []);
+  useEffect(() => { if (inline) return; const overflow = document.body.style.overflow; document.body.style.overflow = "hidden"; return () => { document.body.style.overflow = overflow; }; }, [inline]);
   const currentDate = householdDate(date);
   const save = () => {
     const value = parseMoneyInput(draft);
@@ -31,9 +32,8 @@ export default function PayoffSchedule({ schedule, rows, amount, date, readOnly 
     setInputError("");
     if (!readOnly && value !== amount) onAmount(value);
   };
-  return createPortal(<div className={styles.scheduleOverlay}>
-    <section className={`${styles.scheduleDialog} strategy-dialog`} role="dialog" aria-modal="true" aria-label="Payoff Strategy" aria-labelledby="payoff-schedule-title">
-      <header className="strategy-header"><div className="shared-dashboard-wordmark" aria-label="DebtFree"><span>Debt</span><b>Free</b></div><div><button type="button" data-dialog-close aria-label="Close payoff strategy and go back" onClick={onClose}>‹</button><h2 id="payoff-schedule-title">Payoff Strategy</h2></div></header>
+  const experience = <section className={`${styles.scheduleDialog} strategy-dialog ${inline ? "strategy-inline" : ""}`} role={inline ? "region" : "dialog"} aria-modal={inline ? undefined : true} aria-label="Payoff Strategy">
+      {!inline && <header className="strategy-header"><div><button type="button" data-dialog-close aria-label="Close payoff strategy and go back" onClick={onClose}>‹</button><h2 id="payoff-schedule-title">Payoff strategy</h2></div></header>}
       <div className={styles.scheduleScroll}>
         <div className="strategy-content">
           <section className="strategy-payment" aria-label="Forecast settings">
@@ -46,7 +46,7 @@ export default function PayoffSchedule({ schedule, rows, amount, date, readOnly 
           <PayoffStrategyList rows={rows}/>
         </div>
       </div>
-    </section>
     {editMinimums&&<ScheduleMinimumEditor items={minimums} expected={minimumExpected} onSave={onMinimums} onClose={()=>setEditMinimums(false)}/>}
-  </div>, document.body);
+  </section>;
+  return inline ? experience : createPortal(<div className={styles.scheduleOverlay}>{experience}</div>, document.body);
 }
