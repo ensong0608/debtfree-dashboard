@@ -1,5 +1,7 @@
 'use client';
 import DateCalendar from './date-calendar';
+import { householdCurrencySymbol } from './household-currency';
+import { useHouseholdCurrency } from './household-currency-context';
 import { useState } from 'react';
 import { ExplanationDialog } from './info-tooltip';
 import { AUTO_PLANNING_APR, loanForecastAssumptions, type LoanTracker } from './loan-progress';
@@ -11,9 +13,10 @@ function PaymentHelp({ label, children }: { label: string; children: string }) {
   return <><button className="loan-help" type="button" aria-label={`Explain ${label}`} aria-haspopup="dialog" onClick={() => setOpen(true)}>?</button>{open && <ExplanationDialog title={label} onClose={() => setOpen(false)}>{children}</ExplanationDialog>}</>;
 }
 function CurrencyInput({ label, name, value, onChange, invalid, describedBy }: { label: string; name: string; value?: number; onChange: (value: number | undefined) => void; invalid: boolean; describedBy?: string }) {
+  const symbol = householdCurrencySymbol(useHouseholdCurrency());
   const format = (amount?: number) => amount === undefined || !Number.isFinite(amount) ? '' : usd.format(amount);
   const [text, setText] = useState(() => format(value));
-  return <span className="loan-currency-input"><span aria-hidden="true">$</span><input id={`loan-${name}`} name={name} aria-label={label} type="text" inputMode="decimal" required={name !== "principalBalance"} aria-invalid={invalid} aria-describedby={describedBy} value={text} onBlur={() => setText(format(value))} onChange={event => {
+  return <span className="loan-currency-input"><span aria-hidden="true">{symbol}</span><input id={`loan-${name}`} name={name} aria-label={label} type="text" inputMode="decimal" required={name !== "principalBalance"} aria-invalid={invalid} aria-describedby={describedBy} value={text} onBlur={() => setText(format(value))} onChange={event => {
     const raw = event.target.value.replace(/[$,]/g, '');
     if (/^\d*(\.\d{0,2})?$/.test(raw)) { setText(raw); onChange(raw === '' || raw === '.' ? undefined : Number(raw)); }
   }}/></span>;

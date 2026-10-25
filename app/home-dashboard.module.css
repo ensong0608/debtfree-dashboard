@@ -18,3 +18,24 @@
 
 .home{width:100%;max-width:none;margin:0;padding:0 0 calc(28px + env(safe-area-inset-bottom))}.debtSummary{margin-top:0}.progressCompact{justify-content:flex-start;min-height:120px;padding:8px 0;gap:14px}.compactRing{width:108px;height:108px}.compactRing>span{width:86px;height:86px;font-size:calc(22px * var(--theme-text-scale,1))}.scheduleCard :global(.payoff-strategy-list){gap:0}.scheduleCard :global(.payoff-strategy-list>li){padding:10px 0;background:transparent;border:0;border-radius:0;border-bottom:1px solid var(--theme-border)}.scheduleCard :global(.payoff-strategy-list>li:last-child){border:0}
 @media(max-width:360px){.compactRing{width:100px;height:100px}.compactRing>span{width:80px;height:80px}.compactCopy>strong{font-size:calc(18px * var(--theme-text-scale,1))}}
+
+
+/* Selected teal handoff: the slide, rather than its wrapper, is the summary. */
+.debtSummary{padding:0;background:transparent;border:0;box-shadow:none;overflow:visible}
+.progressCompact{flex-wrap:wrap;gap:12px;min-height:120px;padding:0}
+.compactRing{width:88px;height:88px;background:conic-gradient(var(--theme-summary-ring) var(--home-ring,0deg),#ffffff26 0)}
+.compactRing>span{width:70px;height:70px;background:var(--theme-gradient-end);font-size:calc(20px * var(--theme-text-scale,1))}
+.compactCopy{flex:1 1 150px;gap:4px}.compactCopy>strong{font-size:calc(28px * var(--theme-text-scale,1));white-space:nowrap;overflow-wrap:normal}
+.compactCopy>span{font-size:calc(14px * var(--theme-text-scale,1));color:var(--theme-on-gradient)}
+.compactCopy>small{font-size:calc(12px * var(--theme-text-scale,1));color:var(--theme-on-gradient)}
+.compactCopy .textLink{min-height:44px;white-space:normal}
+.updateRows>article{display:flex;flex-wrap:wrap;gap:8px}.updateMeta{margin-left:auto}.updateMeta>b{white-space:nowrap}
+.sectionHeader{flex-wrap:wrap}.scheduleCard,.updatesCard{padding:14px}
+
+.compactRing{width:calc(88px * var(--theme-text-scale,1));height:calc(88px * var(--theme-text-scale,1))}.compactRing>span{width:calc(70px * var(--theme-text-scale,1));height:calc(70px * var(--theme-text-scale,1))}.compactCopy{min-width:min-content;max-width:100%}.compactCopy>strong[data-large-value=true]{font-size:calc(20px * var(--theme-text-scale,1))!important}
+.increase{color:var(--theme-danger)}.progressCompact[data-negative=true] .compactCopy>span{color:var(--theme-danger)}
+
+
+.compactRing{width:112px;height:112px}.compactRing>span{width:90px;height:90px;font-size:24px}.progressCompact{flex-wrap:nowrap;gap:14px;min-height:128px}.compactCopy{flex:1;min-width:0}.compactCopy>strong{font-size:calc(28px * var(--theme-text-scale,1))}.compactCopy .textLink{display:none}.scheduleCard,.updatesCard{margin-top:16px;padding:12px 14px}.sectionHeader h2{font-size:18px;font-weight:600}.sectionHeader .textLink{font-size:14px;min-height:36px}.updateRows b{font-size:14px;font-weight:500}.updateRows>article{min-height:62px}.updateRows small,.updateRows time{font-size:12px}.updateMeta b{font-size:14px!important}.updateRows i{border-radius:50%;background:var(--theme-success-soft);color:var(--theme-success)}
+@media(max-width:370px){.compactRing{width:100px;height:100px}.compactRing>span{width:80px;height:80px}.compactCopy>strong{font-size:26px}}:global(html[data-text-size=larger]) .progressCompact{flex-wrap:wrap}:global(html[data-text-size=larger]) .compactCopy{flex-basis:170px}
+

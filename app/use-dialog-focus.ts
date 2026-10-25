@@ -14,6 +14,18 @@ export function useDialogFocus() {
       document.documentElement.style.setProperty("--dialog-viewport-top", `${viewport?.offsetTop ?? 0}px`);
       requestAnimationFrame(revealField);
     };
+    let observedNav: Element | null = null;
+    const measure = () => {
+      const nav = document.querySelector<HTMLElement>('.sidebar');
+      if (nav !== observedNav) {
+        if (observedNav) measured.unobserve(observedNav);
+        observedNav = nav;
+        if (nav) measured.observe(nav);
+      }
+      if (nav && window.matchMedia('(max-width:820px)').matches) document.documentElement.style.setProperty('--bottom-navigation-height', `${nav.getBoundingClientRect().height}px`);
+    };
+    const measured = new ResizeObserver(measure);
+    measure();
     resize();
     viewport?.addEventListener("resize", resize);
     viewport?.addEventListener("scroll", resize);
@@ -23,6 +35,7 @@ export function useDialogFocus() {
     const selector = 'button:not(:disabled), input:not(:disabled), select:not(:disabled), textarea:not(:disabled), a[href], [tabindex="0"]';
     const focusable = (dialog: HTMLElement) => [...dialog.querySelectorAll<HTMLElement>(selector)].filter((el) => el.getClientRects().length > 0);
     const update = () => {
+      measure();
       const dialogs = document.querySelectorAll<HTMLElement>('[role="dialog"][aria-modal="true"]');
       const next = dialogs[dialogs.length - 1] ?? null;
       if (next === current) return;
@@ -63,6 +76,6 @@ export function useDialogFocus() {
     observer.observe(document.body, { childList: true, subtree: true });
     document.addEventListener("keydown", keydown, true);
     document.addEventListener("focusin", focusin);
-    return () => { observer.disconnect(); document.removeEventListener("keydown", keydown, true); document.removeEventListener("focusin", focusin); viewport?.removeEventListener("resize", resize); viewport?.removeEventListener("scroll", resize); document.documentElement.style.removeProperty("--dialog-viewport-top"); document.documentElement.style.removeProperty("--dialog-viewport-height"); };
+    return () => { observer.disconnect(); measured.disconnect(); document.removeEventListener("keydown", keydown, true); document.removeEventListener("focusin", focusin); viewport?.removeEventListener("resize", resize); viewport?.removeEventListener("scroll", resize); document.documentElement.style.removeProperty("--bottom-navigation-height"); document.documentElement.style.removeProperty("--dialog-viewport-top"); document.documentElement.style.removeProperty("--dialog-viewport-height"); };
   }, []);
 }

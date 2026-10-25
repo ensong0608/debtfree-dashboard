@@ -115,8 +115,8 @@ export function appearanceTokens(p: Appearance): Record<string, string> {
     '--theme-background': background, '--theme-surface': surface, '--theme-raised': raised,
     '--theme-text': text, '--theme-muted': readable(mutedCandidate), '--theme-border': mix(text, surface, .24),
     '--theme-control-border': readable(mix(text, surface, .6), [surface, background, raised], 3),
-    '--theme-accent': readable(accent, [surface, background, raised, accentSoft]), '--theme-accent-fill': primary,
-    '--theme-on-accent': on(primary), '--theme-accent-soft': accentSoft,
+    '--theme-accent': readable(accent, [surface, background, raised, accentSoft]), '--theme-accent-fill': accent,
+    '--theme-on-accent': dark && accent === DARK.accent ? '#080E16' : on(accent), '--theme-accent-soft': accentSoft,
     '--theme-strong-surface': dark ? '#19263c' : '#182c4a', '--theme-on-strong': '#edf3ff',
     '--theme-track': mix(text, surface, .16), '--theme-overlay': '#030a16b3',
     '--theme-focus': readable(accent), '--theme-shadow': dark ? '#00000040' : '#17243a12',
@@ -128,12 +128,13 @@ export function appearanceTokens(p: Appearance): Record<string, string> {
     '--theme-art-mountain-back': tint(accent, .14), '--theme-art-mountain-front': tint(text, .12),
     '--theme-art-water': tint(accent, .1), '--theme-art-tree': tint(text, .18),
     '--theme-art-sun': tint(dark ? '#ffd078' : '#855000', .14),
-    '--theme-gradient-start': dark ? '#302276' : '#dfeeff', '--theme-gradient-end': dark ? '#142d4b' : '#eff8ff',
+    '--theme-gradient-start': dark ? '#12443F' : '#dfeeff', '--theme-gradient-end': dark ? '#152B35' : '#eff8ff',
     '--theme-on-gradient': dark ? '#edf3ff' : '#101b31',
+    '--theme-summary-ring': dark ? '#82DFC4' : '#007458',
     '--theme-font': FONTS[p.font], '--theme-text-scale': p.size === 'large' ? '1.12' : p.size === 'larger' ? '1.24' : '1',
   };
   for (const [name, candidate] of Object.entries(dark
-    ? { success: '#4ee3bb', warning: '#ffd078', danger: '#ff9cad', info: '#7bcaff', violet: '#b6a1ff' }
+    ? { success: '#79DDBB', warning: '#ffd078', danger: '#F3A3B7', info: '#7bcaff', violet: '#A78BFA' }
     : { success: '#007458', warning: '#855000', danger: '#b32143', info: '#095fbd', violet: '#7040b4' })) {
     const soft = tint(candidate, .08);
     t[`--theme-${name}-soft`] = soft;
@@ -144,6 +145,6 @@ export function appearanceTokens(p: Appearance): Record<string, string> {
     t[`--theme-on-${name}`] = on(fill);
   }
   const panels = [background, surface, raised, ...Object.entries(t).filter(([key]) => key.endsWith('-soft')).map(([, color]) => color)];
-  t['--theme-muted'] = readable(mutedCandidate, panels);
+  t['--theme-muted'] = readable(dark ? '#B9C0CC' : mutedCandidate, panels);
   return t;
 }

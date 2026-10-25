@@ -94,3 +94,41 @@
 .overlayHeader{background:var(--theme-primary,#cfe7fa);color:var(--theme-on-primary,#000)}
 .overlayHeader h2,.overlayHeader button{color:inherit}
 .overlay>.tabs{background:var(--theme-primary,#cfe7fa);padding-inline:16px;padding-bottom:8px}
+
+
+.debtCard,.debtCard[data-debt-tone]{border-radius:14px}
+.debtRowTop{grid-template-columns:minmax(0,1fr) 14px;gap:8px}.debtIdentity{grid-column:1}.debtBalance{grid-column:1;justify-items:start;padding-left:48px}.chevron{grid-column:2;grid-row:1/3}
+.debtIdentity strong{white-space:normal;overflow:visible;text-overflow:clip;overflow-wrap:anywhere;line-height:1.4}
+.debtBalance strong{font-size:calc(16px * var(--theme-text-scale,1));white-space:nowrap}.debtBalance small{white-space:nowrap}
+.listProgress{grid-template-columns:1fr}.listProgress>span:first-child{color:var(--theme-success)}
+.debtSummary{padding:14px 16px;border:1px solid var(--theme-border);border-radius:16px;background:linear-gradient(135deg,var(--theme-gradient-start),var(--theme-gradient-end));color:var(--theme-on-gradient)}
+.summaryRow{display:flex!important;flex-wrap:wrap;justify-content:space-between;gap:12px!important}.summaryRow strong{white-space:nowrap;font-size:calc(28px * var(--theme-text-scale,1))}.summaryRow>div:first-child>span,.summaryBadge small{color:var(--theme-on-gradient)}
+.overlayHeader{grid-template-columns:44px minmax(0,1fr) auto}.overlayHeader .headerEdit{font-size:calc(16px * var(--theme-text-scale,1));width:auto;min-width:44px;color:var(--theme-accent)}
+.overlay>.tabs{background:var(--theme-background);padding:0 16px;gap:0;border-bottom:1px solid var(--theme-border)}
+.tabs button{border-radius:0;min-height:48px}.tabs button[aria-selected=true]{background:transparent;color:var(--theme-accent);box-shadow:inset 0 -3px var(--theme-accent)}
+.cardOverlay>.cardActions{position:static;flex:none;display:flex;flex-direction:row;flex-wrap:wrap;max-width:none;padding:12px 16px calc(12px + env(safe-area-inset-bottom));background:var(--theme-background);border-top:1px solid var(--theme-border)}
+.cardActions>button{flex:1;justify-content:center;white-space:normal;min-height:48px;font-size:calc(16px * var(--theme-text-scale,1));box-shadow:none}
+.cardActions>button:global(.primary){background:var(--theme-accent-fill);color:var(--theme-on-accent)}
+.cardOverlay>.detailContent{padding:16px;scroll-padding-block:16px;overflow-x:hidden}
+.overview>.balance{font-size:calc(30px * var(--theme-text-scale,1));white-space:nowrap}.overview dl{grid-template-columns:repeat(auto-fit,minmax(min(100%,10rem),1fr));gap:16px;padding:14px;margin:16px 0}.overview dd{overflow-wrap:normal;white-space:nowrap;font-size:calc(16px * var(--theme-text-scale,1))}
+.cardTrend{padding:12px}.cardTrend svg{height:180px}.overview:has(>.balance):has(progress[value="100"]){--ring-color:var(--theme-summary-ring)}
+
+.tabs{display:flex!important;flex-wrap:wrap}.tabs button{flex:1 1 90px;min-width:min-content;max-width:100%;overflow-wrap:anywhere}
+.completed{padding:16px;border-radius:16px;background:linear-gradient(135deg,var(--theme-gradient-start),var(--theme-gradient-end));color:var(--theme-on-gradient)}.completed>span{color:var(--theme-success)}
+.autoMinimum{min-height:44px}.cardField input{min-height:50px;font-size:calc(16px * var(--theme-text-scale,1))}.cardField{font-size:calc(14px * var(--theme-text-scale,1))}
+
+.tabs button{min-width:max-content;overflow-wrap:normal}
+
+.completionCopy p{font-size:calc(14px * var(--theme-text-scale,1));line-height:1.5;margin:8px 0}
+.debtCard[data-negative=true] .listProgress>span:first-child,.overview[data-negative=true] .debtProgress>span{color:var(--theme-danger)}
+
+
+.debtRowTop{grid-template-columns:minmax(0,1fr) auto 12px;gap:7px}.debtIdentity{grid-column:1;grid-row:1;gap:9px}.debtBalance{grid-column:2;grid-row:1;justify-items:end;padding:0}.chevron{grid-column:3;grid-row:1}.debtIdentity strong{font-size:calc(14px * var(--theme-text-scale,1));line-height:1.3}.debtBalance strong{font-size:calc(17px * var(--theme-text-scale,1))}.debtIdentity :global(span[role=img]){border-radius:50%;background:transparent}.debtCard{padding:14px!important}.debtList{gap:12px}.listProgress{margin-top:12px;gap:8px}.listProgress>[role=progressbar]{height:6px}.toolbar .search{order:0;flex:1}.toolbar .sort{order:1}.overviewStats{grid-template-columns:repeat(2,minmax(0,1fr))}.detail-text-tabs button{font-size:16px}
+:global(html[data-text-size=larger]) .debtRowTop{grid-template-columns:minmax(0,1fr) 12px}:global(html[data-text-size=larger]) .debtBalance{grid-column:1;grid-row:2;justify-items:start;padding-left:47px}:global(html[data-text-size=larger]) .chevron{grid-column:2;grid-row:1/3}
+
+
+.debtIdentity :global(span[data-institution=chase]){background:linear-gradient(145deg,#1375d5,#073f85)}.debtIdentity :global(span[data-institution=citi]),.debtIdentity :global(span[data-institution=us-bank]){background:#fff}.debtIdentity :global(span[data-institution=wells-fargo]){background:#d71920}.toolbar .search{flex:1 1 60%}.toolbar .sort{flex:0 1 36%}.overview dl{gap:16px;margin:18px 0;padding:14px}.overview>.balance{font-size:30px}.overlay:has(:global(.settings-panel)){display:flex;flex-direction:column;overflow:hidden;height:min(100dvh,960px)}
+
+.overview dl{grid-template-columns:repeat(2,minmax(0,1fr))}.overview dd{white-space:normal;overflow-wrap:normal}.overview dd .money-value{white-space:nowrap}.overview .cardStarting{grid-template-columns:repeat(2,minmax(0,1fr))}:global(html[data-text-size=larger]) .overview dl{grid-template-columns:repeat(auto-fit,minmax(min(100%,145px),1fr))}
+
+.overview :global(.debt-overview-balance-card){padding:14px;border:1px solid var(--theme-border);border-radius:14px;background:var(--theme-surface)}.overview :global(.debt-overview-balance-card)>span{display:block;font-size:14px}.overview :global(.debt-overview-balance-card)>.balance{display:block;font-size:30px;margin:8px 0 16px}.overview :global(.debt-overview-balance-card)>dl{margin:0;background:var(--theme-background);gap:20px 16px;padding:14px}.toolbar .search{position:relative}.toolbar .search>svg{position:absolute;left:12px;top:50%;transform:translateY(-50%);width:18px;color:var(--theme-muted)}.toolbar .search>input{padding-left:36px}

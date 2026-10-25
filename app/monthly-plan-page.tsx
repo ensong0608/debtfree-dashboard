@@ -90,28 +90,25 @@ export default function MonthlyPlanPage(props: Props) {
 
     {hasMonth && <section className={styles.summary} aria-label="Monthly budget summary">
       <div className={styles.summaryTop}>
-        <div><span>Income</span><strong>{currency.format(income)}</strong></div>
+        <div><span>Income</span><strong><span className="money-value">{currency.format(income)}</span></strong></div>
         <button type="button" className={styles.editButton} disabled={props.readOnly} aria-expanded={incomeEditorOpen} onClick={() => setIncomeEditorOpen(open => !open)}>{incomeEditorOpen ? "Done" : "Edit"}</button>
       </div>
-      <div className={styles.allocationTrack} aria-label={`${(allocatedPercent?.toFixed(0) ?? "—")}% of income allocated`}>
-        <i className={styles.spendingSegment} style={{ width: `${allocatedShare}%` }} />
-        <i className={styles.remainingSegment} style={{ width: `${Math.max(0, 100 - allocatedShare)}%` }} />
-      </div>
+      <div className="budget-allocation-row"><div className={styles.allocationTrack} role="progressbar" aria-label="Income allocated" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.min(100,Math.max(0,allocatedPercent??0))}><i className={styles.spendingSegment} style={{width:`${allocatedShare}%`}}/></div><strong>{allocatedPercent?.toFixed(0)??'—'}%</strong></div>
       <div className={styles.summaryStats}>
-        <div><span className={styles.dotSpending} /><strong>{currency.format(allocated)}</strong><small>Planned spending</small></div>
-        <div><span className={styles.dotRemaining} /><strong>{currency.format(remaining)}</strong><small>Remaining</small></div>
-        <div><strong>{(allocatedPercent?.toFixed(0) ?? "—")}%</strong><small>of income allocated</small></div>
+        <div><span className={styles.dotSpending} /><strong><span className="money-value">{currency.format(allocated)}</span></strong><small>Planned</small></div>
+        <div><span className={styles.dotRemaining} /><strong><span className="money-value">{currency.format(remaining)}</span></strong><small>Remaining</small></div>
+        
       </div>
-      {debtPayments > 0 && <p className={styles.debtNote}>Includes {currency.format(debtPayments)} planned for debt payments.</p>}
+      {debtPayments > 0 && <p className={styles.debtNote}>Includes <span className="money-value">{currency.format(debtPayments)}</span> planned for debt payments.</p>}
       {incomeEditorOpen && <div className={styles.incomeEditor}>
         <div className={styles.editorHeading}><strong>Income sources</strong><button type="button" disabled={props.readOnly} onClick={() => props.onAdd("income")}>＋ Add income</button></div>
-        {incomeItems.length ? incomeItems.map(item => <button type="button" className={styles.incomeItem} key={item.id} disabled={props.readOnly} onClick={() => props.onEdit(item)}><span><strong>{item.name}</strong><small>{item.category}</small></span><b>{currency.format(item.amount)}</b><OutlineIcon name="chevron" /></button>) : <p>No planned income sources yet.</p>}
+        {incomeItems.length ? incomeItems.map(item => <button type="button" className={styles.incomeItem} key={item.id} disabled={props.readOnly} onClick={() => props.onEdit(item)}><span><strong>{item.name}</strong><small>{item.category}</small></span><b><span className="money-value">{currency.format(item.amount)}</span></b><OutlineIcon name="chevron" /></button>) : <p>No planned income sources yet.</p>}
       </div>}
     </section>}
 
 
     <section className={styles.categorySection} aria-label="Planned spending by category">
-      <header className={styles.sectionHeading}><h2>Spending by Category</h2><button type="button" onClick={props.onViewTransactions}>See all <OutlineIcon name="chevron" /></button></header>
+      <header className={styles.sectionHeading}><h2>Spending by category</h2><button type="button" onClick={props.onViewTransactions}>See all <OutlineIcon name="chevron" /></button></header>
       {!hasMonth ? <section className={styles.monthStart}>
         <span>New month</span><h2>Set up {monthLabel(month)}</h2><p>Copy recurring items from last month or start clean. One-time adjustments are never copied.</p>
         <div>{previousHasItems && <button className="primary" type="button" disabled={props.readOnly} onClick={props.onCopyPrevious}>Copy recurring items</button>}<button className="secondary" type="button" disabled={props.readOnly} onClick={props.onStartBlank}>Start with no entries</button></div>
@@ -124,7 +121,7 @@ export default function MonthlyPlanPage(props: Props) {
               <summary>
                 <span className={styles.categoryIcon}><OutlineIcon name={categoryIcon(category)} /></span>
                 <span className={styles.categoryName}><strong>{category}</strong><i><b style={{ width: `${Math.min(100,shareOfIncome)}%` }} /></i></span>
-                <strong className={styles.categoryAmount}>{currency.format(total)}</strong>
+                <strong className={styles.categoryAmount}><span className="money-value">{currency.format(total)}</span></strong>
                 <small className={styles.categoryShare}>{shareOfIncome.toFixed(0)}%</small>
                 <button type="button" className={styles.categoryPlus} disabled={props.readOnly} aria-label={`Add to ${category}`} onClick={event => { event.preventDefault(); event.stopPropagation(); props.onAdd("expense", category); }}><OutlineIcon name="plus" /></button>
               </summary>
@@ -132,8 +129,8 @@ export default function MonthlyPlanPage(props: Props) {
                 {categoryItems.map(item => {
                   const recordedPaid = props.view.allocations.find(row => row.item.id === item.id)?.recordedPaid ?? 0;
                   return <button type="button" key={item.id} className={styles.entry} disabled={props.readOnly} onClick={() => props.onEdit(item)}>
-                    <span className={styles.entryText}><strong>{item.name}</strong><small>{item.paymentMethod === "credit" ? accountNames.get(item.creditAccountId) ?? "Credit card" : item.category}{item.dueDay ? ` · Due day ${item.dueDay}` : ""}</small>{recordedPaid > 0 && <small>{recordedPaid >= item.amount ? "Paid" : "Part paid"} {currency.format(recordedPaid)}</small>}</span>
-                    <b>{currency.format(item.amount)}</b><OutlineIcon name="chevron" />
+                    <span className={styles.entryText}><strong>{item.name}</strong><small>{item.paymentMethod === "credit" ? accountNames.get(item.creditAccountId) ?? "Credit card" : item.category}{item.dueDay ? ` · Due day ${item.dueDay}` : ""}</small>{recordedPaid > 0 && <small>{recordedPaid >= item.amount ? "Paid" : "Part paid"} <span className="money-value">{currency.format(recordedPaid)}</span></small>}</span>
+                    <b><span className="money-value">{currency.format(item.amount)}</span></b><OutlineIcon name="chevron" />
                   </button>;
                 })}
                 <button type="button" className={styles.addEntry} disabled={props.readOnly} onClick={() => props.onAdd("expense", category)}><OutlineIcon name="plus" /> Add to {category}</button>
@@ -141,8 +138,8 @@ export default function MonthlyPlanPage(props: Props) {
             </details>;
           })}
           {debtPayments > 0 && <details className={`${styles.category} ${styles.debtCategory}`} data-category-tone="card">
-            <summary><span className={styles.categoryIcon}><OutlineIcon name="card" /></span><span className={styles.categoryName}><strong>Debt payments</strong><i><b style={{ width: `${income > 0 ? debtShare / 100 * income / income * 100 : 0}%` }} /></i></span><strong className={styles.categoryAmount}>{currency.format(debtPayments)}</strong><small className={styles.categoryShare}>{income > 0 ? (debtPayments / income * 100).toFixed(0) : 0}%</small><span className={styles.categoryChevron}><OutlineIcon name="chevron" /></span></summary>
-            <div className={styles.categoryItems}><p className={styles.debtDetail}>{props.commitment ? <>Household payment {currency.format(props.commitment.householdPayment)} · Schedule {currency.format(props.commitment.schedule.monthly)}{props.commitment.missingLoanPayments > 0 && " · Add missing loan payment amounts"}</> : "Saved debt payment commitment for this month."}</p></div>
+            <summary><span className={styles.categoryIcon}><OutlineIcon name="card" /></span><span className={styles.categoryName}><strong>Debt payments</strong><i><b style={{ width: `${income > 0 ? debtShare / 100 * income / income * 100 : 0}%` }} /></i></span><strong className={styles.categoryAmount}><span className="money-value">{currency.format(debtPayments)}</span></strong><small className={styles.categoryShare}>{income > 0 ? (debtPayments / income * 100).toFixed(0) : 0}%</small><span className={styles.categoryChevron}><OutlineIcon name="chevron" /></span></summary>
+            <div className={styles.categoryItems}><p className={styles.debtDetail}>{props.commitment ? <>Household payment <span className="money-value">{currency.format(props.commitment.householdPayment)}</span> · Schedule <span className="money-value">{currency.format(props.commitment.schedule.monthly)}</span>{props.commitment.missingLoanPayments > 0 && " · Add missing loan payment amounts"}</> : "Saved debt payment commitment for this month."}</p></div>
           </details>}
           {!groupedSpending.length && debtPayments <= 0 && <p className={styles.empty}>No spending categories for this month yet.</p>}
         </div>
