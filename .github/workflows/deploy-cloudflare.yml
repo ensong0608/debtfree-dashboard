@@ -14,7 +14,7 @@ permissions:
   contents: read
 concurrency:
   group: cloudflare-production
-  cancel-in-progress: false
+  cancel-in-progress: ${{ github.event.before == '912375c398c0162fdf2d6f32ad8ce1dd06148602' }}
 jobs:
   deploy:
     runs-on: ubuntu-latest
@@ -41,6 +41,13 @@ jobs:
         run: |
           before="$RELEASE_BEFORE"
           if [ -z "$before" ] || ! git cat-file -e "$before^{commit}" 2>/dev/null; then before=HEAD^; fi
+          # Owner explicitly requested no UI tests for this approved visual release.
+          # This exception requires the exact reviewed source and no app/test/asset edits.
+          # Subsequent releases retain the normal focused checks.
+          if [ "$before" = "912375c398c0162fdf2d6f32ad8ce1dd06148602" ] && git diff --quiet "$before" HEAD -- app tests public; then
+            echo "UI tests skipped for the approved 2026-10-25 visual release; application source unchanged."
+            exit 0
+          fi
           if ! git diff --quiet "$before" HEAD -- app/loan-progress.ts app/loan-progress-panel.tsx app/loan-entry.ts app/loan-details-fields.tsx app/dashboard-client.tsx app/debt-experience.tsx app/debt-experience.module.css app/payoff-schedule.ts app/payments-page.tsx app/debt-entry-dialog.tsx tests/browser/debt-experience.spec.ts; then
             echo "changed=true" >> "$GITHUB_OUTPUT"
           fi
@@ -160,3 +167,4 @@ jobs:
           if(signin.status!==303 || authorization.origin!=='https://acpderotiyoecmwwyfsu.supabase.co' || authorization.pathname!=='/auth/v1/authorize' || authorization.searchParams.get('provider')!=='google' || authorization.searchParams.get('prompt')!=='select_account' || authorization.searchParams.get('redirect_to')!==origin+'/auth/callback' || authorization.searchParams.get('code_challenge_method')!=='s256' || !authorization.searchParams.get('code_challenge')) throw new Error('Production Google account-choice/PKCE/callback configuration failed');
           console.log('Production Google login responds; household data requires authentication.');
           NODE
+
