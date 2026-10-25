@@ -1,6 +1,6 @@
 {
   "purpose": "User-requested lender identification in saved-account cards. These are trademarks, not partnership or verification badges. No mockup marks were traced.",
-  "copyrightBasis": "Wikimedia Commons source files identify these simple text/geometric logos as PD-textlogo; that copyright status is distinct from trademark rights. Use only for identifying the named institution, preserve original geometry, do not imply endorsement.",
+  "copyrightBasis": "Wikimedia Commons source files identify these simple text/geometric logos as PD-textlogo; that copyright status is distinct from trademark rights. Use only for identifying the named institution, preserve original geometry, do not imply endorsement. Owner-provided PNGs are separately identified below and do not inherit the Wikimedia public-domain designation.",
   "assets": [
     {
       "file": "chase.svg",
@@ -26,10 +26,18 @@
       "file": "us-bank.svg",
       "source": "https://commons.wikimedia.org/wiki/File:US_Bank_icon_2023_red.svg",
       "author": "U.S. Bank NA"
+    },
+    {
+      "file": "penfed-owner.png",
+      "source": "Owner-provided PenFed logo attachment, October 25, 2026",
+      "usage": "Explicitly requested by owner for PenFed account identification; original supplied image copied unchanged. No endorsement implied."
+    },
+    {
+      "file": "us-bank-owner.png",
+      "source": "Owner-provided U.S. Bank logo attachment, October 25, 2026",
+      "usage": "Explicitly requested by owner for USB Connect account identification; original supplied image copied unchanged. No endorsement implied."
     }
   ],
-  "unresolved": [
-    "PenFed: use institution initials until a suitable source is cleared."
-  ],
+  "unresolved": [],
   "appearance": "Original lender artwork in consistent circular containers. Chase symbol crop retains the original path geometry; its white-on-blue presentation is a contrast treatment."
 }
