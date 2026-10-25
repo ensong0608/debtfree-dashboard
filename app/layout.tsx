@@ -4,6 +4,8 @@ import "./globals.css";
 import "./design-system.css";
 import "./reference-layout.css";
 import "./theme.css";
+import "./visual-refresh.css";
+import "./mockup-fidelity.css";
 import AppearanceProvider from "./appearance-provider";
 
 export async function generateMetadata(): Promise<Metadata> {

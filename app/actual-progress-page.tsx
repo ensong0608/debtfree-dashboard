@@ -1,5 +1,5 @@
 "use client";
-import { useMemo, useState, type CSSProperties, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { createHouseholdMoneyFormatter } from "./household-currency";
 import { useHouseholdCurrency } from "./household-currency-context";
 import type { DebtGroup } from "./debt-groups";
@@ -40,9 +40,18 @@ const axisLabel = (point: ChartPoint) => point.date
   : monthShort(point.month);
 
 function BalanceChart({ points, money, label }: { points: ChartPoint[]; money: Intl.NumberFormat; label: string }) {
+  const figure = useRef<HTMLElement>(null);
+  const [width, setWidth] = useState(320);
+  useEffect(() => {
+    const element = figure.current;
+    if (!element) return;
+    const observer = new ResizeObserver(() => setWidth(Math.max(240, element.clientWidth - 24)));
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, [points.length]);
   const values = points.flatMap(point => point.savedBalance === null ? [] : [{ ...point, balance: point.savedBalance }]);
   if (!values.length) return <div className={styles.emptyChart} role="status"><strong>No saved balance observations in this range.</strong><span>A balance observation is saved when you open the app after a checkpoint.</span></div>;
-  const width = 640, height = 195, left = 66, right = 18, top = 18, bottom = 38;
+  const height = 195, left = 60, right = 12, top = 18, bottom = 38;
   const max = Math.max(...values.map(point => point.balance), 1), min = Math.min(...values.map(point => point.balance), 0);
   const span = Math.max(max - min, Math.max(max * .12, 1));
   const low = Math.max(0, min - span * .08), high = max + span * .08;
@@ -60,18 +69,18 @@ function BalanceChart({ points, money, label }: { points: ChartPoint[]; money: I
   });
   const labelIndexes = points.length <= 4 ? points.map((_, index) => index) : [0, Math.round((points.length - 1) / 3), Math.round((points.length - 1) * 2 / 3), points.length - 1];
   const summary = values.map(point => `${observationLabel(point)} saved balance ${money.format(point.balance)}`).join("; ");
-  return <figure className={`progress-snapshot-chart ${styles.chartFigure}`}>
+  return <figure ref={figure} className={`progress-snapshot-chart ${styles.chartFigure}`}>
     <svg viewBox={`0 0 ${width} ${height}`} role="img" aria-label={`${label}. Recorded saved balance observations: ${summary}. Missing months are left blank.`}>
       {[0, .5, 1].map(fraction => {
         const value = high - fraction * (high - low), yy = y(value);
-        return <g key={fraction}><line x1={left} x2={width - right} y1={yy} y2={yy} className={styles.gridLine} /><text x={left - 10} y={yy + 4} textAnchor="end">{money.format(value)}</text></g>;
+        return <g key={fraction}><line x1={left} x2={width - right} y1={yy} y2={yy} className={styles.gridLine} /><text x={left - 10} y={yy + 4} textAnchor="end">{new Intl.NumberFormat(money.resolvedOptions().locale, { style: "currency", currency: money.resolvedOptions().currency, notation: "compact", maximumFractionDigits: 1 }).format(value)}</text></g>;
       })}
       {segments.map((segment, index) => segment.length > 1 && <polyline key={index} points={segment.join(" ")} className={styles.balanceLine} />)}
-      {points.map((point, index) => point.savedBalance === null ? null : <circle key={point.id ?? point.date ?? point.month} cx={x(index)} cy={y(point.savedBalance)} r="5" className={styles.balanceDot}><title>{observationLabel(point)} saved balance: {money.format(point.savedBalance)}</title></circle>)}
+      {points.map((point, index) => point.savedBalance === null ? null : <circle key={point.id ?? point.date ?? point.month} cx={x(index)} cy={y(point.savedBalance)} r="5" className={styles.balanceDot}><title>{observationLabel(point)} saved balance: <span className="money-value">{money.format(point.savedBalance)}</span></title></circle>)}
       {labelIndexes.map(index => <text key={points[index].id ?? points[index].date ?? `${points[index].month}-${index}`} x={x(index)} y={height - 10} textAnchor={index === 0 ? "start" : index === points.length - 1 ? "end" : "middle"}>{axisLabel(points[index])}</text>)}
     </svg>
-    <figcaption>Recorded balances · missing months stay blank.</figcaption>
-    <ol className="snapshot-chart-labels">{(values.length > 2 ? [values[0], values.at(-1)!] : values).map(point => <li key={point.id ?? point.date ?? point.month}><time dateTime={point.date ?? point.observation?.observedOn ?? point.month}>{observationLabel(point)}</time><strong>{money.format(point.balance)}</strong></li>)}</ol>
+    <figcaption>{values.length === 1 ? "One balance recorded" : `${money.format(values[0].balance)} to ${money.format(values.at(-1)!.balance)}`} · missing periods stay blank.</figcaption>
+    <ol className="snapshot-chart-labels">{(values.length > 2 ? [values[0], values.at(-1)!] : values).map(point => <li key={point.id ?? point.date ?? point.month}><time dateTime={point.date ?? point.observation?.observedOn ?? point.month}>{observationLabel(point)}</time><strong><span className="money-value">{money.format(point.balance)}</span></strong></li>)}</ol>
   </figure>;
 }
 
@@ -83,7 +92,7 @@ function ProgressRing({ label, starting, current, reduction, money }: { label: s
     <div className={styles.ring} style={ringStyle} role="img" aria-label={`${label}: ${percent === null ? "starting comparison unavailable" : `${Math.abs(percent).toFixed(0)} percent ${percent >= 0 ? "reduced" : "increased"}`}`}><span>{percent === null ? "—" : `${Math.abs(percent).toFixed(0)}%`}</span></div>
     <strong>{label}</strong>
     <span>{reduction === null ? "Starting comparison unavailable" : `${moneyFormat(Math.abs(reduction), money)} ${reduction >= 0 ? "reduced" : "increased"}`}</span>
-    <small>Current {money.format(current)}</small>
+    <small>Current <span className="money-value">{money.format(current)}</span></small>
   </article>;
 }
 
@@ -109,10 +118,9 @@ export default function ActualProgressPage({ accounts, loans, removedAccounts = 
   const tab = controlledTab ?? localTab, setTab = onTab ?? setLocalTab;
   const [scope, setScope] = useState<ProgressScope>(() => accounts.length || removedAccounts.length ? "accounts" : loans.length ? "loans" : "household");
   const [range, setRange] = useState<Range>("6M");
-  const scopeOptions: { value: ProgressView["scope"]; label: string }[] = [];
-  if (accounts.length || removedAccounts.length) scopeOptions.push({ value: "accounts", label: "Cards & Loans" });
-  if (loans.length) scopeOptions.push({ value: "loans", label: "House & Auto" });
-  if ((accounts.length || removedAccounts.length) && loans.length) scopeOptions.push({ value: "household", label: "All" });
+  const scopeOptions: { value: ProgressView["scope"]; label: string }[] = [
+    {value:"accounts", label:"Cards & loans"}, {value:"loans", label:"House & auto"}, {value:"household", label:"All debts"}
+  ];
   const currentScope = scopeOptions.some(option => option.value === scope) ? scope : scopeOptions[0]?.value ?? "household";
   const view = progressViews[currentScope];
   const scopeSlides = scopeOptions.map(option => ({
@@ -125,10 +133,10 @@ export default function ActualProgressPage({ accounts, loans, removedAccounts = 
       const arc = scopedPercent === null ? 0 : Math.max(0, Math.min(100, Math.abs(scopedPercent)));
       const ringStyle = { "--progress-ring": `${arc * 3.6}deg` } as CSSProperties;
       const label = scopedView.summary.comparisonAvailable && scopedPercent !== null ? `${Math.abs(scopedPercent).toFixed(1)}%` : "—";
-      return <section className={`${styles.summary} ${styles.compactSummary} actual-progress-summary`} aria-label={`${option.label} debt progress`}>
+      return <section className={`${styles.summary} ${styles.compactSummary}`} data-negative={scopedReduction !== null && scopedReduction < 0} aria-label={`${option.label} debt progress`}>
         <div className={styles.compactSummaryMain}>
           <div className={styles.compactProgressRing} style={ringStyle} role="img" aria-label={`${option.label}: ${scopedPercent === null ? "starting comparison unavailable" : `${Math.abs(scopedPercent).toFixed(1)} percent ${scopedPercent >= 0 ? "reduced" : "increased"}`}`}><span>{label}</span></div>
-          <div className={styles.compactProgressCopy}><span>Total progress · {option.label}</span><strong>{money.format(scopedView.summary.current)} <small>left</small></strong><p>{scopedReduction === null ? "Starting comparison unavailable" : <><b>{moneyFormat(Math.abs(scopedReduction), money)}</b> {scopedReduction >= 0 ? "reduced" : "increased"}</>}</p></div>
+          <div className={styles.compactProgressCopy}><strong data-large-value={Math.abs(scopedView.summary.current) >= 1000000}><span className="money-value">{money.format(scopedView.summary.current)}</span></strong><small>Remaining</small><p>{scopedReduction === null ? "Starting comparison unavailable" : <><b>{moneyFormat(Math.abs(scopedReduction), money)}</b> {scopedReduction >= 0 ? "reduced" : "increased"}</>}</p></div>
         </div>
         <small className={styles.compactBaseline}>{scopedView.baselineKind === "original-loan-amounts" ? "Original balances" : scopedView.baselineKind === "mixed" ? "Starting balances" : "Saved start"} · {scopedView.summary.starting === null ? "Unavailable" : money.format(scopedView.summary.starting)}</small>
         {scopedView.actual.retainedCount > 0 && option.value !== "loans" && <small className={styles.retained}>Includes last balances for {scopedView.actual.retainedCount} removed accounts.</small>}
@@ -171,13 +179,8 @@ export default function ActualProgressPage({ accounts, loans, removedAccounts = 
           <BalanceChart points={trend} money={money} label="Debt balance trend" />
         </section>
 
-        <section className={styles.card} aria-labelledby="progress-milestone-preview-title">
-          <header className={styles.cardHeader}><div><h2 id="progress-milestone-preview-title">Milestones</h2><p>Checkpoints supported by recorded evidence</p></div><button type="button" className={styles.textLink} onClick={() => setTab("milestones")}>See all</button></header>
-          <ol className={styles.milestoneList}>{view.milestones.slice(0, 4).map(item => <MilestoneItem key={item.id} item={item} />)}</ol>
-        </section>
-
         <section className={styles.card} aria-labelledby="progress-category-title">
-          <header className={styles.cardHeader}><div><h2 id="progress-category-title">Progress by category</h2><p>Cards &amp; Loans · House · Auto</p></div></header>
+          <header className={styles.cardHeader}><div><h2 id="progress-category-title">All-category comparison</h2><p>Cards &amp; Loans · House · Auto</p></div></header>
           <div className={styles.ringGrid}>
             {categoryData.map(category => <ProgressRing key={category.label} label={category.label} starting={category.starting} current={category.current} reduction={category.reduction} money={money} />)}
           </div>
@@ -199,7 +202,8 @@ export default function ActualProgressPage({ accounts, loans, removedAccounts = 
       {tab === "utilization" && <div className={styles.stack}>{utilization ?? <section className={styles.card}><p className={styles.emptyChart}>Utilization data is unavailable.</p></section>}</div>}
 
       {tab === "milestones" && <div className={styles.stack}>
-        <section className={styles.card}><header className={styles.cardHeader}><div><h2>Your milestones</h2><p>Achievements are based on recorded events or balance observations.</p></div></header><ol className={`${styles.milestoneList} ${styles.fullMilestones}`}>{view.milestones.map(item => <MilestoneItem key={item.id} item={item} />)}</ol></section>
+        <div className={styles.integratedSummary}><DebtScopeCarousel slides={scopeSlides} value={currentScope} onChange={setScope} label="Progress scope" /></div>
+        {([['Achieved', view.milestones.filter(item => item.status === 'achieved')], ['Coming next', view.milestones.filter(item => item.status !== 'achieved')]] as const).map(([heading, items]) => <section className={styles.card} key={heading}><header className={styles.cardHeader}><h2>{heading}</h2></header>{items.length ? <ol className={styles.milestoneList}>{items.map(item => <MilestoneItem key={item.id} item={item}/>)}</ol> : <p className={styles.emptyChart}>{heading === 'Achieved' ? 'No achieved milestones recorded yet.' : 'No upcoming milestones.'}</p>}</section>)}
         <section className={styles.card} aria-labelledby="milestone-progress-ring-title"><header className={styles.cardHeader}><div><h2 id="milestone-progress-ring-title">Milestone progress</h2><p>{baselineLabel}</p></div></header><div className={styles.ringGrid}>{categoryData.map(category => <ProgressRing key={category.label} label={category.label} starting={category.starting} current={category.current} reduction={category.reduction} money={money} />)}</div></section>
       </div>}
     </>}

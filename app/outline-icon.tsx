@@ -1,6 +1,17 @@
-export type IconName = "insurance" | "card" | "list" | "chart" | "more" | "refresh" | "money" | "cart" | "calendar" | "home" | "car" | "receipt" | "chevron" | "settings" | "grid" | "calculator" | "pie" | "check" | "trend" | "percent" | "shield" | "plus" | "sort" | "menu" | "account" | "filter" | "search";
+export type IconName = "moon" | "palette" | "text" | "users" | "globe" | "upload" | "download" | "archive" | "help" | "arrow-down" | "arrow-up" | "insurance" | "card" | "list" | "chart" | "more" | "refresh" | "money" | "cart" | "calendar" | "home" | "car" | "receipt" | "chevron" | "settings" | "grid" | "calculator" | "pie" | "check" | "trend" | "percent" | "shield" | "plus" | "sort" | "menu" | "account" | "filter" | "search";
 export default function OutlineIcon({ name }: { name: IconName }) {
   const shapes = {
+    moon:<path d="M20 15A9 9 0 0 1 9 4a9 9 0 1 0 11 11Z"/>,
+    palette:<><path d="M12 3a9 9 0 1 0 0 18h2a2 2 0 0 0 0-4h-1a2 2 0 0 1 0-4h4a4 4 0 0 0 4-4c0-3-4-6-9-6Z"/><circle cx="7" cy="10" r=".8"/><circle cx="9" cy="6.5" r=".8"/><circle cx="14" cy="6.5" r=".8"/></>,
+    text:<><path d="m3 19 6-14 6 14M5 14h8m4-3c4-2 6 0 5 4v4m0-4c-7-2-7 5 0 3"/></>,
+    users:<><circle cx="9" cy="7" r="3"/><path d="M3 21v-3a6 6 0 0 1 12 0v3M16 4a3 3 0 0 1 0 6m2 4a5 5 0 0 1 3 4v3"/></>,
+    globe:<><circle cx="12" cy="12" r="9"/><ellipse cx="12" cy="12" rx="4" ry="9"/><path d="M3 12h18"/></>,
+    upload:<><path d="m8 9 4-4 4 4m-4-4v12M5 13H3v8h18v-8h-2"/></>,
+    download:<><path d="m8 12 4 4 4-4m-4 4V4M5 13H3v8h18v-8h-2"/></>,
+    archive:<><rect x="3" y="3" width="18" height="5" rx="1"/><path d="M5 8v13h14V8m-10 4h6"/></>,
+    help:<><circle cx="12" cy="12" r="9"/><path d="M9 9a3 3 0 1 1 4 3v3m-1 3h.01"/></>,
+    'arrow-down':<path d="M12 3v18m-6-6 6 6 6-6"/>,
+    'arrow-up':<path d="M12 21V3m-6 6 6-6 6 6"/>,
     insurance: <><path d="M3 16h4l4 3h6l4-4-2-2-4 3h-4l-3-3H3v7h4"/><path d="M12 11s-5-3-5-6a3 3 0 0 1 5-2 3 3 0 0 1 5 2c0 3-5 6-5 6Z"/></>,
     search: <><circle cx="10.8" cy="10.8" r="6.8"/><path d="m16 16 5 5"/></>,
     filter: <><path d="M3 5h18M6 12h12M10 19h4"/></>,
