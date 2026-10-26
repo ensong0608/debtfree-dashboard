@@ -98,17 +98,36 @@ jobs:
             echo "form_reliability=true" >> "$GITHUB_OUTPUT"
             exit 0
           fi
+          # Approved Home reminders release: run only its focused regressions.
+          if [ "$before" = "01472a1e7de804b0df887cc9ea3196be646bcce5" ]; then
+            reminder_only=true
+            while IFS= read -r changed_path; do
+              case "$changed_path" in
+                .github/workflows/deploy-cloudflare.yml|app/dashboard-client.tsx|app/home-dashboard-page.tsx|app/home-dashboard.module.css|app/outline-icon.tsx|app/due-reminders.ts|app/home-due-reminders.tsx|tests/browser/home-due-reminders.spec.ts|tests/due-reminders.test.mjs) ;;
+                *) reminder_only=false ;;
+              esac
+            done < <(git diff --name-only "$before" HEAD)
+            if [ "$reminder_only" = true ]; then
+              echo "home_reminders=true" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+          fi
           if ! git diff --quiet "$before" HEAD -- app/loan-progress.ts app/loan-progress-panel.tsx app/loan-entry.ts app/loan-details-fields.tsx app/dashboard-client.tsx app/debt-experience.tsx app/debt-experience.module.css app/payoff-schedule.ts app/payments-page.tsx app/debt-entry-dialog.tsx tests/browser/debt-experience.spec.ts; then
             echo "changed=true" >> "$GITHUB_OUTPUT"
           fi
       - name: Install browser for focused debt checks
-        if: steps.loan_changes.outputs.changed == 'true' || steps.loan_changes.outputs.form_reliability == 'true'
+        if: steps.loan_changes.outputs.changed == 'true' || steps.loan_changes.outputs.form_reliability == 'true' || steps.loan_changes.outputs.home_reminders == 'true'
         run: |
-          if [ "${{ steps.loan_changes.outputs.form_reliability }}" = 'true' ]; then
+          if [ "${{ steps.loan_changes.outputs.form_reliability }}" = 'true' ] || [ "${{ steps.loan_changes.outputs.home_reminders }}" = 'true' ]; then
             npx playwright install chromium
           else
             npx playwright install --with-deps chromium
           fi
+      - name: Verify approved Home reminders release
+        if: steps.loan_changes.outputs.home_reminders == 'true'
+        run: |
+          node --test tests/due-reminders.test.mjs
+          npx playwright test --config playwright.local.config.ts tests/browser/home-due-reminders.spec.ts --project=phone
       - name: Verify approved form reliability release
         if: steps.loan_changes.outputs.form_reliability == 'true'
         run: |
