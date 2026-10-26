@@ -105,3 +105,14 @@
 
 
 .spendingSegment{background:var(--theme-summary-ring)}.allocationTrack{background:var(--theme-info-fill)}
+
+.monthPicker{display:flex;align-items:center;justify-content:space-between;width:100%;min-height:44px;padding:0 4px;border:1px solid var(--theme-border);border-radius:12px;background:var(--theme-surface)}.monthPicker button{display:grid;place-items:center;width:44px;min-width:44px;height:44px;padding:0;border:0;background:transparent;font-size:24px}.monthPicker strong{font-size:14px;font-weight:600}.categoryName i{height:8px;width:100%;margin-top:5px}.summaryStats>div+div{border-left:1px solid color-mix(in srgb,var(--theme-on-gradient) 15%,transparent);padding-left:16px}.debtNote{border-top:1px solid color-mix(in srgb,var(--theme-on-gradient) 15%,transparent);padding-top:12px;margin-top:14px}
+
+.allocationTrack{background:var(--theme-summary-ring)}.allocationTrack i{flex:none;height:100%}.allocationTrack{height:12px}.summary{background:linear-gradient(135deg,var(--theme-gradient-start),var(--theme-gradient-end))}.categoryName i{height:8px}
+
+.allocationTrack[data-has-income=false]{background:var(--theme-track)}
+
+.categorySection{border:1px solid var(--theme-border);border-radius:14px;background:var(--theme-surface);overflow:hidden}.sectionHeading{padding:12px 14px 8px;margin:0}.categories{padding:0 12px;border:0;border-radius:0}.category>summary{padding:12px 0;row-gap:6px!important}.categoryIcon{grid-row:1/3}.categoryName{grid-column:2;grid-row:1}.categoryAmount{grid-column:3;grid-row:1}.categoryTrack{display:block;grid-column:2/4;grid-row:2;align-self:start;width:100%;height:8px;border-radius:8px;background:var(--theme-track);overflow:hidden}.categoryTrack>b{display:block;height:100%;border-radius:inherit;background:var(--category-tone)}.categoryPlus,.categoryChevron{grid-column:4;grid-row:1/3}.categoryPlus{position:relative;isolation:isolate}.categoryPlus:before{content:'';position:absolute;inset:6px 2px;z-index:-1;border:1px solid var(--theme-border);border-radius:8px;background:var(--theme-raised)}
+:global(html[data-text-size=larger]) .categoryTrack{grid-column:2;grid-row:3}:global(html[data-text-size=larger]) .categoryIcon{grid-row:1/4}:global(html[data-text-size=larger]) .categoryPlus{grid-column:3;grid-row:1/4}
+
+.category>summary{min-height:60px;padding-block:8px}
