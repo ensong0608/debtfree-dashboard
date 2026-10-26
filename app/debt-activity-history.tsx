@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import type { paymentActivity } from "./payments";
 import { createHouseholdMoneyFormatter } from "./household-currency";
 import { useHouseholdCurrency } from "./household-currency-context";
+import OutlineIcon from "./outline-icon";
 import styles from "./payments-mobile.module.css";
 
 type ActivityRow = ReturnType<typeof paymentActivity>[number];
@@ -28,11 +29,11 @@ function kindLabel(kind: ActivityRow["kind"]) {
 }
 
 /** Debt-wide display only. Uses existing ledger activity; never posts or replays money. */
-export default function DebtActivityHistory({ entries, accountId, accountName, currentEntryId }: {
+export default function DebtActivityHistory({ entries, accountId, accountName, currentEntryId, compact = false }: {
   entries: ReturnType<typeof paymentActivity>;
   accountId: string;
   accountName: string;
-  currentEntryId: string;
+  currentEntryId: string; compact?: boolean;
 }) {
   const money = createHouseholdMoneyFormatter(useHouseholdCurrency(), {
     style: "currency", minimumFractionDigits: 2, maximumFractionDigits: 2,
@@ -58,7 +59,7 @@ export default function DebtActivityHistory({ entries, accountId, accountName, c
   }, []);
 
   return <details className="transaction-secondary" onToggle={event => setExpanded(event.currentTarget.open)}>
-    <summary>Debt history</summary>
+    <summary>{compact && <OutlineIcon name="history"/>}{compact ? "History" : "Debt history"}{compact && <OutlineIcon name="chevron"/>}</summary>
     {expanded && <div className={styles.debtActivityHistory} aria-label={`Transaction activity for ${accountName}`}>
     <div className={styles.debtHistoryIntro}>
       <strong>{accountName} history</strong>

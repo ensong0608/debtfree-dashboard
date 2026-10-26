@@ -17,12 +17,13 @@ import type { CSSProperties } from "react";
 import styles from "./home-dashboard.module.css";
 
 
-export default function HomeDashboardPage({ accounts, loans, progress, progressViews, transactions, adjustments, onSchedule, onViewProgress, strategyRows, strategy }: {
+export default function HomeDashboardPage({ accounts, loans, progress, progressViews, transactions, adjustments, onSchedule, onViewProgress, onViewTransactions, strategyRows, strategy }: {
   strategyRows: PayoffStrategyRow[]; strategy: "avalanche" | "snowball";
   name: string; accounts: DebtAccount[]; schedule: Schedule; scopeLabel?: string; loans: LoanTracker[];
   householdPayment?: number;
   progressViews?: Record<ProgressScope, ReturnType<typeof buildProgressView>>;
   progress: ReturnType<typeof buildActualProgress>; transactions: LedgerTransaction[]; adjustments: BalanceAdjustment[];
+  onViewTransactions: () => void;
   onSchedule: () => void; onAccount: () => void; onViewDebts: () => void; onViewProgress: () => void;
 }) {
   const currency = useHouseholdCurrency();
@@ -71,7 +72,7 @@ export default function HomeDashboardPage({ accounts, loans, progress, progressV
     </section>
 
     <section className={styles.updatesCard} aria-label="Recent financial updates">
-      <header className={styles.sectionHeader}><div><h2>Recent activity</h2></div></header>
+      <header className={styles.sectionHeader}><div><h2>Recent activity</h2></div><button type="button" className={styles.textLink} onClick={onViewTransactions}>See all <OutlineIcon name="chevron"/></button></header>
       {recent.length ? <div className={styles.updateRows}>{recent.slice(0, 3).map(item=>{
         return <article key={item.id}>
           <i className={item.difference < 0 ? styles.blueIcon : styles.neutralIcon}><OutlineIcon name={item.difference < 0 ? "arrow-down" : "arrow-up"}/></i>
