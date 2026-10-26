@@ -194,3 +194,8 @@
 .compactProgressRing{width:112px;height:112px}.compactProgressRing>span{width:90px;height:90px;font-size:24px}.compactSummaryMain{flex-wrap:nowrap;gap:14px;min-height:128px}.compactProgressCopy{flex:1;min-width:0}.compactProgressCopy>strong{font-size:28px}.card:has(#progress-milestone-preview-title){display:none}.milestone{grid-template-columns:32px minmax(0,1fr) auto;align-items:center}.milestone>b{grid-column:auto;text-align:right;font-size:12px}.milestoneCopy strong{font-size:14px}.cardHeader p{font-size:12px}.cardHeader h2{font-size:18px;font-weight:600}.chartFigure svg{height:175px}.chartFigure{padding-inline:6px}.stack{gap:16px}
 @media(max-width:370px){.compactProgressRing{width:100px;height:100px}.compactProgressRing>span{width:80px;height:80px}}:global(html[data-text-size=larger]) .compactSummaryMain{flex-wrap:wrap}
 
+
+/* Wrap only when the ring and full amount cannot fit together. */
+.compactSummaryMain{flex-wrap:wrap}
+.compactProgressCopy{flex:1 1 max-content;min-width:0;max-width:100%}
+.integratedSummary .compactProgressCopy>strong,.compactProgressCopy>p>b,.compactProgressCopy :global(.money-value){white-space:normal;overflow-wrap:anywhere}

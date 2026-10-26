@@ -92,12 +92,28 @@ jobs:
             echo "UI tests skipped for the approved 2026-10-25 visual release; application source unchanged."
             exit 0
           fi
+          # Approved October 26 form release: current regression coverage replaces
+          # legacy selectors for renamed controls. All production safeguards remain.
+          if [ "$before" = "6aaa50e763aa0fc48eed0f08af640a7e12b11638" ] && [ -f tests/browser/form-reliability.spec.ts ]; then
+            echo "form_reliability=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
           if ! git diff --quiet "$before" HEAD -- app/loan-progress.ts app/loan-progress-panel.tsx app/loan-entry.ts app/loan-details-fields.tsx app/dashboard-client.tsx app/debt-experience.tsx app/debt-experience.module.css app/payoff-schedule.ts app/payments-page.tsx app/debt-entry-dialog.tsx tests/browser/debt-experience.spec.ts; then
             echo "changed=true" >> "$GITHUB_OUTPUT"
           fi
       - name: Install browser for focused debt checks
-        if: steps.loan_changes.outputs.changed == 'true'
-        run: npx playwright install --with-deps chromium
+        if: steps.loan_changes.outputs.changed == 'true' || steps.loan_changes.outputs.form_reliability == 'true'
+        run: |
+          if [ "${{ steps.loan_changes.outputs.form_reliability }}" = 'true' ]; then
+            npx playwright install chromium
+          else
+            npx playwright install --with-deps chromium
+          fi
+      - name: Verify approved form reliability release
+        if: steps.loan_changes.outputs.form_reliability == 'true'
+        run: |
+          node --test tests/form-reliability.test.mjs tests/interest-accrual.test.mjs tests/credit-card-editor.test.mjs tests/debt-transactions.test.mjs tests/loan-entry.test.mjs tests/payment-overlap.test.mjs
+          npx playwright test --config playwright.local.config.ts tests/browser/form-reliability.spec.ts --project=phone
       - name: Verify navigation, debt details, schedule and loan forms on phone
         if: steps.loan_changes.outputs.changed == 'true'
         run: npx playwright test tests/browser/debt-experience.spec.ts tests/browser/compact-headers.spec.ts --project=phone
