@@ -29,6 +29,15 @@ export function coveredClose(date: string, day = 2) {
   return closingDate(d.toISOString().slice(0, 7), day);
 }
 export const coveredCostcoClose = (date: string) => coveredClose(date, 2);
+/** Editing metadata must never silently move the user's reconciliation boundary. */
+export function interestSettingsError(config: InterestAutomation, today = householdDate()) {
+  const day = config.closingDay ?? 2;
+  if (!Number.isInteger(day) || day < 1 || day > 31) return 'Enter a statement closing day from 1 to 31.';
+  if (!validDate(config.coveredThrough) || config.coveredThrough > today) return 'Choose an included-through date no later than today.';
+  if (config.coveredThrough !== closingDate(config.coveredThrough.slice(0, 7), day)) return 'Closing day changed. Choose the closing date already included in your balance.';
+  if (!Number.isFinite(config.estimatedApr) || config.estimatedApr < 0 || config.estimatedApr > 100 || config.enabled && config.estimatedApr === 0) return config.enabled ? 'Enter an estimated APR greater than 0 and up to 100%.' : 'Enter an estimated APR from 0 to 100%.';
+  return '';
+}
 export function validInterestConfig(config: InterestAutomation) {
   const day = config.closingDay ?? 2;
   return Number.isInteger(day) && day >= 1 && day <= 31 && validDate(config.coveredThrough) && config.coveredThrough === closingDate(config.coveredThrough.slice(0, 7), day) && Number.isFinite(config.estimatedApr) && config.estimatedApr > 0 && config.estimatedApr <= 100;

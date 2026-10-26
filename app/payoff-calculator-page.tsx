@@ -1,4 +1,5 @@
 "use client";
+import NumericInput from "./numeric-input";
 import InfoTooltip from "./info-tooltip";
 import { createHouseholdMoneyFormatter, householdCurrencySymbol } from "./household-currency";
 import { useHouseholdCurrency } from "./household-currency-context";
@@ -63,7 +64,7 @@ export default function PayoffCalculatorPage({ accounts, amount, strategy, custo
     {!minimumsIncluded&&<p className="calculator-intro">Compare monthly payment amounts.</p>}
     {minimumsIncluded&&<section className="plan-commitment" aria-label="Saved monthly commitment"><span><InfoTooltip label="Monthly commitment">{"The total monthly amount saved for the Payoff Schedule. It covers minimum payments first; the remainder is extra toward the selected payoff order."}</InfoTooltip></span><button type="button" className="secondary edit-saved-plan" disabled={readOnly} aria-expanded={editingPlan} onClick={()=>setEditingPlan(!editingPlan)}>Edit schedule</button><strong>{money.format(amount)}</strong><p>Minimums {money.format(firstMinimums)} · Extra {money.format(Math.max(0,round(amount-firstMinimums)))}</p></section>}
     <section className="plan-controls calculator-controls" hidden={minimumsIncluded&&!editingPlan}>
-      <div className="extra-control"><label htmlFor="extra-monthly">Total monthly debt payment</label><small className="minimum-budget-hint">{minimumsIncluded ? "Includes minimum payments" : "Scenario amount; minimums are not reserved"}</small><div><b aria-hidden="true">{symbol}</b><input id="extra-monthly" type="number" min="0" step="0.01" inputMode="decimal" value={amount || ""} placeholder="7000" disabled={minimumsIncluded && readOnly} onChange={event => onAmount(Math.max(0, Number(event.target.value) || 0))}/></div></div>
+      <div className="extra-control"><label htmlFor="extra-monthly">Total monthly debt payment</label><small className="minimum-budget-hint">{minimumsIncluded ? "Includes minimum payments" : "Scenario amount; minimums are not reserved"}</small><div><b aria-hidden="true">{symbol}</b><NumericInput publishValidOnly id="extra-monthly" value={amount} placeholder="7000" disabled={minimumsIncluded && readOnly} onValueChange={onAmount}/></div></div>
       <div className="strategy-control"><span><InfoTooltip label="Payoff order">{"Avalanche prioritizes the highest projected APR; snowball prioritizes the smallest balance. Minimums are reserved first in the Payoff Schedule. Freed payments roll into the remaining debts."}</InfoTooltip></span><div>{(["avalanche", "snowball"] as const).map(value => <button type="button" key={value} className={selectedStrategy === value ? "active" : ""} aria-pressed={selectedStrategy === value} disabled={minimumsIncluded && readOnly} onClick={() => onStrategy(value)}>{label(value)}</button>)}</div></div>
       {minimumsIncluded&&<button className="secondary finish-plan-edit" type="button" onClick={()=>setEditingPlan(false)}>Done editing</button>}
     </section>
@@ -109,7 +110,7 @@ function MinimumEditor({ account, value, disabled, onSave }: { account: DebtAcco
     onSave(minimum);
   }}>
     <span className="help-label"><InfoTooltip label={account.minimumMode === "auto" ? "Estimated minimum" : "Saved minimum"}>{"A saved statement minimum is used when entered; automatic minimums are estimated from the balance and saved rate, including applicable promotional changes. Editing this field saves the account minimum used by your plan."}</InfoTooltip></span>
-    <div className="allocation-input"><b aria-hidden="true">{symbol}</b><input id={`plan-minimum-${account.id}`} aria-label={`Minimum payment for ${account.name}`} type="text" inputMode="decimal" value={draft} disabled={disabled} aria-invalid={Boolean(error)} aria-describedby={error ? `plan-minimum-error-${account.id}` : undefined} onChange={event => { setDraft(event.target.value); setError(""); }}/></div>
+    <div className="allocation-input"><b aria-hidden="true">{symbol}</b><NumericInput id={`plan-minimum-${account.id}`} aria-label={`Minimum payment for ${account.name}`} value={parseMoneyInput(draft)} text={draft} disabled={disabled} aria-invalid={Boolean(error)} aria-describedby={error ? `plan-minimum-error-${account.id}` : undefined} onValueChange={(_, text) => { setDraft(text); setError(""); }}/></div>
     {changed && <button className="secondary" type="submit" disabled={disabled} aria-label={`Save minimum for ${account.name}`}>Save</button>}
     {error && <small id={`plan-minimum-error-${account.id}`} role="alert">{error}</small>}
   </form>;

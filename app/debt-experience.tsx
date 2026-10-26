@@ -1,4 +1,5 @@
 'use client';
+import BackButton from './back-button';
 import { useId, useMemo, useState, useSyncExternalStore, type ReactNode } from 'react';
 import type { CashflowItem, DebtAccount } from './dashboard-data';
 import { useHouseholdCurrency } from './household-currency-context';
@@ -125,7 +126,7 @@ export function HomeExperience({ name, accounts, loans, starting, current, sched
   </div>;
 }
 export function ExperienceOverlay({ title, onBack, children, wide = false, cardLayout = false, headerAction }: { title: string; onBack: () => void; children: ReactNode; wide?: boolean; cardLayout?: boolean; headerAction?: ReactNode }) {
-  return <div className={styles.backdrop}><section className={`${styles.overlay} ${wide ? styles.wide : ''} ${cardLayout ? styles.cardOverlay : ''}`}  role="dialog" aria-modal="true" aria-label={title}><header className={styles.overlayHeader}><button type="button" data-dialog-close aria-label={`Back from ${title}`} onClick={onBack}>‹</button><h2>{title}</h2>{headerAction}</header>{children}</section></div>;
+  return <div className={styles.backdrop}><section className={`${styles.overlay} ${wide ? styles.wide : ''} ${cardLayout ? styles.cardOverlay : ''}`}  role="dialog" aria-modal="true" aria-label={title}><header className={styles.overlayHeader}><BackButton type="button" data-dialog-close aria-label={`Back from ${title}`} onClick={onBack}/><h2>{title}</h2>{headerAction}</header>{children}</section></div>;
 }
 export function DebtDetail({ name, tab, onTab, onBack, overview, transactions, info, actions, onEdit, readOnly }: { onEdit?: () => void; readOnly?: boolean; name: string; tab: DebtDetailTab; onTab: (tab: DebtDetailTab) => void; onBack: () => void; overview: ReactNode; transactions: ReactNode; info: ReactNode; actions?: ReactNode }) {
   return <ExperienceOverlay title={name} onBack={onBack} cardLayout={Boolean(actions)} headerAction={onEdit && <button type="button" className={styles.headerEdit} disabled={readOnly} onClick={onEdit}>Edit</button>}><div role="tablist" aria-label="Debt detail" className={styles.tabs+" detail-text-tabs"}>{(['Overview', 'Transactions', 'Info'] as const).map(value => <button key={value} type="button" role="tab" id={`debt-${value}`} aria-controls="debt-detail-panel" aria-selected={tab === value} tabIndex={tab === value ? 0 : -1} onKeyDown={navigateTabs} onClick={() => onTab(value)}>{value}</button>)}</div><div className={actions ? styles.detailContent+" "+styles.withCardActions : styles.detailContent} id="debt-detail-panel" role="tabpanel" aria-labelledby={`debt-${tab}`}>{tab === 'Overview' ? overview : tab === 'Transactions' ? transactions : info}</div>{actions&&<footer className={styles.cardActions}>{actions}</footer>}</ExperienceOverlay>;

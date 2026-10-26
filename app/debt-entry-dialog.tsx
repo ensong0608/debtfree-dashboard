@@ -1,7 +1,10 @@
 "use client";
+import BackButton from "./back-button";
+import NumericInput from "./numeric-input";
+import { parseFinancialInput } from "./financial-input";
 import DateCalendar from './date-calendar';
 import { paymentOverlaps, type PaymentLink } from "./payment-overlap";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { changeDebtEntry, signedEntryDraft, type EntryCommand, type EntryState, type EntryKind } from "./debt-transactions";
 import { transactionAdjustedAccounts } from "./progress-balances";
 import { householdDate } from "./interest-accrual";
@@ -59,7 +62,7 @@ export default function DebtEntryDialog({ state, command, readOnly, onSave, onCl
     if (result) setSaveError(result);
     else { setConfirmExit(false); onClose(); }
   };
-  useEffect(() => { const key = (event: KeyboardEvent) => { if (event.key === "Escape") { if (hasUnsavedChanges) setConfirmExit(true); else onClose(); } }; window.addEventListener("keydown", key); return () => window.removeEventListener("keydown", key); }, [hasUnsavedChanges, onClose]);
+
   const change = (key: keyof typeof fields, value: string) => {
     setFields(d => ({ ...d, [key]: value })); setSaveError(""); setOverlapChoice(null); setReviewOverlap(false);
   };
@@ -67,13 +70,13 @@ export default function DebtEntryDialog({ state, command, readOnly, onSave, onCl
   const suggestions = [...new Set([...state.transactions, ...state.adjustments].map(t => t.title).filter((t): t is string => Boolean(t)))].slice(0, 100);
   const isNegative = /^[−-]/.test(fields.amount);
   return <><div className="modal-backdrop" onMouseDown={e => { if (e.currentTarget === e.target) requestClose(); }}><section className="modal debt-action-modal transaction-compose" role="dialog" aria-modal="true" aria-labelledby="debt-entry-title">
-    <header className="back-form-header"><div><h2 id="debt-entry-title">{dialogTitle}</h2></div><button type="button" data-dialog-close aria-label="Back from transaction" onClick={requestClose}>‹</button></header>
+    <header className="back-form-header"><div><h2 id="debt-entry-title">{dialogTitle}</h2></div><BackButton type="button" data-dialog-close aria-label="Back from transaction" onClick={requestClose}/></header>
     <form onSubmit={e => { e.preventDefault(); saveEntry(); }}><div className="debt-action-form compose-fields">
     {command.action === "save" ? <>
       <label className="compose-field"><span>What’s it for?</span><input aria-label="What’s it for?" list="transaction-title-suggestions" maxLength={160} placeholder="e.g. SFC Henderson grocery run" value={fields.title} onChange={e => change("title", e.target.value)}/></label>
       <datalist id="transaction-title-suggestions">{suggestions.map(title => <option key={title} value={title}/>)}</datalist>
       <div className="compose-row"><label className="compose-field"><span>Card used</span><select aria-label="Card used" value={fields.accountId} disabled={Boolean(accountScope || transaction?.interestEstimate)} onChange={e => change("accountId", e.target.value)}>{state.accounts.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}</select></label><DateCalendar label="Transaction date" value={fields.date} disabled={Boolean((accountScope && !flexibleScope) || transaction?.interestEstimate)} onChange={date => change("date", date)}/></div>
-      <label className={"compose-field signed-money " + (isNegative ? "is-payment" : "is-increase")}><span>Amount</span><div className="signed-money-input"><span aria-hidden="true">{householdCurrencySymbol(householdCurrency)}</span><input aria-label="Transaction amount" inputMode="decimal" autoComplete="off" spellCheck={false} value={fields.amount} placeholder="+66.96" aria-describedby="signed-amount-hint entry-validation" onChange={e => change("amount", e.target.value)}/></div></label>
+      <label className={"compose-field signed-money " + (isNegative ? "is-payment" : "is-increase")}><span>Amount</span><div className="signed-money-input"><span aria-hidden="true">{householdCurrencySymbol(householdCurrency)}</span><NumericInput aria-label="Transaction amount" min={-Number.MAX_SAFE_INTEGER / 100} text={fields.amount} value={parseFinancialInput(fields.amount, {min: -Number.MAX_SAFE_INTEGER / 100}).value} placeholder="+66.96" aria-describedby="signed-amount-hint entry-validation" onValueChange={(_, text) => change("amount", text)}/></div></label>
       <fieldset className="direction-choices"><legend>Direction</legend><label><input type="radio" name="transaction-direction" aria-label="Increase debt" checked={!isNegative} onChange={() => setSign(false)}/><span>Increase debt</span></label><label><input type="radio" name="transaction-direction" aria-label="Decrease debt" checked={isNegative} disabled={Boolean((accountScope && !flexibleScope) || transaction?.interestEstimate)} onChange={() => setSign(true)}/><span>Decrease debt</span></label><span id="signed-amount-hint" className="sr-only">Choose the balance direction</span></fieldset>
       {!isNegative && <label className="compose-field"><span>Type</span><select aria-label="Transaction type" value={positiveKind} disabled={Boolean((accountScope && !flexibleScope) || transaction?.interestEstimate)} onChange={event => setPositiveKind(event.target.value as EntryKind)}><option value="purchase">Purchase</option><option value="interest">Interest</option><option value="fee">Fee</option>{!transaction && <option value="adjustment">{flexibleScope?"Balance update":"Balance correction"}</option>}</select></label>}
       {isNegative && <fieldset className="decrease-classification"><legend>Report decrease as</legend><div>{([{value:"payment",label:"Payment"},{value:"credit",label:"Refund / credit"},{value:"adjustment",label:"Balance correction"}] as const).map(option=><label key={option.value} className={negativeKind===option.value?"is-selected":""}><input type="radio" name="decrease-classification" value={option.value} checked={negativeKind===option.value} onChange={()=>setNegativeKind(option.value)}/><span>{flexibleScope && option.value==="adjustment" ? "Balance update" : option.label}</span></label>)}</div></fieldset>}
@@ -84,6 +87,6 @@ export default function DebtEntryDialog({ state, command, readOnly, onSave, onCl
 
     {(reviewOverlap || Boolean(error)) && matches.length > 0 && <section className="payment-overlap" aria-label="Review possible overlap"><strong>This payment may already be included</strong>{matches.map(match => <div key={match.link.type+match.link.id}><p>{match.title} · {match.date} · {money.format(match.difference)} balance change</p><button type="button" className="secondary" disabled={!match.canLink} aria-pressed={overlapChoice !== null && overlapChoice !== "separate" && overlapChoice.id===match.link.id} onClick={() => setOverlapChoice(match.link)}>Already included in that update</button>{!match.canLink && <small>This update already has a payment classification.</small>}</div>)}<button type="button" className="secondary" aria-pressed={overlapChoice==="separate"} onClick={() => setOverlapChoice("separate")}>This is another payment</button></section>}
     <p id="entry-validation" className="compose-validation" role={saveError ? "alert" : "status"}>{saveError || (/\d/.test(fields.amount) ? error : "")}</p>
-    </div><footer className={mobile ? styles.entryFooter : undefined}><div><button type="button" className="secondary" onClick={requestClose}>Cancel</button><button type="submit" className={command.action === "delete" ? "danger" : "primary"} disabled={readOnly || Boolean(error)}>{command.action === "save" ? "Save transaction" : command.action === "delete" ? "Confirm delete" : "Confirm restore"}</button></div>{mobile && command.action === "save" && original && !original.deletedAt && !transaction?.replacedByTransactionId && onRequestDelete && !readOnly && <button type="button" className={styles.deleteEntry} onClick={() => onRequestDelete(expected)}>Delete transaction</button>}</footer></form>
+    </div><footer className={"form-action-footer " + (mobile ? styles.entryFooter : "")}><div><button type="button" className="secondary" onClick={requestClose}>Back</button><button type="submit" className={command.action === "delete" ? "danger" : "primary"} disabled={readOnly || Boolean(error)}>{command.action === "save" ? "Save" : command.action === "delete" ? "Confirm delete" : "Confirm restore"}</button></div>{mobile && command.action === "save" && original && !original.deletedAt && !transaction?.replacedByTransactionId && onRequestDelete && !readOnly && <button type="button" className={styles.deleteEntry} onClick={() => onRequestDelete(expected)}>Delete transaction</button>}</footer></form>
   </section></div>{confirmExit && <UnsavedChangesDialog subject="transaction" onSave={saveEntry} onDiscard={onClose} onCancel={() => setConfirmExit(false)}/>}</>;
 }

@@ -1,4 +1,6 @@
 "use client";
+import NumericInput from "./numeric-input";
+import { parseFinancialInput } from "./financial-input";
 import InfoTooltip from "./info-tooltip";
 import { useId, useMemo, useState } from 'react';
 import type { DebtAccount } from './dashboard-data';
@@ -17,7 +19,7 @@ export default function QuickPayoffCalculator({ accounts, onClose }: { accounts:
   const [date] = useState(() => new Date());
   const inputId = useId();
   const active = useMemo(() => accounts.filter(account => !account.archivedAt && account.balance > 0), [accounts]);
-  const extra = extraText.trim() === '' ? 0 : Number(extraText);
+  const extra = parseFinancialInput(extraText).value;
   const valid = Number.isFinite(extra) && extra >= 0 && Number.isSafeInteger(Math.round(extra * 100));
   const minimums = round(active.reduce((sum, account) => sum + forecastMinimum(account, account.balance * (1 + forecastMonthlyRate(account, 1, date)), 1, date), 0));
   const total = round(minimums + (valid ? extra : 0));
@@ -31,7 +33,7 @@ export default function QuickPayoffCalculator({ accounts, onClose }: { accounts:
     <header><div><h2 id={`${inputId}-title`}>Quick Payoff Calculator</h2><p>Cards &amp; loan debts</p></div>{onClose && <button type="button" className={styles.close} aria-label="Close Quick Payoff Calculator" onClick={onClose}>×</button>}</header>
     {!active.length ? <p>No active card or other debt to calculate.</p> : <>
       <div className={styles.paymentRow}><span className="help-label"><InfoTooltip label="Extra Payment">{"This is added to the minimum payments, rather than replacing them. The calculator is a what-if estimate and does not change your saved plan or Budget."}</InfoTooltip></span>
-      <div className={styles.amountInput}><span aria-hidden="true">{symbol}</span><input id={inputId} aria-label="Extra Payment" type="number" min="0" step="0.01" inputMode="decimal" value={extraText} onChange={event => setExtraText(event.target.value)} aria-describedby={`${inputId}-minimums`} /></div></div>
+      <div className={styles.amountInput}><span aria-hidden="true">{symbol}</span><NumericInput id={inputId} aria-label="Extra Payment" value={extra} onValueChange={(_, text) => setExtraText(text)} aria-describedby={`${inputId}-minimums`}/></div></div>
       <p id={`${inputId}-minimums`}>Minimums {money.format(minimums)} included. Total: {money.format(total)}.</p>
       <div className={styles.strategies} role="group" aria-label="Quick payoff strategy">{(['avalanche', 'snowball'] as const).map(value => <button key={value} type="button" aria-pressed={strategy === value} onClick={() => setStrategy(value)}>{value === 'avalanche' ? 'Avalanche' : 'Snowball'}</button>)}</div>
       {error ? <p role="status">{error}</p> : plan && <div aria-live="polite">

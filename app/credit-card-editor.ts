@@ -3,11 +3,11 @@ import type { DebtAccount, DebtAuditCreator } from './dashboard-data.ts';
 import type { EntryState } from './debt-transactions.ts';
 import { transactionAdjustedAccounts } from './progress-balances.ts';
 import { createBalanceAdjustment, setDebtArchived } from './debts-screen.ts';
-import { householdDate, reconcileInterest } from './interest-accrual.ts';
+import { householdDate, reconcileInterest, interestSettingsError } from './interest-accrual.ts';
 import {startingBalanceEdit} from './debt-starting-balance.ts';
 
 const editableKeys = ['institutionKey', 'displayGroup', 'name', 'apr', 'interestFee', 'minimum', 'minimumMode', 'creditLimit', 'dueDate', 'promoEndDate', 'postPromoApr', 'postPromoMinimum'] as const;
-export type CreditCardDraft = Pick<DebtAccount, typeof editableKeys[number]> & {balance: number; baselineBalance?: number; displayPosition?: number};
+export type CreditCardDraft = Pick<DebtAccount, typeof editableKeys[number] | 'interestAutomation'> & {balance: number; baselineBalance?: number; displayPosition?: number};
 export type CardEditBaseline = {account: DebtAccount; balance: number; startingBalance?: number};
 
 function reconcileBalance(state: EntryState, account: DebtAccount, balance: number, creator?: DebtAuditCreator): EntryState {
@@ -34,11 +34,18 @@ export function saveCreditCardDetails(state: EntryState, id: string, draft: Cred
     if (!Number.isFinite(value) || value < 0 || !Number.isSafeInteger(Math.round(value * 100)) || Math.abs(value * 100 - Math.round(value * 100)) > 0.000001) throw new Error('Use non-negative amounts with up to two decimal places.');
   }
   const balanceChanged = draft.balance !== baseline.balance;
+  const interestChanged = draft.interestAutomation !== undefined && JSON.stringify(draft.interestAutomation) !== JSON.stringify(baseline.account.interestAutomation);
+  if (interestChanged) {
+    if (JSON.stringify(account.interestAutomation) !== JSON.stringify(baseline.account.interestAutomation)) throw new Error('Interest settings changed. Reopen the card before saving.');
+    const error = interestSettingsError(draft.interestAutomation!);
+    if (error) throw new Error(error);
+    if (balanceChanged) throw new Error('Save interest settings and balance changes separately.');
+  }
   const current = transactionAdjustedAccounts(state.accounts, state.transactions).find(item => item.id === id)!;
   if (balanceChanged && current.balance !== baseline.balance) throw new Error('The balance changed. Reopen the card before editing its balance.');
   const next = balanceChanged ? reconcileBalance(state, account, draft.balance, creator) : state;
   const changes = Object.fromEntries(editableKeys.map(key => [key, key === 'name' ? draft.name.trim() : key === 'displayGroup' ? draft.displayGroup ?? baseline.account.displayGroup : draft[key]]));
-  return {...next, accounts: next.accounts.map(item => item.id === id ? {...item, ...changes, ...(startingBalance !== undefined ? {baselineBalance:startingBalance} : {})} : item)};
+  return {...next, accounts: next.accounts.map(item => item.id === id ? {...item, ...changes, ...(interestChanged ? {interestAutomation:draft.interestAutomation} : {}), ...(startingBalance !== undefined ? {baselineBalance:startingBalance} : {})} : item)};
 }
 
 export function markCreditCardPaidOff(state: EntryState, id: string, creator?: DebtAuditCreator): EntryState {

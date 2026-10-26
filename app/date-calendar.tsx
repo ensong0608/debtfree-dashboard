@@ -14,7 +14,8 @@ export default function DateCalendar({ label, value, onChange, min, max, disable
   const [open, setOpen] = useState(false);
   const [pending, setPending] = useState(value ?? '');
   const close = () => { setOpen(false); requestAnimationFrame(() => trigger.current?.focus()); };
-  const show = () => { setPending(value ?? ''); setMonth(!recurring && /^\d{4}-\d{2}-\d{2}$/.test(value ?? '') ? value!.slice(0,7) : householdDate().slice(0,7)); setOpen(true); };
+  // The pending recurring value is the canonical day, never this month's clamped occurrence.
+  const show = () => { setPending(recurring && recurringDay ? `2000-01-${String(recurringDay).padStart(2, '0')}` : value ?? ''); setMonth(!recurring && /^\d{4}-\d{2}-\d{2}$/.test(value ?? '') ? value!.slice(0,7) : householdDate().slice(0,7)); setOpen(true); };
   const [month, setMonth] = useState(() => !recurring && /^\d{4}-\d{2}-\d{2}$/.test(value ?? '') ? value!.slice(0,7) : householdDate().slice(0,7));
   const [year, index] = month.split('-').map(Number);
   const first = new Date(Date.UTC(year,index-1,1)).getUTCDay(), count = new Date(Date.UTC(year,index,0)).getUTCDate();
