@@ -32,11 +32,13 @@ test('Blue & Slate reaches every screen, subtab and form without changing househ
       }
       if(tab==='Progress' || tab==='Budget') {
         for(const segment of await header.locator('.compact-segments button').all()) {
+          const segmentName=await segment.innerText();
           await segment.click();
           expect(await header.locator('.compact-segments').evaluate(el=>el.scrollWidth<=el.clientWidth+1)).toBe(true);
           if(width===390) {
             const a11y=await new AxeBuilder({page}).include('.app-shell').withRules(['color-contrast']).analyze();
             expect(a11y.violations).toEqual([]);
+            await page.screenshot({path:`outputs/blue-slate-light/390-${tab}-${segmentName}.png`});
           }
         }
       }

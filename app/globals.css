@@ -2385,3 +2385,6 @@ button:focus-visible,summary:focus-visible,input:focus-visible,select:focus-visi
 :root:not([data-theme=dark]) .payoff-strategy-list time,
 :root:not([data-theme=dark]) .strategy-date{background:var(--theme-accent-soft);color:var(--theme-accent)}
 :root:not([data-theme=dark]) .appearance-accents button>span{color:#fff}
+:root:not([data-theme=dark]) .utilization-card header .utilization-card-value>strong{color:var(--theme-on-success)}
+:root:not([data-theme=dark]) .utilization-card header .utilization-card-value.watch>strong{color:var(--theme-on-warning)}
+:root:not([data-theme=dark]) .utilization-card header .utilization-card-value.high>strong{color:var(--theme-on-danger)}
