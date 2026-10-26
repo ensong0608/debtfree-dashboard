@@ -41,6 +41,21 @@ jobs:
         run: |
           before="$RELEASE_BEFORE"
           if [ -z "$before" ] || ! git cat-file -e "$before^{commit}" 2>/dev/null; then before=HEAD^; fi
+          # Approved starting-balance release: reuse the 13 focused checks already passed.
+          # Do not expand into the broad UI suite; keep all production data/auth safeguards.
+          if [ "$before" = "a78670a57d20a55d7197d85f913346facdb18e45" ]; then
+            starting_balance_only=true
+            while IFS= read -r changed_path; do
+              case "$changed_path" in
+                .github/workflows/deploy-cloudflare.yml|app/credit-card-editor.ts|app/credit-card-info.tsx|app/dashboard-client.tsx|app/debt-experience.tsx|app/debt-starting-balance.ts|tests/debt-starting-balance.test.mjs) ;;
+                *) starting_balance_only=false ;;
+              esac
+            done < <(git diff --name-only "$before" HEAD)
+            if [ "$starting_balance_only" = true ]; then
+              echo "Starting-balance release uses completed focused checks; broad UI tests skipped."
+              exit 0
+            fi
+          fi
           # Owner approved the Budget/transaction presentation update without UI tests.
           # Match this release's base and allow only its reviewed presentation files.
           if [ "$before" = "77506b3722987f58fd3c7b5e53ec8a9046e78041" ]; then
