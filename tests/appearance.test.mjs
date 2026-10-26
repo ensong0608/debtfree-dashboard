@@ -18,7 +18,7 @@ test('v1 custom colors migrate in memory with font/size and remain recoverable a
 });
 test('both palettes and supported customs validate theme identity and readable semantic pairs', () => {
   assert.equal(contrast('#000000', '#ffffff'), 21);
-  for (const p of [...Object.values(THEMES), ...Object.values(PRESETS), { ...THEMES.dark, surface:'#202018', background:'#11110e', accent:'#ffb94c', text:'#fffdf6' }, parseAppearance(JSON.stringify(legacy)), { ...DEFAULT_APPEARANCE, accent:'#707070', text:'#707070' }]) {
+  for (const p of [...Object.values(THEMES), ...Object.values(PRESETS), { ...THEMES.dark, surface:'#202018', background:'#11110e', accent:'#ffb94c', text:'#fffdf6' }, parseAppearance(JSON.stringify(legacy)), { ...DEFAULT_APPEARANCE, accent:'#686868', text:'#686868' }]) {
     assert.equal(appearanceError(p), null);
     const t = appearanceTokens(p);
     const check=(fg,bg,min=4.5)=>assert.ok(contrast(t[`--theme-${fg}`],t[`--theme-${bg}`]) >= min, `${p.theme}: ${fg} / ${bg}`);
@@ -71,4 +71,20 @@ test('all presets and extreme custom primary colors keep headers, segments and a
     const t=appearanceTokens(p);
     for(const [fg,bg] of [['on-primary','primary'],['on-header-rail','header-rail'],['on-header-selected','header-selected'],['on-accent','accent-fill'],['accent','surface'],['accent','background']]) assert.ok(contrast(t['--theme-'+fg],t['--theme-'+bg])>=4.5,`${theme} ${color} ${fg}`);
   }
+});
+
+
+test('previous built-in Light preferences receive Blue & Slate without rewriting saved custom preferences', () => {
+  const previous = {...DEFAULT_APPEARANCE, accent:'#0961d9', background:'#f3f7fd', surface:'#ffffff', text:'#101b31', primaryLight:'#cfe7fa', primaryDark:'#123639', font:'serif', size:'large'};
+  const upgraded = parseAppearance(JSON.stringify(previous));
+  for (const key of ['accent','background','surface','text']) assert.equal(upgraded[key], DEFAULT_APPEARANCE[key]);
+  assert.equal(primaryColor(upgraded),'#295e9b');
+  assert.equal(upgraded.primaryDark,previous.primaryDark);
+  assert.equal(upgraded.font,'serif'); assert.equal(upgraded.size,'large');
+  const custom = {...PRESETS.sand, primaryLight:'#aaccee', primaryDark:'#123639'};
+  assert.deepEqual(parseAppearance(JSON.stringify(custom)),custom);
+  assert.deepEqual(parseAppearance(JSON.stringify({...THEMES.dark,primaryLight:'#aaccee'})),{...THEMES.dark,primaryLight:'#aaccee'});
+  const raw=JSON.stringify(previous);
+  const storage={getItem:()=>raw,setItem:()=>assert.fail('loading does not rewrite preferences')};
+  assert.deepEqual(loadAppearance(storage),upgraded);
 });
