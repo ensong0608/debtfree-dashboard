@@ -15,9 +15,12 @@ import OutlineIcon from "./outline-icon";
 import DebtScopeCarousel from "./debt-scope-carousel";
 import type { CSSProperties } from "react";
 import styles from "./home-dashboard.module.css";
+import HomeDueReminders from './home-due-reminders';
+import type { DueReminder } from './due-reminders';
 
 
-export default function HomeDashboardPage({ accounts, loans, progress, progressViews, transactions, adjustments, onSchedule, onViewProgress, onViewTransactions, strategyRows, strategy }: {
+export default function HomeDashboardPage({ accounts, loans, progress, progressViews, transactions, adjustments, onSchedule, onViewProgress, onViewTransactions, strategyRows, strategy, dueReminders, onOpenReminder }: {
+  dueReminders: DueReminder[]; onOpenReminder: (reminder: DueReminder) => void;
   strategyRows: PayoffStrategyRow[]; strategy: "avalanche" | "snowball";
   name: string; accounts: DebtAccount[]; schedule: Schedule; scopeLabel?: string; loans: LoanTracker[];
   householdPayment?: number;
@@ -65,6 +68,8 @@ export default function HomeDashboardPage({ accounts, loans, progress, progressV
         <div className={styles.compactCopy}><strong><span className="money-value">{money.format(current)}</span> <small>left</small></strong><span>{progressPercent === null ? "Starting comparison unavailable" : `${money.format(Math.abs(reduction))} ${reduction >= 0 ? "reduced" : "increased"}`}</span><button type="button" className={styles.textLink} onClick={onViewProgress} aria-label="View detailed progress">View progress <OutlineIcon name="chevron"/></button></div>
       </div>}
     </section>
+
+    <HomeDueReminders reminders={dueReminders} onOpen={onOpenReminder}/>
 
     <section className={styles.scheduleCard} aria-label="Payoff Strategy preview">
       <header className={styles.sectionHeader}><div><h2>Payoff strategy</h2><p>{strategy === "snowball" ? "Snowball" : "Avalanche"} · Cards &amp; Loans</p></div><button type="button" className={styles.textLink} onClick={onSchedule}>See all <OutlineIcon name="chevron"/></button></header>
