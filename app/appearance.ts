@@ -5,13 +5,14 @@ export const FONTS = { default: 'Helvetica,"Helvetica Neue",Arial,sans-serif', s
 export type Theme = 'light' | 'dark';
 type Colors = { accent: string; background: string; surface: string; text: string };
 export type Appearance = Colors & { version: 2; theme: Theme; font: keyof typeof FONTS; size: 'standard' | 'large' | 'larger'; legacyColors?: Colors; primaryLight?: string; primaryDark?: string };
-export const PRIMARY_DEFAULTS = { light: '#cfe7fa', dark: '#182b45' };
+export const PRIMARY_DEFAULTS = { light: '#295e9b', dark: '#182b45' };
 export const PRIMARY_PRESETS = {
   dark: [{ name: 'Midnight Navy', color: '#182b45' }, { name: 'Deep Indigo', color: '#292343' }, { name: 'Deep Teal', color: '#123639' }, { name: 'Graphite', color: '#252b35' }],
-  light: [{ name: 'Soft Blue', color: '#cfe7fa' }, { name: 'Lavender', color: '#e4dcf6' }, { name: 'Mint', color: '#d2eee5' }, { name: 'Silver', color: '#e1e6ed' }],
+  light: [{ name: 'Blue & Slate', color: '#295e9b' }, { name: 'Lavender', color: '#e4dcf6' }, { name: 'Mint', color: '#d2eee5' }, { name: 'Silver', color: '#e1e6ed' }],
 } satisfies Record<Theme, { name: string; color: string }[]>;
 export function primaryColor(p: Appearance, theme = p.theme) { return (theme === 'dark' ? p.primaryDark : p.primaryLight) ?? PRIMARY_DEFAULTS[theme]; }
-const LIGHT: Colors = { accent: '#0961d9', background: '#f3f7fd', surface: '#ffffff', text: '#101b31' };
+const PREVIOUS_LIGHT: Colors = { accent: '#0961d9', background: '#f3f7fd', surface: '#ffffff', text: '#101b31' };
+const LIGHT: Colors = { accent: '#295e9b', background: '#e4ebf3', surface: '#f5f8fc', text: '#101b31' };
 const DARK: Colors = { accent: '#42cfff', background: '#080e16', surface: '#131e2b', text: '#edf3ff' };
 export const DEFAULT_APPEARANCE: Appearance = { version: 2, theme: 'light', font: 'default', size: 'standard', ...LIGHT };
 export const THEMES = { light: DEFAULT_APPEARANCE, dark: { ...DEFAULT_APPEARANCE, theme: 'dark', ...DARK } } satisfies Record<Theme, Appearance>;
@@ -63,6 +64,10 @@ export function parseAppearance(raw: string | null): Appearance {
       return { ...DEFAULT_APPEARANCE, font, size };
     }
     if (appearanceError(p)) return { ...DEFAULT_APPEARANCE };
+    // Upgrade only the former built-in Light palette in memory. Keep custom
+    // surfaces, typography, the selected theme and separately saved Dark color.
+    if (p.theme === 'light' && colorKeys.every(key => p[key].toLowerCase() === PREVIOUS_LIGHT[key])) Object.assign(p, LIGHT);
+    if (p.primaryLight?.toLowerCase() === '#cfe7fa') p.primaryLight = PRIMARY_DEFAULTS.light;
     return { version: 2, theme: p.theme, font: p.font, size: p.size, ...normalizeColors(p), ...(p.legacyColors ? { legacyColors: normalizeColors(p.legacyColors) } : {}), ...(p.primaryLight ? { primaryLight: p.primaryLight.toLowerCase() } : {}), ...(p.primaryDark ? { primaryDark: p.primaryDark.toLowerCase() } : {}) };
   } catch { return { ...DEFAULT_APPEARANCE }; }
 }
@@ -120,7 +125,7 @@ export function appearanceTokens(p: Appearance): Record<string, string> {
     '--theme-strong-surface': dark ? '#19263c' : '#182c4a', '--theme-on-strong': '#edf3ff',
     '--theme-track': mix(text, surface, .16), '--theme-overlay': '#030a16b3',
     '--theme-focus': readable(accent), '--theme-shadow': dark ? '#00000040' : '#17243a12',
-    '--theme-chart-1': readable(dark ? '#42cfff' : '#0961d9', undefined, 3),
+    '--theme-chart-1': readable(dark ? '#42cfff' : accent, undefined, 3),
     '--theme-chart-2': readable(dark ? '#ab94ff' : '#7040c6', undefined, 3),
     '--theme-chart-3': readable(dark ? '#36dfb3' : '#00795d', undefined, 3),
     '--theme-chart-grid': mix(text, surface, .2),
@@ -128,7 +133,7 @@ export function appearanceTokens(p: Appearance): Record<string, string> {
     '--theme-art-mountain-back': tint(accent, .14), '--theme-art-mountain-front': tint(text, .12),
     '--theme-art-water': tint(accent, .1), '--theme-art-tree': tint(text, .18),
     '--theme-art-sun': tint(dark ? '#ffd078' : '#855000', .14),
-    '--theme-gradient-start': dark ? '#12443F' : '#dfeeff', '--theme-gradient-end': dark ? '#152B35' : '#eff8ff',
+    '--theme-gradient-start': dark ? '#12443F' : '#d4e3f4', '--theme-gradient-end': dark ? '#152B35' : '#e1edfa',
     '--theme-on-gradient': dark ? '#edf3ff' : '#101b31',
     '--theme-summary-ring': dark ? '#82DFC4' : '#007458',
     '--theme-font': FONTS[p.font], '--theme-text-scale': p.size === 'large' ? '1.12' : p.size === 'larger' ? '1.24' : '1',

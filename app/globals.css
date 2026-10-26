@@ -2348,7 +2348,7 @@ button:focus-visible,summary:focus-visible,input:focus-visible,select:focus-visi
 .form-grid .date-calendar-field,.card-info .date-calendar-field{padding:0;border:0;border-radius:0;background:transparent}
 
 /* One compact header/segment system across screens and debt details. */
-.shared-dashboard-header{position:sticky;top:0;z-index:8;background:var(--theme-primary,#cfe7fa);color:var(--theme-on-primary,#000);padding:4px 16px 0}
+.shared-dashboard-header{position:sticky;top:0;z-index:8;background:var(--theme-primary,#295e9b);color:var(--theme-on-primary,#fff);padding:4px 16px 0}
 .shared-dashboard-header:has(.compact-segments){padding-bottom:8px}
 .shared-dashboard-topbar{min-height:56px;gap:12px}
 .shared-dashboard-header .page-heading{flex:1;min-width:0;min-height:0;margin:0;padding:0}
@@ -2370,7 +2370,7 @@ button:focus-visible,summary:focus-visible,input:focus-visible,select:focus-visi
 .compact-segments.compact-segments>button:is([aria-pressed=true],[aria-selected=true],[aria-current=page]){color:var(--theme-on-header-selected,#000);background:transparent;box-shadow:none}
 .compact-segments.compact-segments>button:is([aria-pressed=true],[aria-selected=true],[aria-current=page]):before{content:"";position:absolute;inset:7px 3px;z-index:-1;background:var(--theme-header-selected,#a6b9c8);border-radius:7px}
 .shared-dashboard-header button:focus-visible,.compact-segments button:focus-visible{outline:2px solid currentColor;outline-offset:-2px}
-.strategy-header{background:var(--theme-primary,#cfe7fa);color:var(--theme-on-primary,#000);padding:4px 16px;min-height:60px}
+.strategy-header{background:var(--theme-primary,#295e9b);color:var(--theme-on-primary,#fff);padding:4px 16px;min-height:60px}
 .strategy-header>div{min-height:52px;margin:0;gap:10px}
 .strategy-header h2,.strategy-header button{color:inherit}
 .strategy-inline{display:block!important;width:100%!important;height:auto!important;max-height:none!important;max-width:none!important;border:0;border-radius:0;box-shadow:none}
@@ -2378,3 +2378,10 @@ button:focus-visible,summary:focus-visible,input:focus-visible,select:focus-visi
 .strategy-inline .strategy-content{padding:0 0 24px}
 .shared-dashboard-page .budget-workspace{padding-bottom:24px}
 @media(max-width:360px){.shared-dashboard-header{padding-inline:12px}.home-welcome{padding-inline:12px}.compact-segments.compact-segments>button{font-size:calc(12px * var(--theme-text-scale,1))}}
+
+/* Approved Blue & Slate Light palette; shared geometry remains unchanged. */
+:root:not([data-theme=dark]){--paper:var(--theme-background);--line:var(--theme-border)}
+:root:not([data-theme=dark]) .sidebar .nav-item.active{background:var(--theme-accent-soft);color:var(--theme-accent)}
+:root:not([data-theme=dark]) .payoff-strategy-list time,
+:root:not([data-theme=dark]) .strategy-date{background:var(--theme-accent-soft);color:var(--theme-accent)}
+:root:not([data-theme=dark]) .appearance-accents button>span{color:#fff}
