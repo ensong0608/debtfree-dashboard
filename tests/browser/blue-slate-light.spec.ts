@@ -27,7 +27,7 @@ test('Blue & Slate reaches every screen, subtab and form without changing househ
       expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1)).toBe(true);
       if(width===390 || width===1440) {
         const a11y=await new AxeBuilder({page}).include('.app-shell').withRules(['color-contrast','button-name']).analyze();
-        expect(a11y.violations,`${width} ${tab}`).toEqual([]);
+        expect.soft(a11y.violations,`${width} ${tab}`).toEqual([]);
         await page.screenshot({path:`outputs/blue-slate-light/${width}-${tab}.png`});
       }
       if(tab==='Progress' || tab==='Budget') {
@@ -37,7 +37,7 @@ test('Blue & Slate reaches every screen, subtab and form without changing househ
           expect(await header.locator('.compact-segments').evaluate(el=>el.scrollWidth<=el.clientWidth+1)).toBe(true);
           if(width===390) {
             const a11y=await new AxeBuilder({page}).include('.app-shell').withRules(['color-contrast']).analyze();
-            expect(a11y.violations).toEqual([]);
+            expect.soft(a11y.violations).toEqual([]);
             await page.screenshot({path:`outputs/blue-slate-light/390-${tab}-${segmentName}.png`});
           }
         }
@@ -47,7 +47,7 @@ test('Blue & Slate reaches every screen, subtab and form without changing househ
         const dialog=page.getByRole('dialog');
         await expect(dialog).toBeVisible();
         const a11y=await new AxeBuilder({page}).include('[role=dialog]').withRules(['color-contrast','button-name']).analyze();
-        expect(a11y.violations).toEqual([]);
+        expect.soft(a11y.violations).toEqual([]);
         await page.screenshot({path:'outputs/blue-slate-light/390-Add-debt.png'});
         await dialog.getByRole('button',{name:'Back from account form',exact:true}).click();
       }

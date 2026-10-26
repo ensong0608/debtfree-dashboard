@@ -2388,3 +2388,5 @@ button:focus-visible,summary:focus-visible,input:focus-visible,select:focus-visi
 :root:not([data-theme=dark]) .utilization-card header .utilization-card-value>strong{color:var(--theme-on-success)}
 :root:not([data-theme=dark]) .utilization-card header .utilization-card-value.watch>strong{color:var(--theme-on-warning)}
 :root:not([data-theme=dark]) .utilization-card header .utilization-card-value.high>strong{color:var(--theme-on-danger)}
+:root:not([data-theme=dark]) .shared-dashboard-header nav[aria-label="Budget sections"].compact-segments>button{color:var(--theme-on-primary)}
+:root:not([data-theme=dark]) .shared-dashboard-header nav[aria-label="Budget sections"].compact-segments>button[aria-pressed=true]{color:var(--theme-on-primary);box-shadow:inset 0 -3px var(--theme-on-primary)}
