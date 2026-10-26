@@ -32,6 +32,7 @@ test('Home due reminders expand, open matching debt and Budget, and preserve fin
   const before = await saved(page);
   let card = page.getByRole('region', { name: 'Upcoming due reminders' });
   await expect(card.getByRole('listitem')).toHaveCount(3);
+  await expect(card.getByText('Critical ·', { exact: true })).toHaveCount(3);
   await expect(card.getByRole('listitem').first()).toContainText('Sample card');
   await expect(card.getByRole('listitem').first()).toContainText('Due today');
   await expect(card.getByRole('listitem').nth(1)).toContainText('Due tomorrow');
@@ -85,6 +86,66 @@ test('Home due reminders fit both themes, narrow screens and larger text, with a
   }
   await page.evaluate(key => { const data = JSON.parse(localStorage.getItem(key)!); data.payload.accounts = []; data.payload.monthlyBudgets = {}; data.payload.monthlyPlan.loanTrackers = []; localStorage.setItem(key, JSON.stringify(data)); }, DASHBOARD_STORAGE_KEY);
   await page.reload();
-  await expect(card).toContainText('Add a due date to a debt or recurring bill');
-  await expect(card.getByRole('listitem')).toHaveCount(0);
+  await expect(card).toHaveCount(0);
+});
+
+
+test('Home reminders appear at ten days, are critical at three, and hide outside the window', async ({page}) => {
+  await page.evaluate(key => {
+    const data=JSON.parse(localStorage.getItem(key)!);
+    const source=data.payload.accounts[0];
+    data.payload.accounts=[
+      {...source,id:'ten',name:'Ten day card',dueDate:'2000-01-05'},
+      {...source,id:'eleven',name:'Eleven day card',dueDate:'2000-01-06'},
+      {...source,id:'three',name:'Three day card',dueDate:'2000-01-29'},
+      {...source,id:'four',name:'Four day card',dueDate:'2000-01-30'},
+    ];
+    data.payload.monthlyBudgets={};data.payload.monthlyPlan.loanTrackers=[];
+    localStorage.setItem(key,JSON.stringify(data));
+  },DASHBOARD_STORAGE_KEY);
+  await page.reload();
+  const card=page.getByRole('region',{name:'Upcoming due reminders'});
+  await expect(card.getByRole('listitem')).toHaveCount(3);
+  await expect(card).not.toContainText('Eleven day card');
+  await expect(card.getByRole('listitem').filter({hasText:'Three day card'})).toContainText('Critical');
+  await expect(card.getByRole('listitem').filter({hasText:'Four day card'})).not.toContainText('Critical');
+  await expect(card.getByRole('listitem').filter({hasText:'Ten day card'})).toContainText('In 10 days');
+  await page.evaluate(key => {
+    const data=JSON.parse(localStorage.getItem(key)!);
+    data.payload.accounts=data.payload.accounts.filter((a:{id:string})=>a.id==='eleven');
+    localStorage.setItem(key,JSON.stringify(data));
+  },DASHBOARD_STORAGE_KEY);
+  await page.reload();
+  await expect(card).toHaveCount(0);
+});
+
+
+test('Mark as paid confirms, persists and undoes without changing balances or recording duplicate payments', async ({page}) => {
+  const before=await saved(page);
+  const card=page.getByRole('region',{name:'Upcoming due reminders'});
+  await card.getByRole('button',{name:'Mark Sample card as paid',exact:true}).click();
+  const confirmation=page.getByRole('dialog',{name:'Mark reminder as paid?',exact:true});
+  await expect(confirmation).toContainText('Balances stay unchanged.');
+  await confirmation.getByRole('button',{name:'Cancel',exact:true}).click();
+  await expect(card.getByRole('button',{name:/^View Sample card,/})).toBeVisible();
+  await card.getByRole('button',{name:'Mark Sample card as paid',exact:true}).click();
+  await confirmation.getByRole('button',{name:'Mark as paid',exact:true}).click();
+  await expect(card.getByRole('button',{name:/^View Sample card,/})).toHaveCount(0);
+  await expect.poll(async()=>(await saved(page)).monthlyPlan.dueReminderPaid?.length).toBe(1);
+  await page.reload();
+  await expect(card.getByRole('button',{name:/^View Sample card,/})).toHaveCount(0);
+  await page.getByRole('button',{name:'Undo marking Sample card paid',exact:true}).click();
+  await expect(card.getByRole('button',{name:/^View Sample card,/})).toBeVisible();
+  for (const name of ['Sample card','Electric','Sample auto']) {
+    const expand=card.getByRole('button',{name:/See all/});
+    if(await expand.count())await expand.click();
+    await card.getByRole('button',{name:`Mark ${name} as paid`,exact:true}).click();
+    await confirmation.getByRole('button',{name:'Mark as paid',exact:true}).click();
+  }
+  const after=await saved(page);
+  expect(after.monthlyPlan.dueReminderPaid.map((r:{id:string})=>r.id).sort()).toEqual(['account:demo-card','loan:auto','spending:bill']);
+  for(const key of ['accounts','transactions','balanceAdjustments','snapshots','monthlyBudgets'])expect(after[key]).toEqual(before[key]);
+  const {dueReminderPaid,...settings}=after.monthlyPlan;
+  expect(dueReminderPaid).toHaveLength(3);
+  expect(settings).toEqual(before.monthlyPlan);
 });

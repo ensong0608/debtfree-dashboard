@@ -98,12 +98,12 @@ jobs:
             echo "form_reliability=true" >> "$GITHUB_OUTPUT"
             exit 0
           fi
-          # Approved Home reminders release: run only its focused regressions.
-          if [ "$before" = "01472a1e7de804b0df887cc9ea3196be646bcce5" ]; then
+          # Approved Home reminder releases: run only their focused regressions.
+          if [ "$before" = "01472a1e7de804b0df887cc9ea3196be646bcce5" ] || [ "$before" = "b17e0251443a82123592bcde02b02ca4ed9e4e2a" ]; then
             reminder_only=true
             while IFS= read -r changed_path; do
               case "$changed_path" in
-                .github/workflows/deploy-cloudflare.yml|app/dashboard-client.tsx|app/home-dashboard-page.tsx|app/home-dashboard.module.css|app/outline-icon.tsx|app/due-reminders.ts|app/home-due-reminders.tsx|tests/browser/home-due-reminders.spec.ts|tests/due-reminders.test.mjs) ;;
+                .github/workflows/deploy-cloudflare.yml|app/action-confirmation.tsx|app/dashboard-data.ts|app/dashboard-client.tsx|app/home-dashboard-page.tsx|app/home-dashboard.module.css|app/outline-icon.tsx|app/due-reminders.ts|app/home-due-reminders.tsx|tests/browser/home-due-reminders.spec.ts|tests/due-reminders.test.mjs) ;;
                 *) reminder_only=false ;;
               esac
             done < <(git diff --name-only "$before" HEAD)
@@ -126,7 +126,7 @@ jobs:
       - name: Verify approved Home reminders release
         if: steps.loan_changes.outputs.home_reminders == 'true'
         run: |
-          node --test tests/due-reminders.test.mjs
+          node --test tests/due-reminders.test.mjs tests/dashboard-data.test.mjs
           npx playwright test --config playwright.local.config.ts tests/browser/home-due-reminders.spec.ts --project=phone
       - name: Verify approved form reliability release
         if: steps.loan_changes.outputs.form_reliability == 'true'

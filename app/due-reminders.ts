@@ -16,6 +16,20 @@ export type DueReminder = {
   daysAway: number;
 };
 
+export function dueReminderUrgency(daysAway: number): 'critical' | 'upcoming' | null {
+  if (!Number.isInteger(daysAway) || daysAway < 0 || daysAway > 10) return null;
+  return daysAway <= 3 ? 'critical' : 'upcoming';
+}
+
+/** Notification acknowledgement only: no ledger, balance or Budget paid entry. */
+export function setDueReminderPaid(settings: MonthlyPlanSettings, reminder: Pick<DueReminder, 'id' | 'date'>, paid: boolean, now = new Date().toISOString()): MonthlyPlanSettings {
+  if (!/^(account|loan|spending):.+$/.test(reminder.id) || !/^\d{4}-\d{2}-\d{2}$/.test(reminder.date) || !Number.isFinite(Date.parse(reminder.date)) || new Date(reminder.date).toISOString().slice(0, 10) !== reminder.date) throw new Error('This reminder is invalid.');
+  const records = settings.dueReminderPaid ?? [];
+  const exists = records.some(record => record.id === reminder.id && record.date === reminder.date);
+  if (exists === paid) return settings;
+  return { ...settings, dueReminderPaid: paid ? [...records, { id: reminder.id, date: reminder.date, markedAt: now }] : records.filter(record => record.id !== reminder.id || record.date !== reminder.date) };
+}
+
 /** Read-only reminders from saved monthly obligations, independent of payoff scope.
  * Past dates roll forward without declaring a lender payment overdue. Canonical
  * recurring days, balances and paid records are never rewritten by this view.
@@ -84,5 +98,5 @@ export function buildDueReminders({ accounts, loans, items, transactions, settin
     if (item.kind === 'income' || !isRecurringPlannedItem(item) || linkedIds.has(item.id) || !Number.isInteger(item.dueDay) || item.dueDay! < 1 || item.dueDay! > 31) continue;
     add('spending', item.id, item.name, `2000-01-${String(item.dueDay).padStart(2, '0')}`, item.amount, spendingPaid(item));
   }
-  return reminders.sort((a, b) => a.date.localeCompare(b.date) || a.name.localeCompare(b.name) || a.id.localeCompare(b.id));
+  return reminders.filter(row => dueReminderUrgency(row.daysAway) !== null && !settings.dueReminderPaid?.some(record => record.id === row.id && record.date === row.date)).sort((a, b) => a.date.localeCompare(b.date) || a.name.localeCompare(b.name) || a.id.localeCompare(b.id));
 }
