@@ -270,6 +270,7 @@ export type MonthlyPlanMonth = {
 export type RemovedProgressAccount = Pick<DebtAccount, "id" | "name" | "balance" | "baselineBalance" | "displayGroup" | "displayOrder"> & { removedAt: string };
 
 export type MonthlyPlanSettings = {
+  dueReminderPaid?: { id: string; date: string; markedAt: string }[];
   currency?: import('./household-currency').HouseholdCurrency;
   debtGroups?: DebtGroup[];
   payoffPlanAmount?: number;
@@ -891,6 +892,21 @@ function validatePlanning(value: unknown, path: string, issues: string[]) {
 function validateMonthlyPlan(value: unknown, path: string, issues: string[]) {
   const plan = requiredRecord(value, path, issues);
   if (!plan) return;
+  if (plan.dueReminderPaid !== undefined) {
+    const keys = new Set<string>();
+    requiredArray(plan.dueReminderPaid, path + '.dueReminderPaid', issues)?.forEach((raw, index) => {
+      const p = path + '.dueReminderPaid[' + index + ']';
+      const entry = requiredRecord(raw, p, issues);
+      if (!entry) return;
+      for (const key of ['id', 'date', 'markedAt']) requiredString(entry[key], p + '.' + key, issues);
+      if (typeof entry.id !== 'string' || !/^(account|loan|spending):.+$/.test(entry.id)) issues.push(p + '.id is invalid.');
+      if (typeof entry.date !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(entry.date) || !Number.isFinite(Date.parse(entry.date)) || new Date(entry.date).toISOString().slice(0, 10) !== entry.date) issues.push(p + '.date is invalid.');
+      if (typeof entry.markedAt !== 'string' || !entry.markedAt.includes('T') || !Number.isFinite(Date.parse(entry.markedAt))) issues.push(p + '.markedAt is invalid.');
+      const key = entry.id + ':' + entry.date;
+      if (keys.has(key)) issues.push(p + ' duplicates a paid reminder.');
+      keys.add(key);
+    });
+  }
   if (Object.prototype.hasOwnProperty.call(plan, 'currency') && !['USD', 'PHP', 'EUR', 'GBP', 'CAD', 'AUD'].includes(plan.currency as string)) issues.push(path + '.currency must be a supported household currency.');
   if (plan.payoffExtraPayment !== undefined) requiredNumber(plan.payoffExtraPayment, path + ".payoffExtraPayment", issues);
   if (plan.payoffExcludedTypes !== undefined) requiredArray(plan.payoffExcludedTypes, path + ".payoffExcludedTypes", issues)?.forEach((value,i)=>enumValue(value,new Set(["Credit card","Mortgage","Auto loan","Personal loan","Student loan","Medical debt","Other"]),path+".payoffExcludedTypes["+i+"]",issues));
