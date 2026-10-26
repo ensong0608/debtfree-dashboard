@@ -182,3 +182,4 @@ jobs:
           if(signin.status!==303 || authorization.origin!=='https://acpderotiyoecmwwyfsu.supabase.co' || authorization.pathname!=='/auth/v1/authorize' || authorization.searchParams.get('provider')!=='google' || authorization.searchParams.get('prompt')!=='select_account' || authorization.searchParams.get('redirect_to')!==origin+'/auth/callback' || authorization.searchParams.get('code_challenge_method')!=='s256' || !authorization.searchParams.get('code_challenge')) throw new Error('Production Google account-choice/PKCE/callback configuration failed');
           console.log('Production Google login responds; household data requires authentication.');
           NODE
+
