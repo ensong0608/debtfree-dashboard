@@ -18,7 +18,13 @@ jobs:
           node-version: 24
           cache: npm
       - run: npm ci
-      - run: npx playwright install --with-deps chromium
+      - name: Install browser for focused review
+        run: |
+          if [ "$GITHUB_REF_NAME" = 'codex/blue-slate-light-20261026' ]; then
+            npx playwright install chromium
+          else
+            npx playwright install --with-deps chromium
+          fi
       - name: Review navigation redesign on phone and desktop
         if: github.ref_name == 'codex/navigation-schedule-20261022'
         run: |
