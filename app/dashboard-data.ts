@@ -257,6 +257,12 @@ export type DashboardPayloadV3 = DashboardPayloadV2 & {
 
 export type PlanSettlement = { automatic?: boolean; id: string; targetId: string; name: string; kind: "spending" | "minimum"; amount: number; date: string; createdAt: string; source: "debit" | "included" };
 
+export type DuePaymentAssociation = {
+  reminderId: string;
+  dueDate: string;
+  source: { type: "transaction" | "adjustment" | "loan-history" | "settlement"; id: string };
+};
+
 export type MonthlyPlanMonth = {
   skippedRecurringPayments?: string[];
   settlements?: PlanSettlement[];
@@ -271,6 +277,8 @@ export type RemovedProgressAccount = Pick<DebtAccount, "id" | "name" | "balance"
 
 export type MonthlyPlanSettings = {
   dueReminderPaid?: { id: string; date: string; markedAt: string }[];
+  /** Explicit payment-to-occurrence links. Legacy dueReminderPaid acknowledgements are historical only. */
+  duePaymentAssociations?: DuePaymentAssociation[];
   currency?: import('./household-currency').HouseholdCurrency;
   debtGroups?: DebtGroup[];
   payoffPlanAmount?: number;
@@ -905,6 +913,27 @@ function validateMonthlyPlan(value: unknown, path: string, issues: string[]) {
       const key = entry.id + ':' + entry.date;
       if (keys.has(key)) issues.push(p + ' duplicates a paid reminder.');
       keys.add(key);
+    });
+  }
+  if (plan.duePaymentAssociations !== undefined) {
+    const sources = new Set<string>();
+    requiredArray(plan.duePaymentAssociations, path + '.duePaymentAssociations', issues)?.forEach((raw, index) => {
+      const p = path + '.duePaymentAssociations[' + index + ']';
+      const entry = requiredRecord(raw, p, issues);
+      if (!entry) return;
+      requiredString(entry.reminderId, p + '.reminderId', issues);
+      requiredString(entry.dueDate, p + '.dueDate', issues);
+      if (typeof entry.reminderId !== 'string' || !/^(account|loan|spending):.+$/.test(entry.reminderId)) issues.push(p + '.reminderId is invalid.');
+      if (typeof entry.dueDate !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(entry.dueDate) || !Number.isFinite(Date.parse(entry.dueDate)) || new Date(entry.dueDate).toISOString().slice(0, 10) !== entry.dueDate) issues.push(p + '.dueDate is invalid.');
+      const source = requiredRecord(entry.source, p + '.source', issues);
+      if (!source) return;
+      enumValue(source.type, new Set(['transaction', 'adjustment', 'loan-history', 'settlement']), p + '.source.type', issues);
+      requiredString(source.id, p + '.source.id', issues);
+      if (typeof source.type === 'string' && typeof source.id === 'string') {
+        const key = source.type + ':' + source.id;
+        if (sources.has(key)) issues.push(p + '.source is already assigned to a due occurrence.');
+        sources.add(key);
+      }
     });
   }
   if (Object.prototype.hasOwnProperty.call(plan, 'currency') && !['USD', 'PHP', 'EUR', 'GBP', 'CAD', 'AUD'].includes(plan.currency as string)) issues.push(path + '.currency must be a supported household currency.');

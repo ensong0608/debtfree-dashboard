@@ -1,125 +1,154 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { buildDueReminders, dueReminderUrgency, setDueReminderPaid } from '../app/due-reminders.ts';
-import { createDemoFixture } from '../mobile/demo-fixture.ts';
+import { associateDuePayment, buildDueReminders, duePaymentCandidates, dueReminderUrgency, loanHistorySourceId } from '../app/due-reminders.ts';
+import { effectiveMinimum, estimatedMinimum } from '../app/payoff-engine.ts';
+import { createDemoFixture, } from '../mobile/demo-fixture.ts';
 import { createDashboardBackup, parseDashboardContract } from '../app/dashboard-data.ts';
 
-const account = (changes = {}) => ({ ...createDemoFixture().payload.accounts[0], dueDate: '2026-01-28', ...changes });
+const account = (changes = {}) => ({ ...createDemoFixture().payload.accounts[0], id: 'card', name: 'Card', balance: 5000, minimum: 350, minimumMode: 'manual', dueDate: '2026-01-28', ...changes });
 const item = (changes = {}) => ({ id: 'bill', name: 'Electric', kind: 'expense', category: 'Utilities', amount: 80, paymentMethod: 'debit', creditAccountId: '', recurring: true, dueDay: 27, createdAt: '2026-10-01T12:00:00Z', ...changes });
-const transaction = (changes = {}) => ({ ...createDemoFixture().payload.transactions[0], date: '2026-10-20', amount: 10, ...changes });
+const transaction = (changes = {}) => ({ ...createDemoFixture().payload.transactions[0], id: 'payment-1', date: '2026-10-20', amount: 224.45, type: 'payment', accountId: 'card', credit: false, ...changes });
 const loan = (changes = {}) => ({ id: 'auto', name: 'Car', kind: 'car', originalAmount: 10000, remainingAmount: 5000, balanceKind: 'payoff', asOf: '2026-10-01', budgetItemId: '', budgetItemName: '', monthlyPayment: 300, dueDate: '2026-01-29', history: [], ...changes });
-const input = (changes = {}) => ({ accounts: [account()], loans: [], items: [], transactions: [], settings: { detailedSpendingTracking: false, months: {} }, today: '2026-10-26', ...changes });
+const settings = (changes = {}) => ({ detailedSpendingTracking: false, months: {}, ...changes });
+const input = (changes = {}) => ({ accounts: [account()], loans: [], items: [], transactions: [], adjustments: [], settings: settings(), today: '2026-10-26', ...changes });
 
-test('reminders combine saved obligations chronologically without changing any source data', () => {
-  const source = input({ accounts: [account(), account({ id: 'archived', archivedAt: '2026-10-01' }), account({ id: 'zero', balance: 0 }), account({ id: 'undated', dueDate: '' })], loans: [loan()], items: [item()] });
+test('due reminders use visible minimum or the shared balance/APR estimate, never old monthly targets', () => {
+  const debt = account({ minimum: 350, minimumMode: 'manual' });
+  const hiddenPlan = settings({ months: { '2026-10': { safetyBuffer: 0, minimums: { card: 250 }, payments: { card: 250 } } } });
+  assert.equal(buildDueReminders(input({ accounts: [debt], settings: hiddenPlan }))[0].requiredAmount, 350);
+  const missingMinimum = account({ minimum: 0, minimumMode: 'manual' });
+  assert.equal(effectiveMinimum(missingMinimum), 0);
+  assert.equal(buildDueReminders(input({ accounts: [missingMinimum] }))[0].requiredAmount, estimatedMinimum(missingMinimum.balance, missingMinimum.apr));
+  assert.ok(buildDueReminders(input({ accounts: [missingMinimum] }))[0].requiredAmount > 0);
+});
+
+test('a same-cycle payment changes the minimum only after explicit pairing, with partial and full amounts', () => {
+  const base = input({ transactions: [transaction()] });
+  const reminder = buildDueReminders(base)[0];
+  assert.equal(reminder.amount, 350);
+  const linked = associateDuePayment(base.settings, reminder, { type: 'transaction', id: 'payment-1' });
+  const partial = buildDueReminders({ ...base, settings: linked })[0];
+  assert.equal(partial.paidAmount, 224.45);
+  assert.equal(partial.amount, 125.55);
+  const more = associateDuePayment(linked, reminder, { type: 'transaction', id: 'payment-2' });
+  assert.deepEqual(buildDueReminders({ ...base, transactions: [...base.transactions, transaction({ id: 'payment-2', amount: 244.45 })], settings: more }), []);
+  const excess = associateDuePayment(base.settings, reminder, { type: 'transaction', id: 'payment-3' });
+  assert.deepEqual(buildDueReminders({ ...base, transactions: [transaction({ id: 'payment-3', amount: 500 })], settings: excess }), []);
+});
+
+test('correcting or deleting a linked record immediately recalculates the due amount', () => {
+  const source = input({ transactions: [transaction({ amount: 350 })] });
+  const reminder = buildDueReminders(source)[0];
+  const linked = associateDuePayment(source.settings, reminder, { type: 'transaction', id: 'payment-1' });
+  assert.deepEqual(buildDueReminders({ ...source, settings: linked }), []);
+  const corrected = { ...source.transactions[0], amount: 100, replacedByTransactionId: 'replacement' };
+  const replacement = transaction({ id: 'replacement', amount: 100, date: '2026-10-21', replacesTransactionId: 'payment-1' });
+  const correctedReminder = buildDueReminders({ ...source, transactions: [corrected, replacement], settings: linked })[0];
+  assert.equal(correctedReminder.paidAmount, 100);
+  assert.equal(correctedReminder.amount, 250);
+  assert.deepEqual(duePaymentCandidates(correctedReminder, { ...source, transactions: [corrected, replacement], settings: linked, loans: [] }), []);
+  const restoredReminder = buildDueReminders({ ...source, transactions: [corrected, { ...replacement, deletedAt: null }], settings: linked })[0];
+  assert.equal(restoredReminder.paidAmount, 100);
+  const deletedReminder = buildDueReminders({ ...source, transactions: [{ ...source.transactions[0], deletedAt: '2026-10-22' }], settings: linked })[0];
+  assert.equal(deletedReminder.amount, 350);
+});
+
+test('unlinked payments, extras, credits, corrections, deleted and replaced rows do not count', () => {
+  const transactions = [transaction(), transaction({ id: 'extra', paymentKind: 'extra', amount: 200 }), transaction({ id: 'credit', credit: true }), transaction({ id: 'correction', reductionKind: 'adjustment' }), transaction({ id: 'deleted', deletedAt: '2026-10-21' }), transaction({ id: 'replaced', replacedByTransactionId: 'replacement' }), transaction({ id: 'future', date: '2026-10-29' })];
+  const source = input({ transactions });
+  assert.equal(buildDueReminders(source)[0].amount, 350);
+  assert.deepEqual(duePaymentCandidates(buildDueReminders(source)[0], { ...source, loans: [] }).map(row => row.source.id), ['payment-1']);
+});
+
+test('a late payment can still be paired to its visible overdue occurrence', () => {
+  const source = input({ today: '2026-10-30', accounts: [account({ dueDate: '2026-01-28' })], transactions: [transaction({ date: '2026-10-29', amount: 350 })] });
+  const reminder = buildDueReminders(source)[0];
+  assert.equal(reminder.daysAway, -2);
+  assert.equal(duePaymentCandidates(reminder, { ...source, loans: [] }).length, 1);
+  const settingsWithLink = associateDuePayment(source.settings, reminder, { type: 'transaction', id: 'payment-1' });
+  assert.deepEqual(buildDueReminders({ ...source, settings: settingsWithLink }), []);
+});
+
+test('confirmed balance payment adjustments are pairable once and count only when confirmed', () => {
+  const adjustment = { id: 'adj-1', accountId: 'card', date: '2026-10-21', balanceBefore: 5000, balanceAfter: 4800, difference: -200, createdAt: '2026-10-21T12:00:00Z', confirmedPayment: { confirmedAt: '2026-10-21T12:01:00Z' } };
+  const unconfirmed = { ...adjustment, id: 'adj-2', confirmedPayment: undefined };
+  const source = input({ adjustments: [adjustment, unconfirmed] });
+  const reminder = buildDueReminders(source)[0];
+  const candidate = duePaymentCandidates(reminder, { ...source, loans: [] }).find(row => row.source.id === 'adj-1');
+  assert.ok(candidate);
+  const linked = associateDuePayment(source.settings, reminder, candidate.source);
+  const result = buildDueReminders({ ...source, settings: linked })[0];
+  assert.equal(result.paidAmount, 200);
+  assert.equal(result.amount, 150);
+  const duplicateTxn = transaction({ id: 'adjustment-view', includedIn: { type: 'adjustment', id: 'adj-1' }, amount: 200 });
+  assert.equal(buildDueReminders({ ...source, transactions: [duplicateTxn], settings: linked })[0].paidAmount, 200);
+});
+
+test('recurring Budget bills pair their existing planned-item transaction or paid settlement', () => {
+  const bill = item({ dueDay: 26, amount: 80 });
+  const charge = transaction({ id: 'bill-charge', type: 'charge', plannedItemId: 'bill', accountId: '', amount: 32, date: '2026-10-25' });
+  const source = input({ accounts: [], items: [bill], transactions: [charge] });
+  const reminder = buildDueReminders(source)[0];
+  assert.equal(reminder.amount, 80);
+  const candidate = duePaymentCandidates(reminder, { ...source, loans: [] })[0];
+  assert.equal(candidate.source.id, 'bill-charge');
+  const linked = associateDuePayment(source.settings, reminder, candidate.source);
+  assert.equal(buildDueReminders({ ...source, settings: linked })[0].amount, 48);
+  const wrongBill = transaction({ id: 'wrong', type: 'charge', plannedItemId: 'another-bill', accountId: '', amount: 80 });
+  assert.equal(duePaymentCandidates(reminder, { ...source, transactions: [wrongBill], loans: [] }).length, 0);
+  const settlement = { id: 'settled-bill', targetId: 'bill', name: 'Electric', kind: 'spending', amount: 80, date: '2026-10-26', createdAt: '2026-10-26T12:00:00Z', source: 'debit', automatic: true };
+  const settled = settings({ months: { '2026-10': { safetyBuffer: 0, settlements: [settlement] } } });
+  const settledReminder = buildDueReminders({ ...source, transactions: [], settings: settled })[0];
+  const paidRecord = duePaymentCandidates(settledReminder, { transactions: [], adjustments: [], loans: [], settings: settled })[0];
+  assert.equal(paidRecord.source.type, 'settlement');
+  assert.deepEqual(buildDueReminders({ ...source, transactions: [], settings: associateDuePayment(settled, settledReminder, paidRecord.source) }), []);
+});
+
+test('loan history payments must be paired to their due occurrence', () => {
+  const entry = { date: '2026-10-20', recordedAt: '2026-10-20T12:00:00Z', amount: 5000, balanceKind: 'payoff', payment: 100 };
+  const car = loan({ history: [entry] });
+  const source = input({ accounts: [], loans: [car] });
+  const reminder = buildDueReminders(source)[0];
+  const candidate = duePaymentCandidates(reminder, { ...source, adjustments: [] })[0];
+  assert.equal(candidate.source.id, loanHistorySourceId('auto', entry));
+  const linked = associateDuePayment(source.settings, reminder, candidate.source);
+  assert.equal(buildDueReminders({ ...source, settings: linked })[0].amount, 200);
+});
+
+test('unpaid occurrences remain visible overdue; old paid acknowledgements do not erase payment requirements', () => {
+  const reminder = buildDueReminders(input({ today: '2026-10-30', accounts: [account({ dueDate: '2026-01-28' })], settings: settings({ dueReminderPaid: [{ id: 'account:card', date: '2026-10-28', markedAt: '2026-10-27T12:00:00Z' }] }) }))[0];
+  assert.equal(reminder.date, '2026-10-28');
+  assert.equal(reminder.daysAway, -2);
+  assert.equal(reminder.paymentStatus, 'unpaid');
+  assert.equal(dueReminderUrgency(reminder.daysAway), 'overdue');
+});
+
+test('paid occurrences advance to the next monthly due date, including month-end rules', () => {
+  const source = input({ accounts: [account({ dueDate: '2000-01-31' })], today: '2028-02-27' });
+  assert.equal(buildDueReminders(source)[0].date, '2028-02-29');
+  const febReminder = buildDueReminders(source)[0];
+  const linked = associateDuePayment(source.settings, febReminder, { type: 'transaction', id: 'feb-paid' });
+  assert.equal(buildDueReminders({ ...source, today: '2028-03-25', transactions: [transaction({ id: 'feb-paid', date: '2028-02-27', amount: 350 })], settings: linked })[0].date, '2028-03-31');
+});
+
+test('cycle links are idempotent and one source cannot be assigned twice', () => {
+  const reminder = buildDueReminders(input())[0];
+  const once = associateDuePayment(settings(), reminder, { type: 'transaction', id: 'p1' });
+  assert.equal(associateDuePayment(once, reminder, { type: 'transaction', id: 'p1' }), once);
+  assert.throws(() => associateDuePayment(once, { ...reminder, date: '2026-11-28' }, { type: 'transaction', id: 'p1' }), /already assigned/);
+});
+
+test('association metadata round-trips in household backups and rejects duplicate or invalid sources', () => {
+  const contract = createDemoFixture();
+  const reminder = buildDueReminders({ ...input({ accounts: contract.payload.accounts }), settings: contract.payload.monthlyPlan })[0];
+  const settingsWithLink = associateDuePayment(contract.payload.monthlyPlan, reminder, { type: 'transaction', id: contract.payload.transactions[0].id });
+  const saved = createDashboardBackup({ ...contract.payload, monthlyPlan: settingsWithLink }, contract);
+  assert.deepEqual(parseDashboardContract(saved).payload.monthlyPlan.duePaymentAssociations, settingsWithLink.duePaymentAssociations);
+  const malformed = structuredClone(saved);
+  malformed.payload.monthlyPlan.duePaymentAssociations.push(structuredClone(malformed.payload.monthlyPlan.duePaymentAssociations[0]));
+  assert.throws(() => parseDashboardContract(malformed));
+  const source = input();
   const before = structuredClone(source);
-  const rows = buildDueReminders(source);
-  assert.deepEqual(rows.map(row => [row.kind, row.date, row.amount, row.daysAway]), [['spending', '2026-10-27', 80, 1], ['account', '2026-10-28', 25, 2], ['loan', '2026-10-29', 300, 3]]);
+  buildDueReminders(source);
   assert.deepEqual(source, before);
-});
-
-test('current minimum uses partial payments while extra, refunds, corrections and duplicate links do not clear it', () => {
-  const rows = [transaction(), transaction({ id: 'extra', paymentKind: 'extra', amount: 200 }), transaction({ id: 'refund', credit: true }), transaction({ id: 'correction', reductionKind: 'adjustment' }), transaction({ id: 'duplicate', includedIn: { type: 'transaction', id: 'demo-payment' } }), transaction({ id: 'replaced', replacedByTransactionId: 'replacement' }), transaction({ id: 'deleted', deletedAt: '2026-10-21' }), transaction({ id: 'future', date: '2026-10-27' })];
-  const settings = { detailedSpendingTracking: false, months: { '2026-10': { safetyBuffer: 0, minimums: { 'demo-card': 30 }, settlements: [{ id: 'paid', targetId: 'demo-card', name: 'Card', kind: 'minimum', amount: 5, date: '2026-10-22', createdAt: '2026-10-22T12:00:00Z', source: 'included' }] } } };
-  assert.equal(buildDueReminders(input({ transactions: rows, settings }))[0].amount, 15);
-  assert.deepEqual(buildDueReminders(input({ transactions: [transaction({ amount: 30 })], settings })), []);
-});
-
-test('today remains today; past dates and fully paid occurrences roll forward to the saved day', () => {
-  assert.equal(buildDueReminders(input({ accounts: [account({ dueDate: '2026-01-26' })] }))[0].daysAway, 0);
-  assert.deepEqual(buildDueReminders(input({ accounts: [account({ dueDate: '2026-01-25' })] })), []);
-  const paidToday = buildDueReminders(input({ accounts: [account({ dueDate: '2026-01-26' })], transactions: [transaction({ date: '2026-10-26', amount: 25 })] }));
-  assert.deepEqual(paidToday, []);
-});
-
-test('a partially paid final minimum is not cleared by capping the reduced balance first', () => {
-  const source = input({ accounts: [account({ balance: 10, minimum: 25 })], transactions: [transaction({ amount: 20 })] });
-  assert.equal(buildDueReminders(source)[0].amount, 5);
-  assert.equal(buildDueReminders(source)[0].date, '2026-10-28');
-  assert.equal(buildDueReminders(input({ accounts: [account({ balance: 10, minimum: 25 })] }))[0].amount, 10);
-});
-
-test('day 31 survives February, leap years, month-end and a year boundary', () => {
-  for (const [today, expected] of [['2027-02-27', '2027-02-28'], ['2028-02-28', '2028-02-29'], ['2028-04-30', '2028-04-30'], ['2028-12-31', '2028-12-31']]) {
-    const source = input({ today, accounts: [account({ dueDate: '2000-01-31' })], items: [item({ dueDay: 31 })] });
-    assert.ok(buildDueReminders(source).every(row => row.date === expected));
-    assert.equal(source.items[0].dueDay, 31);
-  }
-  assert.equal(buildDueReminders(input({ today: '2026-12-31', accounts: [account({ dueDate: '2000-01-01' })] }))[0].date, '2027-01-01');
-  assert.equal(buildDueReminders(input({ today: '2026-10-31', accounts: [account({ dueDate: '2000-01-01' })] }))[0].daysAway, 1);
-});
-
-test('a linked loan bill appears once and overlapping payment sources count once', () => {
-  const linked = item({ id: 'car-bill', amount: 300, dueDay: 29 });
-  const tracked = loan({ budgetItemId: linked.id, history: [{ date: '2026-10-20', recordedAt: '2026-10-20T12:00:00Z', amount: 5000, balanceKind: 'payoff', payment: 100 }] });
-  const source = input({ accounts: [], loans: [tracked], items: [linked], transactions: [transaction({ type: 'charge', plannedItemId: linked.id, amount: 100 })] });
-  const rows = buildDueReminders(source);
-  assert.equal(rows.length, 1);
-  assert.equal(rows[0].amount, 200);
-  assert.equal(rows[0].kind, 'loan');
-  const fallback = buildDueReminders(input({ accounts: [], items: [linked], loans: [loan({ budgetItemId: linked.id, monthlyPayment: undefined, dueDate: undefined })] }));
-  assert.equal(fallback.length, 1);
-  assert.equal(fallback[0].date, '2026-10-29');
-  assert.equal(fallback[0].amount, 300);
-});
-
-test('bill paid acknowledgements and actual spending suppress only the covered occurrence', () => {
-  const settings = { detailedSpendingTracking: false, months: { '2026-10': { safetyBuffer: 0, settlements: [{ id: 'automatic', targetId: 'bill', name: 'Electric', kind: 'spending', amount: 60, date: '2026-10-26', createdAt: '2026-10-26T12:00:00Z', source: 'debit', automatic: true }] } } };
-  const rows = buildDueReminders(input({ accounts: [], items: [item({ dueDay: 26 })], transactions: [transaction({ type: 'charge', plannedItemId: 'bill', amount: 20 })], settings }));
-  assert.deepEqual(rows, []);
-  settings.months['2026-10'].settlements[0] = { ...settings.months['2026-10'].settlements[0], automatic: false, amount: 20 };
-  const overlap = buildDueReminders(input({ accounts: [], items: [item()], transactions: [transaction({ type: 'charge', plannedItemId: 'bill', amount: 20 })], settings }));
-  assert.equal(overlap[0].amount, 60);
-});
-
-test('income, one-time purchases, unknown dates and zero payments do not invent reminders', () => {
-  assert.deepEqual(buildDueReminders(input({ accounts: [account({ minimum: 0 })], loans: [loan({ monthlyPayment: undefined })], items: [item({ kind: 'income' }), item({ id: 'once', recurring: false }), item({ id: 'undated', dueDay: undefined }), item({ id: 'invalid', dueDay: 32 })] })), []);
-});
-
-
-test('reminders start at ten days, become critical at three, and exclude later occurrences', () => {
-  for (const [days, urgency] of [[-1, null], [0, 'critical'], [1, 'critical'], [3, 'critical'], [4, 'upcoming'], [10, 'upcoming'], [11, null]]) assert.equal(dueReminderUrgency(days), urgency);
-  const source = input({ accounts: [account({id:'ten',dueDate:'2000-01-05'}),account({id:'eleven',dueDate:'2000-01-06'}),account({id:'four',dueDate:'2000-01-30'})] });
-  assert.deepEqual(buildDueReminders(source).map(row=>[row.targetId,row.daysAway]), [['four',4],['ten',10]]);
-  assert.equal(source.accounts[0].dueDate,'2000-01-05');
-});
-
-
-test('marking paid is idempotent, occurrence-specific metadata and Undo preserves other settings', () => {
-  const source=input();const before=structuredClone(source);
-  const reminder=buildDueReminders(source)[0];
-  const settings=setDueReminderPaid(source.settings,reminder,true,'2026-10-26T20:00:00.000Z');
-  assert.deepEqual(buildDueReminders({...source,settings}),[]);
-  assert.equal(settings.dueReminderPaid.length,1);
-  assert.equal(setDueReminderPaid(settings,reminder,true),settings);
-  assert.equal(buildDueReminders({...source,settings,today:'2026-11-26'})[0].date,'2026-11-28');
-  assert.equal(buildDueReminders({...source,settings,accounts:[account({dueDate:'2000-01-29'})]})[0].date,'2026-10-29');
-  const restored=setDueReminderPaid(settings,reminder,false);
-  assert.deepEqual(buildDueReminders({...source,settings:restored}),buildDueReminders(source));
-  assert.equal(setDueReminderPaid(restored,reminder,false),restored);
-  assert.deepEqual(source,before);
-});
-
-test('an early paid acknowledgement stays tied to next month across a calendar boundary', () => {
-  const source=input({accounts:[account({dueDate:'2000-01-01'})]});
-  const reminder=buildDueReminders(source)[0];
-  assert.equal(reminder.date,'2026-11-01');
-  const settings=setDueReminderPaid(source.settings,reminder,true,'2026-10-26T20:00:00.000Z');
-  assert.deepEqual(buildDueReminders({...source,settings,today:'2026-11-01'}),[]);
-  assert.equal(buildDueReminders({...source,settings,today:'2026-11-26'})[0].date,'2026-12-01');
-});
-
-test('paid acknowledgements round trip in household data without changing financial records', () => {
-  const contract=createDemoFixture();const before=structuredClone(contract.payload);
-  const settings=setDueReminderPaid(contract.payload.monthlyPlan,{id:'loan:example',date:'2026-10-29'},true,'2026-10-26T20:00:00.000Z');
-  const saved=createDashboardBackup({...contract.payload,monthlyPlan:settings},contract);
-  const reopened=parseDashboardContract(saved).payload;
-  assert.deepEqual(reopened.monthlyPlan.dueReminderPaid,settings.dueReminderPaid);
-  for(const key of ['accounts','transactions','snapshots','monthlyBudgets','balanceAdjustments'])assert.deepEqual(reopened[key],before[key]);
-  assert.equal(reopened.monthlyPlan.progressStartingBalance,before.monthlyPlan.progressStartingBalance);
-  for(const date of ['2026-02-30','bad']) {
-    assert.throws(()=>setDueReminderPaid(settings,{id:'account:example',date},true),/invalid/);
-    const malformed=structuredClone(saved);malformed.payload.monthlyPlan.dueReminderPaid[0].date=date;
-    assert.throws(()=>parseDashboardContract(malformed));
-  }
 });

@@ -1,9 +1,7 @@
-import type { CashflowItem, DebtAccount, LedgerTransaction, MonthlyPlanSettings } from './dashboard-data.ts';
+import type { BalanceAdjustment, CashflowItem, DebtAccount, DuePaymentAssociation, LedgerTransaction, MonthlyPlanSettings, PlanSettlement } from './dashboard-data.ts';
 import { householdDate } from './household-date.ts';
 import { linkedLoanPayment, regularLoanPayment, type LoanTracker } from './loan-progress.ts';
-import { debtPaymentProgress, isRecurringPlannedItem } from './monthly-plan.ts';
-import { effectiveMinimum, round } from './payoff-engine.ts';
-import { settlementReports } from './plan-settlements.ts';
+import { effectiveMinimum, estimatedMinimum, round } from './payoff-engine.ts';
 import { nextDueDate, recurringDueDate } from './recurring-due-date.ts';
 
 export type DueReminder = {
@@ -12,91 +10,202 @@ export type DueReminder = {
   kind: 'account' | 'loan' | 'spending';
   targetId: string;
   date: string;
+  requiredAmount: number;
+  paidAmount: number;
   amount: number;
   daysAway: number;
+  paymentStatus: 'unpaid' | 'partially-paid';
 };
 
-export function dueReminderUrgency(daysAway: number): 'critical' | 'upcoming' | null {
-  if (!Number.isInteger(daysAway) || daysAway < 0 || daysAway > 10) return null;
+export type DuePaymentSource = DuePaymentAssociation['source'];
+export type DuePaymentCandidate = {
+  source: DuePaymentSource;
+  title: string;
+  date: string;
+  amount: number;
+  kind: 'payment' | 'confirmed balance payment' | 'loan payment' | 'Budget transaction' | 'Budget paid record';
+};
+
+export function dueReminderUrgency(daysAway: number): 'critical' | 'upcoming' | 'overdue' | null {
+  if (!Number.isInteger(daysAway)) return null;
+  if (daysAway < 0) return 'overdue';
+  if (daysAway > 10) return null;
   return daysAway <= 3 ? 'critical' : 'upcoming';
 }
 
-/** Notification acknowledgement only: no ledger, balance or Budget paid entry. */
+/** Historical dismissal records remain in backups but are not payment evidence. */
 export function setDueReminderPaid(settings: MonthlyPlanSettings, reminder: Pick<DueReminder, 'id' | 'date'>, paid: boolean, now = new Date().toISOString()): MonthlyPlanSettings {
-  if (!/^(account|loan|spending):.+$/.test(reminder.id) || !/^\d{4}-\d{2}-\d{2}$/.test(reminder.date) || !Number.isFinite(Date.parse(reminder.date)) || new Date(reminder.date).toISOString().slice(0, 10) !== reminder.date) throw new Error('This reminder is invalid.');
+  if (!/^(account|loan|spending):.+$/.test(reminder.id) || !validDate(reminder.date)) throw new Error('This reminder is invalid.');
   const records = settings.dueReminderPaid ?? [];
   const exists = records.some(record => record.id === reminder.id && record.date === reminder.date);
   if (exists === paid) return settings;
   return { ...settings, dueReminderPaid: paid ? [...records, { id: reminder.id, date: reminder.date, markedAt: now }] : records.filter(record => record.id !== reminder.id || record.date !== reminder.date) };
 }
 
-/** Read-only reminders from saved monthly obligations, independent of payoff scope.
- * Past dates roll forward without declaring a lender payment overdue. Canonical
- * recurring days, balances and paid records are never rewritten by this view.
+function validDate(value: string) {
+  return /^\d{4}-\d{2}-\d{2}$/.test(value) && Number.isFinite(Date.parse(value)) && new Date(value + 'T00:00:00Z').toISOString().slice(0, 10) === value;
+}
+function addMonth(month: string) {
+  return new Date(month + '-01T12:00:00Z').toISOString().slice(0, 7) === month
+    ? (() => { const next = new Date(month + '-01T12:00:00Z'); next.setUTCMonth(next.getUTCMonth() + 1); return next.toISOString().slice(0, 7); })()
+    : '';
+}
+function dueOccurrence(savedDate: string, today: string) {
+  const current = recurringDueDate(savedDate, today.slice(0, 7));
+  return current || nextDueDate(savedDate, today);
+}
+
+export function loanHistorySourceId(loanId: string, entry: LoanTracker['history'][number]) {
+  return `${loanId}:${entry.date}:${entry.recordedAt}`;
+}
+
+export function associateDuePayment(settings: MonthlyPlanSettings, reminder: Pick<DueReminder, 'id' | 'date'>, source: DuePaymentSource): MonthlyPlanSettings {
+  if (!/^(account|loan|spending):.+$/.test(reminder.id) || !validDate(reminder.date) || !source.id.trim()) throw new Error('This payment link is invalid.');
+  const links = settings.duePaymentAssociations ?? [];
+  if (links.some(link => link.source.type === source.type && link.source.id === source.id && (link.reminderId !== reminder.id || link.dueDate !== reminder.date))) throw new Error('This payment is already assigned to another due date.');
+  if (links.some(link => link.reminderId === reminder.id && link.dueDate === reminder.date && link.source.type === source.type && link.source.id === source.id)) return settings;
+  return { ...settings, duePaymentAssociations: [...links, { reminderId: reminder.id, dueDate: reminder.date, source }] };
+}
+
+function allSettlements(settings: Pick<MonthlyPlanSettings, 'months'>): PlanSettlement[] {
+  return Object.values(settings.months).flatMap(month => month.settlements ?? []);
+}
+
+function currentTransaction(id: string, transactions: LedgerTransaction[]) {
+  let row = transactions.find(item => item.id === id);
+  const seen = new Set<string>();
+  while (row?.replacedByTransactionId && !seen.has(row.id)) {
+    seen.add(row.id);
+    const replacementId = row.replacedByTransactionId;
+    row = transactions.find(item => item.id === replacementId);
+  }
+  return row;
+}
+
+function sourceAmount(source: DuePaymentSource, reminder: Pick<DueReminder, 'id' | 'date'>, data: {
+  transactions: LedgerTransaction[]; adjustments: BalanceAdjustment[]; loans: LoanTracker[]; settings: Pick<MonthlyPlanSettings, 'months' | 'duePaymentAssociations'>; today?: string;
+}): number {
+  const [kind, targetId] = reminder.id.split(':', 2);
+  if (source.type === 'transaction') {
+    const row = currentTransaction(source.id, data.transactions);
+    if (!row || row.deletedAt || row.replacedByTransactionId || row.date > (data.today ?? reminder.date) || row.includedIn) return 0;
+    if (kind === 'account' && row.type === 'payment' && row.accountId === targetId && row.credit !== true && row.reductionKind !== 'adjustment' && row.paymentKind !== 'extra') return row.amount;
+    if (kind === 'spending' && row.type === 'charge' && row.plannedItemId === targetId) return row.amount;
+    return 0;
+  }
+  if (source.type === 'adjustment') {
+    const row = data.adjustments.find(item => item.id === source.id);
+    if (kind !== 'account' || !row || row.deletedAt || row.accountId !== targetId || row.date > (data.today ?? reminder.date) || row.difference >= 0 || !row.confirmedPayment || row.reportKind === 'credit') return 0;
+    return Math.abs(row.difference);
+  }
+  if (source.type === 'loan-history') {
+    if (kind !== 'loan') return 0;
+    const loan = data.loans.find(item => item.id === targetId);
+    const entry = loan?.history.find(item => loanHistorySourceId(targetId, item) === source.id);
+    if (!entry || entry.date > (data.today ?? reminder.date) || !Number.isFinite(entry.payment) || (entry.payment ?? 0) <= 0) return 0;
+    return entry.payment!;
+  }
+  if (kind !== 'spending') return 0;
+  const row = allSettlements(data.settings).find(item => `settlement:${item.id}` === source.id);
+  if (!row || row.targetId !== targetId || row.kind !== 'spending' || row.date > (data.today ?? reminder.date)) return 0;
+  return row.amount;
+}
+
+function eligiblePaidAmount(reminder: Pick<DueReminder, 'id' | 'date'>, data: {
+  transactions: LedgerTransaction[]; adjustments: BalanceAdjustment[]; loans: LoanTracker[]; settings: Pick<MonthlyPlanSettings, 'months' | 'duePaymentAssociations'>; today?: string;
+}): number {
+  const links = data.settings.duePaymentAssociations ?? [];
+  const seen = new Set<string>();
+  return round(links.filter(link => link.reminderId === reminder.id && link.dueDate === reminder.date).reduce((sum, link) => {
+    const key = `${link.source.type}:${link.source.id}`;
+    if (seen.has(key)) return sum;
+    seen.add(key);
+    return sum + sourceAmount(link.source, reminder, data);
+  }, 0));
+}
+
+/** List only valid, unassigned records; matching by date/amount alone never links a payment. */
+export function duePaymentCandidates(reminder: DueReminder, data: {
+  transactions: LedgerTransaction[]; adjustments: BalanceAdjustment[]; loans: LoanTracker[]; settings: Pick<MonthlyPlanSettings, 'months' | 'duePaymentAssociations'>; today?: string;
+}): DuePaymentCandidate[] {
+  const linked = new Set((data.settings.duePaymentAssociations ?? []).map(row => `${row.source.type}:${row.source.id}`));
+  for (const association of data.settings.duePaymentAssociations ?? []) {
+    if (association.source.type !== 'transaction') continue;
+    const current = currentTransaction(association.source.id, data.transactions);
+    if (current) linked.add(`transaction:${current.id}`);
+  }
+  const candidates: DuePaymentCandidate[] = [];
+  const add = (candidate: DuePaymentCandidate) => {
+    if (candidate.date <= (data.today ?? reminder.date) && candidate.amount > 0 && !linked.has(`${candidate.source.type}:${candidate.source.id}`) && sourceAmount(candidate.source, reminder, data) > 0) candidates.push(candidate);
+  };
+  if (reminder.kind === 'account') {
+    for (const row of data.transactions) {
+      if (!row.replacedByTransactionId && row.type === 'payment' && row.accountId === reminder.targetId) add({ source: { type: 'transaction', id: row.id }, title: row.title || row.payeeName || 'Recorded payment', date: row.date, amount: row.amount, kind: 'payment' });
+    }
+    for (const row of data.adjustments) {
+      if (row.accountId === reminder.targetId && row.confirmedPayment) add({ source: { type: 'adjustment', id: row.id }, title: row.title || 'Confirmed balance payment', date: row.date, amount: Math.abs(row.difference), kind: 'confirmed balance payment' });
+    }
+  } else if (reminder.kind === 'loan') {
+    const loan = data.loans.find(item => item.id === reminder.targetId);
+    if (loan) for (const entry of loan.history) if ((entry.payment ?? 0) > 0) add({ source: { type: 'loan-history', id: loanHistorySourceId(reminder.targetId, entry) }, title: `Loan payment · ${loan.name}`, date: entry.date, amount: entry.payment!, kind: 'loan payment' });
+  } else {
+    for (const row of data.transactions) {
+      if (!row.replacedByTransactionId && row.type === 'charge' && row.plannedItemId === reminder.targetId) add({ source: { type: 'transaction', id: row.id }, title: row.title || row.payeeName || 'Budget transaction', date: row.date, amount: row.amount, kind: 'Budget transaction' });
+    }
+    for (const row of allSettlements(data.settings)) {
+      if (row.targetId === reminder.targetId && row.kind === 'spending') add({ source: { type: 'settlement', id: `settlement:${row.id}` }, title: row.name || 'Budget paid record', date: row.date, amount: row.amount, kind: 'Budget paid record' });
+    }
+  }
+  return candidates.sort((a, b) => b.date.localeCompare(a.date) || a.title.localeCompare(b.title));
+}
+
+/** Build current-cycle reminders from visible obligation settings and explicit payment links only.
+ * Old dismissal acknowledgements and monthly payoff targets do not affect amounts or status.
  */
-export function buildDueReminders({ accounts, loans, items, transactions, settings, today = householdDate() }: {
+export function buildDueReminders({ accounts, loans, items, transactions, adjustments = [], settings, today = householdDate() }: {
   accounts: DebtAccount[];
   loans: LoanTracker[];
   items: CashflowItem[];
   transactions: LedgerTransaction[];
+  adjustments?: BalanceAdjustment[];
   settings: MonthlyPlanSettings;
   today?: string;
 }): DueReminder[] {
-  const month = today.slice(0, 7);
-  const nextMonth = new Date(Date.UTC(Number(today.slice(0, 4)), Number(today.slice(5, 7)), 1)).toISOString().slice(0, 7);
-  const plan = settings.months[month];
-  const recorded = transactions.filter(row => !row.deletedAt && !row.replacedByTransactionId && row.date <= today);
-  const settlements = (plan?.settlements ?? []).filter(row => row.date <= today && row.date.startsWith(month));
-  const payments = recorded.filter(row => row.reductionKind !== 'adjustment');
-  const minimums = Object.fromEntries(accounts.map(account => [account.id, plan?.minimums?.[account.id] ?? effectiveMinimum(account)]));
-  const progress = debtPaymentProgress(accounts, {}, [...payments, ...settlementReports(settlements)], month, minimums);
+  const nextMonth = addMonth(today.slice(0, 7));
+  const data = { transactions, adjustments, loans, settings, today };
   const reminders: DueReminder[] = [];
-  const add = (kind: DueReminder['kind'], targetId: string, name: string, savedDate: string, amount: number, paid: number, maximum = Infinity) => {
-    if (!Number.isFinite(amount) || amount <= 0) return false;
-    let date = nextDueDate(savedDate, today);
-    if (!date) return false;
-    let remaining = Math.min(amount, maximum);
-    if (date.startsWith(month)) {
-      remaining = round(Math.min(maximum, Math.max(0, amount - paid)));
-      if (remaining <= 0) {
-        date = recurringDueDate(savedDate, nextMonth);
-        remaining = Math.min(amount, maximum);
-      }
+  const add = (kind: DueReminder['kind'], targetId: string, name: string, savedDate: string, requiredAmount: number) => {
+    if (!Number.isFinite(requiredAmount) || requiredAmount <= 0) return;
+    let date = dueOccurrence(savedDate, today);
+    if (!date) return;
+    const id = `${kind}:${targetId}`;
+    let paidAmount = eligiblePaidAmount({ id, date }, data);
+    if (paidAmount >= requiredAmount) {
+      date = recurringDueDate(savedDate, nextMonth);
+      if (!date) return;
+      paidAmount = eligiblePaidAmount({ id, date }, data);
     }
-    reminders.push({ id: `${kind}:${targetId}`, kind, targetId, name, date, amount: round(remaining), daysAway: Math.round((Date.parse(date + 'T00:00:00Z') - Date.parse(today + 'T00:00:00Z')) / 86400000) });
-    return true;
+    const daysAway = Math.round((Date.parse(date + 'T00:00:00Z') - Date.parse(today + 'T00:00:00Z')) / 86400000);
+    if (dueReminderUrgency(daysAway) === null) return;
+    const amount = round(Math.max(0, requiredAmount - paidAmount));
+    if (amount <= 0) return;
+    reminders.push({ id, kind, targetId, name, date, requiredAmount: round(requiredAmount), paidAmount, amount, daysAway, paymentStatus: paidAmount > 0 ? 'partially-paid' : 'unpaid' });
   };
 
   for (const account of accounts) {
     if (account.archivedAt || account.balance <= 0) continue;
-    const paid = progress.find(row => row.accountId === account.id)?.minimumPaid ?? 0;
-    // Apply recorded payments before capping the remainder to today's balance.
-    // Capping first could falsely clear a partly paid final minimum.
-    add('account', account.id, account.name, account.dueDate, minimums[account.id], paid, account.balance);
+    const visibleMinimum = Number.isFinite(account.minimum) && account.minimum > 0 ? effectiveMinimum(account) : estimatedMinimum(account.balance, account.apr);
+    add('account', account.id, account.name, account.dueDate, visibleMinimum);
   }
-
-  const spendingPaid = (item: CashflowItem) => {
-    const actual = recorded.filter(row => row.type === 'charge' && row.plannedItemId === item.id && row.date.startsWith(month)).reduce((sum, row) => sum + row.amount, 0);
-    const reports = settlements.filter(row => row.kind === 'spending' && row.targetId === item.id);
-    const manual = reports.filter(row => !row.automatic).reduce((sum, row) => sum + row.amount, 0);
-    const automatic = reports.filter(row => row.automatic).reduce((sum, row) => sum + row.amount, 0);
-    // Manual acknowledgements may overlap purchases. Automatic records already
-    // cover only a remainder; they don't represent another balance movement.
-    return round(Math.max(actual, manual) + automatic);
-  };
-  const linkedIds = new Set<string>();
-  const activeLoans = loans.filter(loan => loan.remainingAmount > 0);
-  for (const loan of activeLoans) {
+  for (const loan of loans) {
+    if (loan.remainingAmount <= 0) continue;
     const linked = linkedLoanPayment(loan, items);
-    const fallbackDate = linked?.dueDay ? `2000-01-${String(linked.dueDay).padStart(2, '0')}` : '';
-    const loanPaid = loan.history.filter(row => row.date.startsWith(month) && row.date <= today).reduce((sum, row) => sum + (row.payment ?? 0), 0);
-    const singleLink = linked && activeLoans.filter(other => linkedLoanPayment(other, items)?.id === linked.id).length === 1;
-    const paid = Math.max(loanPaid, singleLink ? spendingPaid(linked) : 0);
-    if (add('loan', loan.id, loan.name, loan.dueDate || fallbackDate, regularLoanPayment(loan, items) ?? 0, paid) && linked) linkedIds.add(linked.id);
+    const savedDate = loan.dueDate || (linked?.dueDay ? `2000-01-${String(linked.dueDay).padStart(2, '0')}` : '');
+    add('loan', loan.id, loan.name, savedDate, regularLoanPayment(loan, items) ?? 0);
   }
   for (const item of items) {
-    if (item.kind === 'income' || !isRecurringPlannedItem(item) || linkedIds.has(item.id) || !Number.isInteger(item.dueDay) || item.dueDay! < 1 || item.dueDay! > 31) continue;
-    add('spending', item.id, item.name, `2000-01-${String(item.dueDay).padStart(2, '0')}`, item.amount, spendingPaid(item));
+    if (item.kind === 'income' || !(item.recurring ?? item.kind !== 'purchase') || !Number.isInteger(item.dueDay) || item.dueDay! < 1 || item.dueDay! > 31) continue;
+    add('spending', item.id, item.name, `2000-01-${String(item.dueDay).padStart(2, '0')}`, item.amount);
   }
-  return reminders.filter(row => dueReminderUrgency(row.daysAway) !== null && !settings.dueReminderPaid?.some(record => record.id === row.id && record.date === row.date)).sort((a, b) => a.date.localeCompare(b.date) || a.name.localeCompare(b.name) || a.id.localeCompare(b.id));
+  return reminders.sort((a, b) => a.date.localeCompare(b.date) || a.name.localeCompare(b.name) || a.id.localeCompare(b.id));
 }
