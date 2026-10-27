@@ -111,3 +111,5 @@ html[data-theme=light] .debt-progress-ring>span{background:var(--theme-surface);
 .strategy-dialog .strategy-config-card>.strategy-payment{padding:0;border:0;border-radius:0;background:transparent;box-shadow:none}
 .strategy-dialog .strategy-config-card>.strategy-choices{padding:0;border:0;background:transparent;box-shadow:none}
 .strategy-dialog .strategy-choice{border:0!important;border-radius:0!important;background:transparent!important;box-shadow:none!important;padding:10px 0!important}
+
+.strategy-dialog .strategy-money .numeric-control input{border:0!important;box-shadow:none!important;background:transparent!important}
