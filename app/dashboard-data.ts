@@ -54,6 +54,7 @@ export type DebtAccount = OwnershipMetadata & {
   interestFee: number;
   interestAutomation?: InterestAutomation;
   minimum: number;
+  minimumCycles?: {date:string;amount:number}[];
   minimumPriorCycle?: {month:string;amount:number};
   minimumMode: MinimumMode;
   payoffMode: PayoffMode;
@@ -262,6 +263,8 @@ export type DuePaymentAssociation = {
   reminderId: string;
   dueDate: string;
   source: { type: "transaction" | "adjustment" | "loan-history" | "settlement"; id: string };
+  requiredAmount?: number;
+  completed?: boolean;
 };
 
 export type MonthlyPlanMonth = {
@@ -688,6 +691,17 @@ function validateAccount(value: unknown, path: string, issues: string[]) {
     }
   }
   requiredNumber(item.minimum, `${path}.minimum`, issues);
+  if(item.minimumCycles !== undefined){
+    const dates=new Set<string>();
+    requiredArray(item.minimumCycles,`${path}.minimumCycles`,issues)?.forEach((raw,index)=>{
+      const cycle=requiredRecord(raw,`${path}.minimumCycles[${index}]`,issues);if(!cycle)return;
+      const date=cycle.date;
+      if(typeof date!=="string"||!/^\d{4}-\d{2}-\d{2}$/.test(date)||!Number.isFinite(Date.parse(date))||new Date(date).toISOString().slice(0,10)!==date||dates.has(date))issues.push(path+".minimumCycles has an invalid or duplicate due date.");
+      else dates.add(date);
+      requiredNumber(cycle.amount,`${path}.minimumCycles[${index}].amount`,issues);
+      if(cycle.amount===0)issues.push(path+".minimumCycles amount must be greater than zero.");
+    });
+  }
   if(item.minimumPriorCycle !== undefined){
     const prior=item.minimumPriorCycle;
     if(!isRecord(prior) || typeof prior.month !== "string" || !/^\d{4}-(0[1-9]|1[0-2])$/.test(prior.month)) issues.push(path+".minimumPriorCycle must identify a valid month.");
@@ -929,6 +943,8 @@ function validateMonthlyPlan(value: unknown, path: string, issues: string[]) {
       if (!entry) return;
       requiredString(entry.reminderId, p + '.reminderId', issues);
       requiredString(entry.dueDate, p + '.dueDate', issues);
+      if(entry.requiredAmount!==undefined)requiredNumber(entry.requiredAmount,p+'.requiredAmount',issues);
+      if(entry.completed!==undefined&&(typeof entry.completed!=="boolean"||entry.requiredAmount===undefined))issues.push(p+'.completed requires a valid cycle amount.');
       if (typeof entry.reminderId !== 'string' || !/^(account|loan|spending):.+$/.test(entry.reminderId)) issues.push(p + '.reminderId is invalid.');
       if (typeof entry.dueDate !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(entry.dueDate) || !Number.isFinite(Date.parse(entry.dueDate)) || new Date(entry.dueDate).toISOString().slice(0, 10) !== entry.dueDate) issues.push(p + '.dueDate is invalid.');
       const source = requiredRecord(entry.source, p + '.source', issues);

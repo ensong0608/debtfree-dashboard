@@ -1,3 +1,4 @@
+import {currentMinimumCycle} from "./minimum-cycle.ts";
 import type { BalanceAdjustment, CashflowItem, DebtAccount, DuePaymentAssociation, LedgerTransaction, MonthlyPlanSettings, PlanSettlement } from './dashboard-data.ts';
 import { householdDate } from './household-date.ts';
 import { linkedLoanPayment, regularLoanPayment, type LoanTracker } from './loan-progress.ts';
@@ -59,12 +60,12 @@ export function loanHistorySourceId(loanId: string, entry: LoanTracker['history'
   return `${loanId}:${entry.date}:${entry.recordedAt}`;
 }
 
-export function associateDuePayment(settings: MonthlyPlanSettings, reminder: Pick<DueReminder, 'id' | 'date'>, source: DuePaymentSource): MonthlyPlanSettings {
+export function associateDuePayment(settings: MonthlyPlanSettings, reminder: Pick<DueReminder, 'id' | 'date'> & Partial<Pick<DueReminder,'requiredAmount'|'paidAmount'>>, source: DuePaymentSource, sourceAmount?:number): MonthlyPlanSettings {
   if (!/^(account|loan|spending):.+$/.test(reminder.id) || !validDate(reminder.date) || !source.id.trim()) throw new Error('This payment link is invalid.');
   const links = settings.duePaymentAssociations ?? [];
   if (links.some(link => link.source.type === source.type && link.source.id === source.id && (link.reminderId !== reminder.id || link.dueDate !== reminder.date))) throw new Error('This payment is already assigned to another due date.');
   if (links.some(link => link.reminderId === reminder.id && link.dueDate === reminder.date && link.source.type === source.type && link.source.id === source.id)) return settings;
-  return { ...settings, duePaymentAssociations: [...links, { reminderId: reminder.id, dueDate: reminder.date, source }] };
+  return { ...settings, duePaymentAssociations: [...links, { reminderId: reminder.id, dueDate: reminder.date, source, ...(reminder.requiredAmount!==undefined?{requiredAmount:reminder.requiredAmount,...(sourceAmount!==undefined?{completed:(reminder.paidAmount??0)+sourceAmount>=reminder.requiredAmount}:{})}:{}) }] };
 }
 
 function allSettlements(settings: Pick<MonthlyPlanSettings, 'months'>): PlanSettlement[] {
@@ -197,16 +198,22 @@ export function buildDueReminders({ accounts, loans, items, transactions, adjust
   const nextMonth = addMonth(today.slice(0, 7));
   const data = { transactions, adjustments, loans, items, settings, today };
   const reminders: DueReminder[] = [];
-  const add = (kind: DueReminder['kind'], targetId: string, name: string, savedDate: string, requiredAmount: number, prior?: {month:string;amount:number}) => {
+  const add = (kind: DueReminder['kind'], targetId: string, name: string, savedDate: string, requiredAmount: number, prior?: {month:string;amount:number}, exactDate?:string, nextAmount=requiredAmount) => {
     if (!Number.isFinite(requiredAmount) || requiredAmount <= 0) return;
-    let date = dueOccurrence(savedDate, today);
+    let date = exactDate ?? dueOccurrence(savedDate, today);
     if (!date) return;
-    const currentRequired = requiredAmount;
     if (prior?.month === date.slice(0,7)) requiredAmount = prior.amount;
     const id = `${kind}:${targetId}`;
+    const cycleLinks=settings.duePaymentAssociations?.filter(link=>link.reminderId===id&&link.dueDate===date&&link.requiredAmount!==undefined)??[];
+    const closed=cycleLinks.find(link=>link.completed);
+    const original=cycleLinks.at(-1)?.requiredAmount;
+    const recorded=kind==='account' && accounts.find(account=>account.id===targetId)?.minimumCycles?.some(cycle=>cycle.date===date);
     let paidAmount = eligiblePaidAmount({ id, date }, data);
+    if(closed?.requiredAmount!==undefined && (date<today || paidAmount>=closed.requiredAmount))requiredAmount=closed.requiredAmount;
+    else if(!recorded && original!==undefined)requiredAmount=original;
+    if(exactDate && paidAmount>=requiredAmount)return;
     if (paidAmount >= requiredAmount) {
-      requiredAmount = currentRequired;
+      requiredAmount = nextAmount;
       date = recurringDueDate(savedDate, nextMonth);
       if (!date) return;
       paidAmount = eligiblePaidAmount({ id, date }, data);
@@ -221,7 +228,11 @@ export function buildDueReminders({ accounts, loans, items, transactions, adjust
   for (const account of accounts) {
     if (account.archivedAt || account.balance <= 0) continue;
     const visibleMinimum = Number.isFinite(account.minimum) && account.minimum > 0 ? effectiveMinimum(account) : estimatedMinimum(account.balance, account.apr);
-    add('account', account.id, account.name, account.dueDate, visibleMinimum, account.minimumPriorCycle);
+    const current=currentMinimumCycle(account,today);
+    for(const cycle of account.minimumCycles??[]){
+      if(current && cycle.date<current.date)add('account',account.id,account.name,account.dueDate,cycle.amount,undefined,cycle.date);
+    }
+    add('account', account.id, account.name, account.dueDate, current?.amount??visibleMinimum,undefined,undefined,visibleMinimum);
   }
   for (const loan of loans) {
     if (loan.remainingAmount <= 0) continue;
