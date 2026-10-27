@@ -120,3 +120,6 @@
 /* The category list shares one surface, without a second nested container. */
 .categories{background:transparent}.categoryItems{border:0;background:transparent;box-shadow:none;padding-inline:0}.categorySection{border:0;border-radius:0;background:transparent}.sectionHeading{padding-inline:0}.categories{padding-inline:0}.incomeEditor{border:0;border-radius:0;background:transparent;box-shadow:none}
 .category>summary{grid-template-columns:36px minmax(0,1fr) auto 20px!important}.categoryTrack{grid-column:2/4}.categoryAmount{grid-column:3}.categoryChevron{grid-column:4}
+
+:global(html[data-theme=light]) .page{--budget-home:#a58cc6;--budget-insurance:#82accd;--budget-transport:#c3aa80;--budget-food:#8db9a4;--budget-debt:#ca94a6;--budget-bills:#89aabf;--budget-other:#c7b08f;--budget-subscriptions:#e6bf8b;--theme-track:#dfe6ef;--theme-summary-ring:#a7cbbf}
+:global(html[data-theme=light]) .categoryIcon{background:color-mix(in srgb,var(--category-tone) 17%,transparent)}

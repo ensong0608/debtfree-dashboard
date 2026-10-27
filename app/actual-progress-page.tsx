@@ -1,4 +1,5 @@
 "use client";
+import segmentedStyles from "./segmented-control.module.css";
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { createHouseholdMoneyFormatter } from "./household-currency";
 import { useHouseholdCurrency } from "./household-currency-context";
@@ -169,7 +170,7 @@ export default function ActualProgressPage({ accounts, loans, removedAccounts = 
 
   return <div className={`screen snapshots-screen actual-progress-screen ${styles.screen}`}>
     {!accounts.length && !removedAccounts.length && !loans.length ? <section className="large-empty"><h2>Add a debt to start tracking progress</h2><button className="primary" onClick={onAccounts}>Add debt</button></section> : <>
-      {!onTab && <nav className="compact-segments" aria-label="Progress sections">{([['overview', 'Overview'], ['utilization', 'Utilization'], ['milestones', 'Milestones']] as const).map(([value, label]) => <button key={value} type="button" aria-current={tab === value ? "page" : undefined} onClick={() => setTab(value)}>{label}</button>)}</nav>}
+      {!onTab && <nav className={segmentedStyles.root} aria-label="Progress sections">{([['overview', 'Overview'], ['utilization', 'Utilization'], ['milestones', 'Milestones']] as const).map(([value, label]) => <button key={value} type="button" aria-current={tab === value ? "page" : undefined} onClick={() => setTab(value)}>{label}</button>)}</nav>}
 
       {tab === "overview" && <div className={styles.stack}>
         <div className={styles.integratedSummary}><DebtScopeCarousel slides={scopeSlides} value={currentScope} onChange={setScope} label="Progress scope" /></div>

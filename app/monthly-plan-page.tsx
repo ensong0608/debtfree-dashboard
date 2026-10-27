@@ -32,7 +32,7 @@ function categoryIcon(category: string) {
 
 function categoryColor(category: string) {
   if (/subscription/i.test(category)) return 'var(--budget-subscriptions,#ffb86b)';
-  const colors={home:'var(--theme-violet)',insurance:'var(--theme-info)',car:'var(--theme-warning)',cart:'var(--theme-success)',card:'var(--theme-danger)',calendar:'var(--theme-accent)',receipt:'var(--theme-warning)'};
+  const colors={home:'var(--budget-home,var(--theme-violet))',insurance:'var(--budget-insurance,var(--theme-info))',car:'var(--budget-transport,var(--theme-warning))',cart:'var(--budget-food,var(--theme-success))',card:'var(--budget-debt,var(--theme-danger))',calendar:'var(--budget-bills,var(--theme-accent))',receipt:'var(--budget-other,var(--theme-warning))'};
   return colors[categoryIcon(category)];
 }
 
@@ -99,7 +99,7 @@ export default function MonthlyPlanPage(props: Props) {
       </div>
       <div className="budget-allocation-row"><div className={styles.allocationTrack} data-has-income={income>0} role="progressbar" aria-label="Income allocated" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.min(100,Math.max(0,allocatedPercent??0))}>
         {groupedSpending.map(([category,entries])=>{const total=round(entries.reduce((sum,item)=>sum+item.amount,0));const share=income>0?Math.max(0,total/income*100):0;return <i key={category} title={`${category}: ${currency.format(total)} (${share.toFixed(1)}% of income)`} style={{width:`${share}%`,background:categoryColor(category)}}/>;})}
-        {debtPayments>0 && <i title={`Debt payments: ${currency.format(debtPayments)}`} style={{width:`${income>0?debtPayments/income*100:0}%`,background:'var(--theme-danger)'}}/>}
+        {debtPayments>0 && <i title={`Debt payments: ${currency.format(debtPayments)}`} style={{width:`${income>0?debtPayments/income*100:0}%`,background:'var(--budget-debt,var(--theme-danger))'}}/>}
       </div><strong>{allocatedPercent?.toFixed(0)??'—'}%</strong></div>
       <div className={styles.summaryStats}>
         <div><span className={styles.dotSpending} /><strong><span className="money-value">{currency.format(allocated)}</span></strong><small>Planned</small></div>
@@ -142,7 +142,7 @@ export default function MonthlyPlanPage(props: Props) {
               </div>
             </details>;
           })}
-          {debtPayments > 0 && <details className={`${styles.category} ${styles.debtCategory}`} data-category-tone="card" style={{"--category-tone":"var(--theme-danger)"} as CSSProperties}>
+          {debtPayments > 0 && <details className={`${styles.category} ${styles.debtCategory}`} data-category-tone="card" style={{"--category-tone":"var(--budget-debt,var(--theme-danger))"} as CSSProperties}>
             <summary><span className={styles.categoryIcon}><OutlineIcon name="card" /></span><span className={styles.categoryName}><strong>Debt payments</strong></span><i className={styles.categoryTrack}><b style={{width:`${income>0?debtShare:0}%`}}/></i><strong className={styles.categoryAmount}><span className="money-value">{currency.format(debtPayments)}</span></strong><small className={styles.categoryShare}>{income > 0 ? (debtPayments / income * 100).toFixed(0) : 0}%</small><span className={styles.categoryChevron}><OutlineIcon name="chevron" /></span></summary>
             <div className={styles.categoryItems}><p className={styles.debtDetail}>{props.commitment ? <>Household payment <span className="money-value">{currency.format(props.commitment.householdPayment)}</span> · Schedule <span className="money-value">{currency.format(props.commitment.schedule.monthly)}</span>{props.commitment.missingLoanPayments > 0 && " · Add missing loan payment amounts"}</> : "Saved debt payment commitment for this month."}</p></div>
           </details>}
