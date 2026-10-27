@@ -90,7 +90,7 @@ test('Home due reminders fit both themes, narrow screens and larger text, with a
 });
 
 
-test('Home reminders appear at ten days, are critical at three, and hide outside the window', async ({page}) => {
+test('Home reminders keep overdue bills visible and mark the three-day window critical', async ({page}) => {
   await page.evaluate(key => {
     const data=JSON.parse(localStorage.getItem(key)!);
     const source=data.payload.accounts[0];
@@ -106,13 +106,15 @@ test('Home reminders appear at ten days, are critical at three, and hide outside
   await page.reload();
   const card=page.getByRole('region',{name:'Upcoming due reminders'});
   await expect(card.getByRole('listitem')).toHaveCount(3);
-  await expect(card).not.toContainText('Eleven day card');
+  await expect(card.getByRole('listitem').filter({hasText:'Ten day card'})).toContainText('Overdue · 21 days past due');
+  await card.getByRole('button',{name:'See all (4)'}).click();
+  await expect(card.getByRole('listitem')).toHaveCount(4);
+  await expect(card.getByRole('listitem').filter({hasText:'Eleven day card'})).toContainText('Overdue · 20 days past due');
   await expect(card.getByRole('listitem').filter({hasText:'Three day card'})).toContainText('Critical');
   await expect(card.getByRole('listitem').filter({hasText:'Four day card'})).not.toContainText('Critical');
-  await expect(card.getByRole('listitem').filter({hasText:'Ten day card'})).toContainText('In 10 days');
   await page.evaluate(key => {
     const data=JSON.parse(localStorage.getItem(key)!);
-    data.payload.accounts=data.payload.accounts.filter((a:{id:string})=>a.id==='eleven');
+    data.payload.accounts=[];
     localStorage.setItem(key,JSON.stringify(data));
   },DASHBOARD_STORAGE_KEY);
   await page.reload();
