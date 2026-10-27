@@ -1,3 +1,4 @@
+import {minimumCycleEdit} from "./minimum-cycle.ts";
 import { validOptionalInstitution } from './institutions.ts';
 import type { DebtAccount, DebtAuditCreator } from './dashboard-data.ts';
 import type { EntryState } from './debt-transactions.ts';
@@ -45,7 +46,7 @@ export function saveCreditCardDetails(state: EntryState, id: string, draft: Cred
   if (balanceChanged && current.balance !== baseline.balance) throw new Error('The balance changed. Reopen the card before editing its balance.');
   const next = balanceChanged ? reconcileBalance(state, account, draft.balance, creator) : state;
   const changes = Object.fromEntries(editableKeys.map(key => [key, key === 'name' ? draft.name.trim() : key === 'displayGroup' ? draft.displayGroup ?? baseline.account.displayGroup : draft[key]]));
-  return {...next, accounts: next.accounts.map(item => item.id === id ? {...item, ...changes, ...(interestChanged ? {interestAutomation:draft.interestAutomation} : {}), ...(startingBalance !== undefined ? {baselineBalance:startingBalance} : {})} : item)};
+  return {...next, accounts: next.accounts.map(item => item.id === id ? {...item, ...minimumCycleEdit(account,draft.minimum), ...changes, ...(interestChanged ? {interestAutomation:draft.interestAutomation} : {}), ...(startingBalance !== undefined ? {baselineBalance:startingBalance} : {})} : item)};
 }
 
 export function markCreditCardPaidOff(state: EntryState, id: string, creator?: DebtAuditCreator): EntryState {

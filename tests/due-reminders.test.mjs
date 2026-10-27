@@ -175,3 +175,17 @@ test('association metadata round-trips in household backups and rejects duplicat
   buildDueReminders(source);
   assert.deepEqual(source, before);
 });
+
+test('editing a minimum after its due date preserves the paid cycle and uses the new amount next month', async () => {
+  const {minimumCycleEdit}=await import('../app/minimum-cycle.ts');
+  const original=account({dueDate:'2026-01-20',minimum:100});
+  const metadata=minimumCycleEdit(original,200,'2026-10-26');
+  const edited={...original,...metadata,minimum:200};
+  const payment=transaction({amount:100,date:'2026-10-20'});
+  const linked=settings({duePaymentAssociations:[{reminderId:'account:card',dueDate:'2026-10-20',source:{type:'transaction',id:payment.id}}]});
+  const reminders=buildDueReminders(input({accounts:[edited],transactions:[payment],settings:linked,upcomingWindow:null}));
+  assert.equal(reminders[0].date,'2026-11-20');assert.equal(reminders[0].requiredAmount,200);
+  assert.equal(minimumCycleEdit(edited,300,'2026-10-27').minimumPriorCycle.amount,100);
+  const unpaid=buildDueReminders(input({accounts:[edited],upcomingWindow:null}))[0];assert.equal(unpaid.requiredAmount,100);
+  assert.deepEqual(minimumCycleEdit(original,200,'2026-10-19'),{});
+});

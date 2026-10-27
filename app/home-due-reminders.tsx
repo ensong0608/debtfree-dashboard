@@ -32,19 +32,19 @@ export default function HomeDueReminders({ reminders, readOnly, transactions, ad
   const candidates = pending ? duePaymentCandidates(pending, { transactions, adjustments, loans, items, settings: { months, duePaymentAssociations }, today: householdDate() }) : [];
   return <>{Boolean(reminders.length) && <section className={fullPage ? "next-due-list " + styles.reminderCard : styles.reminderCard} aria-label="Upcoming due reminders">
     <header className={styles.sectionHeader}>
-      <div className={styles.reminderHeading}><span><OutlineIcon name="bell"/></span><h2>Next Due</h2></div>
+      <div className={styles.reminderHeading}><span><OutlineIcon name="bell"/></span><h2>Upcoming</h2></div>
       {!fullPage && (onSeeAll || reminders.length > 3) && <button type="button" className={styles.reminderToggle} aria-expanded={onSeeAll ? undefined : expanded} aria-controls={onSeeAll ? undefined : listId} onClick={() => onSeeAll ? onSeeAll() : setExpanded(value => !value)}>{!onSeeAll && expanded ? 'Show less' : `See all (${reminders.length})`}</button>}
     </header>
     <ul className={styles.reminderRows} id={listId}>{(fullPage || expanded ? reminders : reminders.slice(0, 3)).map(reminder => {
       const date = new Date(reminder.date + 'T12:00:00Z').toLocaleDateString('en-US', { timeZone: 'UTC', month: 'short', day: 'numeric' });
       const urgency = dueReminderUrgency(reminder.daysAway);
       const when = urgency === 'overdue' ? `Overdue · ${Math.abs(reminder.daysAway)} ${Math.abs(reminder.daysAway) === 1 ? 'day' : 'days'}` : reminder.daysAway === 0 ? 'Due today' : reminder.daysAway === 1 ? 'Due tomorrow' : `In ${reminder.daysAway} days`;
-      return <li key={reminder.id}><button type="button" className={styles.reminderRow} onClick={() => onOpen(reminder)} data-dialog-return-id={reminder.id} aria-label={`View ${reminder.name}, ${when.toLowerCase()}, ${money.format(reminder.amount)} remaining`}>
+      return <li key={reminder.id}><button type="button" className={styles.reminderRow} onClick={() => { if(readOnly){onOpen(reminder);return;} const available=duePaymentCandidates(reminder,{transactions,adjustments,loans,items,settings:{months,duePaymentAssociations},today:householdDate()});if(available.length){setPending(reminder);setError('');}else onRecordNew(reminder); }} data-dialog-return-id={reminder.id} aria-label={`View ${reminder.name}, ${when.toLowerCase()}, ${money.format(reminder.amount)} remaining`}>
         <span className={styles.reminderIcon} data-soon={urgency === 'critical' || urgency === 'overdue'}><OutlineIcon name={reminder.kind === 'spending' ? 'receipt' : reminder.kind === 'loan' ? 'calendar' : 'card'}/></span>
         <span className={styles.reminderCopy}><strong>{reminder.name}</strong><small>{(urgency === 'critical' || urgency === 'overdue') && <b className={styles.reminderCritical}>{urgency === 'overdue' ? 'Overdue · ' : 'Critical · '}</b>}<span data-soon={urgency === 'critical' || urgency === 'overdue'}>{urgency === 'overdue' ? `${Math.abs(reminder.daysAway)} ${Math.abs(reminder.daysAway) === 1 ? 'day' : 'days'} past due` : when}</span> · <time dateTime={reminder.date}>{date}</time></small>{reminder.paidAmount > 0 && <small>Paid {money.format(reminder.paidAmount)} · Remaining {money.format(reminder.amount)}</small>}</span>
         <span className={styles.reminderAmount}><strong className="money-value">{money.format(reminder.amount)}</strong><small>{reminder.kind === 'account' ? 'Remaining minimum' : reminder.kind === 'loan' ? 'Remaining payment' : 'Remaining bill'}</small></span>
         <OutlineIcon name="chevron"/>
-      </button>{!readOnly && <button type="button" className={styles.reminderPaid} data-dialog-return-id={reminder.id} aria-label={`Record or link payment for ${reminder.name}`} onClick={() => { setPending(reminder); setError(''); }}><OutlineIcon name="check"/>{reminder.kind === 'spending' ? 'Pair transaction' : 'Record payment'}</button>}</li>;
+      </button></li>;
     })}</ul>
   </section>}
   {pending && !readOnly && <div className={styles.duePaymentBackdrop} role="presentation" onMouseDown={event => { if (event.target === event.currentTarget) setPending(null); }}>
@@ -56,9 +56,6 @@ export default function HomeDueReminders({ reminders, readOnly, transactions, ad
         <h3>Use an existing record</h3>
         {candidates.length ? candidates.map(candidate => <button type="button" key={candidate.source.type + ':' + candidate.source.id} onClick={() => { const issue = onLink(pending, candidate); if (issue) setError(issue); else setPending(null); }}><span><strong>{candidate.title}</strong><small>{candidate.kind} · {new Date(candidate.date + 'T12:00:00Z').toLocaleDateString('en-US', { timeZone: 'UTC', month: 'short', day: 'numeric' })}</small></span><b className="money-value">{money.format(candidate.amount)}</b></button>) : <p>No eligible unlinked records are available for this due date.</p>}
       </div>
-      {pending.kind === 'account' && <button className="primary" type="button" onClick={() => { const reminder = pending; setPending(null); onRecordNew(reminder); }}>Record a new payment</button>}
-      {pending.kind === 'loan' && <><p className={styles.duePaymentHint}>Record a new loan payment in the loan details, then pair it with this due date.</p><button className="primary" type="button" onClick={() => { const reminder = pending; setPending(null); onRecordNew(reminder); }}>Open loan details</button></>}
-      {pending.kind === 'spending' && <><p className={styles.duePaymentHint}>Record a bill payment, then pair it here.</p><button className="primary" type="button" onClick={() => { const reminder = pending; setPending(null); onRecordNew(reminder); }}>Record bill payment</button></>}
       <footer><button type="button" className="secondary" onClick={() => setPending(null)}>Close</button></footer>
     </section>
   </div>}

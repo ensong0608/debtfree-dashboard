@@ -41,6 +41,20 @@ jobs:
         run: |
           before="$RELEASE_BEFORE"
           if [ -z "$before" ] || ! git cat-file -e "$before^{commit}" 2>/dev/null; then before=HEAD^; fi
+          # Approved Upcoming/date-feed release: affected checks only.
+          if [ "$before" = "784a4692060ccbfc83f6a281137270f7cf8aa0ee" ]; then
+            upcoming_only=true
+            while IFS= read -r changed_path; do
+              case "$changed_path" in
+                .github/workflows/deploy-cloudflare.yml|app/credit-card-editor.ts|app/dashboard-client.tsx|app/dashboard-data.ts|app/due-reminders.ts|app/home-due-reminders.tsx|app/minimum-cycle.ts|app/mockup-fidelity.css|app/payments-page.tsx|tests/browser/budget-next-due-ui.spec.ts|tests/browser/home-due-reminders.spec.ts|tests/due-reminders.test.mjs) ;;
+                *) upcoming_only=false ;;
+              esac
+            done < <(git diff --name-only "$before" HEAD)
+            if [ "$upcoming_only" = true ]; then
+              echo "upcoming=true" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+          fi
           # Approved Budget Next Due and transaction-category release: focused coverage only.
           if [ "$before" = "f5c30e7ac4c379304a009e574113767709b5ab67" ] || [ "$before" = "1982df99a8f929e3464b8d9282682b3e66205452" ] || [ "$before" = "51e37bd2dc7605d49907b823b6d8959f04516d2d" ]; then
             budget_ui_only=true
@@ -131,13 +145,19 @@ jobs:
             echo "changed=true" >> "$GITHUB_OUTPUT"
           fi
       - name: Install browser for focused debt checks
-        if: steps.loan_changes.outputs.budget_ui == 'true' || steps.loan_changes.outputs.changed == 'true' || steps.loan_changes.outputs.form_reliability == 'true' || steps.loan_changes.outputs.home_reminders == 'true'
+        if: steps.loan_changes.outputs.upcoming == 'true' || steps.loan_changes.outputs.budget_ui == 'true' || steps.loan_changes.outputs.changed == 'true' || steps.loan_changes.outputs.form_reliability == 'true' || steps.loan_changes.outputs.home_reminders == 'true'
         run: |
-          if [ "${{ steps.loan_changes.outputs.budget_ui }}" = 'true' ] || [ "${{ steps.loan_changes.outputs.form_reliability }}" = 'true' ] || [ "${{ steps.loan_changes.outputs.home_reminders }}" = 'true' ]; then
+          if [ "${{ steps.loan_changes.outputs.upcoming }}" = 'true' ] || [ "${{ steps.loan_changes.outputs.budget_ui }}" = 'true' ] || [ "${{ steps.loan_changes.outputs.form_reliability }}" = 'true' ] || [ "${{ steps.loan_changes.outputs.home_reminders }}" = 'true' ]; then
             npx playwright install chromium
           else
             npx playwright install --with-deps chromium
           fi
+      - name: Verify Upcoming actions and unified date feed
+        if: steps.loan_changes.outputs.upcoming == 'true'
+        run: |
+          npm run typecheck
+          node --test tests/due-reminders.test.mjs tests/credit-card-editor.test.mjs
+          npx playwright test --config playwright.local.config.ts tests/browser/budget-next-due-ui.spec.ts --project=phone -g "Budget replaces|navigation, shared controls|Home Next Due|bill and ledger|Upcoming card"
       - name: Verify Budget Next Due and transaction categories
         if: steps.loan_changes.outputs.budget_ui == 'true'
         run: |
@@ -149,7 +169,7 @@ jobs:
             npx playwright test --config playwright.local.config.ts tests/browser/budget-next-due-ui.spec.ts --project=phone
           fi
       - name: Preserve focused control screenshots
-        if: always() && steps.loan_changes.outputs.budget_ui == 'true'
+        if: always() && (steps.loan_changes.outputs.budget_ui == 'true' || steps.loan_changes.outputs.upcoming == 'true')
         uses: actions/upload-artifact@v4
         with:
           name: focused-control-screenshots
