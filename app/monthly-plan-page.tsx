@@ -58,7 +58,6 @@ type Props = {
   onEdit: (item: CashflowItem) => void;
   onSettings: (settings: MonthlyPlanMonth) => void;
   onTracking: (enabled: boolean) => void;
-  onViewTransactions: () => void;
 };
 
 export default function MonthlyPlanPage(props: Props) {
@@ -109,7 +108,7 @@ export default function MonthlyPlanPage(props: Props) {
       </div>
       {debtPayments > 0 && <p className={styles.debtNote}>Includes <span className="money-value">{currency.format(debtPayments)}</span> planned for debt payments.</p>}
       {incomeEditorOpen && <div className={styles.incomeEditor}>
-        <div className={styles.editorHeading}><strong>Income sources</strong><button type="button" disabled={props.readOnly} onClick={() => props.onAdd("income")}>＋ Add income</button></div>
+        <div className={styles.editorHeading}><strong>Income sources</strong><button type="button" disabled={props.readOnly} onClick={() => props.onAdd("income")}>Add income</button></div>
         {incomeItems.length ? incomeItems.map(item => <button type="button" className={styles.incomeItem} key={item.id} disabled={props.readOnly} onClick={() => props.onEdit(item)}><span><strong>{item.name}</strong><small>{item.category}</small></span><b><span className="money-value">{currency.format(item.amount)}</span></b><OutlineIcon name="chevron" /></button>) : <p>No planned income sources yet.</p>}
       </div>}
     </section>}
@@ -131,7 +130,6 @@ export default function MonthlyPlanPage(props: Props) {
                 <span className={styles.categoryName}><strong>{category}</strong></span>
                 <strong className={styles.categoryAmount}><span className="money-value">{currency.format(total)}</span></strong>
                 <i className={styles.categoryTrack}><b style={{width:`${Math.min(100,shareOfIncome)}%`}}/></i><small className={styles.categoryShare}>{shareOfIncome.toFixed(0)}%</small>
-                <button type="button" className={styles.categoryPlus} disabled={props.readOnly} aria-label={`Add to ${category}`} onClick={event => { event.preventDefault(); event.stopPropagation(); props.onAdd("expense", category); }}><OutlineIcon name="plus" /></button>
               </summary>
               <div className={styles.categoryItems}>
                 {categoryItems.map(item => {
@@ -141,7 +139,6 @@ export default function MonthlyPlanPage(props: Props) {
                     <b><span className="money-value">{currency.format(item.amount)}</span></b><OutlineIcon name="chevron" />
                   </button>;
                 })}
-                <button type="button" className={styles.addEntry} disabled={props.readOnly} onClick={() => props.onAdd("expense", category)}><OutlineIcon name="plus" /> Add to {category}</button>
               </div>
             </details>;
           })}

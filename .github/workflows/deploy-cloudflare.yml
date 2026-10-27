@@ -41,6 +41,20 @@ jobs:
         run: |
           before="$RELEASE_BEFORE"
           if [ -z "$before" ] || ! git cat-file -e "$before^{commit}" 2>/dev/null; then before=HEAD^; fi
+          # Approved Budget Next Due and transaction-category release: focused coverage only.
+          if [ "$before" = "f5c30e7ac4c379304a009e574113767709b5ab67" ]; then
+            budget_ui_only=true
+            while IFS= read -r changed_path; do
+              case "$changed_path" in
+                .github/workflows/deploy-cloudflare.yml|app/actual-progress-page.tsx|app/budget-bill-payment.tsx|app/budget-view.ts|app/dashboard-client.tsx|app/debt-entry-dialog.tsx|app/debt-experience.module.css|app/debt-experience.tsx|app/due-reminders.ts|app/floating-add-button.tsx|app/home-dashboard-page.tsx|app/home-dashboard.module.css|app/home-due-reminders.tsx|app/loan-progress-panel.tsx|app/mockup-fidelity.css|app/monthly-plan-page.module.css|app/monthly-plan-page.tsx|app/onboarding-flow.tsx|app/payments-page.tsx|app/payoff-schedule-popup.tsx|tests/browser/budget-next-due-ui.spec.ts) ;;
+                *) budget_ui_only=false ;;
+              esac
+            done < <(git diff --name-only "$before" HEAD)
+            if [ "$budget_ui_only" = true ]; then
+              echo "budget_ui=true" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+          fi
           # Owner-approved single-input styling fix: no tests for this CSS-only release.
           if [ "$before" = "a69efbbf3198bb18dd0a7d28da6a08b9fb645657" ]; then
             input_style_only=true
@@ -116,13 +130,19 @@ jobs:
             echo "changed=true" >> "$GITHUB_OUTPUT"
           fi
       - name: Install browser for focused debt checks
-        if: steps.loan_changes.outputs.changed == 'true' || steps.loan_changes.outputs.form_reliability == 'true' || steps.loan_changes.outputs.home_reminders == 'true'
+        if: steps.loan_changes.outputs.budget_ui == 'true' || steps.loan_changes.outputs.changed == 'true' || steps.loan_changes.outputs.form_reliability == 'true' || steps.loan_changes.outputs.home_reminders == 'true'
         run: |
-          if [ "${{ steps.loan_changes.outputs.form_reliability }}" = 'true' ] || [ "${{ steps.loan_changes.outputs.home_reminders }}" = 'true' ]; then
+          if [ "${{ steps.loan_changes.outputs.budget_ui }}" = 'true' ] || [ "${{ steps.loan_changes.outputs.form_reliability }}" = 'true' ] || [ "${{ steps.loan_changes.outputs.home_reminders }}" = 'true' ]; then
             npx playwright install chromium
           else
             npx playwright install --with-deps chromium
           fi
+      - name: Verify Budget Next Due and transaction categories
+        if: steps.loan_changes.outputs.budget_ui == 'true'
+        run: |
+          npm run typecheck
+          node --test tests/due-reminders.test.mjs tests/debt-transactions.test.mjs
+          npx playwright test --config playwright.local.config.ts tests/browser/budget-next-due-ui.spec.ts --project=phone
       - name: Verify approved Home reminders release
         if: steps.loan_changes.outputs.home_reminders == 'true'
         run: |

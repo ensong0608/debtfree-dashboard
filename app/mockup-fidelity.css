@@ -79,3 +79,23 @@ html[data-text-size=larger] .budget-summary-tile{flex-wrap:wrap}html[data-text-s
 .budget-record-main .budget-record-amount{min-width:0;max-width:min(42vw,240px)}
 .budget-record-delete{min-width:44px;width:44px}
 .budget-record-main .budget-record-amount .money-value{white-space:normal;overflow-wrap:anywhere}
+
+/* Shared add action stays above the phone navigation and clear of scrolling rows. */
+.floating-add-button{position:fixed;right:max(20px,env(safe-area-inset-right));bottom:calc(88px + env(safe-area-inset-bottom));z-index:24;display:grid;place-items:center;width:64px;height:64px;min-width:64px;min-height:64px;padding:14px;border:2px solid var(--theme-surface);border-radius:50%;background:var(--theme-accent-fill);color:var(--theme-on-accent);box-shadow:0 5px 18px var(--theme-shadow)}
+.floating-add-button>svg{width:34px;height:34px}.floating-add-button.is-open>svg{transform:rotate(45deg)}
+.floating-add-menu{position:fixed;right:max(20px,env(safe-area-inset-right));bottom:calc(164px + env(safe-area-inset-bottom));z-index:25;display:grid;gap:0;width:min(260px,calc(100vw - 40px));padding:6px;border:1px solid var(--theme-border);border-radius:14px;background:var(--theme-surface);box-shadow:0 6px 24px var(--theme-shadow)}
+.floating-add-menu>button{min-height:48px;padding:10px 14px;border:0;background:transparent;text-align:left;color:var(--theme-text);font-size:15px;border-radius:8px}.floating-add-menu>button:hover{background:var(--theme-raised)}
+.budget-workspace,.transactions-screen:has(.floating-add-button){padding-bottom:100px!important}
+.next-due-list{margin:0!important;border:0!important;padding:0!important;border-radius:0!important;background:transparent!important;box-shadow:none!important}.next-due-list>header{display:none}.next-due-list>ul{margin:0}
+/* One compact segmented control across primary sections and debt details. */
+.shared-dashboard-header .compact-segments,.detail-segments{display:grid!important;grid-template-columns:repeat(3,minmax(0,1fr));gap:4px!important;padding:4px!important;border:1px solid var(--theme-border)!important;border-radius:12px!important;background:var(--theme-raised)!important;min-height:44px;margin:8px 0!important}
+.compact-segments>button,.detail-segments>button{min-width:0!important;min-height:40px!important;margin:0!important;padding:8px 5px!important;border:0!important;border-radius:8px!important;background:transparent!important;color:var(--theme-muted)!important;font-size:calc(13px * var(--theme-text-scale,1))!important;font-weight:600!important;box-shadow:none!important;white-space:normal!important;line-height:1.2}
+.compact-segments>button:is([aria-pressed=true],[aria-current=page]),.detail-segments>button[aria-selected=true]{background:var(--theme-accent-fill)!important;color:var(--theme-on-accent)!important;box-shadow:0 1px 4px var(--theme-shadow)!important}.compact-segments>button:after,.detail-segments>button:after{display:none!important}
+/* Flatten repeated wrappers while keeping meaningful cards and form fields. */
+.budget-workspace,.budget-transactions-board{border:0;background:transparent;box-shadow:none}
+.budget-board-summary{border:0!important;border-radius:0!important;background:transparent!important;padding-inline:0!important;box-shadow:none!important}
+.budget-board-summary .budget-summary-tile{border:0!important;box-shadow:none!important}
+.settings-panel .settings-group-block{border:0;box-shadow:none}
+html[data-theme=light] .debt-progress-ring{outline:2px solid color-mix(in srgb,var(--theme-text) 35%,transparent);outline-offset:2px;--theme-track:#bac7d7;filter:saturate(1.25)}
+html[data-theme=light] .debt-progress-ring>span{background:var(--theme-surface);color:var(--theme-text)}
+@media(min-width:900px){.floating-add-button{bottom:28px}.floating-add-menu{bottom:104px}}

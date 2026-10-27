@@ -184,7 +184,7 @@ export function duePaymentCandidates(reminder: DueReminder, data: {
 /** Build current-cycle reminders from visible obligation settings and explicit payment links only.
  * Old dismissal acknowledgements and monthly payoff targets do not affect amounts or status.
  */
-export function buildDueReminders({ accounts, loans, items, transactions, adjustments = [], settings, today = householdDate() }: {
+export function buildDueReminders({ accounts, loans, items, transactions, adjustments = [], settings, today = householdDate(), upcomingWindow = 10 }: {
   accounts: DebtAccount[];
   loans: LoanTracker[];
   items: CashflowItem[];
@@ -192,6 +192,7 @@ export function buildDueReminders({ accounts, loans, items, transactions, adjust
   adjustments?: BalanceAdjustment[];
   settings: MonthlyPlanSettings;
   today?: string;
+  upcomingWindow?: number | null;
 }): DueReminder[] {
   const nextMonth = addMonth(today.slice(0, 7));
   const data = { transactions, adjustments, loans, items, settings, today };
@@ -208,7 +209,7 @@ export function buildDueReminders({ accounts, loans, items, transactions, adjust
       paidAmount = eligiblePaidAmount({ id, date }, data);
     }
     const daysAway = Math.round((Date.parse(date + 'T00:00:00Z') - Date.parse(today + 'T00:00:00Z')) / 86400000);
-    if (dueReminderUrgency(daysAway) === null) return;
+    if (upcomingWindow !== null && daysAway > upcomingWindow) return;
     const amount = round(Math.max(0, requiredAmount - paidAmount));
     if (amount <= 0) return;
     reminders.push({ id, kind, targetId, name, date, requiredAmount: round(requiredAmount), paidAmount, amount, daysAway, paymentStatus: paidAmount > 0 ? 'partially-paid' : 'unpaid' });

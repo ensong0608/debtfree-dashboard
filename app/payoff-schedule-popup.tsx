@@ -36,7 +36,7 @@ export default function PayoffSchedule({ schedule, rows, amount, readOnly = fals
       {!inline && <header className="strategy-header"><div><BackButton aria-label="Close payoff strategy and go back" onClick={onClose}/><h2 id="payoff-schedule-title">Payoff strategy</h2></div></header>}
       <div className={styles.scheduleScroll}>
         <div className="strategy-content">
-          <div className="strategy-config-card"><header className="strategy-scope-label">Cards &amp; loans</header><section className="strategy-payment" aria-label="Forecast settings">
+          <div className="strategy-config-card"><header className="strategy-scope-label">Cards &amp; Loans</header><section className="strategy-payment" aria-label="Forecast settings">
             
             <div><form onSubmit={event => { event.preventDefault(); save(); }}><label htmlFor="schedule-payment">Extra payment</label><div className="strategy-money"><span>{householdCurrencySymbol(currency)}</span><NumericInput aria-label="Extra payment" id="schedule-payment" value={parseMoneyInput(draft)} text={draft} disabled={readOnly} aria-invalid={Boolean(inputError)} aria-describedby={inputError ? "schedule-payment-error" : undefined} onValueChange={(_, text) => { setDraft(text); setInputError(""); }} onBlur={save}/><button type="submit" aria-label="Save extra payment" disabled={readOnly}><OutlineIcon name="check"/></button></div></form>{inputError && <small id="schedule-payment-error" role="alert">{inputError}</small>}<button className="strategy-minimums secondary" type="button" disabled={readOnly||minimums.length===0} onClick={()=>setEditMinimums(true)}>Edit minimums</button></div>
           </section>
