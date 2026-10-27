@@ -83,7 +83,7 @@ function currentTransaction(id: string, transactions: LedgerTransaction[]) {
 }
 
 function sourceAmount(source: DuePaymentSource, reminder: Pick<DueReminder, 'id' | 'date'>, data: {
-  transactions: LedgerTransaction[]; adjustments: BalanceAdjustment[]; loans: LoanTracker[]; settings: Pick<MonthlyPlanSettings, 'months' | 'duePaymentAssociations'>; today?: string;
+  transactions: LedgerTransaction[]; adjustments: BalanceAdjustment[]; loans: LoanTracker[]; items: CashflowItem[]; settings: Pick<MonthlyPlanSettings, 'months' | 'duePaymentAssociations'>; today?: string;
 }): number {
   const [kind, targetId] = reminder.id.split(':', 2);
   if (source.type === 'transaction') {
@@ -91,6 +91,11 @@ function sourceAmount(source: DuePaymentSource, reminder: Pick<DueReminder, 'id'
     if (!row || row.deletedAt || row.replacedByTransactionId || row.date > (data.today ?? reminder.date) || row.includedIn) return 0;
     if (kind === 'account' && row.type === 'payment' && row.accountId === targetId && row.credit !== true && row.reductionKind !== 'adjustment' && row.paymentKind !== 'extra') return row.amount;
     if (kind === 'spending' && row.type === 'charge' && row.plannedItemId === targetId) return row.amount;
+    if (kind === 'loan' && row.type === 'charge') {
+      const loan = data.loans.find(item => item.id === targetId);
+      const linkedItem = loan ? linkedLoanPayment(loan, data.items) : null;
+      if (linkedItem && row.plannedItemId === linkedItem.id) return row.amount;
+    }
     return 0;
   }
   if (source.type === 'adjustment') {
@@ -105,18 +110,28 @@ function sourceAmount(source: DuePaymentSource, reminder: Pick<DueReminder, 'id'
     if (!entry || entry.date > (data.today ?? reminder.date) || !Number.isFinite(entry.payment) || (entry.payment ?? 0) <= 0) return 0;
     return entry.payment!;
   }
-  if (kind !== 'spending') return 0;
+  const loan = kind === 'loan' ? data.loans.find(item => item.id === targetId) : null;
+  const linkedItem = loan ? linkedLoanPayment(loan, data.items) : null;
+  const settlementTargetId = kind === 'spending' ? targetId : linkedItem?.id;
+  if (!settlementTargetId) return 0;
   const row = allSettlements(data.settings).find(item => `settlement:${item.id}` === source.id);
-  if (!row || row.targetId !== targetId || row.kind !== 'spending' || row.date > (data.today ?? reminder.date)) return 0;
+  if (!row || row.targetId !== settlementTargetId || row.kind !== 'spending' || row.date > (data.today ?? reminder.date)) return 0;
   return row.amount;
 }
 
 function eligiblePaidAmount(reminder: Pick<DueReminder, 'id' | 'date'>, data: {
-  transactions: LedgerTransaction[]; adjustments: BalanceAdjustment[]; loans: LoanTracker[]; settings: Pick<MonthlyPlanSettings, 'months' | 'duePaymentAssociations'>; today?: string;
+  transactions: LedgerTransaction[]; adjustments: BalanceAdjustment[]; loans: LoanTracker[]; items: CashflowItem[]; settings: Pick<MonthlyPlanSettings, 'months' | 'duePaymentAssociations'>; today?: string;
 }): number {
   const links = data.settings.duePaymentAssociations ?? [];
+  const acceptedReminderIds = new Set([reminder.id]);
+  const [kind, targetId] = reminder.id.split(':', 2);
+  if (kind === 'loan') {
+    const loan = data.loans.find(item => item.id === targetId);
+    const linkedItem = loan ? linkedLoanPayment(loan, data.items) : null;
+    if (linkedItem) acceptedReminderIds.add(`spending:${linkedItem.id}`);
+  }
   const seen = new Set<string>();
-  return round(links.filter(link => link.reminderId === reminder.id && link.dueDate === reminder.date).reduce((sum, link) => {
+  return round(links.filter(link => acceptedReminderIds.has(link.reminderId) && link.dueDate === reminder.date).reduce((sum, link) => {
     const key = `${link.source.type}:${link.source.id}`;
     if (seen.has(key)) return sum;
     seen.add(key);
@@ -126,7 +141,7 @@ function eligiblePaidAmount(reminder: Pick<DueReminder, 'id' | 'date'>, data: {
 
 /** List only valid, unassigned records; matching by date/amount alone never links a payment. */
 export function duePaymentCandidates(reminder: DueReminder, data: {
-  transactions: LedgerTransaction[]; adjustments: BalanceAdjustment[]; loans: LoanTracker[]; settings: Pick<MonthlyPlanSettings, 'months' | 'duePaymentAssociations'>; today?: string;
+  transactions: LedgerTransaction[]; adjustments: BalanceAdjustment[]; loans: LoanTracker[]; items: CashflowItem[]; settings: Pick<MonthlyPlanSettings, 'months' | 'duePaymentAssociations'>; today?: string;
 }): DuePaymentCandidate[] {
   const linked = new Set((data.settings.duePaymentAssociations ?? []).map(row => `${row.source.type}:${row.source.id}`));
   for (const association of data.settings.duePaymentAssociations ?? []) {
@@ -147,7 +162,14 @@ export function duePaymentCandidates(reminder: DueReminder, data: {
     }
   } else if (reminder.kind === 'loan') {
     const loan = data.loans.find(item => item.id === reminder.targetId);
-    if (loan) for (const entry of loan.history) if ((entry.payment ?? 0) > 0) add({ source: { type: 'loan-history', id: loanHistorySourceId(reminder.targetId, entry) }, title: `Loan payment · ${loan.name}`, date: entry.date, amount: entry.payment!, kind: 'loan payment' });
+    if (loan) {
+      for (const entry of loan.history) if ((entry.payment ?? 0) > 0) add({ source: { type: 'loan-history', id: loanHistorySourceId(reminder.targetId, entry) }, title: `Loan payment · ${loan.name}`, date: entry.date, amount: entry.payment!, kind: 'loan payment' });
+      const linkedItem = linkedLoanPayment(loan, data.items);
+      if (linkedItem) {
+        for (const row of data.transactions) if (!row.replacedByTransactionId && row.type === 'charge' && row.plannedItemId === linkedItem.id) add({ source: { type: 'transaction', id: row.id }, title: row.title || row.payeeName || `${linkedItem.name} Budget transaction`, date: row.date, amount: row.amount, kind: 'Budget transaction' });
+        for (const row of allSettlements(data.settings)) if (row.targetId === linkedItem.id && row.kind === 'spending') add({ source: { type: 'settlement', id: `settlement:${row.id}` }, title: row.name || `${linkedItem.name} Budget paid record`, date: row.date, amount: row.amount, kind: 'Budget paid record' });
+      }
+    }
   } else {
     for (const row of data.transactions) {
       if (!row.replacedByTransactionId && row.type === 'charge' && row.plannedItemId === reminder.targetId) add({ source: { type: 'transaction', id: row.id }, title: row.title || row.payeeName || 'Budget transaction', date: row.date, amount: row.amount, kind: 'Budget transaction' });
@@ -172,7 +194,7 @@ export function buildDueReminders({ accounts, loans, items, transactions, adjust
   today?: string;
 }): DueReminder[] {
   const nextMonth = addMonth(today.slice(0, 7));
-  const data = { transactions, adjustments, loans, settings, today };
+  const data = { transactions, adjustments, loans, items, settings, today };
   const reminders: DueReminder[] = [];
   const add = (kind: DueReminder['kind'], targetId: string, name: string, savedDate: string, requiredAmount: number) => {
     if (!Number.isFinite(requiredAmount) || requiredAmount <= 0) return;
@@ -205,6 +227,7 @@ export function buildDueReminders({ accounts, loans, items, transactions, adjust
   }
   for (const item of items) {
     if (item.kind === 'income' || !(item.recurring ?? item.kind !== 'purchase') || !Number.isInteger(item.dueDay) || item.dueDay! < 1 || item.dueDay! > 31) continue;
+    if (loans.some(loan => loan.remainingAmount > 0 && linkedLoanPayment(loan, items)?.id === item.id)) continue;
     add('spending', item.id, item.name, `2000-01-${String(item.dueDay).padStart(2, '0')}`, item.amount);
   }
   return reminders.sort((a, b) => a.date.localeCompare(b.date) || a.name.localeCompare(b.name) || a.id.localeCompare(b.id));

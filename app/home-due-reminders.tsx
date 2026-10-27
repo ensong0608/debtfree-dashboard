@@ -2,7 +2,7 @@
 
 import { useId, useState } from 'react';
 import { duePaymentCandidates, dueReminderUrgency, type DuePaymentCandidate, type DueReminder } from './due-reminders';
-import type { BalanceAdjustment, LedgerTransaction, MonthlyPlanSettings } from './dashboard-data';
+import type { BalanceAdjustment, CashflowItem, LedgerTransaction, MonthlyPlanSettings } from './dashboard-data';
 import type { LoanTracker } from './loan-progress';
 import { householdDate } from './household-date';
 import { createHouseholdMoneyFormatter } from './household-currency';
@@ -15,6 +15,7 @@ export type ReminderPaymentActions = {
   transactions: LedgerTransaction[];
   adjustments: BalanceAdjustment[];
   loans: LoanTracker[];
+  items: CashflowItem[];
   months: MonthlyPlanSettings['months'];
   duePaymentAssociations?: MonthlyPlanSettings['duePaymentAssociations'];
   onLink: (reminder: DueReminder, candidate: DuePaymentCandidate) => string | null;
@@ -22,13 +23,13 @@ export type ReminderPaymentActions = {
   onOpen: (reminder: DueReminder) => void;
 };
 
-export default function HomeDueReminders({ reminders, readOnly, transactions, adjustments, loans, months, duePaymentAssociations, onLink, onRecordNew, onOpen }: ReminderPaymentActions & { reminders: DueReminder[] }) {
+export default function HomeDueReminders({ reminders, readOnly, transactions, adjustments, loans, items, months, duePaymentAssociations, onLink, onRecordNew, onOpen }: ReminderPaymentActions & { reminders: DueReminder[] }) {
   const [expanded, setExpanded] = useState(false);
   const [pending, setPending] = useState<DueReminder | null>(null);
   const [error, setError] = useState('');
   const listId = useId();
   const money = createHouseholdMoneyFormatter(useHouseholdCurrency(), { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-  const candidates = pending ? duePaymentCandidates(pending, { transactions, adjustments, loans, settings: { months, duePaymentAssociations }, today: householdDate() }) : [];
+  const candidates = pending ? duePaymentCandidates(pending, { transactions, adjustments, loans, items, settings: { months, duePaymentAssociations }, today: householdDate() }) : [];
   return <>{Boolean(reminders.length) && <section className={styles.reminderCard} aria-label="Upcoming due reminders">
     <header className={styles.sectionHeader}>
       <div className={styles.reminderHeading}><span><OutlineIcon name="bell"/></span><h2>Next due</h2></div>
