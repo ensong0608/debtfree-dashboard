@@ -5,11 +5,6 @@ on:
     branches: [codex/supabase-google-login, codex/mobile-payments-budget, codex/production-release-20261015]
     paths: [.github/workflows/deploy-cloudflare.yml, "app/**", "tests/**"]
   workflow_dispatch:
-    inputs:
-      full_suite:
-        description: Run the full suite only when explicitly requested by the owner
-        type: boolean
-        default: false
 permissions:
   contents: read
 concurrency:
