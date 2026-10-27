@@ -187,5 +187,55 @@ test('editing a minimum after its due date preserves the paid cycle and uses the
   assert.equal(reminders[0].date,'2026-11-20');assert.equal(reminders[0].requiredAmount,200);
   assert.equal(minimumCycleEdit(edited,300,'2026-10-27').minimumPriorCycle.amount,100);
   const unpaid=buildDueReminders(input({accounts:[edited],upcomingWindow:null}))[0];assert.equal(unpaid.requiredAmount,100);
-  assert.deepEqual(minimumCycleEdit(original,200,'2026-10-19'),{});
+  assert.equal(minimumCycleEdit(original,200,'2026-10-19').minimumCycles[0].amount,200);
+});
+
+test('pending edits update today and future cycles; overdue edits keep their original obligation across month boundaries',async()=>{
+ const {captureMinimumCycles,minimumCycleEdit}=await import('../app/minimum-cycle.ts');
+ const original=account({dueDate:'2026-01-22',minimum:300});
+ const observed=captureMinimumCycles([original],'2026-10-21')[0];
+ const pending={...observed,...minimumCycleEdit(observed,350,'2026-10-21'),minimum:350};
+ assert.equal(buildDueReminders(input({accounts:[pending],today:'2026-10-21'}))[0].requiredAmount,350);
+ const today={...observed,...minimumCycleEdit(observed,325,'2026-10-22'),minimum:325};
+ assert.equal(buildDueReminders(input({accounts:[today],today:'2026-10-22'}))[0].requiredAmount,325);
+ const late={...observed,...minimumCycleEdit(observed,350,'2026-10-27'),minimum:350};
+ const reminder=buildDueReminders(input({accounts:[late],today:'2026-10-27'}))[0];
+ assert.equal(reminder.date,'2026-10-22');assert.equal(reminder.requiredAmount,300);assert.equal(reminder.daysAway,-5);
+ const november=captureMinimumCycles([late],'2026-11-01')[0];
+ const list=buildDueReminders(input({accounts:[november],today:'2026-11-01',upcomingWindow:null}));
+ assert.deepEqual(list.map(row=>[row.date,row.requiredAmount]),[['2026-10-22',300],['2026-11-22',350]]);
+});
+
+test('paired cycle requirement closes a paid cycle while a real partial payment remains due',()=>{
+ const debt=account({dueDate:'2026-01-22',minimum:350});
+ const paid=transaction({amount:300,date:'2026-10-22'});
+ const closed=associateDuePayment(settings(),{id:'account:card',date:'2026-10-22',requiredAmount:300},{type:'transaction',id:paid.id},paid.amount);
+ assert.equal(closed.duePaymentAssociations[0].requiredAmount,300);
+ const list=buildDueReminders(input({accounts:[debt],transactions:[paid],settings:closed,upcomingWindow:null}));
+ assert.equal(list[0].date,'2026-11-22');assert.equal(list[0].requiredAmount,350);
+ const partial=associateDuePayment(settings(),{id:'account:card',date:'2026-10-22',requiredAmount:350},{type:'transaction',id:paid.id},paid.amount);
+ assert.equal(buildDueReminders(input({accounts:[debt],transactions:[paid],settings:partial}))[0].amount,50);
+ const deleted=buildDueReminders(input({accounts:[debt],transactions:[{...paid,deletedAt:'2026-10-26'}],settings:closed}));
+ assert.equal(deleted[0].amount,300);
+});
+
+test('partial pending links do not close at the old minimum after a pending edit',async()=>{
+ const {captureMinimumCycles,minimumCycleEdit}=await import('../app/minimum-cycle.ts');
+ let debt=captureMinimumCycles([account({dueDate:'2026-01-28',minimum:300})],'2026-10-20')[0];
+ const first=transaction({id:'first',amount:100,date:'2026-10-20'});
+ let plan=associateDuePayment(settings(),{id:'account:card',date:'2026-10-28',requiredAmount:300,paidAmount:0},{type:'transaction',id:'first'},100);
+ debt={...debt,...minimumCycleEdit(debt,350,'2026-10-21'),minimum:350};
+ let reminder=buildDueReminders(input({accounts:[debt],transactions:[first],settings:plan,today:'2026-10-21'}))[0];assert.equal(reminder.amount,250);
+ const second=transaction({id:'second',amount:200,date:'2026-10-22'});
+ plan=associateDuePayment(plan,reminder,{type:'transaction',id:'second'},200);
+ reminder=buildDueReminders(input({accounts:[debt],transactions:[first,second],settings:plan,today:'2026-10-29'}))[0];assert.equal(reminder.amount,50);assert.equal(reminder.date,'2026-10-28');
+});
+
+test('cycle amounts and completed pairing metadata survive backups and reject malformed history',()=>{
+ const fixture=createDemoFixture();
+ fixture.payload.accounts[0].minimumCycles=[{date:'2026-10-22',amount:300}];
+ fixture.payload.monthlyPlan=associateDuePayment(fixture.payload.monthlyPlan,{id:'account:demo-card',date:'2026-10-22',requiredAmount:300,paidAmount:0},{type:'transaction',id:'demo-payment'},300);
+ const backup=createDashboardBackup(fixture.payload,fixture);const restored=parseDashboardContract(backup).payload;
+ assert.deepEqual(restored.accounts[0].minimumCycles,[{date:'2026-10-22',amount:300}]);assert.equal(restored.monthlyPlan.duePaymentAssociations[0].completed,true);
+ const bad=structuredClone(backup);bad.payload.accounts[0].minimumCycles.push({...bad.payload.accounts[0].minimumCycles[0]});assert.throws(()=>parseDashboardContract(bad));
 });

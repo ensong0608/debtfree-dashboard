@@ -80,7 +80,7 @@ import {
   round,
   type LinkedCardExpenses,
 } from "./payoff-engine";
-import {minimumCycleEdit} from "./minimum-cycle";
+import {captureMinimumCycles, minimumCycleEdit} from "./minimum-cycle";
 import OnboardingFlow from "./onboarding-flow";
 import HomeDueReminders, { type ReminderPaymentActions } from "./home-due-reminders";
 import segmentedStyles from "./segmented-control.module.css";
@@ -648,7 +648,7 @@ export default function DashboardClient({ user, householdId, lifecycleEnabled = 
       let linkedPlan = monthlyPlan;
       if (paymentReminder && draft.paymentKind !== "extra") {
         const source = transaction.includedIn ?? { type: "transaction" as const, id: transaction.id };
-        linkedPlan = associateDuePayment(monthlyPlan, paymentReminder, source);
+        linkedPlan = associateDuePayment(monthlyPlan, paymentReminder, source, draft.amount);
       }
       paymentSubmitted.current = true;
       if (!deviceOnly) setCloudStatus("saving");
@@ -1006,6 +1006,7 @@ export default function DashboardClient({ user, householdId, lifecycleEnabled = 
     if (!loaded || isViewer || (!deviceOnly && cloudStatus !== 'synced') || deviceSaveStatus !== 'synced') return;
     const timer = window.setTimeout(() => {
       const now = new Date();
+      setAccounts(current=>captureMinimumCycles(current,householdDate(now)));
       setMonthlyPlan(current => recordDueBudgetItems(current, monthlyBudgets[householdDate(now).slice(0, 7)] ?? [], transactions, loans, now));
       const capturedAccounts = buildActualProgress(accounts, transactions, balanceAdjustments, snapshots, now, monthlyPlan.progressStartingBalance, monthlyPlan.removedProgressAccounts).groups.flatMap(group => group.accounts);
       setSnapshots(current => captureAutomaticSnapshot(current, capturedAccounts, loans, now));
@@ -1094,7 +1095,8 @@ export default function DashboardClient({ user, householdId, lifecycleEnabled = 
   };
   const undoBudgetPaid = (id:string) => {if(isViewer)return;setMonthlyPlan(current=>({...current,months:Object.fromEntries(Object.entries(current.months).map(([month,plan])=>{const entry=plan.settlements?.find(row=>row.id===id);return [month,entry?{...plan,settlements:plan.settlements?.filter(row=>row.id!==id),skippedRecurringPayments:entry.automatic?[...new Set([...(plan.skippedRecurringPayments??[]),entry.targetId])]:plan.skippedRecurringPayments}:plan];}))}));};
   const reminderActions: ReminderPaymentActions = {readOnly:isViewer,transactions,adjustments:balanceAdjustments,loans,items:planningCashflowItems,months:monthlyPlan.months,duePaymentAssociations:monthlyPlan.duePaymentAssociations,
-    onLink:(reminder,candidate)=>{if(isViewer)return "Editing is unavailable.";try{setMonthlyPlan(current=>associateDuePayment(current,reminder,candidate.source));return null;}catch(error){return error instanceof Error?error.message:"Could not link payment.";}},
+    onCorrectCycle:(reminder,amount)=>{if(isViewer)return "Editing is unavailable.";if(reminder.kind!=="account"||!Number.isFinite(amount)||amount<=0||round(amount)!==amount)return "Enter a valid minimum.";if(!accounts.some(account=>account.id===reminder.targetId))return "This debt is unavailable.";setAccounts(current=>current.map(account=>account.id===reminder.targetId?{...account,minimumCycles:[...(account.minimumCycles??[]).filter(cycle=>cycle.date!==reminder.date),{date:reminder.date,amount}]}:account));setMonthlyPlan(current=>({...current,duePaymentAssociations:current.duePaymentAssociations?.map(link=>link.reminderId===reminder.id&&link.dueDate===reminder.date?{...link,requiredAmount:amount,completed:reminder.paidAmount>=amount}:link)}));return null;},
+    onLink:(reminder,candidate)=>{if(isViewer)return "Editing is unavailable.";try{setMonthlyPlan(current=>associateDuePayment(current,reminder,candidate.source,candidate.amount));return null;}catch(error){return error instanceof Error?error.message:"Could not link payment.";}},
     onRecordNew:reminder=>{if(isViewer)return;if(reminder.kind==="account"){paymentSubmitted.current=false;setPaymentReminder(reminder);openRecommendedPayment(reminder.targetId,reminder.amount);}else if(reminder.kind==="loan")openDebt({kind:"loan",id:reminder.targetId});else{setBillPaymentItem(reminder.targetId);setBillPaymentOpen(true);}},
     onOpen:reminder=>{if(reminder.kind==="spending"){setSelectedMonth(automaticDate.slice(0,7));setBudgetTab("Overview");setPage("monthly");const item=planningCashflowItems.find(item=>item.id===reminder.targetId);if(item)openEditCashflow(item);}else openDebt({kind:reminder.kind,id:reminder.targetId});}
   };

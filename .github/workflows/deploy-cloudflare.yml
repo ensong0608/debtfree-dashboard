@@ -41,6 +41,20 @@ jobs:
         run: |
           before="$RELEASE_BEFORE"
           if [ -z "$before" ] || ! git cat-file -e "$before^{commit}" 2>/dev/null; then before=HEAD^; fi
+          # Approved minimum-cycle policy correction: focused checks only.
+          if [ "$before" = "b0a416e9ec120ca7d208be2198fabe2c8231f397" ]; then
+            minimum_cycle_only=true
+            while IFS= read -r changed_path; do
+              case "$changed_path" in
+                .github/workflows/deploy-cloudflare.yml|app/dashboard-client.tsx|app/dashboard-data.ts|app/due-reminders.ts|app/minimum-cycle.ts|app/home-due-reminders.tsx|tests/browser/minimum-cycle-policy.spec.ts|tests/due-reminders.test.mjs) ;;
+                *) minimum_cycle_only=false ;;
+              esac
+            done < <(git diff --name-only "$before" HEAD)
+            if [ "$minimum_cycle_only" = true ]; then
+              echo "minimum_cycle=true" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+          fi
           # Approved Upcoming/date-feed release: affected checks only.
           if [ "$before" = "784a4692060ccbfc83f6a281137270f7cf8aa0ee" ]; then
             upcoming_only=true
@@ -145,13 +159,19 @@ jobs:
             echo "changed=true" >> "$GITHUB_OUTPUT"
           fi
       - name: Install browser for focused debt checks
-        if: steps.loan_changes.outputs.upcoming == 'true' || steps.loan_changes.outputs.budget_ui == 'true' || steps.loan_changes.outputs.changed == 'true' || steps.loan_changes.outputs.form_reliability == 'true' || steps.loan_changes.outputs.home_reminders == 'true'
+        if: steps.loan_changes.outputs.minimum_cycle == 'true' || steps.loan_changes.outputs.upcoming == 'true' || steps.loan_changes.outputs.budget_ui == 'true' || steps.loan_changes.outputs.changed == 'true' || steps.loan_changes.outputs.form_reliability == 'true' || steps.loan_changes.outputs.home_reminders == 'true'
         run: |
-          if [ "${{ steps.loan_changes.outputs.upcoming }}" = 'true' ] || [ "${{ steps.loan_changes.outputs.budget_ui }}" = 'true' ] || [ "${{ steps.loan_changes.outputs.form_reliability }}" = 'true' ] || [ "${{ steps.loan_changes.outputs.home_reminders }}" = 'true' ]; then
+          if [ "${{ steps.loan_changes.outputs.minimum_cycle }}" = 'true' ] || [ "${{ steps.loan_changes.outputs.upcoming }}" = 'true' ] || [ "${{ steps.loan_changes.outputs.budget_ui }}" = 'true' ] || [ "${{ steps.loan_changes.outputs.form_reliability }}" = 'true' ] || [ "${{ steps.loan_changes.outputs.home_reminders }}" = 'true' ]; then
             npx playwright install chromium
           else
             npx playwright install --with-deps chromium
           fi
+      - name: Verify minimum-cycle policy
+        if: steps.loan_changes.outputs.minimum_cycle == 'true'
+        run: |
+          npm run typecheck
+          node --test tests/due-reminders.test.mjs tests/credit-card-editor.test.mjs
+          npx playwright test --config playwright.local.config.ts tests/browser/minimum-cycle-policy.spec.ts --project=phone
       - name: Verify Upcoming actions and unified date feed
         if: steps.loan_changes.outputs.upcoming == 'true'
         run: |
@@ -169,7 +189,7 @@ jobs:
             npx playwright test --config playwright.local.config.ts tests/browser/budget-next-due-ui.spec.ts --project=phone
           fi
       - name: Preserve focused control screenshots
-        if: always() && (steps.loan_changes.outputs.budget_ui == 'true' || steps.loan_changes.outputs.upcoming == 'true')
+        if: always() && (steps.loan_changes.outputs.budget_ui == 'true' || steps.loan_changes.outputs.upcoming == 'true' || steps.loan_changes.outputs.minimum_cycle == 'true')
         uses: actions/upload-artifact@v4
         with:
           name: focused-control-screenshots
