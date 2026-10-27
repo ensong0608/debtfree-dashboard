@@ -1,3 +1,4 @@
+import { householdDate } from "./household-date.ts";
 import type { BalanceAdjustment, DebtAccount, DebtAuditCreator, LedgerTransaction, PaymentKind, PayoffStrategy } from "./dashboard-data.ts";
 
 export type DebtStatus = "Payoff priority" | "Minimum only" | "Paid off" | "Archived";
@@ -46,10 +47,10 @@ export function openingBalanceForCurrentBalance(openingBalance: number, currentB
 
 export function promoNotice(account: DebtAccount, today = new Date()): PromoNotice {
   if (!account.promoEndDate) return null;
-  const localToday = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
+  const currentDay = householdDate(today);
   const formatted = new Date(`${account.promoEndDate}T12:00:00`).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
   if (account.postPromoApr <= 0) return { label: `Promo ends ${formatted}; add the post-promo APR`, tone: "danger" };
-  if (account.promoEndDate < localToday) return { label: `Promo ended ${formatted}; now ${account.postPromoApr.toFixed(2)}% APR`, tone: "warning" };
+  if (account.promoEndDate < currentDay) return { label: `Promo ended ${formatted}; now ${account.postPromoApr.toFixed(2)}% APR`, tone: "warning" };
   return { label: `Promo ends ${formatted}; then ${account.postPromoApr.toFixed(2)}% APR`, tone: "neutral" };
 }
 

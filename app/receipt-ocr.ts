@@ -1,3 +1,5 @@
+import { householdDate } from "./household-date";
+
 export type ReceiptScanResult = {
   merchant: string;
   date: string;
@@ -47,8 +49,7 @@ function normalizeDate(text: string) {
       return `${parsed.getFullYear()}-${String(parsed.getMonth() + 1).padStart(2, "0")}-${String(parsed.getDate()).padStart(2, "0")}`;
     }
   }
-  const now = new Date();
-  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+  return householdDate();
 }
 
 function amountsIn(line: string) {

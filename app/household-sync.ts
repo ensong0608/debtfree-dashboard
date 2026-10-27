@@ -2,7 +2,7 @@ import { parseDashboardContract, type DashboardBackup } from "./dashboard-data.t
 import { householdSessionHeaders, type HouseholdSessionScope } from "./household-session-scope.ts";
 import { householdOutboxPrefix, parsePendingHouseholdDraft, type PendingHouseholdDraft } from "./household-recovery.ts";
 
-export type SyncStatus = "connecting" | "saving" | "synced" | "error" | "conflict" | "unauthorized";
+export type SyncStatus = "connecting" | "saving" | "synced" | "error" | "conflict" | "unauthorized" | "too-large";
 export type RemoteHousehold = { householdName: string; role: "owner" | "admin" | "viewer"; payload: unknown; revision: number; members: { email: string; display_name: string | null; role: "owner" | "admin" | "viewer"; status: "active" | "invited" }[] };
 type Pending = { revision: number; contract: DashboardBackup };
 export const payloadFingerprint = (data: DashboardBackup) => JSON.stringify(data.payload);
@@ -126,6 +126,7 @@ export class HouseholdSync {
     try {
       const response = await this.request("/api/household", { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify({ payload: sent.contract, revision: sent.revision }) });
       if (this.disposed) return;
+      if (response.status === 413) { this.status("too-large"); return; }
       if (response.status === 409) { this.conflict = true; this.status("conflict"); return; }
       if (!response.ok) { if (response.status === 401 || response.status === 403) { this.writable = false; this.status("unauthorized"); } throw new Error("Sync failed"); }
       const result = await response.json() as { revision: number };

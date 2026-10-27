@@ -11,7 +11,7 @@ import {
   type MonthlyPlanSettings,
 } from "./dashboard-data.ts";
 import type { LoanTracker } from "./loan-progress.ts";
-import { householdDate } from "./household-date.ts";
+import { householdDate, householdMonthOffset } from "./household-date.ts";
 import { calculatePlan, effectiveForecastApr, effectiveMinimum, round, type PayoffPlan } from "./payoff-engine.ts";
 
 export const ONBOARDING_STEP_COUNT = 5;
@@ -130,10 +130,7 @@ export function plannedDebtsToAccounts(debts: PlannedDebt[], createdAt: string):
 }
 
 export function forecastMonthKey(month: number, calculationDate: Date) {
-  const date = new Date(calculationDate);
-  date.setDate(1);
-  date.setMonth(date.getMonth() + month - 1);
-  return date.getFullYear() + "-" + String(date.getMonth() + 1).padStart(2, "0");
+  return householdMonthOffset(month - 1, calculationDate);
 }
 
 export function buildOnboardingPlan(

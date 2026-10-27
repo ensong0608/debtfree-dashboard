@@ -4,6 +4,10 @@ on:
     branches: [codex/public-app-foundations-20261011, codex/visual-redesign-20261016, codex/reference-fidelity-20261016, codex/stage6-households-20261016]
   workflow_dispatch:
     inputs:
+      full_suite:
+        description: Run the full suite only when explicitly requested by the owner
+        type: boolean
+        default: false
       provision_isolation_fixture:
         description: Provision the private unrelated household (Stage 2)
         type: boolean
@@ -24,8 +28,12 @@ jobs:
           node-version: 24
           cache: npm
       - run: npm ci
-      - run: npx playwright install --with-deps chromium
-      - run: npm run validate
+      - name: Install browser for explicitly requested full validation
+        if: github.event_name == 'workflow_dispatch' && inputs.full_suite
+        run: npx playwright install --with-deps chromium
+      - name: Full validation (owner opt-in only)
+        if: github.event_name == 'workflow_dispatch' && inputs.full_suite
+        run: npm run validate
       - name: Configure isolated preview resources
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}

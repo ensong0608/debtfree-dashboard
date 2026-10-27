@@ -3,12 +3,12 @@ import type { LoanTracker } from "./loan-progress.ts";
 import type { PayoffPlan } from "./payoff-engine.ts";
 
 export const DEBT_CATEGORY_COLORS: Record<DebtType, { key: string; color: string; label: string }> = {
-  "Credit card": { key: "credit", color: "#e8b63b", label: "Credit card" },
-  "Auto loan": { key: "auto", color: "#9473e4", label: "Auto loan" },
-  "Medical debt": { key: "medical", color: "#e46e9f", label: "Medical debt" },
-  "Student loan": { key: "student", color: "#42a88d", label: "Student loan" },
-  "Personal loan": { key: "personal", color: "#5797d0", label: "Personal loan" },
-  "Other": { key: "other", color: "#8493a5", label: "Other" },
+  "Credit card": { key: "credit", color: "var(--theme-warning)", label: "Credit card" },
+  "Auto loan": { key: "auto", color: "var(--theme-violet)", label: "Car loan" },
+  "Medical debt": { key: "medical", color: "var(--theme-danger)", label: "Medical debt" },
+  "Student loan": { key: "student", color: "var(--theme-success)", label: "Student loan" },
+  "Personal loan": { key: "personal", color: "var(--theme-info)", label: "Personal loan" },
+  "Other": { key: "other", color: "var(--theme-muted)", label: "Other" },
 };
 
 export function categoryBalances(accounts: DebtAccount[], loans: LoanTracker[] = []) {
@@ -19,7 +19,7 @@ export function categoryBalances(accounts: DebtAccount[], loans: LoanTracker[] =
   for (const loan of loans) {
     if (loan.kind === "car") categories.find(category => category.type === "Auto loan")!.balance += Math.max(0, loan.remainingAmount);
   }
-  return [...categories, { type: "House loan", key: "house", color: "#328575", label: "House loan", balance: loans.filter(loan => loan.kind === "house").reduce((sum, loan) => sum + Math.max(0, loan.remainingAmount), 0) }].filter(category => category.balance > 0);
+  return [...categories, { type: "Mortgage", key: "house", color: "var(--theme-success)", label: "Mortgage", balance: loans.filter(loan => loan.kind === "house").reduce((sum, loan) => sum + Math.max(0, loan.remainingAmount), 0) }].filter(category => category.balance > 0);
 }
 
 export function categoryGradient(accounts: DebtAccount[], loans: LoanTracker[] = []) {
@@ -30,7 +30,7 @@ export function categoryGradient(accounts: DebtAccount[], loans: LoanTracker[] =
     const start = position;
     position += category.balance / total * 100;
     return `${category.color} ${start}% ${position}%`;
-  }).join(", ")})` : "#e4e8ed";
+  }).join(", ")})` : "var(--theme-track)";
 }
 
 // Baseline is the saved tracking start, not an inferred original loan amount.

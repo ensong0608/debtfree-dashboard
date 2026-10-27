@@ -315,7 +315,9 @@ test("Costco interest starts next cycle, survives refresh, and reconciles withou
   await page.getByRole("button", { name: "Debts", exact: true }).click();
   await card.getByRole("button", {name:"Update balance for Costco",exact:true}).click();
   await dialog.getByLabel("New current balance").fill("10260.00");
-  await dialog.getByLabel("Date",{exact:true}).fill("2026-11-03");
+  const dateCalendar=dialog.getByRole('group',{name:'Date',exact:true});
+  await dateCalendar.getByRole('button',{name:'Next month for Date'}).click();
+  await dateCalendar.getByRole('button',{name:'2026-11-03',exact:true}).click();
   await dialog.getByRole("button", {name:"Save balance"}).click();
   await expect(card.locator(".simple-balance")).toHaveText("$10,260.00");
   await page.reload();
@@ -400,8 +402,11 @@ test("Transactions can add, edit, remove and restore purchases and balance adjus
   await expect(entry.locator(".transaction-delete-x")).toHaveText("×");
   await expect(entry.locator(".transaction-delete-x")).toHaveAccessibleName("Delete transaction of $66.96 for Sample Rewards Card");
   await expect(entry.locator(".transaction-captured")).toHaveCount(0);
-  await expect(entry.locator(".transaction-secondary")).toContainText("$2,450.75 → $2,517.71");
-  await expect(entry.getByText("SFC Henderson grocery run",{exact:true})).toBeVisible();
+  await entry.getByText("Debt history", {exact:true}).click();
+  await expect(entry.getByLabel("Transaction activity for Sample Rewards Card")).toContainText("Balance: $2,517.71");
+  await entry.getByText("Debt history", {exact:true}).click();
+  await expect(entry.getByLabel("Transaction activity for Sample Rewards Card")).toHaveCount(0);
+  await expect(entry.locator(".transaction-edit-surface").getByText("SFC Henderson grocery run",{exact:true})).toBeVisible();
   if(testInfo.project.name === "phone") { await entry.scrollIntoViewIfNeeded(); await page.screenshot({path:"outputs/named-transaction-card-430.png"}); }
   await expect(page.locator(".simple-total>strong")).toHaveText("$0.00");
   await entry.locator(".transaction-edit-surface").click();

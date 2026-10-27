@@ -1,3 +1,5 @@
+import { validOptionalInstitution, type InstitutionKey } from "./institutions.ts";
+import { householdMonthOffset } from "./household-date.ts";
 import { validDisplayName, type DebtGroup } from "./debt-groups.ts";
 import { validatePaymentLinks } from "./payment-overlap.ts";
 import type { LoanTracker } from "./loan-progress.ts";
@@ -40,6 +42,7 @@ export type BalanceReconciliation = {
 };
 
 export type DebtAccount = OwnershipMetadata & {
+  institutionKey?: InstitutionKey;
   id: string;
   name: string;
   type: DebtType;
@@ -90,6 +93,7 @@ export type CashflowItem = OwnershipMetadata & {
   creditAccountId: string;
   createdAt: string;
   recurring?: boolean;
+  dueDay?: number;
   [key: string]: unknown;
 };
 
@@ -159,6 +163,8 @@ export type SnapshotAccount = {
 };
 
 export type PayoffSnapshot = OwnershipMetadata & {
+  autoCheckpoint?: string;
+  loanBalances?: { loanId: string; amount: number; balanceKind: "principal" | "payoff" }[];
   id: string;
   month: string;
   capturedAt: string;
@@ -249,9 +255,10 @@ export type DashboardPayloadV3 = DashboardPayloadV2 & {
   balanceAdjustments?: BalanceAdjustment[];
 };
 
-export type PlanSettlement = { id: string; targetId: string; name: string; kind: "spending" | "minimum"; amount: number; date: string; createdAt: string; source: "debit" | "included" };
+export type PlanSettlement = { automatic?: boolean; id: string; targetId: string; name: string; kind: "spending" | "minimum"; amount: number; date: string; createdAt: string; source: "debit" | "included" };
 
 export type MonthlyPlanMonth = {
+  skippedRecurringPayments?: string[];
   settlements?: PlanSettlement[];
   payments?: Record<string, number>;
   minimums?: Record<string, number>;
@@ -263,9 +270,12 @@ export type MonthlyPlanMonth = {
 export type RemovedProgressAccount = Pick<DebtAccount, "id" | "name" | "balance" | "baselineBalance" | "displayGroup" | "displayOrder"> & { removedAt: string };
 
 export type MonthlyPlanSettings = {
+  dueReminderPaid?: { id: string; date: string; markedAt: string }[];
   currency?: import('./household-currency').HouseholdCurrency;
   debtGroups?: DebtGroup[];
   payoffPlanAmount?: number;
+  payoffExtraPayment?: number;
+  payoffExcludedTypes?: string[];
   payoffPlanStrategy?: PayoffStrategy;
   payoffPlanOrder?: string[];
   removedProgressAccounts?: RemovedProgressAccount[];
@@ -488,7 +498,7 @@ function migratePlanning(value: unknown): unknown {
 function migratePayloadFields(value: unknown): unknown {
   if (!isRecord(value)) return value;
   const legacyCashflow = Array.isArray(value.cashflowItems)
-    ? { [new Date().toISOString().slice(0, 7)]: value.cashflowItems.map(migrateCashflow) }
+    ? { [householdMonthOffset(0)]: value.cashflowItems.map(migrateCashflow) }
     : {};
   const monthlySource = hasOwn(value, "monthlyBudgets") ? value.monthlyBudgets : legacyCashflow;
   const monthlyBudgets = isRecord(monthlySource)
@@ -651,6 +661,7 @@ function validateAccount(value: unknown, path: string, issues: string[]) {
   if (!item) return;
   requiredString(item.id, `${path}.id`, issues);
   requiredString(item.name, `${path}.name`, issues);
+  if (!validOptionalInstitution(item.institutionKey)) issues.push(`${path}.institutionKey must be a catalog key.`);
   enumValue(item.type, debtTypes, `${path}.type`, issues);
   requiredNumber(item.balance, `${path}.balance`, issues);
   if (item.reconciliation !== undefined) validateReconciliation(item.reconciliation, path + ".reconciliation", issues);
@@ -699,6 +710,7 @@ function validateCashflow(value: unknown, path: string, issues: string[]) {
   requiredString(item.creditAccountId, `${path}.creditAccountId`, issues, true);
   requiredString(item.createdAt, `${path}.createdAt`, issues);
   if (hasOwn(item, "recurring")) requiredBoolean(item.recurring, `${path}.recurring`, issues);
+  if (item.dueDay !== undefined && (!Number.isInteger(item.dueDay) || Number(item.dueDay) < 1 || Number(item.dueDay) > 31)) issues.push(`${path}.dueDay must be a day from 1 to 31.`);
 }
 
 function validatePayee(value: unknown, path: string, issues: string[]) {
@@ -804,6 +816,14 @@ function validateSnapshot(value: unknown, path: string, issues: string[]) {
   requiredNumber(item.activeAccountCount, `${path}.activeAccountCount`, issues, true);
   nullableString(item.projectedDebtFreeMonth, `${path}.projectedDebtFreeMonth`, issues);
   requiredString(item.note, `${path}.note`, issues, true);
+  if (item.autoCheckpoint !== undefined && (typeof item.autoCheckpoint !== 'string' || !validDate(item.autoCheckpoint) || item.autoCheckpoint.slice(0, 7) !== item.month)) issues.push(path + '.autoCheckpoint must belong to its month.');
+  if (item.loanBalances !== undefined) requiredArray(item.loanBalances, path + '.loanBalances', issues)?.forEach((raw, index) => {
+    const entry = requiredRecord(raw, path + '.loanBalances[' + index + ']', issues);
+    if (!entry) return;
+    requiredString(entry.loanId, path + '.loanBalances.loanId', issues);
+    requiredNumber(entry.amount, path + '.loanBalances.amount', issues);
+    enumValue(entry.balanceKind, new Set(['principal', 'payoff']), path + '.loanBalances.balanceKind', issues);
+  });
   const accounts = requiredArray(item.accounts, `${path}.accounts`, issues);
   accounts?.forEach((account, index) => validateSnapshotAccount(account, `${path}.accounts[${index}]`, issues));
 }
@@ -872,7 +892,24 @@ function validatePlanning(value: unknown, path: string, issues: string[]) {
 function validateMonthlyPlan(value: unknown, path: string, issues: string[]) {
   const plan = requiredRecord(value, path, issues);
   if (!plan) return;
+  if (plan.dueReminderPaid !== undefined) {
+    const keys = new Set<string>();
+    requiredArray(plan.dueReminderPaid, path + '.dueReminderPaid', issues)?.forEach((raw, index) => {
+      const p = path + '.dueReminderPaid[' + index + ']';
+      const entry = requiredRecord(raw, p, issues);
+      if (!entry) return;
+      for (const key of ['id', 'date', 'markedAt']) requiredString(entry[key], p + '.' + key, issues);
+      if (typeof entry.id !== 'string' || !/^(account|loan|spending):.+$/.test(entry.id)) issues.push(p + '.id is invalid.');
+      if (typeof entry.date !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(entry.date) || !Number.isFinite(Date.parse(entry.date)) || new Date(entry.date).toISOString().slice(0, 10) !== entry.date) issues.push(p + '.date is invalid.');
+      if (typeof entry.markedAt !== 'string' || !entry.markedAt.includes('T') || !Number.isFinite(Date.parse(entry.markedAt))) issues.push(p + '.markedAt is invalid.');
+      const key = entry.id + ':' + entry.date;
+      if (keys.has(key)) issues.push(p + ' duplicates a paid reminder.');
+      keys.add(key);
+    });
+  }
   if (Object.prototype.hasOwnProperty.call(plan, 'currency') && !['USD', 'PHP', 'EUR', 'GBP', 'CAD', 'AUD'].includes(plan.currency as string)) issues.push(path + '.currency must be a supported household currency.');
+  if (plan.payoffExtraPayment !== undefined) requiredNumber(plan.payoffExtraPayment, path + ".payoffExtraPayment", issues);
+  if (plan.payoffExcludedTypes !== undefined) requiredArray(plan.payoffExcludedTypes, path + ".payoffExcludedTypes", issues)?.forEach((value,i)=>enumValue(value,new Set(["Credit card","Mortgage","Auto loan","Personal loan","Student loan","Medical debt","Other"]),path+".payoffExcludedTypes["+i+"]",issues));
   if (plan.payoffPlanAmount !== undefined) requiredNumber(plan.payoffPlanAmount, path + ".payoffPlanAmount", issues);
   if (plan.payoffPlanStrategy !== undefined) enumValue(plan.payoffPlanStrategy, new Set(["avalanche", "snowball", "custom"]), path + ".payoffPlanStrategy", issues);
   if (plan.payoffPlanOrder !== undefined) requiredArray(plan.payoffPlanOrder, path + ".payoffPlanOrder", issues)?.forEach((id, i) => requiredString(id, path + ".payoffPlanOrder[" + i + "]", issues));
@@ -909,6 +946,7 @@ function validateMonthlyPlan(value: unknown, path: string, issues: string[]) {
       const p = path + ".loanTrackers[" + i + "]";
       const loan = requiredRecord(raw, p, issues);
       if (!loan) return;
+      if (!validOptionalInstitution(loan.institutionKey)) issues.push(p + ".institutionKey must be a catalog key.");
       for (const key of ["id", "name"]) requiredString(loan[key], p + "." + key, issues);
       for (const key of ["budgetItemId", "budgetItemName"]) requiredString(loan[key], p + "." + key, issues, true);
       if (typeof loan.budgetItemId === "string" && typeof loan.budgetItemName === "string" && Boolean(loan.budgetItemId.trim()) !== Boolean(loan.budgetItemName.trim())) issues.push(p + ".budgetItemId and budgetItemName must both be set or both be empty.");
@@ -918,12 +956,14 @@ function validateMonthlyPlan(value: unknown, path: string, issues: string[]) {
       requiredNumber(loan.originalAmount, p + ".originalAmount", issues);
       if (typeof loan.originalAmount === "number" && loan.originalAmount <= 0) issues.push(p + ".originalAmount must be positive.");
       requiredNumber(loan.remainingAmount, p + ".remainingAmount", issues);
-      for (const key of ["apr", "escrow", "principalAndInterest"]) if (loan[key] !== undefined) requiredNumber(loan[key], p + "." + key, issues);
+      for (const key of ["apr", "escrow", "principalAndInterest", "monthlyPayment", "principalBalance"]) if (loan[key] !== undefined) requiredNumber(loan[key], p + "." + key, issues);
+      if (loan.dueDate !== undefined && (typeof loan.dueDate !== "string" || !validDate(loan.dueDate))) issues.push(p + ".dueDate must be a valid date.");
       if (typeof loan.asOf !== "string" || !validDate(loan.asOf)) issues.push(p + ".asOf must be a valid date.");
       requiredArray(loan.history, p + ".history", issues)?.forEach((raw, index) => {
         const entry = requiredRecord(raw, p + ".history[" + index + "]", issues);
         if (!entry) return;
         requiredNumber(entry.amount, p + ".history.amount", issues);
+        if (entry.estimated !== undefined) requiredBoolean(entry.estimated, p + ".history.estimated", issues);
         for (const key of ["payment", "principal", "interest", "escrow", "extraPrincipal"]) if (entry[key] !== undefined) requiredNumber(entry[key], p + ".history." + key, issues);
         enumValue(entry.balanceKind, new Set(["principal", "payoff"]), p + ".history.balanceKind", issues);
         if (typeof entry.date !== "string" || !validDate(entry.date)) issues.push(p + ".history.date must be a valid date.");
@@ -938,11 +978,13 @@ function validateMonthlyPlan(value: unknown, path: string, issues: string[]) {
   if (months) Object.entries(months).forEach(([month, raw]) => {
     const settings = requiredRecord(raw, path + ".months[" + JSON.stringify(month) + "]", issues);
     if (settings) {
+      if (settings.skippedRecurringPayments !== undefined) requiredArray(settings.skippedRecurringPayments, path + '.skippedRecurringPayments', issues)?.forEach((id, index) => requiredString(id, path + '.skippedRecurringPayments[' + index + ']', issues));
       if (settings.settlements !== undefined) requiredArray(settings.settlements, path + ".settlements", issues)?.forEach((raw, i) => {
         const entry = requiredRecord(raw, path + ".settlements[" + i + "]", issues);
         if (!entry) return;
         for (const key of ["id", "targetId", "name", "date", "createdAt"]) requiredString(entry[key], path + ".settlements." + key, issues);
         requiredNumber(entry.amount, path + ".settlements.amount", issues);
+        if (entry.automatic !== undefined) requiredBoolean(entry.automatic, path + ".settlements.automatic", issues);
         if (!["spending", "minimum"].includes(String(entry.kind))) issues.push(path + ".settlements.kind is invalid.");
         if (!["debit", "included"].includes(String(entry.source))) issues.push(path + ".settlements.source is invalid.");
         if (entry.kind === "minimum" && entry.source !== "included") issues.push("Previously paid minimums must already be included in balances.");

@@ -1,0 +1,12 @@
+.carousel{position:relative;min-width:0;isolation:isolate}
+.viewport{position:relative;display:flex;gap:8px;overflow-x:auto;scroll-snap-type:x mandatory;scrollbar-width:none;touch-action:pan-x pan-y pinch-zoom;padding-right:24px;scroll-padding:0}
+.viewport::-webkit-scrollbar{display:none}
+.viewport:focus-visible{outline:3px solid var(--theme-focus);outline-offset:3px;border-radius:16px}
+.slide{flex:0 0 100%;min-width:0;padding:12px 16px 16px;scroll-snap-align:start;scroll-snap-stop:always;border-radius:16px;background:linear-gradient(135deg,var(--theme-gradient-start),var(--theme-gradient-end));color:var(--theme-on-gradient);border:1px solid var(--theme-border)}
+.heading{margin:0 36px 8px 30px!important;min-height:28px;font-size:calc(16px * var(--theme-text-scale,1));line-height:1.4;font-weight:700}
+.controls{position:absolute;top:4px;left:0;right:24px;display:flex;justify-content:space-between;pointer-events:none}
+.controls button{pointer-events:auto;display:grid;place-items:center;width:44px;height:44px;padding:0;border:0;background:transparent;color:var(--theme-on-gradient);font-size:28px;cursor:pointer}
+.controls button:disabled{opacity:.3;cursor:default}
+@media(prefers-reduced-motion:reduce){.viewport{scroll-behavior:auto}}
+
+.controls button{border-radius:0!important;background:transparent!important}.heading{font-size:16px;font-weight:600;margin-bottom:8px!important}.slide{padding-top:12px;padding-bottom:16px}

@@ -39,14 +39,36 @@ test('owner can create and revoke an invitation with accessible mobile controls'
 });
 
 test('viewer can request and cancel deletion without owner controls', async ({page}) => {
-  let data={...base};
-  await page.route('**/api/household/lifecycle',async route=>{ if(route.request().method()==='POST') { const body=route.request().postDataJSON(); data={...data,requests:body.action==='request_deletion' ? [{id:'synthetic-request',kind:'delete_account'}] : []} as typeof data; await route.fulfill({json:{ok:true}}); } else await route.fulfill({json:data}); });
+  let data={...base}; const writes: Record<string,string>[]=[];
+  await page.route('**/api/household/lifecycle',async route=>{ if(route.request().method()==='POST') { const body=route.request().postDataJSON(); writes.push(body); data={...data,requests:body.action==='request_deletion' ? [{id:'synthetic-request',kind:'delete_account'}] : []} as typeof data; await route.fulfill({json:{ok:true}}); } else await route.fulfill({json:data}); });
   await mount(page,{...owner,role:'viewer'});
   await expect(page.getByRole('button',{name:'Create invitation'})).toHaveCount(0); await expect(page.getByRole('button',{name:'Leave household'})).toBeEnabled();
   await page.getByText('Account deletion',{exact:true}).click(); page.once('dialog',dialog=>dialog.accept('DELETE')); await page.getByRole('button',{name:'Request deletion',exact:true}).click(); await expect(page.getByText('Request reference: synthetic-request')).toBeVisible(); await page.getByRole('button',{name:'Cancel deletion request'}).click(); await expect(page.getByRole('button',{name:'Request deletion',exact:true})).toBeVisible();
+  expect(writes[1]).toEqual({action:'cancel_deletion',id:'synthetic-request'});
+  await expect(page.getByRole('status')).toHaveText('Deletion request cancelled. Nothing has been deleted.');
 });
 
 test('setup displays only intended invitations and closed-registration state',async ({page})=>{
   await page.route('**/api/household/lifecycle',route=>route.fulfill({json:{...base,member:null}})); await mount(page,{identity:'new@example.test',setup:true});
   await expect(page.getByText('No pending invitations. New household registration is closed.')).toBeVisible(); await expect(page.getByRole('button',{name:'Create household'})).toHaveCount(0);
+});
+
+
+test('setup exposes every pending reference and cancels only the selected request', async ({page}) => {
+  let requests = [{id:'case-a',kind:'delete_account'},{id:'case-b',kind:'delete_household'}];
+  const writes: Record<string,string>[]=[];
+  await page.route('**/api/household/lifecycle',async route=>{
+    if (route.request().method()==='POST') {
+      const body=route.request().postDataJSON(); writes.push(body);
+      requests=requests.filter(request=>request.id!==body.id);
+      await route.fulfill({json:{ok:true}});
+    } else await route.fulfill({json:{...base,member:null,requests}});
+  });
+  await mount(page,{identity:'former@example.test',setup:true});
+  await expect(page.getByText('Request reference: case-a')).toBeVisible();
+  await expect(page.getByText('Request reference: case-b')).toBeVisible();
+  await page.getByRole('button',{name:'Cancel deletion request'}).first().click();
+  expect(writes).toEqual([{action:'cancel_deletion',id:'case-a'}]);
+  await expect(page.getByText('Request reference: case-a')).toHaveCount(0);
+  await expect(page.getByText('Request reference: case-b')).toBeVisible();
 });

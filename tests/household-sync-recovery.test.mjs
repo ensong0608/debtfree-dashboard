@@ -253,3 +253,33 @@ test('manual reload cannot replace a newer committed edit with a delayed stale r
  a.sync.stage(edit(loaded,987));await a.sync.flush();release.resolve();
  await assert.rejects(reading,/changed/);assert.equal(a.sync.revision,1);assert.equal(env.saved().contract.payload.extra,987);assert.equal(a.states.at(-1),'synced');
 });
+
+test('oversized save is distinct from connection failure and retains the draft and remote revision', async t => {
+  const env = setup(t);
+  const a = env.controller(owner);
+  const loaded = await a.sync.load();
+  const contract = edit(loaded, 321);
+  // Keep all dated records while crossing the real byte limit with synthetic metadata.
+  contract.payload.sizeTest = 'é'.repeat(510_000);
+  const before = env.saved();
+  a.sync.stage(contract);
+  const durable = a.store.getItem(a.key);
+  await a.sync.flush();
+  assert.equal(a.states.at(-1), 'too-large');
+  assert.equal(a.sync.revision, 0);
+  assert.equal(a.store.getItem(a.key), durable);
+  assert.deepEqual(env.saved(), before);
+  const reopened = env.controller(owner, { storage: a.store, key: a.key });
+  assert.deepEqual((await reopened.sync.load()).contract.payload, contract.payload);
+  await reopened.sync.flush();
+  assert.equal(reopened.states.at(-1), 'too-large');
+  assert.equal(reopened.store.getItem(reopened.key), durable);
+  // A later valid user edit can still save; no permanent size-error lock is introduced.
+  const smaller = edit(loaded, 654);
+  reopened.sync.stage(smaller);
+  await reopened.sync.flush();
+  assert.equal(reopened.states.at(-1), 'synced');
+  assert.equal(reopened.sync.pending, null);
+  assert.equal(env.saved().revision, 1);
+  assert.equal(env.saved().contract.payload.extra, 654);
+});

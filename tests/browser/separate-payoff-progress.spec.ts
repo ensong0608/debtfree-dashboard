@@ -32,7 +32,7 @@ test("calculator and plan save independently and plan reserves minimums within t
   const minimum = page.getByLabel("Minimum payment for Plan card 1", { exact: true });
   await minimum.fill("0");
   await page.getByRole("button", { name: "Save minimum for Plan card 1", exact: true }).click();
-  await expect(page.getByRole("alert")).toContainText("Enter a minimum greater than zero.");
+  await expect(page.getByRole("alert")).toContainText("Enter a minimum greater than 0.");
   await expect(page.locator(".plan-commitment")).toContainText("Minimums $1,800.00");
   await minimum.fill("1200");
   await page.getByRole("button", { name: "Save minimum for Plan card 1", exact: true }).click();
@@ -73,7 +73,7 @@ test("removing an isolated test account retains its last balance in Progress", a
   await expect(page.locator(".actual-progress-summary")).toContainText("$1,000.00");
   await page.getByText("Account breakdown", {exact:true}).click();
   await expect(page.getByText("Removed from Debts · last balance retained", { exact: true })).toBeVisible();
-  await expect(page.locator(".progress-story")).toContainText("$0.00");
+  await expect(page.locator(".actual-progress-summary")).toContainText("$0.00");
   await page.getByRole("button", { name: "Save snapshot", exact: true }).click();
   await expect(page.locator(".snapshot-controls .saved-check")).toContainText("$1,000.00");
   await page.reload();

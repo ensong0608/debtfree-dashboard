@@ -40,8 +40,10 @@ async function render(page: Page, data: object) {
 for (const width of [320, 390]) test(`mobile summary keeps three cards, large amounts and accessible dialogs at ${width}px`, async ({ page }) => {
   await page.setViewportSize({ width, height: 900 });
   await render(page, { transactions: [transaction("Large payment", { amount: 123456789.12 }), transaction("Fee", { type: "fee", amount: 52.25 })] });
-  await expect(page.locator('.transaction-month-control b')).toHaveText("OCT 2026");
-  await expect(page.getByLabel("Month", { exact: true })).toHaveValue("2026-10");
+  await expect(page.getByRole("combobox", {name: "Period", exact: true})).toHaveValue("month:2026-10");
+  await expect(page.locator(".payments-filters select")).toHaveCount(2);
+  const filterTops = await page.locator(".payments-filters select").evaluateAll(elements => elements.map(element => element.getBoundingClientRect().top));
+  expect(Math.max(...filterTops) - Math.min(...filterTops)).toBeLessThanOrEqual(1);
   await expect(page.getByRole("combobox", { name: "Account", exact: true })).toHaveValue("all");
   await expect(page.getByRole("option", { name: "ALL", exact: true })).toBeAttached();
   const cards = page.getByRole("region", { name: "Monthly transaction summary" }).locator("article");
@@ -50,6 +52,16 @@ for (const width of [320, 390]) test(`mobile summary keeps three cards, large am
   expect(new Set(boxes.map(box => box.y)).size).toBe(1);
   expect(boxes.every(box => box.right <= width && box.width > 60 && !box.overflow)).toBe(true);
   expect(await page.locator(".transaction-signed-total").evaluateAll(elements => elements.every(element => element.scrollWidth <= element.clientWidth))).toBe(true);
+  const spacing = await cards.locator("button").evaluateAll(buttons => buttons.map(button => ({
+    centered: getComputedStyle(button.querySelector("strong")!).textAlign === "center",
+    minimum: getComputedStyle(button).minHeight,
+    countMargin: getComputedStyle(button.querySelector("small")!).marginTop,
+  })));
+  expect(spacing.every(value => value.centered && value.minimum === "0px" && value.countMargin === "0px")).toBe(true);
+  const amountTops = await cards.locator("button > strong").evaluateAll(elements => elements.map(element => element.getBoundingClientRect().top));
+  const countTops = await cards.locator("button > small").evaluateAll(elements => elements.map(element => element.getBoundingClientRect().top));
+  expect(Math.max(...amountTops) - Math.min(...amountTops)).toBeLessThanOrEqual(1);
+  expect(Math.max(...countTops) - Math.min(...countTops)).toBeLessThanOrEqual(1);
   await page.screenshot({ path: `.wrangler/mobile-transactions/summary-${width}.png` });
   await expect(cards.nth(2)).toContainText("−$123,456,736.87");
   await expect(page.getByText("Payments this month", { exact: true })).toHaveCount(0);
@@ -68,26 +80,74 @@ for (const width of [320, 390]) test(`mobile summary keeps three cards, large am
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
 });
 
-test("history shows zero-movement correction once, discloses metadata and never invents missing balances", async ({ page }) => {
-  await page.setViewportSize({ width: 320, height: 1000 });
-  await render(page, { transactions: [transaction("Corrected", { balanceBefore: 1000, balanceAfter: 900, balanceEvents: [event(1000, 900, "2026-10-12T12:00:00.000Z"), event(900, 900, "2026-10-13T12:00:00.000Z")], revisions: [{ date: "2026-10-12", accountId: "demo-card", title: "Original title", amount: 100, type: "payment", balanceBefore: 1000, balanceAfter: 900, correctedAt: "2026-10-13T12:00:00.000Z" }] }), transaction("Uncaptured") ] });
-  const card = page.locator('[data-activity-id="transaction:Corrected"]');
-  await card.getByText("History", { exact: true }).click();
-  const table = card.getByRole("table", { name: "Transaction history" });
-  await expect(table.locator("tr[data-history-event]")).toHaveCount(2);
-  await expect(table.locator("tr[data-history-event]").nth(1)).toContainText("$0.00");
-  await table.getByRole("button", { name: "Details for Saved 2026-10-13T12:00:00.000Z" }).click();
-  await expect(table).toContainText("No additional balance change");
-  await expect(table).toContainText("2026-10-13T12:00:00.000Z");
-  await expect(card.getByText("Original & prior versions", { exact: true })).toHaveCount(0);
-  await expect(card).toContainText("Original title");
-  const missing = page.locator('[data-activity-id="transaction:Uncaptured"]');
-  await missing.getByText("History", { exact: true }).click();
-  await expect(missing.getByLabel("Balance unavailable", { exact: true })).toHaveText(String.fromCharCode(0x2014));
-  await missing.getByRole("button", { name: /^Details for Recorded/ }).click();
-  await expect(missing).toContainText("Historical balances unavailable.");
-  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
-  expect(await page.evaluate(() => JSON.stringify((window as unknown as { __fixture: object }).__fixture) === (window as unknown as { __before: string }).__before)).toBe(true);
+for (const mobile of [true, false]) test(`period filters synchronize totals, transaction rows and debt history (${mobile ? "phone" : "desktop"})`, async ({ page }) => {
+  await page.setViewportSize({width: mobile ? 390 : 1440, height: 1000});
+  const older = Array.from({length: 24}, (_, i) => transaction(`September ${i}`, {date: `2026-09-${String(i + 1).padStart(2, "0")}`}));
+  await render(page, {mobile, transactions: [transaction("Recent", {date: "2026-10-19"}), transaction("Early", {date: "2026-10-02"}), transaction("Other debt", {accountId: "another-card"}), transaction("Deleted", {deletedAt: now}), transaction("Last year", {date: "2025-12-01"}), ...older]});
+  const period = page.getByRole("combobox", {name: "Period", exact:true});
+  const card = page.locator('[data-activity-id="transaction:Recent"]');
+  const history = card.getByLabel("Transaction activity for Synthetic card");
+  const summary = () => page.getByRole("region", {name: /transaction summary/}).locator("article").first().locator("strong");
+  await expect(summary()).toHaveText("$300.00");
+  await expect(page.locator(".clean-transaction-card")).toHaveCount(3);
+  await card.getByText("Debt history", {exact:true}).click();
+  await expect(history.getByRole("listitem")).toHaveCount(2);
+  await expect(history).toContainText("Early");
+  await expect(history).not.toContainText("September");
+  await expect(history).not.toContainText("Other debt");
+  await expect(history).not.toContainText("Deleted");
+  await period.selectOption("year:2026");
+  await expect(summary()).toHaveText("$2,700.00");
+  await expect(page.locator(".clean-transaction-card")).toHaveCount(27);
+  await card.getByText("Debt history", {exact:true}).click();
+  await expect(history.getByRole("listitem")).toHaveCount(20);
+  await history.getByRole("button", {name: "Show all 26 entries"}).click();
+  await expect(history.getByRole("listitem")).toHaveCount(26);
+  await expect(history).not.toContainText("Last year");
+  await period.selectOption("lifetime");
+  await expect(summary()).toHaveText("$2,800.00");
+  await card.getByText("Debt history", {exact:true}).click();
+  await history.getByRole("button", {name: "Show all 27 entries"}).click();
+  await expect(history).toContainText("Last year");
+  const dates = await history.locator("time").evaluateAll(elements => elements.map(element => element.getAttribute("datetime")));
+  expect(dates).toEqual([...dates].sort().reverse());
+  await page.getByRole("combobox", {name: "Account", exact:true}).selectOption("demo-card");
+  await expect(summary()).toHaveText("$2,700.00");
+  await period.selectOption("year:2026");
+  await period.selectOption("year:2025");
+  await expect(summary()).toHaveText("$100.00");
+  await expect(page.locator(".clean-transaction-card")).toHaveCount(1);
+  await period.selectOption("month:2026-09");
+  await expect(summary()).toHaveText("$2,400.00");
+  await expect(page.locator(".clean-transaction-card")).toHaveCount(24);
+  expect(await page.evaluate(() => JSON.stringify((window as unknown as {__fixture: object}).__fixture) === (window as unknown as {__before: string}).__before)).toBe(true);
+});
+
+test("history stops at its transaction, including same-day ordering, in every period", async ({page}) => {
+  await render(page, {transactions: [
+    transaction("October 3", {date:"2026-10-03"}),
+    transaction("October 16 early", {date:"2026-10-16", createdAt:"2026-10-16T09:00:00Z"}),
+    transaction("October 16 late", {date:"2026-10-16", createdAt:"2026-10-16T18:00:00Z"}),
+    transaction("September", {date:"2026-09-01"}),
+  ]});
+  const period = page.getByRole("combobox", {name:"Period", exact:true});
+  for (const value of ["month:2026-10", "year:2026", "lifetime"]) {
+    await period.selectOption(value);
+    const early = page.locator('[data-activity-id="transaction:October 3"]');
+    await early.getByText("Debt history", {exact:true}).click();
+    const earlyHistory = early.getByLabel("Transaction activity for Synthetic card");
+    await expect(earlyHistory).not.toContainText("October 16");
+    await expect(earlyHistory.getByRole("listitem")).toHaveCount(value.startsWith("month:") ? 1 : 2);
+    const later = page.locator('[data-activity-id="transaction:October 16 early"]');
+    await later.getByText("Debt history", {exact:true}).click();
+    const laterHistory = later.getByLabel("Transaction activity for Synthetic card");
+    await expect(laterHistory).toContainText("October 3");
+    await expect(laterHistory).not.toContainText("October 16 late");
+    const latest = page.locator('[data-activity-id="transaction:October 16 late"]');
+    await latest.getByText("Debt history", {exact:true}).click();
+    await expect(latest.getByLabel("Transaction activity for Synthetic card")).toContainText("October 16 early");
+  }
+  expect(await page.evaluate(() => JSON.stringify((window as unknown as {__fixture: object}).__fixture) === (window as unknown as {__before: string}).__before)).toBe(true);
 });
 
 test("seven-day visible recovery boundary covers transactions and adjustments without mutating tombstones", async ({ page }) => {
@@ -118,7 +178,7 @@ test("mobile retains edit/delete/restore dialogs and disables mutations for view
   await render(page, { transactions: [transaction("Editable"), transaction("Recoverable", { deletedAt: now })] });
   await page.getByRole("button", { name: "Edit Editable for Synthetic card", exact: true }).click();
   await expect(page.getByRole("dialog", { name: "Edit transaction", exact: true })).toBeVisible();
-  await page.getByRole("button", { name: "Close transaction", exact: true }).click();
+  await page.getByRole("button", { name: "Back from transaction", exact: true }).click();
   await page.getByRole("button", { name: "Edit Editable for Synthetic card", exact: true }).click();
   await page.getByRole("button", { name: "Delete transaction", exact: true }).click();
   await expect(page.getByRole("dialog", { name: "Delete payment?", exact: true })).toBeVisible();
@@ -136,35 +196,22 @@ test("mobile viewer can inspect summaries and history without mutation controls"
   await expect(page.locator(".transaction-delete-x")).toHaveCount(0);
   await page.getByRole("button", { name: "Explain Payments recorded", exact: true }).click();
   await page.getByRole("button", { name: "Close explanation", exact: true }).click();
-  await page.getByText("History", { exact: true }).click();
-  await expect(page.getByRole("table", { name: "Transaction history" })).toBeVisible();
+  await page.getByText("Debt history", { exact: true }).click();
+  await expect(page.getByLabel("Transaction activity for Synthetic card")).toBeVisible();
 });
 
-for (const width of [320, 390, 736]) test(`history has readable aligned cells and PHP values at ${width}px`, async ({ page }) => {
-  await page.setViewportSize({ width, height: 1100 });
-  await render(page, { currency: "PHP", transactions: [transaction("Groceries", { type: "charge", amount: 12345678.12, balanceBefore: 1000, balanceAfter: 12346678.12, balanceEvents: [event(1000, 12346678.12, "2026-10-12T12:00:00.000Z")] })] });
+test("debt history keeps large PHP values readable and omits uncaptured balances", async ({ page }) => {
+  await page.setViewportSize({width: 390, height: 1100});
+  await render(page, {currency: "PHP", transactions: [transaction("Groceries", {type: "charge", amount: 12345678.12}), transaction("Captured", {balanceBefore: 1000, balanceAfter: 900}), transaction("Included", {includedIn: {type: "adjustment", id: "anchor"}})]});
   const card = page.locator('[data-activity-id="transaction:Groceries"]');
-  await expect(card.locator(".transaction-clean-name > strong")).toHaveText(/Groceries.*Purchase/);
-  await expect(card.locator(".transaction-amount small")).toHaveCount(0);
-  await expect(card.locator(".transaction-delete-x")).toHaveCount(0);
-  await card.getByText("History", { exact: true }).click();
-  const table = card.getByRole("table", { name: "Transaction history" });
-  await expect(table).toContainText(/₱12,345,678.12/);
-  await expect(table.getByRole("row")).toHaveCount(2);
-  const geometry = await table.evaluate(element => {
-    const first = element.querySelector('tr[data-history-event]')!;
-    const cells = [...first.querySelectorAll('td')];
-    return { width: element.getBoundingClientRect().width, available: element.parentElement!.getBoundingClientRect().width, minWidth: getComputedStyle(element).minWidth, cells: cells.map(cell => ({ color: getComputedStyle(cell).color, background: getComputedStyle(cell).backgroundColor, overflow: cell.scrollWidth > cell.clientWidth, textTop: (() => { const walker = document.createTreeWalker(cell, NodeFilter.SHOW_TEXT); let node = walker.nextNode(); while (node && !node.textContent?.trim()) node = walker.nextNode(); if (!node) return 0; const range = document.createRange(); range.selectNodeContents(node); return range.getClientRects()[0].top; })(), top: cell.getBoundingClientRect().top, bottom: cell.getBoundingClientRect().bottom })), headers: [...element.querySelectorAll('th')].map(cell => ({color:getComputedStyle(cell).color,background:getComputedStyle(cell).backgroundColor})) };
-  });
-  expect(geometry.width).toBeLessThanOrEqual(geometry.available + 1);
-  expect(geometry.minWidth).toBe("0px");
-  expect(geometry.cells.every(cell => !cell.overflow && cell.color === "rgb(23, 36, 58)" && cell.background === "rgb(255, 255, 255)")).toBe(true);
-  expect(geometry.headers.every(cell => cell.color === "rgb(23, 36, 58)" && cell.background === "rgb(240, 246, 243)")).toBe(true);
-  expect(Math.max(...geometry.cells.map(cell => cell.textTop)) - Math.min(...geometry.cells.map(cell => cell.textTop))).toBeLessThanOrEqual(1.5);
-  expect(new Set(geometry.cells.map(cell => cell.top)).size).toBe(1);
-  expect(new Set(geometry.cells.map(cell => cell.bottom)).size).toBe(1);
-  await page.screenshot({ path: `.wrangler/mobile-transactions/history-refined-${width}.png` });
-  expect(await page.evaluate(() => JSON.stringify((window as unknown as {__fixture:object}).__fixture) === (window as unknown as {__before:string}).__before)).toBe(true);
+  await card.getByText("Debt history", {exact: true}).click();
+  const history = card.getByLabel("Transaction activity for Synthetic card");
+  await expect(history).toContainText("+₱12,345,678.12");
+  await expect(history.getByRole("listitem").filter({hasText: "Captured"})).toContainText("Balance: ₱900.00");
+  await expect(history.getByRole("listitem").filter({hasText: "Groceries"})).not.toContainText("Balance:");
+  await expect(history.getByRole("listitem").filter({hasText: "Included"})).toContainText("Included");
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await page.screenshot({path: ".wrangler/mobile-transactions/debt-history-390.png"});
 });
 
 test("PHP input symbol and delete confirmation discard unsaved edits and commit only original command", async ({ page }) => {
@@ -217,9 +264,9 @@ test("heading does not repeat a title that already names the transaction type", 
 
 test("negative PHP history preserves sign, original movement and fixture bytes", async ({ page }) => {
   await render(page, { currency: "PHP", transactions: [transaction("Large original", { amount: 12345678.12, balanceBefore: 12346678.12, balanceAfter: 1000, balanceEvents: [event(12346678.12, 1000, "2026-10-12T12:00:00.000Z")] })] });
-  await page.getByText("History", { exact: true }).click();
-  const table = page.getByRole("table", { name: "Transaction history" });
-  await expect(table.locator("tr[data-history-event]")).toHaveCount(1);
-  await expect(table).toContainText("\u2212₱12,345,678.12");
+  await page.getByText("Debt history", { exact: true }).click();
+  const history = page.getByLabel("Transaction activity for Synthetic card");
+  await expect(history.getByRole("listitem")).toHaveCount(1);
+  await expect(history).toContainText("\u2212₱12,345,678.12");
   expect(await page.evaluate(() => JSON.stringify((window as unknown as {__fixture:object}).__fixture) === (window as unknown as {__before:string}).__before)).toBe(true);
 });

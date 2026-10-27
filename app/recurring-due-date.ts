@@ -9,3 +9,23 @@ export function recurringDueDate(saved: string, month?: string): string {
   const lastDay = new Date(Date.UTC(Number(match[1]), Number(match[2]), 0)).getUTCDate();
   return `${key}-${String(Math.min(day, lastDay)).padStart(2, "0")}`;
 }
+
+/** Next occurrence of the saved recurring day, including today. */
+export function nextDueDate(saved: string, today = householdDate()): string {
+  const current = recurringDueDate(saved, today.slice(0, 7));
+  if (!current || current >= today) return current;
+  const next = new Date(today.slice(0, 7) + '-01T12:00:00Z');
+  next.setUTCMonth(next.getUTCMonth() + 1);
+  return recurringDueDate(saved, next.toISOString().slice(0, 7));
+}
+
+/** Display the next occurrence of the recurring day in the household calendar. */
+export function formatRecurringDueDate(saved: string, month?: string): string {
+  const date = month ? recurringDueDate(saved, month) : nextDueDate(saved);
+  if (!date) return "—";
+  return new Date(`${date}T12:00:00Z`).toLocaleDateString("en-US", {
+    timeZone: "UTC",
+    month: "short",
+    day: "numeric",
+  });
+}

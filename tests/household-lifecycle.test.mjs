@@ -49,7 +49,7 @@ test('leave preserves finances, blocks further household actions; owner deletion
   const f=fixture(); f.as('viewer@example.test'); assert.equal((await f.post({action:'leave',confirmation:'no'})).status,400); assert.equal((await f.post({action:'leave',confirmation:'LEAVE'})).status,200); assert.equal((await f.post({action:'invite',email:'new@example.test',role:'admin'})).status,403);
   f.as('owner@example.test'); assert.equal((await f.post({action:'request_deletion',confirmation:'DELETE'})).status,200); assert.equal((await f.post({action:'request_deletion',confirmation:'DELETE'})).status,200); assert.equal(f.sql.prepare('SELECT COUNT(*) AS n FROM household_requests').get().n,1);
   assert.equal(f.sql.prepare('SELECT kind FROM household_requests').get().kind,'delete_household'); assert.equal(f.sql.prepare('SELECT revision FROM household_state WHERE household_id=?').get('a').revision,9);
-  await f.post({action:'cancel_deletion'}); assert.equal((await (await f.get()).json()).requests.length,0);
+  await f.post({action:'cancel_deletion',id:(await (await f.get()).json()).requests[0].id}); assert.equal((await (await f.get()).json()).requests.length,0);
 });
 test('new household creation is explicitly allowlisted and starts with empty state', async () => {
   const f=fixture(); f.as('unknown@example.test'); assert.equal((await f.post({action:'create',name:'Test'})).status,403); f.as('new@example.test'); assert.equal((await f.post({action:'create',name:'  '})).status,400); assert.equal((await f.post({action:'create',name:'New household'})).status,200);
@@ -67,7 +67,7 @@ test('invitation flood limit, oversized bodies and legacy acceptance', async () 
 test('deletion request remains visible and cancellable after membership removal', async () => {
   const f=fixture(); f.as('admin@example.test'); await f.post({action:'request_deletion',confirmation:'DELETE'});
   f.as('owner@example.test'); await f.post({action:'remove',email:'admin@example.test'});
-  f.as('admin@example.test'); assert.equal((await (await f.get()).json()).requests.length,1); assert.equal((await f.post({action:'cancel_deletion'})).status,200); assert.equal((await (await f.get()).json()).requests.length,0);
+  f.as('admin@example.test'); assert.equal((await (await f.get()).json()).requests.length,1); assert.equal((await f.post({action:'cancel_deletion',id:(await (await f.get()).json()).requests[0].id})).status,200); assert.equal((await (await f.get()).json()).requests.length,0);
 });
 
 test('removal and leaving atomically revoke pending rejoin invitations', async () => {
@@ -91,4 +91,50 @@ test('only the owner can rename the current household; identity and financial hi
  assert.equal(f.sql.prepare("SELECT name FROM households WHERE id='a'").get().name,'New household');
  assert.equal(f.sql.prepare("SELECT name FROM households WHERE id='b'").get().name,'B');
  assert.equal(f.sql.prepare("SELECT revision FROM household_state WHERE household_id='a'").get().revision,9);
+});
+
+
+test('cancellation targets one owned reference and stale retries preserve a newer request', async () => {
+  const f = fixture();
+  const first = await (await f.post({action:'request_deletion',confirmation:'DELETE'})).json();
+  f.sql.exec("INSERT INTO household_requests VALUES ('older-case','b','owner@example.test','delete_account',0,NULL)");
+  assert.equal((await f.post({action:'cancel_deletion'})).status,400);
+  f.as('viewer@example.test');
+  assert.equal((await f.post({action:'cancel_deletion',id:first.id})).status,404);
+  assert.equal(f.sql.prepare('SELECT cancelled_at FROM household_requests WHERE id=?').get(first.id).cancelled_at,null);
+  f.as('owner@example.test');
+  assert.equal((await f.post({action:'cancel_deletion',id:first.id})).status,200);
+  const next = await (await f.post({action:'request_deletion',confirmation:'DELETE'})).json();
+  assert.notEqual(next.id,first.id);
+  await f.post({action:'cancel_deletion',id:first.id});
+  assert.deepEqual(new Set((await (await f.get()).json()).requests.map(r=>r.id)),new Set(['older-case',next.id]));
+});
+
+test('overlapping deletion retries return one durable reference and preserve member scope and history', async () => {
+  const f = fixture(); f.as('viewer@example.test');
+  const before = f.sql.prepare('SELECT * FROM household_state ORDER BY household_id').all();
+  assert.equal((await f.post({action:'request_deletion',confirmation:'no'})).status,400);
+  const responses = await Promise.all(Array.from({length:4},()=>f.post({action:'request_deletion',confirmation:'DELETE'})));
+  for (const response of responses) assert.equal(response.status,200);
+  const results = await Promise.all(responses.map(response=>response.json()));
+  assert.equal(new Set(results.map(result=>result.id)).size,1);
+  assert.equal(f.sql.prepare('SELECT COUNT(*) AS n FROM household_requests').get().n,1);
+  assert.equal(f.sql.prepare('SELECT kind FROM household_requests').get().kind,'delete_account');
+  assert.ok(f.sql.prepare("SELECT email FROM household_members WHERE email='viewer@example.test'").get());
+  assert.deepEqual(f.sql.prepare('SELECT * FROM household_state ORDER BY household_id').all(),before);
+});
+
+
+test('failed request capture can be retried without changing finances or claiming completion', async () => {
+  const f = fixture();
+  f.sql.exec("CREATE TRIGGER fail_request BEFORE INSERT ON household_requests BEGIN SELECT RAISE(ABORT, 'synthetic failure'); END");
+  assert.equal((await f.post({action:'request_deletion',confirmation:'DELETE'})).status,409);
+  assert.equal(f.sql.prepare('SELECT COUNT(*) AS n FROM household_requests').get().n,0);
+  f.sql.exec('DROP TRIGGER fail_request');
+  const response = await f.post({action:'request_deletion',confirmation:'DELETE'});
+  assert.equal(response.status,200);
+  const {id} = await response.json();
+  assert.deepEqual((await (await f.get()).json()).requests.map(r=>r.id),[id]);
+  assert.equal(f.sql.prepare("SELECT revision FROM household_state WHERE household_id='a'").get().revision,9);
+  assert.equal((await f.post({action:'complete_deletion',id})).status,400);
 });

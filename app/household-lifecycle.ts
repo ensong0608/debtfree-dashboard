@@ -23,7 +23,7 @@ export function createLifecycleApi(deps: { db: () => D1Database; user: () => Pro
     if (request.method === 'GET') {
       const inbox = await db.prepare(`SELECT i.id, h.name AS household_name, i.role, i.expires_at FROM household_invitations i JOIN households h ON h.id = i.household_id WHERE i.email = ? AND i.resolved_at IS NULL AND i.expires_at > ? ORDER BY i.created_at DESC`).bind(user.email, now).all();
       const invitations = member?.role === 'owner' && member.status === 'active' ? (await db.prepare('SELECT id, email, role, expires_at FROM household_invitations WHERE household_id = ? AND resolved_at IS NULL AND expires_at > ? ORDER BY created_at DESC').bind(member.household_id, now).all()).results : [];
-      const requests = (await db.prepare('SELECT id, kind, created_at FROM household_requests WHERE email = ? AND cancelled_at IS NULL').bind(user.email).all()).results;
+      const requests = (await db.prepare('SELECT id, kind, created_at FROM household_requests WHERE email = ? AND cancelled_at IS NULL ORDER BY created_at, id').bind(user.email).all()).results;
       return reply({ inbox: inbox.results, invitations, requests, canCreate: !member && settings.creationEmails.includes(user.email), legacyInvitation: member?.status === 'invited', member });
     }
     // Explicit origin + expected identity stop cross-site submissions and stale-account tabs.
@@ -63,7 +63,13 @@ export function createLifecycleApi(deps: { db: () => D1Database; user: () => Pro
       return results[0].meta.changes === 1 ? reply({ ok: true }) : error('Invitation expired or was revoked.', 409);
     }
     if (body.action === 'cancel_deletion') {
-      await db.prepare('UPDATE household_requests SET cancelled_at = ? WHERE email = ? AND cancelled_at IS NULL').bind(now, user.email).run();
+      if (typeof body.id !== 'string' || !body.id) return error('Choose a deletion request.');
+      // A stale tab must never cancel a newer request or another household's case.
+      const result = await db.prepare('UPDATE household_requests SET cancelled_at = ? WHERE id = ? AND email = ? AND cancelled_at IS NULL').bind(now, body.id, user.email).run();
+      if (!result.meta.changes) {
+        const cancelled = await db.prepare('SELECT id FROM household_requests WHERE id = ? AND email = ? AND cancelled_at IS NOT NULL').bind(body.id, user.email).first();
+        if (!cancelled) return error('Deletion request not found. Refresh and try again.', 404);
+      }
       return reply({ ok: true });
     }
     if (!member || member.status !== 'active') return error('Household access required.', 403);
@@ -120,9 +126,15 @@ export function createLifecycleApi(deps: { db: () => D1Database; user: () => Pro
     if (body.action === 'request_deletion') {
       const kind = owner ? 'delete_household' : 'delete_account';
       if (body.confirmation !== 'DELETE') return error('Type DELETE to confirm.');
-      const existing = await db.prepare('SELECT id FROM household_requests WHERE household_id = ? AND email = ? AND cancelled_at IS NULL').bind(household, user.email).first<{ id: string }>();
-      const id = existing?.id ?? crypto.randomUUID();
-      if (!existing) await db.prepare('INSERT INTO household_requests (id, household_id, email, kind, created_at) VALUES (?, ?, ?, ?, ?)').bind(id, household, user.email, kind, now).run();
+      // One guarded write serializes overlapping retries without a schema change.
+      await db.prepare(`INSERT INTO household_requests (id, household_id, email, kind, created_at)
+        SELECT ?, ?, ?, ?, ? WHERE NOT EXISTS
+        (SELECT 1 FROM household_requests WHERE household_id = ? AND email = ? AND kind = ? AND cancelled_at IS NULL)`)
+        .bind(crypto.randomUUID(), household, user.email, kind, now, household, user.email, kind).run();
+      const pending = await db.prepare('SELECT id FROM household_requests WHERE household_id = ? AND email = ? AND kind = ? AND cancelled_at IS NULL ORDER BY created_at, id LIMIT 1')
+        .bind(household, user.email, kind).first<{ id: string }>();
+      if (!pending) return error('Request changed. Refresh before requesting deletion again.', 409);
+      const id = pending.id;
       return reply({ ok: true, id });
     }
     return error('Choose a supported action.');

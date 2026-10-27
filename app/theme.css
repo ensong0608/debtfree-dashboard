@@ -1,0 +1,151 @@
+/* Semantic tokens shared by desktop, responsive shells and body portals.
+   Palette source: appearanceTokens in appearance.ts; literals are SSR defaults. */
+:root {
+  color-scheme: light;
+  --theme-primary: #295e9b;
+  --theme-on-primary: #ffffff;
+  --theme-header-rail: #224d7f;
+  --theme-on-header-rail: #ffffff;
+  --theme-header-selected: #547eaf;
+  --theme-on-header-selected: #000000;
+  --theme-background: #e4ebf3;
+  --theme-surface: #f5f8fc;
+  --theme-raised: #edf0f5;
+  --theme-text: #101b31;
+  --theme-muted: #475062;
+  --theme-border: #bec3cb;
+  --theme-control-border: #6c7382;
+  --theme-accent: #295e9b;
+  --theme-accent-fill: #295e9b;
+  --theme-on-accent: #ffffff;
+  --theme-accent-soft: #e1e9f2;
+  --theme-strong-surface: #182c4a;
+  --theme-on-strong: #edf3ff;
+  --theme-track: #d0d5dc;
+  --theme-overlay: #030a16b3;
+  --theme-focus: #295e9b;
+  --theme-shadow: #17243a12;
+  --theme-chart-1: #295e9b;
+  --theme-chart-2: #7040c6;
+  --theme-chart-3: #00795d;
+  --theme-chart-grid: #c7ccd3;
+  --theme-art-sky: #e5ecf4;
+  --theme-art-cloud: #f5f8fc;
+  --theme-art-mountain-back: #d8e2ee;
+  --theme-art-mountain-front: #dadde4;
+  --theme-art-water: #e1e9f2;
+  --theme-art-tree: #d3d7de;
+  --theme-art-sun: #e5e0d9;
+  --theme-gradient-start: #d4e3f4;
+  --theme-gradient-end: #e1edfa;
+  --theme-on-gradient: #101b31;
+  --theme-summary-ring: #007458;
+  --theme-font: Helvetica,"Helvetica Neue",Arial,sans-serif;
+  --theme-text-scale: 1;
+  --theme-success-soft: #e1edef;
+  --theme-success: #007458;
+  --theme-success-fill: #007458;
+  --theme-on-success: #ffffff;
+  --theme-warning-soft: #ecebe8;
+  --theme-warning: #855000;
+  --theme-warning-fill: #855000;
+  --theme-on-warning: #ffffff;
+  --theme-danger-soft: #f0e7ed;
+  --theme-danger: #b32143;
+  --theme-danger-fill: #b32143;
+  --theme-on-danger: #ffffff;
+  --theme-info-soft: #e2ecf7;
+  --theme-info: #095fbd;
+  --theme-info-fill: #095fbd;
+  --theme-on-info: #ffffff;
+  --theme-violet-soft: #eae9f6;
+  --theme-violet: #7040b4;
+  --theme-violet-fill: #7040b4;
+  --theme-on-violet: #ffffff;
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --theme-background: #080e16;
+  --theme-surface: #131e2b;
+  --theme-raised: #1b2532;
+  --theme-text: #edf3ff;
+  --theme-muted: #b9c0cc;
+  --theme-border: #47515e;
+  --theme-control-border: #969eaa;
+  --theme-accent: #42cfff;
+  --theme-accent-fill: #5842c4;
+  --theme-on-accent: #ffffff;
+  --theme-accent-soft: #183040;
+  --theme-strong-surface: #19263c;
+  --theme-on-strong: #edf3ff;
+  --theme-track: #36404d;
+  --theme-overlay: #030a16b3;
+  --theme-focus: #42cfff;
+  --theme-shadow: #00000040;
+  --theme-chart-1: #42cfff;
+  --theme-chart-2: #ab94ff;
+  --theme-chart-3: #36dfb3;
+  --theme-chart-grid: #3f4955;
+  --theme-art-sky: #172c3c;
+  --theme-art-cloud: #131e2b;
+  --theme-art-mountain-back: #1a3749;
+  --theme-art-mountain-front: #2d3844;
+  --theme-art-water: #183040;
+  --theme-art-tree: #3a4451;
+  --theme-art-sun: #343736;
+  --theme-gradient-start: #302276;
+  --theme-gradient-end: #142d4b;
+  --theme-on-gradient: #edf3ff;
+  --theme-font: Helvetica,"Helvetica Neue",Arial,sans-serif;
+  --theme-text-scale: 1;
+  --theme-success-soft: #182e37;
+  --theme-success: #4ee3bb;
+  --theme-success-fill: #007458;
+  --theme-on-success: #ffffff;
+  --theme-warning-soft: #262c31;
+  --theme-warning: #ffd078;
+  --theme-warning-fill: #855000;
+  --theme-on-warning: #ffffff;
+  --theme-danger-soft: #262835;
+  --theme-danger: #ff9cad;
+  --theme-danger-fill: #b32143;
+  --theme-on-danger: #ffffff;
+  --theme-info-soft: #1b2c3c;
+  --theme-info: #7bcaff;
+  --theme-info-fill: #095fbd;
+  --theme-on-info: #ffffff;
+  --theme-violet-soft: #20283c;
+  --theme-violet: #b6a1ff;
+  --theme-violet-fill: #7040b4;
+  --theme-on-violet: #ffffff;
+}
+
+/* Compatibility aliases for existing components. New work should use theme-* roles. */
+:root {
+  --paper: var(--theme-background); --white: var(--theme-surface); --card: var(--theme-surface);
+  --ink: var(--theme-text); --muted: var(--theme-muted); --line: var(--theme-border);
+  --navy: var(--theme-strong-surface); --navy-2: var(--theme-strong-surface);
+  --blue: var(--theme-accent); --blue-soft: var(--theme-accent-soft);
+  --green: var(--theme-success); --green-soft: var(--theme-success-soft);
+  --red: var(--theme-danger); --violet: var(--theme-violet); --amber: var(--theme-warning);
+  --teal: var(--theme-success); --lavender: var(--theme-violet-soft); --rose: var(--theme-danger-soft);
+  --mint: var(--theme-accent-soft); --mint-soft: var(--theme-accent-soft); --mint-ink: var(--theme-accent);
+  --shadow: 0 8px 28px var(--theme-shadow);
+  --appearance-accent: var(--theme-accent); --appearance-background: var(--theme-background);
+  --appearance-surface: var(--theme-surface); --appearance-text: var(--theme-text);
+}
+body { background: var(--theme-background); color: var(--theme-text); font-family: var(--theme-font); }
+button,input,select,textarea { font-family: inherit; accent-color: var(--theme-accent-fill); }
+input,select,textarea { color-scheme: inherit; color: var(--theme-text); }
+:is(input,select,textarea):not([type=checkbox],[type=radio],[type=range],[type=color]) { background-color: var(--theme-surface); border-color: var(--theme-control-border); }
+::placeholder { color: var(--theme-muted); opacity: 1; }
+:is(button,a,input,select,textarea,summary,[tabindex]):focus-visible { outline: 3px solid var(--theme-focus); outline-offset: 3px; }
+:is(input,select,textarea)[aria-invalid=true] { border-color: var(--theme-danger); }
+:is(button,input,select,textarea):disabled { cursor: not-allowed; opacity: 1; color: var(--theme-muted); background-color: var(--theme-raised); }
+::selection { background: var(--theme-accent-fill); color: var(--theme-on-accent); }
+.primary { background: var(--theme-accent-fill); border-color: var(--theme-accent-fill); color: var(--theme-on-accent); }
+.secondary { background: var(--theme-surface); color: var(--theme-text); }
+a { color: var(--theme-accent); }
+svg text { fill: var(--theme-muted); }
+
+.primary:hover:not(:disabled) { background: var(--theme-accent-fill); color: var(--theme-on-accent); }
