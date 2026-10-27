@@ -99,7 +99,7 @@ jobs:
             exit 0
           fi
           # Approved Home reminder releases: run only their focused regressions.
-          if [ "$before" = "01472a1e7de804b0df887cc9ea3196be646bcce5" ] || [ "$before" = "b17e0251443a82123592bcde02b02ca4ed9e4e2a" ]; then
+          if [ "$before" = "269fde55263835a9f9d78b074ed71cad81a45238" ] || [ "$before" = "e814fd3854f4998ff4aa71dc149dca46f0225b9d" ] || [ "$before" = "01472a1e7de804b0df887cc9ea3196be646bcce5" ] || [ "$before" = "b17e0251443a82123592bcde02b02ca4ed9e4e2a" ]; then
             reminder_only=true
             while IFS= read -r changed_path; do
               case "$changed_path" in
