@@ -3,7 +3,7 @@
 import PayoffStrategyList from "./payoff-strategy-list";
 import type { PayoffStrategyRow } from "./payoff-strategy";
 import { useState } from "react";
-import type { DebtAccount, LedgerTransaction, BalanceAdjustment } from "./dashboard-data";
+import type { DebtAccount, LedgerTransaction, BalanceAdjustment, CashflowItem } from "./dashboard-data";
 import type { buildActualProgress } from "./debt-activity";
 import type { PayoffSchedule as Schedule } from "./payoff-schedule";
 import type { LoanTracker } from "./loan-progress";
@@ -19,11 +19,11 @@ import HomeDueReminders, { type ReminderPaymentActions } from './home-due-remind
 import type { DueReminder } from './due-reminders';
 
 
-export default function HomeDashboardPage({ accounts, loans, progress, progressViews, transactions, adjustments, onSchedule, onViewProgress, onViewTransactions, strategyRows, strategy, dueReminders, onOpenReminder, reminderPaymentActions }: {
-  reminderPaymentActions: Omit<ReminderPaymentActions, 'transactions' | 'adjustments' | 'loans' | 'onOpen'>;
+export default function HomeDashboardPage({ accounts, loans, items, progress, progressViews, transactions, adjustments, onSchedule, onViewProgress, onViewTransactions, strategyRows, strategy, dueReminders, onOpenReminder, reminderPaymentActions }: {
+  reminderPaymentActions: Omit<ReminderPaymentActions, 'transactions' | 'adjustments' | 'loans' | 'items' | 'onOpen'>;
   dueReminders: DueReminder[]; onOpenReminder: (reminder: DueReminder) => void;
   strategyRows: PayoffStrategyRow[]; strategy: "avalanche" | "snowball";
-  name: string; accounts: DebtAccount[]; schedule: Schedule; scopeLabel?: string; loans: LoanTracker[];
+  name: string; accounts: DebtAccount[]; schedule: Schedule; scopeLabel?: string; loans: LoanTracker[]; items: CashflowItem[];
   householdPayment?: number;
   progressViews?: Record<ProgressScope, ReturnType<typeof buildProgressView>>;
   progress: ReturnType<typeof buildActualProgress>; transactions: LedgerTransaction[]; adjustments: BalanceAdjustment[];
@@ -70,7 +70,7 @@ export default function HomeDashboardPage({ accounts, loans, progress, progressV
       </div>}
     </section>
 
-    <HomeDueReminders reminders={dueReminders} transactions={transactions} adjustments={adjustments} loans={loans} onOpen={onOpenReminder} {...reminderPaymentActions}/>
+    <HomeDueReminders reminders={dueReminders} transactions={transactions} adjustments={adjustments} loans={loans} items={items} onOpen={onOpenReminder} {...reminderPaymentActions}/>
 
     <section className={styles.scheduleCard} aria-label="Payoff Strategy preview">
       <header className={styles.sectionHeader}><div><h2>Payoff strategy</h2><p>{strategy === "snowball" ? "Snowball" : "Avalanche"} · Cards &amp; Loans</p></div><button type="button" className={styles.textLink} onClick={onSchedule}>See all <OutlineIcon name="chevron"/></button></header>

@@ -115,6 +115,29 @@ test('loan history payments must be paired to their due occurrence', () => {
   assert.equal(buildDueReminders({ ...source, settings: linked })[0].amount, 200);
 });
 
+test('a recurring Budget item linked to a mortgage is one due reminder and accepts either payment record', () => {
+  const mortgageBill = item({ id: 'mortgage-bill', name: 'Mortgage', amount: 1800, dueDay: 28 });
+  const mortgage = loan({ id: 'home', name: 'Mortgage', kind: 'house', monthlyPayment: 1800, dueDate: '2000-01-28', budgetItemId: mortgageBill.id, budgetItemName: mortgageBill.name });
+  const charge = transaction({ id: 'mortgage-transaction', title: 'Mortgage payment', type: 'charge', accountId: '', plannedItemId: mortgageBill.id, amount: 600, date: '2026-10-24' });
+  const source = input({ accounts: [], loans: [mortgage], items: [mortgageBill], transactions: [charge] });
+  const reminders = buildDueReminders(source);
+  assert.equal(reminders.length, 1);
+  assert.equal(reminders[0].kind, 'loan');
+  assert.equal(reminders[0].amount, 1800);
+
+  const candidate = duePaymentCandidates(reminders[0], source).find(row => row.source.id === charge.id);
+  assert.ok(candidate);
+  const linkedToLoan = associateDuePayment(source.settings, reminders[0], candidate.source);
+  const partiallyPaid = buildDueReminders({ ...source, settings: linkedToLoan })[0];
+  assert.equal(partiallyPaid.paidAmount, 600);
+  assert.equal(partiallyPaid.amount, 1200);
+
+  const legacyBillLink = associateDuePayment(source.settings, { id: `spending:${mortgageBill.id}`, date: reminders[0].date }, candidate.source);
+  const preserved = buildDueReminders({ ...source, settings: legacyBillLink })[0];
+  assert.equal(preserved.paidAmount, 600);
+  assert.equal(preserved.amount, 1200);
+});
+
 test('unpaid occurrences remain visible overdue; old paid acknowledgements do not erase payment requirements', () => {
   const reminder = buildDueReminders(input({ today: '2026-10-30', accounts: [account({ dueDate: '2026-01-28' })], settings: settings({ dueReminderPaid: [{ id: 'account:card', date: '2026-10-28', markedAt: '2026-10-27T12:00:00Z' }] }) }))[0];
   assert.equal(reminder.date, '2026-10-28');
