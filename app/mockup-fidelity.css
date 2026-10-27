@@ -99,3 +99,15 @@ html[data-text-size=larger] .budget-summary-tile{flex-wrap:wrap}html[data-text-s
 html[data-theme=light] .debt-progress-ring{outline:2px solid color-mix(in srgb,var(--theme-text) 35%,transparent);outline-offset:2px;--theme-track:#bac7d7;filter:saturate(1.25)}
 html[data-theme=light] .debt-progress-ring>span{background:var(--theme-surface);color:var(--theme-text)}
 @media(min-width:900px){.floating-add-button{bottom:28px}.floating-add-menu{bottom:104px}}
+
+/* Header Settings and the shared navigation-control spacing. */
+.shared-dashboard-header .shared-header-settings{flex:none;display:grid;place-items:center;width:44px;height:44px;min-width:44px;padding:9px;border:0;border-radius:8px;background:transparent;color:inherit}
+.shared-header-settings>svg{width:26px;height:26px}.shared-header-settings[aria-pressed=true]{background:color-mix(in srgb,currentColor 12%,transparent)}
+.shared-dashboard-tab-row{padding-bottom:8px;min-height:56px}
+.floating-add-menu{right:16px;bottom:calc(var(--bottom-navigation-height,64px) + 92px)}
+@media(min-width:821px){.floating-add-menu{bottom:92px}}
+/* Forecast controls belong on the page, without a second card enclosing cards. */
+.strategy-dialog .strategy-content>.strategy-config-card{padding:0;border:0;border-radius:0;background:transparent;box-shadow:none}
+.strategy-dialog .strategy-config-card>.strategy-payment{padding:0;border:0;border-radius:0;background:transparent;box-shadow:none}
+.strategy-dialog .strategy-config-card>.strategy-choices{padding:0;border:0;background:transparent;box-shadow:none}
+.strategy-dialog .strategy-choice{border:0!important;border-radius:0!important;background:transparent!important;box-shadow:none!important;padding:10px 0!important}

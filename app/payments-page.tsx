@@ -8,6 +8,7 @@ import { buildBudgetActivity, budgetLoanActivity, inBudgetPeriod } from "./budge
 import type { LoanTracker } from "./loan-progress";
 import OutlineIcon from "./outline-icon";
 import { ExplanationDialog } from "./info-tooltip";
+import segmentedStyles from "./segmented-control.module.css";
 import FloatingAddButton from "./floating-add-button";
 import DebtEntryDialog from "./debt-entry-dialog";
 import type { EntryCommand } from "./debt-transactions";
@@ -35,7 +36,8 @@ function SummaryExplanation({ kind, onClose }: { kind: keyof typeof explanations
   return <ExplanationDialog title={explanations[kind].title} onClose={onClose}><p>{explanations[kind].body}</p></ExplanationDialog>;
 }
 
-export default function PaymentsPage({ readOnly, accounts, transactions, adjustments, message, storedAccounts, onChange, onDialog, mobile = false, accountScope, cardDetail = false, reportingMonth, onReportingMonth, budgetSettings, loans = [], onLoan, onUndoBudgetPaid }: {
+export default function PaymentsPage({ readOnly, accounts, transactions, adjustments, message, storedAccounts, onChange, onDialog, mobile = false, accountScope, cardDetail = false, reportingMonth, onReportingMonth, budgetSettings, loans = [], onLoan, onUndoBudgetPaid, onBalanceInfo }: {
+  onBalanceInfo?: (accountId: string) => void;
   loans?: LoanTracker[]; onLoan?: (id: string) => void; onUndoBudgetPaid?: (id: string) => void;
   budgetSettings?: MonthlyPlanSettings;
   reportingMonth?: string; onReportingMonth?: (month: string) => void;
@@ -108,7 +110,7 @@ export default function PaymentsPage({ readOnly, accounts, transactions, adjustm
       <button type="button" className="budget-net-change" aria-label="Explain Net balance change" onClick={()=>{setExplanation('net');onDialog(true);}}><span>Net balance change <OutlineIcon name="help"/></span><strong className={netChange>0?'increases':netChange<0?'decreases':''}>{netChange<0?'−':netChange>0?'+':''}<span className="money-value">{currency.format(Math.abs(netChange))}</span></strong></button>
     </section>
     <div className="budget-board-toolbar"><label className="budget-transaction-search"><OutlineIcon name="search"/><span className="sr-only">Search transactions</span><input aria-label="Search transactions" type="search" value={search} onChange={event=>setSearch(event.target.value)} placeholder="Search transactions"/></label><label className="budget-board-sort"><OutlineIcon name="sort"/><span>Sort</span><select aria-label="Sort transactions" value={sortOrder} onChange={event=>setSortOrder(event.target.value)}><option value="recent">Newest first</option><option value="oldest">Oldest first</option><option value="amount">Largest amount</option></select><OutlineIcon name="chevron"/></label></div>
-    <div className="transaction-kind-filters" role="group" aria-label="Filter activity category">{[{id:"all",label:"All"},{id:"payments",label:"Payments only"},{id:"interest",label:"Interest & fees"}].map(filter => <button type="button" key={filter.id} aria-pressed={kindFilter === filter.id} onClick={() => setKindFilter(filter.id)}>{filter.id === "payments" ? "Payments" : filter.label}</button>)}</div>
+    <div className={segmentedStyles.root} role="group" aria-label="Filter activity category">{[{id:"all",label:"All"},{id:"payments",label:"Payments only"},{id:"interest",label:"Interest & fees"}].map(filter => <button type="button" key={filter.id} aria-pressed={kindFilter === filter.id} onClick={() => setKindFilter(filter.id)}>{filter.id === "payments" ? "Payments" : filter.label}</button>)}</div>
 
     {budgetSettings && <section className="payment-activity budget-paid-activity" aria-label="Budget paid activity">
       {[
@@ -128,7 +130,7 @@ export default function PaymentsPage({ readOnly, accounts, transactions, adjustm
         const account = accounts.find(item => item.id === row.accountId);
         const title = row.kind === 'payment' ? 'Payment recorded' : row.kind === 'adjustment' ? 'Balance update' : row.title;
         const name = names.get(row.accountId) ?? 'Removed debt';
-        return <TransactionCard key={row.id} id={row.id} kind={row.kind} date={row.date} title={title} account={account} accountName={name} amount={row.amount} difference={row.difference} readOnly={readOnly} editLabel={`Edit ${row.title} for ${name}`} onEdit={() => open({ action: 'save', id: row.id })}
+        return <TransactionCard key={row.id} id={row.id} kind={row.kind} date={row.date} title={title} account={account} accountName={name} amount={row.amount} difference={row.difference} readOnly={readOnly} editLabel={`Edit ${row.title} for ${name}`} onEdit={() => row.kind === 'adjustment' && onBalanceInfo ? onBalanceInfo(row.accountId) : open({ action: 'save', id: row.id })}
           description={row.title !== title && !/^(payment|balance (update|adjustment|increased|decreased))$/i.test(row.title) ? row.title : undefined}
           footer={<><DebtActivityHistory compact key={`${row.id}:${period}:${month}`} entries={periodRows} accountId={row.accountId} accountName={name} currentEntryId={row.id}/>{!mobile && <button type="button" className="budget-record-delete" disabled={readOnly} aria-label={`Delete transaction for ${name}`} onClick={() => open({ action: 'delete', id: row.id })}>×</button>}</>}/>;
       }) : <div className="simple-empty"><h2>No activity in this period</h2><p>Use + to add a record, or update a lender balance in Debts.</p></div>}
@@ -137,7 +139,7 @@ export default function PaymentsPage({ readOnly, accounts, transactions, adjustm
     {!mobile && <details className="transaction-reporting"><summary>{paymentsLabel}</summary><section className="simple-total" aria-label="Confirmed payment total"><span>{paymentsLabel}</span><strong>{currency.format(paymentTotal)}</strong><p>Payments exclude refunds, credits, and unidentified reconciliation adjustments. Cards and other accounts only; house/car payments are separate. Payments recorded differ from net debt reduction because purchases, interest, credits, and lender adjustments also change balances. Budget checklists stay unchanged.</p></section></details>}
     {deleted.length > 0 && <details className="deleted-payments"><summary>{mobile ? "Recently deleted" : "Deleted transactions"} ({deleted.length})</summary><p>Retained for recovery. Deleted entries do not affect balances or payment totals.</p>{deleted.map(t => <article key={t.id}><div><strong>{names.get(t.accountId) ?? "Removed debt"} · {currency.format(t.amount)}</strong><p>{t.kind} · {dateLabel(t.date)}</p></div><button type="button" className="secondary" disabled={readOnly} onClick={() => open({ action: "restore", id: t.id })} aria-label={"Restore " + (t.kind === "payment" ? "payment" : "transaction") + " of " + currency.format(t.amount) + " for " + (names.get(t.accountId) ?? "removed debt")}>Restore</button></article>)}</details>}
     {explanation && <SummaryExplanation kind={explanation} onClose={() => { setExplanation(null); onDialog(false); }}/>}
-    {accountScope && !pendingAction && <FloatingAddButton label="Add transaction" disabled={readOnly} onClick={() => open({action:"save"})}/>}
+    {!pendingAction && <FloatingAddButton label="Add transaction" disabled={readOnly} onClick={() => open({action:"save"})}/>}
     {pendingAction && <DebtEntryDialog flexibleScope={cardDetail} accountScope={accountScope} key={`${pendingAction.action}:${pendingAction.id ?? "new"}`} mobile={mobile} expectedState={pendingExpected} onRequestDelete={mobile && pendingAction.id ? expected => { setPendingExpected(expected); setPendingAction({ action: "delete", id: pendingAction.id }); } : undefined} state={{ accounts: storedAccounts, transactions, adjustments }} command={pendingAction} readOnly={readOnly} onSave={onChange} onClose={close}/>}
   </div>;
 }

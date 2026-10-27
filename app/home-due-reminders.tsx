@@ -23,7 +23,7 @@ export type ReminderPaymentActions = {
   onOpen: (reminder: DueReminder) => void;
 };
 
-export default function HomeDueReminders({ reminders, readOnly, transactions, adjustments, loans, items, months, duePaymentAssociations, onLink, onRecordNew, onOpen, fullPage = false }: ReminderPaymentActions & { reminders: DueReminder[]; fullPage?: boolean }) {
+export default function HomeDueReminders({ reminders, readOnly, transactions, adjustments, loans, items, months, duePaymentAssociations, onLink, onRecordNew, onOpen, fullPage = false, onSeeAll }: ReminderPaymentActions & { reminders: DueReminder[]; fullPage?: boolean; onSeeAll?: () => void }) {
   const [expanded, setExpanded] = useState(false);
   const [pending, setPending] = useState<DueReminder | null>(null);
   const [error, setError] = useState('');
@@ -33,7 +33,7 @@ export default function HomeDueReminders({ reminders, readOnly, transactions, ad
   return <>{Boolean(reminders.length) && <section className={fullPage ? "next-due-list " + styles.reminderCard : styles.reminderCard} aria-label="Upcoming due reminders">
     <header className={styles.sectionHeader}>
       <div className={styles.reminderHeading}><span><OutlineIcon name="bell"/></span><h2>Next Due</h2></div>
-      {!fullPage && reminders.length > 3 && <button type="button" className={styles.reminderToggle} aria-expanded={expanded} aria-controls={listId} onClick={() => setExpanded(value => !value)}>{expanded ? 'Show less' : `See all (${reminders.length})`}</button>}
+      {!fullPage && (onSeeAll || reminders.length > 3) && <button type="button" className={styles.reminderToggle} aria-expanded={onSeeAll ? undefined : expanded} aria-controls={onSeeAll ? undefined : listId} onClick={() => onSeeAll ? onSeeAll() : setExpanded(value => !value)}>{!onSeeAll && expanded ? 'Show less' : `See all (${reminders.length})`}</button>}
     </header>
     <ul className={styles.reminderRows} id={listId}>{(fullPage || expanded ? reminders : reminders.slice(0, 3)).map(reminder => {
       const date = new Date(reminder.date + 'T12:00:00Z').toLocaleDateString('en-US', { timeZone: 'UTC', month: 'short', day: 'numeric' });

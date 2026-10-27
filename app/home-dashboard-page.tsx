@@ -19,7 +19,7 @@ import HomeDueReminders, { type ReminderPaymentActions } from './home-due-remind
 import type { DueReminder } from './due-reminders';
 
 
-export default function HomeDashboardPage({ accounts, loans, items, progress, progressViews, transactions, adjustments, onSchedule, onViewProgress, onViewTransactions, strategyRows, strategy, dueReminders, onOpenReminder, reminderPaymentActions }: {
+export default function HomeDashboardPage({ accounts, loans, items, progress, progressViews, transactions, adjustments, onSchedule, onViewProgress, onViewTransactions, onViewDue, strategyRows, strategy, dueReminders, onOpenReminder, reminderPaymentActions }: {
   reminderPaymentActions: Omit<ReminderPaymentActions, 'transactions' | 'adjustments' | 'loans' | 'items' | 'onOpen'>;
   dueReminders: DueReminder[]; onOpenReminder: (reminder: DueReminder) => void;
   strategyRows: PayoffStrategyRow[]; strategy: "avalanche" | "snowball";
@@ -28,6 +28,7 @@ export default function HomeDashboardPage({ accounts, loans, items, progress, pr
   progressViews?: Record<ProgressScope, ReturnType<typeof buildProgressView>>;
   progress: ReturnType<typeof buildActualProgress>; transactions: LedgerTransaction[]; adjustments: BalanceAdjustment[];
   onViewTransactions: () => void;
+  onViewDue: () => void;
   onSchedule: () => void; onAccount: () => void; onViewDebts: () => void; onViewProgress: () => void;
 }) {
   const currency = useHouseholdCurrency();
@@ -70,7 +71,7 @@ export default function HomeDashboardPage({ accounts, loans, items, progress, pr
       </div>}
     </section>
 
-    <HomeDueReminders reminders={dueReminders} transactions={transactions} adjustments={adjustments} loans={loans} items={items} onOpen={onOpenReminder} {...reminderPaymentActions}/>
+    <HomeDueReminders onSeeAll={onViewDue} reminders={dueReminders} transactions={transactions} adjustments={adjustments} loans={loans} items={items} onOpen={onOpenReminder} {...reminderPaymentActions}/>
 
     <section className={styles.scheduleCard} aria-label="Payoff Strategy preview">
       <header className={styles.sectionHeader}><div><h2>Payoff strategy</h2><p>{strategy === "snowball" ? "Snowball" : "Avalanche"} · Cards &amp; Loans</p></div><button type="button" className={styles.textLink} onClick={onSchedule}>See all <OutlineIcon name="chevron"/></button></header>
