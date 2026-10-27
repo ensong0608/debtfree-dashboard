@@ -15,12 +15,12 @@ import OutlineIcon from "./outline-icon";
 import DebtScopeCarousel from "./debt-scope-carousel";
 import type { CSSProperties } from "react";
 import styles from "./home-dashboard.module.css";
-import HomeDueReminders, { type ReminderPaidActions } from './home-due-reminders';
+import HomeDueReminders, { type ReminderPaymentActions } from './home-due-reminders';
 import type { DueReminder } from './due-reminders';
 
 
-export default function HomeDashboardPage({ accounts, loans, progress, progressViews, transactions, adjustments, onSchedule, onViewProgress, onViewTransactions, strategyRows, strategy, dueReminders, onOpenReminder, reminderPaidActions }: {
-  reminderPaidActions: ReminderPaidActions;
+export default function HomeDashboardPage({ accounts, loans, progress, progressViews, transactions, adjustments, onSchedule, onViewProgress, onViewTransactions, strategyRows, strategy, dueReminders, onOpenReminder, reminderPaymentActions }: {
+  reminderPaymentActions: Omit<ReminderPaymentActions, 'transactions' | 'adjustments' | 'loans' | 'onOpen'>;
   dueReminders: DueReminder[]; onOpenReminder: (reminder: DueReminder) => void;
   strategyRows: PayoffStrategyRow[]; strategy: "avalanche" | "snowball";
   name: string; accounts: DebtAccount[]; schedule: Schedule; scopeLabel?: string; loans: LoanTracker[];
@@ -70,7 +70,7 @@ export default function HomeDashboardPage({ accounts, loans, progress, progressV
       </div>}
     </section>
 
-    <HomeDueReminders reminders={dueReminders} onOpen={onOpenReminder} {...reminderPaidActions}/>
+    <HomeDueReminders reminders={dueReminders} transactions={transactions} adjustments={adjustments} loans={loans} onOpen={onOpenReminder} {...reminderPaymentActions}/>
 
     <section className={styles.scheduleCard} aria-label="Payoff Strategy preview">
       <header className={styles.sectionHeader}><div><h2>Payoff strategy</h2><p>{strategy === "snowball" ? "Snowball" : "Avalanche"} · Cards &amp; Loans</p></div><button type="button" className={styles.textLink} onClick={onSchedule}>See all <OutlineIcon name="chevron"/></button></header>

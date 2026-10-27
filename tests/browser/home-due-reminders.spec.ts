@@ -120,32 +120,35 @@ test('Home reminders appear at ten days, are critical at three, and hide outside
 });
 
 
-test('Mark as paid confirms, persists and undoes without changing balances or recording duplicate payments', async ({page}) => {
-  const before=await saved(page);
-  const card=page.getByRole('region',{name:'Upcoming due reminders'});
-  await card.getByRole('button',{name:'Mark Sample card as paid',exact:true}).click();
-  const confirmation=page.getByRole('dialog',{name:'Mark reminder as paid?',exact:true});
-  await expect(confirmation).toContainText('Balances stay unchanged.');
-  await confirmation.getByRole('button',{name:'Cancel',exact:true}).click();
-  await expect(card.getByRole('button',{name:/^View Sample card,/})).toBeVisible();
-  await card.getByRole('button',{name:'Mark Sample card as paid',exact:true}).click();
-  await confirmation.getByRole('button',{name:'Mark as paid',exact:true}).click();
-  await expect(card.getByRole('button',{name:/^View Sample card,/})).toHaveCount(0);
-  await expect.poll(async()=>(await saved(page)).monthlyPlan.dueReminderPaid?.length).toBe(1);
+test('an existing account payment can be paired to the due date without another ledger entry', async ({page}) => {
+  await page.evaluate(key => {
+    const data = JSON.parse(localStorage.getItem(key)!);
+    const account = data.payload.accounts[0];
+    data.payload.transactions = [{
+      id: 'paired-minimum', accountId: account.id, date: '2026-10-26', payeeId: '', payeeName: 'Sample card',
+      type: 'payment', category: 'Debt payment', memo: '', title: 'Sample card payment', amount: 5,
+      createdAt: '2026-10-26T12:00:00Z', updatedAt: '2026-10-26T12:00:00Z', deletedAt: null, paymentKind: 'combined',
+    }];
+    localStorage.setItem(key, JSON.stringify(data));
+  }, DASHBOARD_STORAGE_KEY);
   await page.reload();
-  await expect(card.getByRole('button',{name:/^View Sample card,/})).toHaveCount(0);
-  await page.getByRole('button',{name:'Undo marking Sample card paid',exact:true}).click();
-  await expect(card.getByRole('button',{name:/^View Sample card,/})).toBeVisible();
-  for (const name of ['Sample card','Electric','Sample auto']) {
-    const expand=card.getByRole('button',{name:/See all/});
-    if(await expand.count())await expand.click();
-    await card.getByRole('button',{name:`Mark ${name} as paid`,exact:true}).click();
-    await confirmation.getByRole('button',{name:'Mark as paid',exact:true}).click();
-  }
-  const after=await saved(page);
-  expect(after.monthlyPlan.dueReminderPaid.map((r:{id:string})=>r.id).sort()).toEqual(['account:demo-card','loan:auto','spending:bill']);
-  for(const key of ['accounts','transactions','balanceAdjustments','snapshots','monthlyBudgets'])expect(after[key]).toEqual(before[key]);
-  const {dueReminderPaid,...settings}=after.monthlyPlan;
-  expect(dueReminderPaid).toHaveLength(3);
-  expect(settings).toEqual(before.monthlyPlan);
+  const before = await saved(page);
+  const card = page.getByRole('region', { name: 'Upcoming due reminders' });
+  await card.getByRole('button', { name: 'Record or link payment for Sample card', exact: true }).click();
+  const dialog = page.getByRole('dialog', { name: 'Payment for Sample card', exact: true });
+  await expect(dialog).toContainText('Paid this cycle');
+  await expect(dialog).toContainText('Remaining');
+  await dialog.getByRole('button', { name: /Sample card payment.*payment/ }).click();
+  await expect(dialog).toHaveCount(0);
+  await expect(card.getByRole('listitem').filter({ hasText: 'Sample card' })).toContainText('Paid');
+  await expect.poll(async () => (await saved(page)).monthlyPlan.duePaymentAssociations?.length).toBe(1);
+  await page.reload();
+  await expect(card.getByRole('listitem').filter({ hasText: 'Sample card' })).toContainText('Paid');
+  const after = await saved(page);
+  expect(after.transactions).toEqual(before.transactions);
+  expect(after.accounts).toEqual(before.accounts);
+  expect(after.balanceAdjustments).toEqual(before.balanceAdjustments);
+  expect(after.snapshots).toEqual(before.snapshots);
+  expect(after.monthlyPlan.months).toEqual(before.monthlyPlan.months);
+  expect(after.monthlyPlan.duePaymentAssociations).toEqual([{ reminderId: 'account:' + before.accounts[0].id, dueDate: '2026-10-26', source: { type: 'transaction', id: 'paired-minimum' } }]);
 });
