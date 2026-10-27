@@ -136,7 +136,7 @@ test('an existing account payment can be paired to the due date without another 
   await page.reload();
   const before = await saved(page);
   const card = page.getByRole('region', { name: 'Upcoming due reminders' });
-  await card.getByRole('button', { name: 'Record or link payment for Sample card', exact: true }).click();
+  await card.getByRole('button', { name: /View Sample card,/ }).click();
   const dialog = page.getByRole('dialog', { name: 'Payment for Sample card', exact: true });
   await expect(dialog).toContainText('Paid this cycle');
   await expect(dialog).toContainText('Remaining');

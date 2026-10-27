@@ -197,13 +197,16 @@ export function buildDueReminders({ accounts, loans, items, transactions, adjust
   const nextMonth = addMonth(today.slice(0, 7));
   const data = { transactions, adjustments, loans, items, settings, today };
   const reminders: DueReminder[] = [];
-  const add = (kind: DueReminder['kind'], targetId: string, name: string, savedDate: string, requiredAmount: number) => {
+  const add = (kind: DueReminder['kind'], targetId: string, name: string, savedDate: string, requiredAmount: number, prior?: {month:string;amount:number}) => {
     if (!Number.isFinite(requiredAmount) || requiredAmount <= 0) return;
     let date = dueOccurrence(savedDate, today);
     if (!date) return;
+    const currentRequired = requiredAmount;
+    if (prior?.month === date.slice(0,7)) requiredAmount = prior.amount;
     const id = `${kind}:${targetId}`;
     let paidAmount = eligiblePaidAmount({ id, date }, data);
     if (paidAmount >= requiredAmount) {
+      requiredAmount = currentRequired;
       date = recurringDueDate(savedDate, nextMonth);
       if (!date) return;
       paidAmount = eligiblePaidAmount({ id, date }, data);
@@ -218,7 +221,7 @@ export function buildDueReminders({ accounts, loans, items, transactions, adjust
   for (const account of accounts) {
     if (account.archivedAt || account.balance <= 0) continue;
     const visibleMinimum = Number.isFinite(account.minimum) && account.minimum > 0 ? effectiveMinimum(account) : estimatedMinimum(account.balance, account.apr);
-    add('account', account.id, account.name, account.dueDate, visibleMinimum);
+    add('account', account.id, account.name, account.dueDate, visibleMinimum, account.minimumPriorCycle);
   }
   for (const loan of loans) {
     if (loan.remainingAmount <= 0) continue;

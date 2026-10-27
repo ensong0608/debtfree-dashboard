@@ -1,6 +1,6 @@
 "use client";
 import { householdMonthOffset } from "./household-date";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import type { BalanceAdjustment, DebtAccount, LedgerTransaction, MonthlyPlanSettings } from "./dashboard-data";
 import {householdDate} from "./household-date";
 import { paymentActivity } from "./payments";
@@ -98,6 +98,28 @@ export default function PaymentsPage({ readOnly, accounts, transactions, adjustm
         }))}</optgroup>
       </select><OutlineIcon name="chevron"/></label>
   );
+  const paidFeed = budgetSettings ? [
+        ...(budgetActivity?.settlements ?? []).map(row => ({id: row.id, title: row.payeeName, date: row.date, amount: row.amount, loanId: undefined as string | undefined, settlementId: row.id.slice('settlement:'.length), automatic: row.memo.includes('Automatically')})),
+        ...budgetLoanActivity(loans, month, period).map(row => ({id: row.id, title: row.name, date: row.date, amount: row.payment ?? 0, loanId: row.loanId, settlementId: undefined as string | undefined, automatic: false}))
+      ].filter(row => (!search.trim() || `${row.title} ${row.date}`.toLowerCase().includes(search.trim().toLowerCase())) && kindFilter !== 'interest').sort((a,b)=>b.date.localeCompare(a.date)).map(row => ({id:row.id,date:row.date,amount:row.amount,node:<article className="budget-record-card budget-paid-record" key={row.id} data-paid-record={row.id}>
+        <time className="budget-record-date" dateTime={row.date}>{dateLabel(row.date)}</time>
+        <button type="button" className="budget-record-main" disabled={!row.loanId} onClick={()=>row.loanId && onLoan?.(row.loanId)}>
+          {row.loanId ? <InstitutionIcon debtType={loans.find(loan=>loan.id===row.loanId)?.kind??'Debt account'} accountName={row.title}/> : <span className="budget-paid-icon"><OutlineIcon name="receipt"/></span>}
+          <span className="budget-record-name"><strong>{row.title}</strong><span>{row.loanId?'Loan payment':'Budget paid record'}</span></span><span className="budget-record-amount"><strong className="decreases"><span className="money-value">{currency.format(row.amount)}</span></strong><small>Paid</small></span><OutlineIcon name="chevron"/>
+        </button>
+        <footer className="budget-paid-footer"><span>{row.automatic?'Automatic':'Recorded'}</span>{row.settlementId && onUndoBudgetPaid && <button type="button" disabled={readOnly} onClick={()=>onUndoBudgetPaid(row.settlementId!)} aria-label={`Undo paid record for ${row.title}`}>Undo paid</button>}</footer>
+      </article>})) : [];
+  const ledgerFeed = rows.map(row => {
+        const account = accounts.find(item => item.id === row.accountId);
+        const title = row.kind === 'payment' ? 'Payment recorded' : row.kind === 'adjustment' ? 'Balance update' : row.title;
+        const name = names.get(row.accountId) ?? 'Removed debt';
+        return {id:row.id,date:row.date,amount:row.amount,node:<TransactionCard key={row.id} id={row.id} kind={row.kind} date={row.date} title={title} account={account} accountName={name} amount={row.amount} difference={row.difference} readOnly={readOnly} editLabel={`Edit ${row.title} for ${name}`} onEdit={() => row.kind === 'adjustment' && onBalanceInfo ? onBalanceInfo(row.accountId) : open({ action: 'save', id: row.id })}
+          description={row.title !== title && !/^(payment|balance (update|adjustment|increased|decreased))$/i.test(row.title) ? row.title : undefined}
+          footer={<><DebtActivityHistory compact key={`${row.id}:${period}:${month}`} entries={periodRows} accountId={row.accountId} accountName={name} currentEntryId={row.id}/>{!mobile && <button type="button" className="budget-record-delete" disabled={readOnly} aria-label={`Delete transaction for ${name}`} onClick={() => open({ action: 'delete', id: row.id })}>×</button>}</>}/>};
+      });
+  const feed: {id:string;date:string;amount:number;node:ReactNode}[] = [...paidFeed,...ledgerFeed];
+  feed.sort((a,b)=>sortOrder === "amount" ? b.amount-a.amount || b.date.localeCompare(a.date) : (sortOrder === "oldest" ? a.date.localeCompare(b.date) : b.date.localeCompare(a.date)) || a.id.localeCompare(b.id));
+  const dates=[...new Set(feed.map(row=>row.date))];
   return <div className={`screen payments-screen transactions-screen budget-transactions-board${mobile ? " " + styles.mobile : ""}`}>
     <h1 className="sr-only">Transactions</h1>
     {message && <p className="debt-action-message" role="status">{message}</p>}
@@ -112,30 +134,7 @@ export default function PaymentsPage({ readOnly, accounts, transactions, adjustm
     <div className="budget-board-toolbar"><label className="budget-transaction-search"><OutlineIcon name="search"/><span className="sr-only">Search transactions</span><input aria-label="Search transactions" type="search" value={search} onChange={event=>setSearch(event.target.value)} placeholder="Search transactions"/></label><label className="budget-board-sort"><OutlineIcon name="sort"/><span>Sort</span><select aria-label="Sort transactions" value={sortOrder} onChange={event=>setSortOrder(event.target.value)}><option value="recent">Newest first</option><option value="oldest">Oldest first</option><option value="amount">Largest amount</option></select><OutlineIcon name="chevron"/></label></div>
     <div className={segmentedStyles.root} role="group" aria-label="Filter activity category">{[{id:"all",label:"All"},{id:"payments",label:"Payments only"},{id:"interest",label:"Interest & fees"}].map(filter => <button type="button" key={filter.id} aria-pressed={kindFilter === filter.id} onClick={() => setKindFilter(filter.id)}>{filter.id === "payments" ? "Payments" : filter.label}</button>)}</div>
 
-    {budgetSettings && <section className="payment-activity budget-paid-activity" aria-label="Budget paid activity">
-      {[
-        ...(budgetActivity?.settlements ?? []).map(row => ({id: row.id, title: row.payeeName, date: row.date, amount: row.amount, loanId: undefined as string | undefined, settlementId: row.id.slice('settlement:'.length), automatic: row.memo.includes('Automatically')})),
-        ...budgetLoanActivity(loans, month, period).map(row => ({id: row.id, title: row.name, date: row.date, amount: row.payment ?? 0, loanId: row.loanId, settlementId: undefined as string | undefined, automatic: false}))
-      ].filter(row => (!search.trim() || `${row.title} ${row.date}`.toLowerCase().includes(search.trim().toLowerCase())) && kindFilter !== 'interest').sort((a,b)=>b.date.localeCompare(a.date)).map(row => <article className="budget-record-card budget-paid-record" key={row.id} data-paid-record={row.id}>
-        <time className="budget-record-date" dateTime={row.date}>{dateLabel(row.date)}</time>
-        <button type="button" className="budget-record-main" disabled={!row.loanId} onClick={()=>row.loanId && onLoan?.(row.loanId)}>
-          {row.loanId ? <InstitutionIcon debtType={loans.find(loan=>loan.id===row.loanId)?.kind??'Debt account'} accountName={row.title}/> : <span className="budget-paid-icon"><OutlineIcon name="receipt"/></span>}
-          <span className="budget-record-name"><strong>{row.title}</strong><span>{row.loanId?'Loan payment':'Budget paid record'}</span></span><span className="budget-record-amount"><strong className="decreases"><span className="money-value">{currency.format(row.amount)}</span></strong><small>Paid</small></span><OutlineIcon name="chevron"/>
-        </button>
-        <footer className="budget-paid-footer"><span>{row.automatic?'Automatic':'Recorded'}</span>{row.settlementId && onUndoBudgetPaid && <button type="button" disabled={readOnly} onClick={()=>onUndoBudgetPaid(row.settlementId!)} aria-label={`Undo paid record for ${row.title}`}>Undo paid</button>}</footer>
-      </article>)}
-    </section>}
-    <section className="payment-activity" aria-label="Debt transaction activity">
-      {rows.length ? rows.map(row => {
-        const account = accounts.find(item => item.id === row.accountId);
-        const title = row.kind === 'payment' ? 'Payment recorded' : row.kind === 'adjustment' ? 'Balance update' : row.title;
-        const name = names.get(row.accountId) ?? 'Removed debt';
-        return <TransactionCard key={row.id} id={row.id} kind={row.kind} date={row.date} title={title} account={account} accountName={name} amount={row.amount} difference={row.difference} readOnly={readOnly} editLabel={`Edit ${row.title} for ${name}`} onEdit={() => row.kind === 'adjustment' && onBalanceInfo ? onBalanceInfo(row.accountId) : open({ action: 'save', id: row.id })}
-          description={row.title !== title && !/^(payment|balance (update|adjustment|increased|decreased))$/i.test(row.title) ? row.title : undefined}
-          footer={<><DebtActivityHistory compact key={`${row.id}:${period}:${month}`} entries={periodRows} accountId={row.accountId} accountName={name} currentEntryId={row.id}/>{!mobile && <button type="button" className="budget-record-delete" disabled={readOnly} aria-label={`Delete transaction for ${name}`} onClick={() => open({ action: 'delete', id: row.id })}>×</button>}</>}/>;
-      }) : <div className="simple-empty"><h2>No activity in this period</h2><p>Use + to add a record, or update a lender balance in Debts.</p></div>}
-
-    </section>
+    <section className="payment-activity" aria-label="Transaction activity">{dates.map(date=><section className="transaction-date-group" data-activity-date={date} key={date}><h2>{dateLabel(date)}</h2>{feed.filter(row=>row.date===date).map(row=><div key={row.id}>{row.node}</div>)}</section>)}{!feed.length&&<p>No activity in this period.</p>}</section>
     {!mobile && <details className="transaction-reporting"><summary>{paymentsLabel}</summary><section className="simple-total" aria-label="Confirmed payment total"><span>{paymentsLabel}</span><strong>{currency.format(paymentTotal)}</strong><p>Payments exclude refunds, credits, and unidentified reconciliation adjustments. Cards and other accounts only; house/car payments are separate. Payments recorded differ from net debt reduction because purchases, interest, credits, and lender adjustments also change balances. Budget checklists stay unchanged.</p></section></details>}
     {deleted.length > 0 && <details className="deleted-payments"><summary>{mobile ? "Recently deleted" : "Deleted transactions"} ({deleted.length})</summary><p>Retained for recovery. Deleted entries do not affect balances or payment totals.</p>{deleted.map(t => <article key={t.id}><div><strong>{names.get(t.accountId) ?? "Removed debt"} · {currency.format(t.amount)}</strong><p>{t.kind} · {dateLabel(t.date)}</p></div><button type="button" className="secondary" disabled={readOnly} onClick={() => open({ action: "restore", id: t.id })} aria-label={"Restore " + (t.kind === "payment" ? "payment" : "transaction") + " of " + currency.format(t.amount) + " for " + (names.get(t.accountId) ?? "removed debt")}>Restore</button></article>)}</details>}
     {explanation && <SummaryExplanation kind={explanation} onClose={() => { setExplanation(null); onDialog(false); }}/>}

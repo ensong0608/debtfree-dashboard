@@ -54,6 +54,7 @@ export type DebtAccount = OwnershipMetadata & {
   interestFee: number;
   interestAutomation?: InterestAutomation;
   minimum: number;
+  minimumPriorCycle?: {month:string;amount:number};
   minimumMode: MinimumMode;
   payoffMode: PayoffMode;
   creditLimit: number;
@@ -687,6 +688,11 @@ function validateAccount(value: unknown, path: string, issues: string[]) {
     }
   }
   requiredNumber(item.minimum, `${path}.minimum`, issues);
+  if(item.minimumPriorCycle !== undefined){
+    const prior=item.minimumPriorCycle;
+    if(!isRecord(prior) || typeof prior.month !== "string" || !/^\d{4}-(0[1-9]|1[0-2])$/.test(prior.month)) issues.push(path+".minimumPriorCycle must identify a valid month.");
+    else requiredNumber(prior.amount, `${path}.minimumPriorCycle.amount`, issues);
+  }
   enumValue(item.minimumMode, minimumModes, `${path}.minimumMode`, issues);
   enumValue(item.payoffMode, payoffModes, `${path}.payoffMode`, issues);
   requiredNumber(item.creditLimit, `${path}.creditLimit`, issues);

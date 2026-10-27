@@ -18,15 +18,15 @@ async function seed(page:Page){
 test.beforeEach(async({},info)=>{expect(['localhost','127.0.0.1']).toContain(new URL(String(info.project.use.baseURL)).hostname);});
 test('Budget replaces Transactions with all Next Due and records then pairs a bill once',async({page})=>{
  await seed(page);const before=await saved(page);
- await expect(page.getByRole('region',{name:'Dashboard content'}).getByRole('heading',{name:'Next Due',exact:true})).toHaveCount(0);
+ await expect(page.getByRole('region',{name:'Dashboard content'}).getByRole('heading',{name:'Upcoming',exact:true})).toHaveCount(0);
  await nav(page).getByRole('button',{name:'Budget',exact:true}).click();
- const tabs=page.getByRole('navigation',{name:'Budget sections'});await expect(tabs.getByRole('button')).toHaveText(['Planned','Next Due','Strategy']);
- await tabs.getByRole('button',{name:'Next Due',exact:true}).click();
+ const tabs=page.getByRole('navigation',{name:'Budget sections'});await expect(tabs.getByRole('button')).toHaveText(['Planned','Upcoming','Strategy']);
+ await tabs.getByRole('button',{name:'Upcoming',exact:true}).click();
  await expect(page.getByRole('button',{name:/View Sample bill,/})).toBeVisible();
  await expect(page.getByRole('button',{name:/View Sample card,/})).toBeVisible();
  await page.getByRole('button',{name:'Add to Budget',exact:true}).click();await page.getByRole('button',{name:'Record bill payment',exact:true}).click();
  const dialog=page.getByRole('dialog',{name:'Record bill payment',exact:true});await dialog.getByRole('button',{name:'Save',exact:true}).click();
- await page.getByRole('button',{name:'Record or link payment for Sample bill',exact:true}).click();
+ await page.getByRole('button',{name:/View Sample bill,/}).click();
  await page.getByRole('dialog',{name:'Pair bill transaction',exact:true}).getByRole('button',{name:/Sample bill.*Budget paid record/}).click();
  await expect.poll(async()=>Object.values((await saved(page)).monthlyPlan!.months).flatMap((month:MonthlyPlanMonth)=>month.settlements??[]).length).toBe(1);
  const after=await saved(page);expect(after.accounts).toEqual(before.accounts);expect(after.transactions).toEqual(before.transactions);
@@ -63,7 +63,7 @@ test('navigation, shared controls, Strategy surfaces and soft Budget colors matc
    await nav(page).getByRole('button',{name:'Budget',exact:true}).click();const budgetStyle=await controls('Budget sections');const budgetFab=await fab('Add to Budget');
    const navigationTop=await page.locator('.sidebar').evaluate(element=>element.getBoundingClientRect().top);expect(navigationTop-budgetFab!.y-budgetFab!.height).toBeCloseTo(16,0);
    await page.getByRole('button',{name:'Add to Budget',exact:true}).click();await expect(page.getByRole('group',{name:'Add to Budget',exact:true})).toBeVisible();await page.getByRole('button',{name:'Close Budget actions',exact:true}).click();
-   if(width===390){await page.screenshot({path:`.wrangler/control-polish/${theme}-budget.png`});await page.getByRole('navigation',{name:'Budget sections'}).getByRole('button',{name:'Strategy',exact:true}).click();await expect(page.locator('.strategy-config-card')).toHaveCSS('border-top-width','0px');await expect(page.locator('.strategy-money input')).toHaveCSS('border-top-width','0px');await expect(page.getByRole('region',{name:'Payoff Strategy',exact:true})).toHaveCSS('box-shadow','none');await expect(page.locator('.strategy-choice').first()).toHaveCSS('background-color','rgba(0, 0, 0, 0)');await page.screenshot({path:`.wrangler/control-polish/${theme}-strategy.png`});await page.getByRole('navigation',{name:'Budget sections'}).getByRole('button',{name:'Planned',exact:true}).click();}
+   if(width===390){await page.screenshot({path:`.wrangler/control-polish/${theme}-budget.png`});await page.getByRole('navigation',{name:'Budget sections'}).getByRole('button',{name:'Strategy',exact:true}).click();await expect(page.locator('.strategy-config-card')).toHaveCSS('border-top-width','0px');await page.locator('.strategy-money input').focus();await expect(page.locator('.strategy-money input')).toHaveCSS('outline-width','0px');await expect(page.locator('.strategy-money')).toHaveCSS('outline-width','2px');await expect(page.locator('.strategy-money input')).toHaveCSS('border-top-width','0px');await expect(page.getByRole('region',{name:'Payoff Strategy',exact:true})).toHaveCSS('box-shadow','none');await expect(page.locator('.strategy-choice').first()).toHaveCSS('background-color','rgba(0, 0, 0, 0)');await page.screenshot({path:`.wrangler/control-polish/${theme}-strategy.png`});await page.getByRole('navigation',{name:'Budget sections'}).getByRole('button',{name:'Planned',exact:true}).click();}
    await nav(page).getByRole('button',{name:'Debt',exact:true}).click();expect(await controls('Debt type filters')).toEqual(budgetStyle);expect(await fab('Add debt')).toEqual(budgetFab);await page.getByRole('button',{name:'Add debt',exact:true}).click();const accountForm=page.getByRole('dialog',{name:'Add a debt account',exact:true});await expect(accountForm).toBeVisible();await accountForm.getByRole('button',{name:'Back from account form',exact:true}).click();
    if(width===390)await page.screenshot({path:`.wrangler/control-polish/${theme}-debt.png`});
    await page.getByRole('button',{name:'Open Sample card',exact:true}).click();await page.getByRole('tab',{name:'Transactions',exact:true}).click();expect(await fab('Add transaction')).toEqual(budgetFab);
@@ -79,5 +79,17 @@ test('navigation, shared controls, Strategy surfaces and soft Budget colors matc
 test('Home Next Due See all opens Budget Next Due instead of expanding Home',async({page})=>{
  await seed(page);await page.clock.setFixedTime(new Date('2026-10-24T20:00:00Z'));await page.reload();
  const reminder=page.getByRole('region',{name:'Dashboard content'}).getByRole('region',{name:'Upcoming due reminders'});
- await reminder.getByRole('button',{name:/See all/}).click();await expect(page.getByRole('navigation',{name:'Budget sections'}).getByRole('button',{name:'Next Due',exact:true})).toHaveAttribute('aria-pressed','true');await expect(page.getByRole('region',{name:'Next Due',exact:true})).toBeVisible();
+ await reminder.getByRole('button',{name:/See all/}).click();await expect(page.getByRole('navigation',{name:'Budget sections'}).getByRole('button',{name:'Upcoming',exact:true})).toHaveAttribute('aria-pressed','true');await expect(page.getByRole('region',{name:'Upcoming',exact:true})).toBeVisible();
+});
+
+test('bill and ledger entries share one chronological date group',async({page})=>{
+ await seed(page);await nav(page).getByRole('button',{name:'Budget',exact:true}).click();await page.getByRole('button',{name:'Add to Budget',exact:true}).click();await page.getByRole('button',{name:'Record bill payment',exact:true}).click();await page.getByRole('dialog',{name:'Record bill payment',exact:true}).getByRole('button',{name:'Save',exact:true}).click();await nav(page).getByRole('button',{name:'Transactions',exact:true}).click();
+ await page.getByRole('button',{name:'Add transaction',exact:true}).click();const dialog=page.getByRole('dialog',{name:'New transaction',exact:true});await dialog.getByLabel('Transaction category').selectOption('purchase');await dialog.getByRole('textbox',{name:'Transaction amount',exact:true}).fill('5');await dialog.getByRole('button',{name:'Save',exact:true}).click();
+ const group=page.locator('[data-activity-date="2026-10-10"]');await expect(group.locator('[data-paid-record]')).toHaveCount(1);await expect(group.locator('[data-activity-id]')).toHaveCount(1);
+ expect(await page.locator('[data-activity-date]').evaluateAll(elements=>elements.map(element=>element.getAttribute('data-activity-date')))).toEqual(['2026-10-10','2026-10-02']);
+});
+
+test('Upcoming card opens recording directly without separate record buttons when no candidate exists',async({page})=>{
+ await seed(page);await page.clock.setFixedTime(new Date('2026-10-24T20:00:00Z'));await page.reload();const upcoming=page.getByRole('region',{name:'Upcoming due reminders'});
+ await expect(upcoming.getByRole('button',{name:/Record|Pair/})).toHaveCount(0);await upcoming.getByRole('button',{name:/View Sample travel,/}).click();await expect(page.getByRole('dialog',{name:'Record payment',exact:true})).toBeVisible();
 });
