@@ -1172,7 +1172,7 @@ export default function DashboardClient({ user, householdId, lifecycleEnabled = 
 
     </main>
 
-    {page === "accounts" && !selectedDebt && !modalOpen && !newLoanDraft && <FloatingAddButton label="Add debt" disabled={isViewer} onClick={openNew}/>}
+    {page === "accounts" && !selectedDebt && !modalOpen && !newLoanDraft && <div className="debt-floating-actions"><FloatingAddButton label="Add debt" disabled={isViewer} onClick={openNew}/></div>}
     {page === "monthly" && !selectedDebt && !cashflowModalOpen && !billPaymentOpen && !scheduleOpen && <div className="budget-floating-actions">
       {budgetAddOpen && <div className="floating-add-menu" id="budget-add-menu" role="group" aria-label="Add to Budget"><button type="button" onClick={() => {setBudgetAddOpen(false);openNewCashflow("income");}}>Income</button><button type="button" onClick={() => {setBudgetAddOpen(false);openNewCashflow("expense");}}>Recurring spending</button><button type="button" onClick={() => {setBudgetAddOpen(false);openNewCashflow("purchase");}}>One-time spending</button><button type="button" onClick={() => {setBudgetAddOpen(false);setBillPaymentItem(undefined);setBillPaymentOpen(true);}}>Record bill payment</button></div>}
       <FloatingAddButton label={budgetAddOpen ? "Close Budget actions" : "Add to Budget"} disabled={isViewer} expanded={budgetAddOpen} controls="budget-add-menu" onClick={() => setBudgetAddOpen(open => !open)}/>

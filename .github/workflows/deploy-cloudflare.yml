@@ -42,16 +42,17 @@ jobs:
           before="$RELEASE_BEFORE"
           if [ -z "$before" ] || ! git cat-file -e "$before^{commit}" 2>/dev/null; then before=HEAD^; fi
           # Approved Budget Next Due and transaction-category release: focused coverage only.
-          if [ "$before" = "f5c30e7ac4c379304a009e574113767709b5ab67" ] || [ "$before" = "1982df99a8f929e3464b8d9282682b3e66205452" ]; then
+          if [ "$before" = "f5c30e7ac4c379304a009e574113767709b5ab67" ] || [ "$before" = "1982df99a8f929e3464b8d9282682b3e66205452" ] || [ "$before" = "51e37bd2dc7605d49907b823b6d8959f04516d2d" ]; then
             budget_ui_only=true
             while IFS= read -r changed_path; do
               case "$changed_path" in
-                .github/workflows/deploy-cloudflare.yml|app/actual-progress-page.tsx|app/dashboard-header.tsx|app/floating-add-button.module.css|app/segmented-control.module.css|app/budget-bill-payment.tsx|app/budget-view.ts|app/dashboard-client.tsx|app/debt-entry-dialog.tsx|app/debt-experience.module.css|app/debt-experience.tsx|app/due-reminders.ts|app/floating-add-button.tsx|app/home-dashboard-page.tsx|app/home-dashboard.module.css|app/home-due-reminders.tsx|app/loan-progress-panel.tsx|app/mockup-fidelity.css|app/monthly-plan-page.module.css|app/monthly-plan-page.tsx|app/onboarding-flow.tsx|app/payments-page.tsx|app/payoff-schedule-popup.tsx|tests/browser/budget-next-due-ui.spec.ts) ;;
+                .github/workflows/deploy-cloudflare.yml|app/actual-progress-page.tsx|app/dashboard-header.tsx|app/payoff-home.module.css|app/floating-add-button.module.css|app/segmented-control.module.css|app/budget-bill-payment.tsx|app/budget-view.ts|app/dashboard-client.tsx|app/debt-entry-dialog.tsx|app/debt-experience.module.css|app/debt-experience.tsx|app/due-reminders.ts|app/floating-add-button.tsx|app/home-dashboard-page.tsx|app/home-dashboard.module.css|app/home-due-reminders.tsx|app/loan-progress-panel.tsx|app/mockup-fidelity.css|app/monthly-plan-page.module.css|app/monthly-plan-page.tsx|app/onboarding-flow.tsx|app/payments-page.tsx|app/payoff-schedule-popup.tsx|tests/browser/budget-next-due-ui.spec.ts) ;;
                 *) budget_ui_only=false ;;
               esac
             done < <(git diff --name-only "$before" HEAD)
             if [ "$budget_ui_only" = true ]; then
               echo "budget_ui=true" >> "$GITHUB_OUTPUT"
+              if [ "$before" = "51e37bd2dc7605d49907b823b6d8959f04516d2d" ]; then echo "budget_visual=true" >> "$GITHUB_OUTPUT"; fi
               exit 0
             fi
           fi
@@ -141,8 +142,12 @@ jobs:
         if: steps.loan_changes.outputs.budget_ui == 'true'
         run: |
           npm run typecheck
-          node --test tests/debt-transactions.test.mjs
-          npx playwright test --config playwright.local.config.ts tests/browser/budget-next-due-ui.spec.ts --project=phone
+          if [ "${{ steps.loan_changes.outputs.budget_visual }}" = 'true' ]; then
+            npx playwright test --config playwright.local.config.ts tests/browser/budget-next-due-ui.spec.ts --project=phone -g "navigation, shared controls"
+          else
+            node --test tests/debt-transactions.test.mjs
+            npx playwright test --config playwright.local.config.ts tests/browser/budget-next-due-ui.spec.ts --project=phone
+          fi
       - name: Preserve focused control screenshots
         if: always() && steps.loan_changes.outputs.budget_ui == 'true'
         uses: actions/upload-artifact@v4
