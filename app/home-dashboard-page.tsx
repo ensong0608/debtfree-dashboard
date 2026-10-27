@@ -42,8 +42,8 @@ export default function HomeDashboardPage({ accounts, loans, items, progress, pr
   const accountNames = new Map(accounts.map(account => [account.id, account.name]));
   const [scope, setScope] = useState<ProgressScope>(accounts.length ? "accounts" : loans.length ? "loans" : "household");
   const progressSlides = progressViews ? ([
-    { scope: "accounts" as const, label: "Cards & loans" },
-    { scope: "loans" as const, label: "House & auto" },
+    { scope: "accounts" as const, label: "Cards & Loans" },
+    { scope: "loans" as const, label: "Home & Auto" },
     { scope: "household" as const, label: "All debts" },
   ].map(slide => {
     const view = progressViews[slide.scope];

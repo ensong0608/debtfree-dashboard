@@ -23,19 +23,19 @@ export type ReminderPaymentActions = {
   onOpen: (reminder: DueReminder) => void;
 };
 
-export default function HomeDueReminders({ reminders, readOnly, transactions, adjustments, loans, items, months, duePaymentAssociations, onLink, onRecordNew, onOpen }: ReminderPaymentActions & { reminders: DueReminder[] }) {
+export default function HomeDueReminders({ reminders, readOnly, transactions, adjustments, loans, items, months, duePaymentAssociations, onLink, onRecordNew, onOpen, fullPage = false }: ReminderPaymentActions & { reminders: DueReminder[]; fullPage?: boolean }) {
   const [expanded, setExpanded] = useState(false);
   const [pending, setPending] = useState<DueReminder | null>(null);
   const [error, setError] = useState('');
   const listId = useId();
   const money = createHouseholdMoneyFormatter(useHouseholdCurrency(), { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const candidates = pending ? duePaymentCandidates(pending, { transactions, adjustments, loans, items, settings: { months, duePaymentAssociations }, today: householdDate() }) : [];
-  return <>{Boolean(reminders.length) && <section className={styles.reminderCard} aria-label="Upcoming due reminders">
+  return <>{Boolean(reminders.length) && <section className={fullPage ? "next-due-list " + styles.reminderCard : styles.reminderCard} aria-label="Upcoming due reminders">
     <header className={styles.sectionHeader}>
-      <div className={styles.reminderHeading}><span><OutlineIcon name="bell"/></span><h2>Next due</h2></div>
-      {reminders.length > 3 && <button type="button" className={styles.reminderToggle} aria-expanded={expanded} aria-controls={listId} onClick={() => setExpanded(value => !value)}>{expanded ? 'Show less' : `See all (${reminders.length})`}</button>}
+      <div className={styles.reminderHeading}><span><OutlineIcon name="bell"/></span><h2>Next Due</h2></div>
+      {!fullPage && reminders.length > 3 && <button type="button" className={styles.reminderToggle} aria-expanded={expanded} aria-controls={listId} onClick={() => setExpanded(value => !value)}>{expanded ? 'Show less' : `See all (${reminders.length})`}</button>}
     </header>
-    <ul className={styles.reminderRows} id={listId}>{(expanded ? reminders : reminders.slice(0, 3)).map(reminder => {
+    <ul className={styles.reminderRows} id={listId}>{(fullPage || expanded ? reminders : reminders.slice(0, 3)).map(reminder => {
       const date = new Date(reminder.date + 'T12:00:00Z').toLocaleDateString('en-US', { timeZone: 'UTC', month: 'short', day: 'numeric' });
       const urgency = dueReminderUrgency(reminder.daysAway);
       const when = urgency === 'overdue' ? `Overdue · ${Math.abs(reminder.daysAway)} ${Math.abs(reminder.daysAway) === 1 ? 'day' : 'days'}` : reminder.daysAway === 0 ? 'Due today' : reminder.daysAway === 1 ? 'Due tomorrow' : `In ${reminder.daysAway} days`;
@@ -58,7 +58,7 @@ export default function HomeDueReminders({ reminders, readOnly, transactions, ad
       </div>
       {pending.kind === 'account' && <button className="primary" type="button" onClick={() => { const reminder = pending; setPending(null); onRecordNew(reminder); }}>Record a new payment</button>}
       {pending.kind === 'loan' && <><p className={styles.duePaymentHint}>Record a new loan payment in the loan details, then pair it with this due date.</p><button className="primary" type="button" onClick={() => { const reminder = pending; setPending(null); onRecordNew(reminder); }}>Open loan details</button></>}
-      {pending.kind === 'spending' && <><p className={styles.duePaymentHint}>Record the bill in Transactions with this Budget item selected, then pair it here.</p><button className="primary" type="button" onClick={() => { const reminder = pending; setPending(null); onRecordNew(reminder); }}>Open Transactions</button></>}
+      {pending.kind === 'spending' && <><p className={styles.duePaymentHint}>Record a bill payment, then pair it here.</p><button className="primary" type="button" onClick={() => { const reminder = pending; setPending(null); onRecordNew(reminder); }}>Record bill payment</button></>}
       <footer><button type="button" className="secondary" onClick={() => setPending(null)}>Close</button></footer>
     </section>
   </div>}

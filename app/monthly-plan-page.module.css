@@ -116,3 +116,7 @@
 :global(html[data-text-size=larger]) .categoryTrack{grid-column:2;grid-row:3}:global(html[data-text-size=larger]) .categoryIcon{grid-row:1/4}:global(html[data-text-size=larger]) .categoryPlus{grid-column:3;grid-row:1/4}
 
 .category>summary{min-height:60px;padding-block:8px}
+
+/* The category list shares one surface, without a second nested container. */
+.categories{background:transparent}.categoryItems{border:0;background:transparent;box-shadow:none;padding-inline:0}.categorySection{border:0;border-radius:0;background:transparent}.sectionHeading{padding-inline:0}.categories{padding-inline:0}.incomeEditor{border:0;border-radius:0;background:transparent;box-shadow:none}
+.category>summary{grid-template-columns:36px minmax(0,1fr) auto 20px!important}.categoryTrack{grid-column:2/4}.categoryAmount{grid-column:3}.categoryChevron{grid-column:4}

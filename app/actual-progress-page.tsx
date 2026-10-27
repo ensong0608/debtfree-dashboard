@@ -119,7 +119,7 @@ export default function ActualProgressPage({ accounts, loans, removedAccounts = 
   const [scope, setScope] = useState<ProgressScope>(() => accounts.length || removedAccounts.length ? "accounts" : loans.length ? "loans" : "household");
   const [range, setRange] = useState<Range>("6M");
   const scopeOptions: { value: ProgressView["scope"]; label: string }[] = [
-    {value:"accounts", label:"Cards & loans"}, {value:"loans", label:"House & auto"}, {value:"household", label:"All debts"}
+    {value:"accounts", label:"Cards & Loans"}, {value:"loans", label:"Home & Auto"}, {value:"household", label:"All debts"}
   ];
   const currentScope = scopeOptions.some(option => option.value === scope) ? scope : scopeOptions[0]?.value ?? "household";
   const view = progressViews[currentScope];

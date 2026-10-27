@@ -6,7 +6,7 @@ import { paymentActivity } from './payments.ts';
 import { settlementReports } from './plan-settlements.ts';
 import { round } from './payoff-engine.ts';
 
-export type BudgetTab = 'Overview' | 'Transactions' | 'Schedule';
+export type BudgetTab = 'Overview' | 'Next Due' | 'Schedule';
 export type BudgetPeriod = 'month' | 'year' | 'lifetime';
 export function inBudgetPeriod(date: string, month: string, period: BudgetPeriod) {
   return period === 'lifetime' || date.slice(0, period === 'year' ? 4 : 7) === month.slice(0, period === 'year' ? 4 : 7);
