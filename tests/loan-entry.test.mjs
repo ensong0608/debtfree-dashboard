@@ -39,9 +39,11 @@ test('separate quote principal is optional, validated and never substitutes the 
  assert.equal(quote.remainingAmount,1000);
 });
 
-test('auto APR and principal may be omitted without inventing persisted values', () => {
+test('auto APR is required on save; optional principal and legacy backup compatibility are preserved', () => {
  const car={...loan,kind:'car',apr:undefined,principalBalance:undefined};
- assert.deepEqual(loanEntryErrors(car,today),{}); assert.equal(car.apr,undefined);
+ assert.ok(loanEntryErrors(car,today).apr); assert.equal(car.apr,undefined);
+ assert.deepEqual(loanEntryErrors({...car,apr:0},today),{});
+ const f=JSON.parse(readFileSync('tests/fixtures/legacy-v0.json','utf8'));f.monthlyPlan={months:{},detailedSpendingTracking:false,loanTrackers:[car]};assert.doesNotThrow(()=>parseDashboardContract(f));
  for(const apr of [NaN,-1,101]) assert.ok(loanEntryErrors({...car,apr},today).apr);
 });
 
