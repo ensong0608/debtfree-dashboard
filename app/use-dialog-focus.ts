@@ -38,7 +38,7 @@ export function useDialogFocus() {
       root.style.setProperty('--dialog-viewport-height', `${viewport?.height ?? window.innerHeight}px`);
       root.style.setProperty('--dialog-viewport-top', `${viewport?.offsetTop ?? 0}px`);
       root.dataset.dialogKeyboard = String(Boolean(focused && fullViewportHeight - (viewport?.height ?? window.innerHeight) > 120));
-      requestAnimationFrame(revealField);
+      requestAnimationFrame(() => requestAnimationFrame(revealField));
     };
     let observedNav: Element | null = null;
     const measure = () => {
@@ -54,6 +54,8 @@ export function useDialogFocus() {
     measure();
     resize();
     window.addEventListener("resize", resize);
+    window.addEventListener("scroll", resize);
+    document.addEventListener("input", revealField);
     viewport?.addEventListener("resize", resize);
     viewport?.addEventListener("scroll", resize);
     let current: HTMLElement | null = null;
@@ -65,9 +67,6 @@ export function useDialogFocus() {
     const closeControl = (dialog: HTMLElement) => dialog.querySelector<HTMLButtonElement>('button[data-dialog-close]:not(.sheet-handle), header button[aria-label^="Close"]:not(.sheet-handle)');
     const prepareSheet = (dialog: HTMLElement) => {
       dialog.classList.add('app-sheet');
-      dialog.style.setProperty('max-height','calc(var(--dialog-viewport-height, 100dvh) - 24px)','important');
-      dialog.style.setProperty('min-height','0','important');
-      dialog.style.setProperty('box-sizing','border-box','important');
       dialog.parentElement?.classList.add('sheet-backdrop');
       if (dialog.querySelector(':scope > .sheet-handle')) return;
       const close = closeControl(dialog);
@@ -167,6 +166,6 @@ export function useDialogFocus() {
     observer.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['hidden', 'open'] });
     document.addEventListener("keydown", keydown, true);
     document.addEventListener("focusin", focusin);
-    return () => { document.removeEventListener('pointerdown',pointerdown);document.removeEventListener('pointermove',pointermove);document.removeEventListener('pointerup',pointerup);document.removeEventListener('pointercancel',pointerup);observer.disconnect(); measured.disconnect(); unlockPage(); window.removeEventListener("resize", resize); delete root.dataset.dialogKeyboard; document.removeEventListener("keydown", keydown, true); document.removeEventListener("focusin", focusin); viewport?.removeEventListener("resize", resize); viewport?.removeEventListener("scroll", resize); document.documentElement.style.removeProperty("--bottom-navigation-height"); document.documentElement.style.removeProperty("--dialog-viewport-top"); document.documentElement.style.removeProperty("--dialog-viewport-height"); };
+    return () => { document.removeEventListener('pointerdown',pointerdown);document.removeEventListener('pointermove',pointermove);document.removeEventListener('pointerup',pointerup);document.removeEventListener('pointercancel',pointerup);observer.disconnect(); measured.disconnect(); unlockPage(); window.removeEventListener("resize", resize); window.removeEventListener("scroll", resize); document.removeEventListener("input", revealField); delete root.dataset.dialogKeyboard; document.removeEventListener("keydown", keydown, true); document.removeEventListener("focusin", focusin); viewport?.removeEventListener("resize", resize); viewport?.removeEventListener("scroll", resize); document.documentElement.style.removeProperty("--bottom-navigation-height"); document.documentElement.style.removeProperty("--dialog-viewport-top"); document.documentElement.style.removeProperty("--dialog-viewport-height"); };
   }, []);
 }

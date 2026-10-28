@@ -49,11 +49,11 @@ test('permanent deletion cancels safely, then clears removed account records acr
  expect((await saved(page)).transactions.some((t:{accountId:string})=>t.accountId==='demo-card')).toBe(false);
  await page.reload();await expect(page.locator('.home-welcome')).toBeVisible();expect((await saved(page)).accounts.some((a:{id:string})=>a.id==='demo-card')).toBe(false);
 });
-test('Appearance autosaves all controls, has no save/cancel, and persists 12–20 pt',async({page})=>{
+test('Appearance autosaves all controls, has no save/cancel, and persists 9–16 pt',async({page})=>{
  await seed(page);await settings(page);await page.getByRole('button',{name:/Text size/}).click();
  const board=page.getByRole('region',{name:'Appearance settings'});
  await expect(board.getByRole('button',{name:/Save changes|Cancel/})).toHaveCount(0);
- const size=board.getByRole('combobox',{name:'Text size',exact:true});await expect(size.locator('option')).toHaveText(['12 pt','13 pt','14 pt','15 pt','16 pt','17 pt','18 pt','19 pt','20 pt']);
+ const size=board.getByRole('combobox',{name:'Text size',exact:true});await expect(size.locator('option')).toHaveText(['9 pt','10 pt','11 pt','12 pt','13 pt','14 pt','15 pt','16 pt']);
  await size.selectOption('15');expect((await size.boundingBox())!.width).toBeGreaterThan(150);await board.getByRole('button',{name:'Purple',exact:true}).click();
  await expect.poll(()=>page.evaluate(key=>JSON.parse(localStorage.getItem(key)!).size,APPEARANCE_KEY)).toBe(15);
  await expect.poll(()=>page.evaluate(()=>getComputedStyle(document.documentElement).getPropertyValue('--theme-text-scale'))).toBe('1.25');

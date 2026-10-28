@@ -52,7 +52,7 @@
 }
 /* Freeze the page behind sheets; only the sheet's own content can scroll. */
 html[data-dialog-open=true],html[data-dialog-open=true] body {overflow:hidden;overscroll-behavior:none}
-html[data-dialog-open=true] body {position:fixed;top:var(--dialog-scroll-top,0);left:0;right:0;width:100%}
+html[data-dialog-open=true] body {width:100%}
 .sheet-backdrop {position:fixed!important;isolation:isolate}
 @media(max-width:820px){
  html[data-dialog-keyboard=true] .sheet-backdrop {background:var(--theme-background)!important}
@@ -93,3 +93,21 @@ html[data-dialog-open=true] body {position:fixed;top:var(--dialog-scroll-top,0);
  max-width:60%;
  white-space:nowrap;
 }
+
+/* Headers, handles and actions never share the scrolling field container. */
+.app-sheet>.sheet-handle{position:relative!important;top:auto!important;margin:0 auto;flex:none}
+.app-sheet>header,.app-sheet>form>header{position:relative!important;top:auto!important;flex:none;z-index:5}
+.app-sheet:is(.account-compose,.budget-entry-sheet,.transaction-compose,.loan-modal){display:flex!important;flex-direction:column;overflow:hidden!important;max-height:calc(var(--dialog-viewport-height,100dvh) - 24px)!important}
+.app-sheet:is(.account-compose,.budget-entry-sheet,.transaction-compose,.loan-modal)>:is(form,fieldset),.account-compose .inline-loan-entry,.inline-loan-entry>.loan-progress-section,.inline-loan-entry .reliable-loan-form{display:flex;flex-direction:column;flex:1 1 auto;min-height:0;max-height:100%;overflow:hidden!important}
+.app-sheet:is(.account-compose,.budget-entry-sheet,.transaction-compose,.loan-modal) :is(.debt-action-form,.sheet-fields,.reliable-loan-form>.form-grid,.loan-modal form>.form-grid){flex:0 1 auto!important;min-height:0;overflow-y:auto!important;overflow-x:hidden;overscroll-behavior:contain;overflow-anchor:none;touch-action:pan-y;scroll-padding:12px;}
+.app-sheet:is(.account-compose,.budget-entry-sheet,.transaction-compose,.loan-modal) .form-action-footer{position:relative!important;top:auto!important;bottom:auto!important;flex:none!important;margin-top:0;background:var(--theme-background);z-index:5}
+html[data-dialog-keyboard=true] .app-sheet:is(.account-compose,.budget-entry-sheet,.transaction-compose,.loan-modal){height:calc(var(--dialog-viewport-height,100dvh) - 24px)!important;min-height:0!important}
+/* Navigation and already-prominent figures retain their designed typography. */
+.sidebar .nav-item span{font-size:14px!important}
+.compact-segments>button,.detail-segments>button{font-size:13px!important}
+.payoff-strategy-list .strategy-result>.money-value{font-size:18px!important;white-space:nowrap}
+/* Keep the fixed debt actions compact enough to leave room for typing. */
+.account-compose .form-action-footer>div,.inline-loan-entry .form-action-footer{flex-direction:row!important;gap:12px!important;margin:0!important}
+.account-compose .form-action-footer>div>button,.inline-loan-entry .form-action-footer>button{flex:1;min-width:0;width:auto;min-height:48px}
+.account-compose .form-action-footer .secondary{justify-content:center}
+.account-compose .form-action-footer .secondary::after{display:none}

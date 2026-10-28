@@ -10,7 +10,7 @@ export default function AppearanceProvider() {
     const stored = () => { try { return loadAppearance(window.localStorage); } catch { return { ...DEFAULT_APPEARANCE }; } };
     const apply = (value: Appearance) => {
       root.dataset.theme = value.theme;
-      root.dataset.textSize = textSizePoints(value.size) >= 15 ? 'larger' : textSizePoints(value.size) >= 14 ? 'large' : 'standard';
+      root.dataset.textSize = String(textSizePoints(value.size));
       root.style.colorScheme = value.theme;
       for (const [key, color] of Object.entries(appearanceTokens(value))) root.style.setProperty(key, color);
     };

@@ -199,3 +199,10 @@
 .compactSummaryMain{flex-wrap:wrap}
 .compactProgressCopy{flex:1 1 max-content;min-width:0;max-width:100%}
 .integratedSummary .compactProgressCopy>strong,.compactProgressCopy>p>b,.compactProgressCopy :global(.money-value){white-space:normal;overflow-wrap:anywhere}
+
+:global(html[data-text-size]) .compactSummaryMain{flex-wrap:nowrap;align-items:center}
+:global(html[data-text-size]) .compactProgressCopy{flex:1 1 0;min-width:0}
+.integratedSummary .compactProgressCopy>strong{font-size:clamp(20px,6.7vw,28px)!important;white-space:nowrap}
+.integratedSummary .compactProgressCopy>strong[data-large-value=true]{font-size:20px!important}
+.compactProgressCopy>p>b{font-size:14px}
+.compactProgressCopy :global(.money-value){white-space:nowrap!important;overflow-wrap:normal!important}

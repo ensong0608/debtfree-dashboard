@@ -131,3 +131,8 @@
 .categoryItems .entry:last-child{border-bottom:0}
 .categoryItems .entryText strong,.categoryItems .entry b{font-size:calc(14px * var(--theme-text-scale,1))}
 .categoryItems .entryText small{font-size:calc(12px * var(--theme-text-scale,1))}
+
+.summaryTop strong{font-size:30px!important}
+.summaryStats strong{font-size:23px!important}
+:global(html[data-text-size]) .summaryStats{display:flex;flex-wrap:nowrap}
+:global(html[data-text-size]) .summaryStats>div{flex:1 1 0;min-width:0}

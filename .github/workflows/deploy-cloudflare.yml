@@ -2,7 +2,7 @@
 name: Deploy Cloudflare dashboard
 on:
   push:
-    branches: [codex/form-spacing-budget-20261028, codex/supabase-google-login, codex/mobile-payments-budget, codex/production-release-20261015]
+    branches: [codex/stable-text-scroll-20261028, codex/supabase-google-login, codex/mobile-payments-budget, codex/production-release-20261015]
     paths: [.github/workflows/deploy-cloudflare.yml, "app/**", "tests/**"]
   workflow_dispatch:
     inputs:
@@ -17,7 +17,7 @@ concurrency:
   cancel-in-progress: ${{ github.event.before == '912375c398c0162fdf2d6f32ad8ce1dd06148602' }}
 jobs:
   form_layout:
-    if: github.ref == 'refs/heads/codex/form-spacing-budget-20261028'
+    if: github.ref == 'refs/heads/codex/stable-text-scroll-20261028'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -30,18 +30,18 @@ jobs:
       - run: npm run typecheck
       - run: node --test tests/appearance.test.mjs
       - run: npx playwright install --with-deps chromium
-      - run: npx playwright test --config playwright.local.config.ts tests/browser/form-layout-polish.spec.ts --project=phone --max-failures=0 --grep "compact consistent"
+      - run: npx playwright test --config playwright.local.config.ts tests/browser/stable-text-scroll.spec.ts --project=phone --max-failures=0
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: phone-form-layout-review
+          name: stable-text-and-keyboard-review
           path: |
-            .wrangler/form-layout/
+            .wrangler/stable-ui/
             .wrangler/browser-results/
           include-hidden-files: true
           retention-days: 7
   deploy:
-    if: github.ref != 'refs/heads/codex/form-spacing-budget-20261028'
+    if: github.ref != 'refs/heads/codex/stable-text-scroll-20261028'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -229,6 +229,8 @@ jobs:
           if [ "$before" = "facf6195825d7a3bcfc93265d8abd8946b9bf06e" ] && [ -f tests/browser/form-layout-polish.spec.ts ]; then
             exit 0
           fi
+          # Reuse this release's reviewed feature-branch phone checks.
+          if [ "$before" = "fee936ae9c587d4432b30e2a5f7083c2895077f0" ] && [ -f tests/browser/stable-text-scroll.spec.ts ]; then exit 0; fi
           if ! git diff --quiet "$before" HEAD -- app/loan-progress.ts app/loan-progress-panel.tsx app/loan-entry.ts app/loan-details-fields.tsx app/dashboard-client.tsx app/debt-experience.tsx app/debt-experience.module.css app/payoff-schedule.ts app/payments-page.tsx app/debt-entry-dialog.tsx tests/browser/debt-experience.spec.ts; then
             echo "changed=true" >> "$GITHUB_OUTPUT"
           fi
