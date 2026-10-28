@@ -68,6 +68,7 @@ export default function AppearanceSettings() {
 
   const edit = (key: EditableKey, value: Appearance[EditableKey]) => {
     const next = { ...draft, [key]: value } as Appearance;
+    if(key==='accent') next[primaryKey]=String(value);
     setDraft(next);
     setMessage('');
     if (appearanceError(next)) return;

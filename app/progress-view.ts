@@ -8,6 +8,8 @@ import { round } from './payoff-engine.ts';
 import { loanScheduleType } from './schedule-view.ts';
 
 export type ProgressScope = 'accounts' | 'loans' | 'household';
+export type ProgressCarouselScope = 'accounts' | 'home' | 'auto';
+export type ProgressViews = Record<ProgressScope | 'home' | 'auto', ReturnType<typeof buildProgressView>>;
 export type ProgressObservation = {
   id: string; month: string; balance: number; source: 'snapshot' | 'loan-history' | 'combined';
   observedOn: string | null; recordedAt: string | null; comparable: boolean;
@@ -159,7 +161,7 @@ export function buildProgressView(input: Input, scope: ProgressScope = 'accounts
 
 /** Fixed presentation groups retain the canonical whole-household authority.
  * Legacy Auto loan accounts stay persisted as accounts; only their view moves. */
-export function buildScopedProgressViews(input: Input) {
+function buildLegacyScopedProgressViews(input: Input) {
   const legacyAutos = input.accounts.filter(account => account.type === 'Auto loan');
   const household = buildProgressView(input, 'household');
   if (!legacyAutos.length) return { accounts: buildProgressView(input, 'accounts'), loans: buildProgressView(input, 'loans'), household, presentationLoans: input.loans };
@@ -175,4 +177,16 @@ export function buildScopedProgressViews(input: Input) {
   const autoStart = virtual.every(loan => loan.originalAmount > 0) ? sum(virtual.map(loan => loan.originalAmount)) : null;
   const startingBalance = input.startingBalance !== undefined && autoStart !== null && input.startingBalance >= autoStart ? round(input.startingBalance-autoStart) : undefined;
   return { accounts: buildProgressView({...input,accounts:input.accounts.filter(account=>!ids.has(account.id)),snapshots,startingBalance},'accounts'), loans:buildProgressView({...input,accounts:[],removedAccounts:[],snapshots:input.snapshots.map(snapshot=>({...snapshot,loanBalances:[...(snapshot.loanBalances??[]),...snapshot.accounts.filter(account=>ids.has(account.accountId)).map(account=>({loanId:'legacy-auto:'+account.accountId,amount:account.balance,balanceKind:'principal' as const}))]})),loans:[...input.loans,...virtual],startingBalance:undefined,forecast:undefined},'loans'),household,presentationLoans:[...input.loans,...virtual] };
+}
+
+/** The carousel partitions existing debt records; it never changes their stored kind or balances. */
+export function buildScopedProgressViews(input: Input) {
+  const base=buildLegacyScopedProgressViews(input);
+  const category=(kind:LoanTracker['kind'])=>{
+    const loans=base.presentationLoans.filter(loan=>loan.kind===kind);
+    const ids=new Set(loans.map(loan=>loan.id));
+    const snapshots=input.snapshots.map(snapshot=>({...snapshot,loanBalances:[...(snapshot.loanBalances??[]).filter(entry=>ids.has(entry.loanId)),...snapshot.accounts.filter(entry=>ids.has('legacy-auto:'+entry.accountId)).map(entry=>({loanId:'legacy-auto:'+entry.accountId,amount:entry.balance,balanceKind:'principal' as const}))]}));
+    return buildProgressView({...input,accounts:[],removedAccounts:[],loans,snapshots,startingBalance:undefined,forecast:undefined},'loans');
+  };
+  return {...base,home:category('house'),auto:category('car')};
 }
