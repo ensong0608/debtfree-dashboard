@@ -14,7 +14,7 @@ async function seed(page:Page){
  await page.getByRole('navigation',{name:'Primary navigation'}).getByRole('button',{name:'Debt',exact:true}).click();
 }
 test.beforeEach(async({},info)=>expect(['localhost','127.0.0.1']).toContain(new URL(String(info.project.use.baseURL)).hostname));
-async function screenshot(page:Page,name:string){mkdirSync('.wrangler/control-polish',{recursive:true});await page.screenshot({animations:'disabled',path:`.wrangler/control-polish/${name}.png`});}
+async function screenshot(page:Page,name:string){const active=page.locator('[role=dialog]:visible').last();await expect(active.locator(':scope > .sheet-handle')).toBeVisible();expect((await active.boundingBox())!.y).toBeGreaterThanOrEqual(16);mkdirSync('.wrangler/control-polish',{recursive:true});await page.screenshot({animations:'disabled',path:`.wrangler/control-polish/${name}.png`});}
 test('unified add sheet switches loan contents inline, calendar works and saves Auto loan',async({page})=>{
  await seed(page);await page.getByRole('button',{name:'Add debt',exact:true}).click();
  const sheet=page.getByRole('dialog',{name:'Add Debt Account',exact:true});await expect(sheet.locator('.sheet-handle')).toBeVisible();

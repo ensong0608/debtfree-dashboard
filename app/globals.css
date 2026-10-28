@@ -2499,3 +2499,12 @@ button:focus-visible,summary:focus-visible,input:focus-visible,select:focus-visi
 .transaction-compose .signed-money-input:focus-within{outline:0!important;box-shadow:none!important}
 .transaction-compose .signed-money-input>span{font-size:16px;font-weight:400}
 .transaction-compose .compose-field:focus-within{border-bottom-color:var(--theme-focus)}
+/* Keep dismissal visible when keyboard focus reveals a lower field. */
+.sheet-backdrop{overflow:clip!important}
+[role=dialog].app-sheet{padding-top:0!important}
+.app-sheet>.sheet-handle{position:sticky;top:0;left:auto;display:block;flex:none;margin:0 auto;background:var(--theme-background);height:26px;min-height:26px}
+.app-sheet>header,.app-sheet>form>header{position:sticky!important;top:26px!important;z-index:5;background:var(--theme-background)!important}
+.app-sheet>.sheet-close{top:26px}
+.transaction-compose .compose-fields{flex:0 0 auto!important}
+.transaction-compose>form{flex:0 1 auto;min-height:0}
+.account-compose .form-grid>label,.account-compose .loan-detail-field,.transaction-compose .compose-field{box-sizing:border-box}
