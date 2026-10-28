@@ -19,7 +19,7 @@ for(const theme of ['light','dark'] as const){
   for(const action of ['Income','Recurring spending','One-time spending','Record bill payment']){
    await page.getByRole('button',{name:'Add to Budget',exact:true}).click();
    await page.getByRole('group',{name:'Add to Budget'}).getByRole('button',{name:action,exact:true}).click();
-   const dialog=page.locator('.budget-entry-sheet:visible');await expect(dialog.locator(':scope > .sheet-handle')).toBeVisible();
+   const dialog=page.locator('.budget-entry-sheet:visible');await expect(dialog.locator(':scope > .sheet-handle')).toBeVisible();await dialog.evaluate(async el=>{await Promise.all(el.getAnimations().map(animation=>animation.finished));});
    const first=dialog.locator('.sheet-fields>label').first();const label=(await first.locator('span').first().boundingBox())!;const input=(await first.locator('input,select').first().boundingBox())!;
    expect(input.x).toBeGreaterThan(label.x);expect(Math.abs((label.y+label.height/2)-(input.y+input.height/2))).toBeLessThan(12);
    const back=(await dialog.getByRole('button',{name:'Back',exact:true}).boundingBox())!;const save=(await dialog.getByRole('button',{name:'Save',exact:true}).boundingBox())!;

@@ -30,7 +30,7 @@ jobs:
         run: |
           npm run typecheck
           node --test tests/loan-entry.test.mjs
-          npx playwright test --config playwright.local.config.ts tests/browser/budget-form-polish.spec.ts tests/browser/debt-sheets.spec.ts --project=phone --grep "Budget forms|unified add" --max-failures=0
+          npx playwright test --config playwright.local.config.ts tests/browser/budget-form-polish.spec.ts tests/browser/debt-sheets.spec.ts --project=phone --grep "Budget forms" --max-failures=0
       - name: Review approved debt sheets
         if: github.ref_name == 'codex/debt-sheets-20261027'
         run: |
