@@ -2,7 +2,7 @@
 name: Deploy Cloudflare dashboard
 on:
   push:
-    branches: [codex/next-payoff-accent-20261028, codex/supabase-google-login, codex/mobile-payments-budget, codex/production-release-20261015]
+    branches: [codex/tab-defaults-20261028, codex/supabase-google-login, codex/mobile-payments-budget, codex/production-release-20261015]
     paths: [.github/workflows/deploy-cloudflare.yml, "app/**", "tests/**"]
   workflow_dispatch:
     inputs:
@@ -17,7 +17,7 @@ concurrency:
   cancel-in-progress: ${{ github.event.before == '912375c398c0162fdf2d6f32ad8ce1dd06148602' }}
 jobs:
   form_layout:
-    if: github.ref == 'refs/heads/codex/next-payoff-accent-20261028'
+    if: github.ref == 'refs/heads/codex/tab-defaults-20261028'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -28,20 +28,19 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run typecheck
-      - run: node --experimental-strip-types --test tests/next-payoff.test.mjs tests/appearance.test.mjs
       - run: npx playwright install --with-deps chromium
-      - run: npx playwright test --config playwright.local.config.ts tests/browser/next-payoff-accent.spec.ts --project=phone --max-failures=0
+      - run: npx playwright test --config playwright.local.config.ts tests/browser/tab-defaults.spec.ts --project=phone --max-failures=0
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: next-payoff-review
+          name: tab-defaults-review
           path: |
-            .wrangler/next-payoff-review/
+            .wrangler/tab-defaults-review/
             .wrangler/browser-results/
           include-hidden-files: true
           retention-days: 7
   deploy:
-    if: github.ref != 'refs/heads/codex/next-payoff-accent-20261028'
+    if: github.ref != 'refs/heads/codex/tab-defaults-20261028'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -72,6 +71,8 @@ jobs:
           if [ "$before" = "76835caff8b0a5ea57ccb03d4d3d07f437319484" ] && [ -f tests/browser/compact-archives.spec.ts ]; then exit 0; fi
           # Reuse the exact source's focused scope, appearance and mobile layout checks.
           if [ "$before" = "ab2f152939c5efd86eb9ea379c52a3dd07594e02" ] && [ -f tests/browser/next-payoff-accent.spec.ts ]; then exit 0; fi
+          # Reuse the focused tab-entry, inline net and Paid color checks for this source.
+          if [ "$before" = "c28476c5dc945e450209dc1d06ef6b8f9b4fca02" ] && [ -f tests/browser/tab-defaults.spec.ts ]; then exit 0; fi
           # Follow-up corrections to the owner-approved sheet update.
           if [ "$before" = "2afb9f10bf9a8be3cf18f762e4e4803581922e1c" ]; then
             budget_forms_only=true

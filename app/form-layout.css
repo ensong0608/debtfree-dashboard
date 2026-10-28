@@ -123,3 +123,6 @@ html[data-dialog-keyboard=true] .app-sheet:is(.account-compose,.budget-entry-she
 .budget-summary-tile>span{gap:2px;flex:0}.budget-summary-tile small{min-height:0}.budget-net-change{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px 14px;text-align:left}.budget-net-change>span{min-width:0;display:flex;align-items:center;gap:6px;font-size:clamp(12px,calc(13px * var(--theme-text-scale,1)),16px)}.budget-net-change>strong{white-space:nowrap;font-size:22px!important}@media(max-width:480px){.budget-net-change{grid-template-columns:minmax(0,1fr)}.budget-net-change>strong{justify-self:start}}
 
 @media(max-width:480px){.budget-net-change>strong{margin-left:0;text-align:left}}
+
+/* Keep the net label and value together, including at 15–16 pt. */
+.budget-net-change{grid-template-columns:auto minmax(0,1fr);align-items:center;gap:8px}.budget-net-change>span{white-space:nowrap;font-size:clamp(11px,calc(12px * var(--theme-text-scale,1)),13px)}.budget-net-change>span>svg{width:14px;height:14px;flex:none}.budget-net-change>strong{justify-self:stretch;margin:0;width:100%;min-width:0;text-align:right}

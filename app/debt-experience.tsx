@@ -34,13 +34,13 @@ function debtListCategory(type: string): 'cardsLoans' | 'houseAuto' {
 export function DebtTypeFilters({ accounts, loans, category, onCategory }: { accounts: DebtAccount[]; loans: LoanTracker[]; category: DebtCategory; onCategory: (category: DebtCategory) => void }) {
   const visibleLoans=loans.filter(loan=>loan.remainingAmount>.005||loan.paidOffRestoredAt);
  const categoryCounts={all:accounts.filter(a=>!a.archivedAt).length+visibleLoans.length,cardsLoans:accounts.filter(a=>!a.archivedAt&&debtListCategory(a.type)==='cardsLoans').length,houseAuto:accounts.filter(a=>!a.archivedAt&&debtListCategory(a.type)==='houseAuto').length+visibleLoans.length};
-  return <nav className={segmentedStyles.root} aria-label="Debt type filters">{([['all','All'],['cardsLoans','Cards & Loans'],['houseAuto','Home & Auto']] as const).map(([id,label])=><button type="button" key={id} aria-pressed={category===id} onClick={()=>onCategory(id)}>{label}<span className="sr-only"> · {categoryCounts[id]}</span></button>)}</nav>;
+  return <nav className={segmentedStyles.root} aria-label="Debt type filters">{([['cardsLoans','Cards & Loans'],['houseAuto','Home & Auto'],['all','All Debts']] as const).map(([id,label])=><button type="button" key={id} aria-pressed={category===id} onClick={()=>onCategory(id)}>{label}<span className="sr-only"> · {categoryCounts[id]}</span></button>)}</nav>;
 }
 export function UnifiedDebtList({ accounts, loans, payoffMonths = {}, onSelect, compact = false, preferenceScope = "device", summary, category: controlledCategory, onCategory, hideFilters = false }: { category?: DebtCategory; onCategory?: (category: DebtCategory) => void; hideFilters?: boolean; summary?: ReactNode; payoffMonths?: Record<string,string>; accounts: DebtAccount[]; loans: LoanTracker[]; items: CashflowItem[]; groups?: unknown[]; onSelect: (selection: DebtSelection) => void; compact?: boolean; preferenceScope?: string }) {
   const money = createHouseholdMoneyFormatter(useHouseholdCurrency());
   const [localSort, setSort] = useDebtPreference(preferenceScope,'sort','name',['name','apr','amount']);
   const [localSearch, setSearch] = useState('');
-  const [localCategory, setLocalCategory] = useState<DebtCategory>('all');
+  const [localCategory, setLocalCategory] = useState<DebtCategory>('cardsLoans');
   const category = controlledCategory ?? localCategory, setCategory = onCategory ?? setLocalCategory;
   const sort = localSort, search = localSearch;
   const rows = useMemo(() => [
