@@ -58,3 +58,24 @@ html[data-dialog-open=true] body {position:fixed;top:var(--dialog-scroll-top,0);
  html[data-dialog-keyboard=true] .sheet-backdrop {background:var(--theme-background)!important}
  html[data-dialog-keyboard=true] .sheet-backdrop>.app-sheet {flex:1 1 auto!important;min-height:calc(var(--dialog-viewport-height,100dvh) - 24px)!important}
 }
+/* Fieldset legends need explicit placement; their anonymous content box is not a flex row. */
+:is(.account-compose,.budget-entry-sheet,.transaction-compose,.inline-loan-entry,.inline-debt-info,.loan-detail-info) .date-calendar-field {
+ position:relative;
+ display:block;
+ min-height:max(58px,calc(var(--form-font-size) * 2.8 + 12px));
+}
+:is(.account-compose,.budget-entry-sheet,.transaction-compose,.inline-loan-entry,.inline-debt-info,.loan-detail-info) .date-calendar-field legend {
+ position:absolute;
+ left:0;
+ top:50%;
+ transform:translateY(-50%);
+ float:none;
+ max-width:44%;
+}
+:is(.account-compose,.budget-entry-sheet,.transaction-compose,.inline-loan-entry,.inline-debt-info,.loan-detail-info) .date-calendar-field .date-field-trigger {
+ position:absolute;
+ right:0;
+ top:50%;
+ transform:translateY(-50%);
+ max-width:55%;
+}

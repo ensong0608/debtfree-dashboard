@@ -29,13 +29,14 @@ for(const theme of ['light','dark'] as const)for(const size of [12,20]){
   const apr=debt.getByRole('textbox',{name:'APR',exact:true});await expect(apr).toHaveValue('');
   expect(await amount.evaluate(el=>getComputedStyle(el).fontWeight)).toBe('400');
   expect(await amountRow.locator('.field-input>b').evaluate(el=>parseFloat(getComputedStyle(el).fontSize))).toBeGreaterThan(await amount.evaluate(el=>parseFloat(getComputedStyle(el).fontSize)));
+  const dates=debt.locator('.date-calendar-field:visible').first();const dateBox=(await dates.boundingBox())!;const dateButton=(await dates.locator('button').boundingBox())!;expect(Math.abs(dateBox.x+dateBox.width-dateButton.x-dateButton.width)).toBeLessThan(2);
   await capture(page,`debt-${theme}-${size}`);
   await amount.focus();await keyboard(page,420,32);
   await expect(page.locator('html')).toHaveAttribute('data-dialog-keyboard','true');
   await expect.poll(async()=>Math.round((await debt.boundingBox())!.y+(await debt.boundingBox())!.height)).toBe(452);
   expect(await page.evaluate(()=>{const hit=document.elementFromPoint(195,448);return Boolean(hit?.closest('.app-sheet'));})).toBe(true);
   await capture(page,`keyboard-${theme}-${size}`);
-  await keyboard(page,844);await debt.locator('header .sheet-close').click();await expect(page.locator('html')).not.toHaveAttribute('data-dialog-open','true');
+  await keyboard(page,844);await debt.getByRole('button',{name:'Close account form',exact:true}).click();await expect(page.locator('html')).not.toHaveAttribute('data-dialog-open','true');
   await nav(page).getByRole('button',{name:'Budget',exact:true}).click();await page.getByRole('button',{name:'Add to Budget',exact:true}).click();await page.getByRole('group',{name:'Add to Budget'}).getByRole('button',{name:'Recurring spending',exact:true}).click();
   const budget=page.locator('.budget-entry-sheet:visible');await settle(budget);
   const monthly=budget.getByRole('textbox',{name:'Monthly amount',exact:true});const monthlyRow=budget.locator('.sheet-fields>label').filter({has:page.getByRole('textbox',{name:'Monthly amount',exact:true})});
