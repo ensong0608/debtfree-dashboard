@@ -6,6 +6,7 @@ export function useDialogFocus() {
   useEffect(() => {
     const viewport = window.visualViewport;
     const root = document.documentElement;
+    document.body.classList.remove('sheet-backdrop');
     let fullViewportHeight = window.innerHeight;
     let scrollLock: {x:number;y:number} | null = null;
     const unlockPage = () => {
@@ -66,8 +67,11 @@ export function useDialogFocus() {
     const focusable = (dialog: HTMLElement) => [...dialog.querySelectorAll<HTMLElement>(selector)].filter((el) => el.getClientRects().length > 0);
     const closeControl = (dialog: HTMLElement) => dialog.querySelector<HTMLButtonElement>('button[data-dialog-close]:not(.sheet-handle), header button[aria-label^="Close"]:not(.sheet-handle)');
     const prepareSheet = (dialog: HTMLElement) => {
+      // Native top-layer dialogs and inline panels do not own their parent page.
+      const backdrop=dialog.parentElement;
+      if(dialog instanceof HTMLDialogElement || dialog.dataset.dialogLayout==='confirmation' || !backdrop || backdrop===document.body || !backdrop.matches('.modal-backdrop,.sheet-backdrop,[class*=backdrop],[class*=Backdrop]'))return;
       dialog.classList.add('app-sheet');
-      dialog.parentElement?.classList.add('sheet-backdrop');
+      backdrop.classList.add('sheet-backdrop');
       if (dialog.querySelector(':scope > .sheet-handle')) return;
       const close = closeControl(dialog);
       if (!close) return;

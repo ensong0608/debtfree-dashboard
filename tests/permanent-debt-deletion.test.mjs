@@ -71,3 +71,14 @@ test('purging a later test account preserves the original fixed starting total',
  assert.equal(next.monthlyPlan.progressStartingBalance,1500);
  assert.deepEqual(next.snapshots,payload.snapshots);
 });
+
+test('loan deletion removes its exclusively linked Budget obligations and reports, preserving shared obligations',()=>{
+ const payload=createDemoFixture().payload;
+ const bill={id:'bill',name:'Car payment',kind:'expense',category:'Transportation',amount:300,paymentMethod:'debit',creditAccountId:'',recurring:true,createdAt:'2026-10-01T12:00:00Z'};
+ const loan={id:'car',name:'Car',kind:'car',originalAmount:2000,remainingAmount:1000,balanceKind:'principal',asOf:'2026-10-01',budgetItemId:'bill',budgetItemName:'Car payment',history:[]};
+ payload.monthlyBudgets['2026-10']=[bill];payload.monthlyPlan.loanTrackers=[loan];
+ payload.monthlyPlan.months['2026-10']={safetyBuffer:0,debtPaymentTarget:50,settlements:[{id:'paid',targetId:'bill',name:'Car payment',kind:'spending',amount:300,date:'2026-10-02',createdAt:'2026-10-02T12:00:00Z',source:'debit'}],minimumPaid:{car:300,'demo-card':25}};
+ const next=permanentlyDeleteDebt(payload,'car','loan');assert.deepEqual(next.monthlyBudgets['2026-10'],[]);assert.deepEqual(next.monthlyPlan.months['2026-10'].settlements,[]);assert.deepEqual(next.monthlyPlan.months['2026-10'].minimumPaid,{'demo-card':25});
+ payload.monthlyPlan.loanTrackers.push({...loan,id:'shared'});
+ assert.deepEqual(permanentlyDeleteDebt(payload,'car','loan').monthlyBudgets['2026-10'],[bill]);
+});

@@ -3,6 +3,7 @@ import type { CashflowItem } from './dashboard-data.ts';
 
 export type LoanTracker = {
   removedAt?: string;
+  paidOffRestoredAt?: string;
   institutionKey?: InstitutionKey;
   id: string;
   name: string;
