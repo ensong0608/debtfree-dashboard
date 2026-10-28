@@ -43,7 +43,7 @@ test('permanent deletion cancels safely, then clears removed account records acr
  await confirm.getByRole('button',{name:'Cancel',exact:true}).click();expect((await saved(page)).monthlyPlan.removedProgressAccounts).toHaveLength(1);
  await page.getByRole('button',{name:'Delete Deleted test and history',exact:true}).click();await confirm.getByRole('button',{name:'Delete account & history',exact:true}).click();
  await expect.poll(async()=>(await saved(page)).monthlyPlan.removedProgressAccounts.length).toBe(0);
- expect((await saved(page)).monthlyPlan.progressStartingBalance).toBe(2000);
+ expect((await saved(page)).monthlyPlan.progressStartingBalance).toBe(2100);
  await page.getByRole('button',{name:'Delete chase prime and history',exact:true}).click();await confirm.getByRole('button',{name:'Delete account & history',exact:true}).click();
  await expect.poll(async()=>(await saved(page)).accounts.some((a:{id:string})=>a.id==='demo-card')).toBe(false);
  expect((await saved(page)).transactions.some((t:{accountId:string})=>t.accountId==='demo-card')).toBe(false);

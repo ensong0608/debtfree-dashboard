@@ -192,7 +192,7 @@ jobs:
             fi
           fi
           # This approved account/history and Appearance release uses its focused regressions.
-          if [ "$before" = "e6eac7b3b9a81c4caf941c9338341e39c532c95c" ] && [ -f tests/browser/debt-cleanup.spec.ts ]; then
+          if { [ "$before" = "e6eac7b3b9a81c4caf941c9338341e39c532c95c" ] || [ "$before" = "29d3d5c30b76b3ac5278310b0d5b56f800084e16" ]; } && [ -f tests/browser/debt-cleanup.spec.ts ]; then
             echo "debt_cleanup=true" >> "$GITHUB_OUTPUT"
             exit 0
           fi

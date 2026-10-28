@@ -23,7 +23,10 @@ export function permanentlyDeleteDebt(payload: DashboardPayload, id: string, kin
     };
   };
   const snapshots = payload.snapshots.map(cleanSnapshot).filter(s => s.accounts.length || s.loanBalances?.length);
-  const baseline = kind === 'account' ? account?.baselineBalance ?? [...payload.snapshots].sort((a,b) => a.capturedAt.localeCompare(b.capturedAt)).flatMap(s => s.accounts).find(a => a.accountId === id)?.balance ?? account?.balance ?? 0 : 0;
+  // A debt created after the original observation never contributed to the fixed start.
+  const firstSnapshot = payload.snapshots.flatMap(s => [...(Array.isArray(s.revisions) ? s.revisions as PayoffSnapshot[] : []), s]).sort((a,b) => a.capturedAt.localeCompare(b.capturedAt)).find(s => s.accounts.length);
+  const originalEntry = firstSnapshot?.accounts.find(a => a.accountId === id);
+  const baseline = kind === 'account' ? firstSnapshot ? originalEntry ? account?.baselineBalance ?? originalEntry.balance : 0 : account?.baselineBalance ?? account?.balance ?? 0 : 0;
   const cleanRecord = (values?: Record<string,number>) => values && Object.fromEntries(Object.entries(values).filter(([key]) => !targetKeys.has(key)));
   const cleanBudget = (items: DashboardPayload['monthlyBudgets'][string]) => items.map(item => kind === 'account' && item.creditAccountId === id ? {...item,paymentMethod:'debit' as const,creditAccountId:''} : item);
   return { ...payload,
