@@ -23,7 +23,7 @@ for(const theme of ['light','dark'] as const)for(const size of [12,20]){
   await seed(page,theme,size);await nav(page).getByRole('button',{name:'Debt',exact:true}).click();await page.getByRole('button',{name:'Add debt',exact:true}).click();
   const debt=page.getByRole('dialog',{name:'Add Debt Account',exact:true});await settle(debt);
   const amount=debt.getByRole('textbox',{name:'Current balance',exact:true});
-  const amountRow=debt.locator('.form-grid>label').filter({has:amount});
+  const amountRow=debt.locator('.form-grid>label').filter({has:page.getByRole('textbox',{name:'Current balance',exact:true})});
   await sameText(amountRow.locator(':scope > span'),amount);
   const rowHeight=(await amountRow.boundingBox())!.height;expect(rowHeight).toBeLessThanOrEqual(size===12?60:100);
   const apr=debt.getByRole('textbox',{name:'APR',exact:true});await expect(apr).toHaveValue('');
@@ -38,7 +38,7 @@ for(const theme of ['light','dark'] as const)for(const size of [12,20]){
   await keyboard(page,844);await debt.locator('header .sheet-close').click();await expect(page.locator('html')).not.toHaveAttribute('data-dialog-open','true');
   await nav(page).getByRole('button',{name:'Budget',exact:true}).click();await page.getByRole('button',{name:'Add to Budget',exact:true}).click();await page.getByRole('group',{name:'Add to Budget'}).getByRole('button',{name:'Recurring spending',exact:true}).click();
   const budget=page.locator('.budget-entry-sheet:visible');await settle(budget);
-  const monthly=budget.getByRole('textbox',{name:'Monthly amount',exact:true});const monthlyRow=budget.locator('.sheet-fields>label').filter({has:monthly});
+  const monthly=budget.getByRole('textbox',{name:'Monthly amount',exact:true});const monthlyRow=budget.locator('.sheet-fields>label').filter({has:page.getByRole('textbox',{name:'Monthly amount',exact:true})});
   await sameText(monthlyRow.locator(':scope > span').first(),monthly);expect(Math.abs((await monthlyRow.boundingBox())!.height-rowHeight)).toBeLessThanOrEqual(4);
   await capture(page,`budget-${theme}-${size}`);await monthly.focus();await keyboard(page,420);await expect.poll(async()=>Math.round((await budget.boundingBox())!.y+(await budget.boundingBox())!.height)).toBe(420);await capture(page,`budget-keyboard-${theme}-${size}`);
   await keyboard(page,844);await budget.locator('header [data-dialog-close]').click();
