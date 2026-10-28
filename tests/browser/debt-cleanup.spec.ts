@@ -54,7 +54,7 @@ test('Appearance autosaves all controls, has no save/cancel, and persists 9–15
  const board=page.getByRole('region',{name:'Appearance settings'});
  await expect(board.getByRole('button',{name:/Save changes|Cancel/})).toHaveCount(0);
  const size=board.getByRole('combobox',{name:'Text size',exact:true});await expect(size.locator('option')).toHaveText(['9 pt','10 pt','11 pt','12 pt','13 pt','14 pt','15 pt']);
- await size.selectOption('15');await board.getByRole('button',{name:'Purple',exact:true}).click();
+ await size.selectOption('15');expect((await size.boundingBox())!.width).toBeGreaterThan(150);await board.getByRole('button',{name:'Purple',exact:true}).click();
  await expect.poll(()=>page.evaluate(key=>JSON.parse(localStorage.getItem(key)!).size,APPEARANCE_KEY)).toBe(15);
  await expect.poll(()=>page.evaluate(()=>getComputedStyle(document.documentElement).getPropertyValue('--theme-text-scale'))).toBe('1.25');
  mkdirSync('.wrangler/debt-cleanup',{recursive:true});await page.screenshot({path:'.wrangler/debt-cleanup/appearance.png'});

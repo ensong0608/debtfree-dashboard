@@ -40,3 +40,5 @@
 .lightSwatch{background:#e4ebf3}.lightSwatch i:first-child{background:#295e9b}.lightSwatch i:nth-child(2){background:#d4e3f4}.lightSwatch i:nth-child(n+3){background:#f5f8fc}
 
 .settings :global(.appearance-text-size) select { width:100%; min-height:44px; padding:8px 12px; background:var(--theme-surface); color:var(--theme-text); border:1px solid var(--theme-control-border); border-radius:8px; font:inherit; }
+
+.sizeField { display:block!important; width:100%; min-width:0; }
