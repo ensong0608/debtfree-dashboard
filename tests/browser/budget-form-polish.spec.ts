@@ -24,6 +24,7 @@ for(const theme of ['light','dark'] as const){
    expect(input.x).toBeGreaterThan(label.x);expect(Math.abs((label.y+label.height/2)-(input.y+input.height/2))).toBeLessThan(12);
    const back=(await dialog.getByRole('button',{name:'Back',exact:true}).boundingBox())!;const save=(await dialog.getByRole('button',{name:'Save',exact:true}).boundingBox())!;
    expect(Math.abs(back.y-save.y)).toBeLessThan(2);expect(save.x).toBeGreaterThan(back.x);expect(Math.abs(back.width-save.width)).toBeLessThan(2);
+   const selectStyle=await dialog.locator('select').first().evaluate(el=>({arrow:getComputedStyle(el).backgroundImage,alignment:getComputedStyle(el).textAlignLast}));expect(selectStyle.arrow).toContain('linear-gradient');expect(selectStyle.alignment).toBe('right');
    const option=dialog.locator('select option').first();const colors=await option.evaluate(el=>({background:getComputedStyle(el).backgroundColor,foreground:getComputedStyle(el).color}));expect(colors.foreground).not.toBe(colors.background);if(theme==='dark')expect(colors.background).not.toBe('rgb(255, 255, 255)');
    if(action==='Record bill payment'){mkdirSync('.wrangler/control-polish',{recursive:true});await page.screenshot({animations:'disabled',path:`.wrangler/control-polish/bill-payment-${theme}.png`});}
    await dialog.locator('header [data-dialog-close]').click();await expect(dialog).toHaveCount(0);
