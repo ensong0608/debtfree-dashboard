@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { headers } from "next/headers";
 import "./globals.css";
 import "./design-system.css";
@@ -8,6 +8,8 @@ import "./visual-refresh.css";
 import "./mockup-fidelity.css";
 import "./form-layout.css";
 import AppearanceProvider from "./appearance-provider";
+
+export const viewport: Viewport = {width:'device-width',initialScale:1,interactiveWidget:'resizes-content'};
 
 export async function generateMetadata(): Promise<Metadata> {
   const requestHeaders = await headers();

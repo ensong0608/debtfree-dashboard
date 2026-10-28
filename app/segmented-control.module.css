@@ -1,6 +1,6 @@
 /* One shared three-section control; independent of page-specific legacy rails. */
 .root{box-sizing:border-box;isolation:isolate;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:4px;width:100%;min-height:48px;margin:0;padding:4px;border:1px solid var(--theme-border);border-radius:12px;background:var(--theme-raised);color:var(--theme-muted);box-shadow:none}
-.root>button{box-sizing:border-box;position:relative;display:flex;align-items:center;justify-content:center;min-width:0;min-height:40px;margin:0;padding:8px 5px;border:0;border-radius:8px;background:transparent;color:var(--theme-muted);font-size:calc(13px * var(--theme-text-scale,1));font-weight:600;line-height:1.2;white-space:normal;text-align:center;box-shadow:none}
+.root>button{box-sizing:border-box;position:relative;display:flex;align-items:center;justify-content:center;min-width:0;min-height:40px;margin:0;padding:8px 5px;border:0;border-radius:8px;background:transparent;color:var(--theme-muted);font-size:13px;font-weight:600;line-height:1.2;white-space:normal;text-align:center;box-shadow:none}
 .root>button:is([aria-pressed=true],[aria-selected=true],[aria-current=page]){background:var(--theme-accent-fill);color:var(--theme-on-accent);box-shadow:0 1px 4px var(--theme-shadow)}
 .root>button::before,.root>button::after,.root::before,.root::after{display:none}
 .root>button:focus-visible{outline:2px solid var(--theme-focus);outline-offset:1px}

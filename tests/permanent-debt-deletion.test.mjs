@@ -56,7 +56,7 @@ test('dropdown capitalization preserves values, acronyms and brand casing',()=>{
  assert.equal(capitalizeWords('Credit card'),'Credit Card');
  assert.equal(capitalizeWords('USBConnect / minimum-only'),'USBConnect / Minimum-Only');
 });
-test('12–20 point sizes persist with correct scaling in both themes',()=>{
+test('9–16 point sizes persist with correct scaling in both themes',()=>{
  for(const theme of Object.values(THEMES))for(const size of TEXT_SIZES){
   const saved=parseAppearance(JSON.stringify({...theme,size}));
   assert.equal(saved.size,size);assert.equal(appearanceTokens(saved)['--theme-text-scale'],String(size/12));

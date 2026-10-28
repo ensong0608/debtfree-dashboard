@@ -89,9 +89,10 @@ test('previous built-in Light preferences receive Blue & Slate without rewriting
   assert.deepEqual(loadAppearance(storage),upgraded);
 });
 
-test('older 9–11 point choices upgrade to 12 without losing custom colors',()=>{
- for(const size of [9,10,11]){
+test('older oversized choices clamp to 16 without losing colors; 9–11 remain supported',()=>{
+ for(const size of [17,18,19,20]){
   const next=parseAppearance(JSON.stringify({...THEMES.dark,size,primaryDark:'#123639'}));
-  assert.equal(next.size,12);assert.equal(next.theme,'dark');assert.equal(next.primaryDark,'#123639');
+  assert.equal(next.size,16);assert.equal(next.theme,'dark');assert.equal(next.primaryDark,'#123639');
  }
+ for(const size of [9,10,11])assert.equal(parseAppearance(JSON.stringify({...THEMES.dark,size})).size,size);
 });
