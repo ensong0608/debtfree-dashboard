@@ -207,4 +207,4 @@
 .compactProgressCopy>p>b{font-size:14px}
 .compactProgressCopy :global(.money-value){white-space:nowrap!important;overflow-wrap:normal!important}
 
-.compactProgressCopy .paidValue{font-size:clamp(18px,5.5vw,24px);color:var(--theme-success)}.compactProgressCopy p{margin:0 0 6px}.ringCard :global(.money-value){font-size:14px}
+.compactProgressCopy .paidValue{font-size:clamp(18px,5.5vw,24px);color:var(--theme-success)}.compactProgressCopy p{margin:0 0 6px}.ringCard .ringAmount{font-size:14px}

@@ -92,8 +92,8 @@ function ProgressRing({ label, starting, current, reduction, money }: { label: s
   return <article className={styles.ringCard}>
     <div className={styles.ring} style={ringStyle} role="img" aria-label={`${label}: ${percent === null ? "starting comparison unavailable" : `${Math.abs(percent).toFixed(0)} percent ${percent >= 0 ? "reduced" : "increased"}`}`}><span>{percent === null ? "—" : `${Math.abs(percent).toFixed(0)}%`}</span></div>
     <strong>{label}</strong>
-    <span>{reduction === null ? "Starting comparison unavailable" : <>Paid: <b className="money-value">{moneyFormat(reduction, money)}</b></>}</span>
-    <small>Balance: <span className="money-value">{money.format(current)}</span></small>
+    <span>{reduction === null ? "Starting comparison unavailable" : <>Paid: <b className={styles.ringAmount}><span className="money-value">{moneyFormat(reduction, money)}</span></b></>}</span>
+    <small>Balance: <span className={styles.ringAmount}><span className="money-value">{money.format(current)}</span></span></small>
   </article>;
 }
 

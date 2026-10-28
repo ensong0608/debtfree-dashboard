@@ -65,3 +65,5 @@
 .compactCopy>strong[data-large-value=true]{font-size:20px!important}
 
 .updateRows>article>span>b{font-size:calc(14px * var(--theme-text-scale,1))}.updateRows small,.updateRows time{font-size:calc(12px * var(--theme-text-scale,1))}.updateMeta>b{font-size:14px!important}.updateRows>article>span{flex:1 1 90px}.compactCopy .progressValue{font-size:clamp(18px,5.5vw,24px);white-space:nowrap}.compactCopy .paidLabel{color:var(--theme-success)}
+
+.updatesCard .sectionHeader h2{font-size:calc(18px * var(--theme-text-scale,1))}.updatesCard .sectionHeader .textLink{font-size:calc(14px * var(--theme-text-scale,1))}
