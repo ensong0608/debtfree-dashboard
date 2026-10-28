@@ -144,7 +144,14 @@ export default function MonthlyPlanPage(props: Props) {
           })}
           {debtPayments > 0 && <details className={`${styles.category} ${styles.debtCategory}`} data-category-tone="card" style={{"--category-tone":"var(--budget-debt,var(--theme-danger))"} as CSSProperties}>
             <summary><span className={styles.categoryIcon}><OutlineIcon name="card" /></span><span className={styles.categoryName}><strong>Debt payments</strong></span><i className={styles.categoryTrack}><b style={{width:`${income>0?debtShare:0}%`}}/></i><strong className={styles.categoryAmount}><span className="money-value">{currency.format(debtPayments)}</span></strong><small className={styles.categoryShare}>{income > 0 ? (debtPayments / income * 100).toFixed(0) : 0}%</small><span className={styles.categoryChevron}><OutlineIcon name="chevron" /></span></summary>
-            <div className={styles.categoryItems}><p className={styles.debtDetail}>{props.commitment ? <>Household payment <span className="money-value">{currency.format(props.commitment.householdPayment)}</span> · Schedule <span className="money-value">{currency.format(props.commitment.schedule.monthly)}</span>{props.commitment.missingLoanPayments > 0 && " · Add missing loan payment amounts"}</> : "Saved debt payment commitment for this month."}</p></div>
+            <div className={styles.categoryItems}>
+              {props.commitment ? <dl className={styles.debtBreakdown}>
+                {props.commitment.plannedDebtMinimums.map(row => <div key={row.id}><dt>{row.name} minimum</dt><dd><span className="money-value">{currency.format(row.amount)}</span></dd></div>)}
+                <div><dt>Minimums</dt><dd><span className="money-value">{currency.format(props.commitment.plannedDebtMinimums.reduce((sum,row)=>sum+row.amount,0))}</span></dd></div>
+                <div><dt>Extra payments</dt><dd><span className="money-value">{currency.format(props.commitment.plannedDebtExtra)}</span></dd></div>
+                <div><dt>Planned debt payments</dt><dd><span className="money-value">{currency.format(debtPayments)}</span></dd></div>
+              </dl> : <p className={styles.debtDetail}>Planned debt payments for this month.</p>}
+            </div>
           </details>}
           {!groupedSpending.length && debtPayments <= 0 && <p className={styles.empty}>No spending categories for this month yet.</p>}
         </div>

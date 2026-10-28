@@ -92,8 +92,8 @@ function ProgressRing({ label, starting, current, reduction, money }: { label: s
   return <article className={styles.ringCard}>
     <div className={styles.ring} style={ringStyle} role="img" aria-label={`${label}: ${percent === null ? "starting comparison unavailable" : `${Math.abs(percent).toFixed(0)} percent ${percent >= 0 ? "reduced" : "increased"}`}`}><span>{percent === null ? "—" : `${Math.abs(percent).toFixed(0)}%`}</span></div>
     <strong>{label}</strong>
-    <span>{reduction === null ? "Starting comparison unavailable" : `${moneyFormat(Math.abs(reduction), money)} ${reduction >= 0 ? "reduced" : "increased"}`}</span>
-    <small>Current <span className="money-value">{money.format(current)}</span></small>
+    <span>{reduction === null ? "Starting comparison unavailable" : <>Paid: <b className={styles.ringAmount}><span className="money-value">{moneyFormat(reduction, money)}</span></b></>}</span>
+    <small>Balance: <span className={styles.ringAmount}><span className="money-value">{money.format(current)}</span></span></small>
   </article>;
 }
 
@@ -137,9 +137,9 @@ export default function ActualProgressPage({ accounts, loans, removedAccounts = 
       return <section className={`${styles.summary} ${styles.compactSummary}`} data-negative={scopedReduction !== null && scopedReduction < 0} aria-label={`${option.label} debt progress`}>
         <div className={styles.compactSummaryMain}>
           <div className={styles.compactProgressRing} style={ringStyle} role="img" aria-label={`${option.label}: ${scopedPercent === null ? "starting comparison unavailable" : `${Math.abs(scopedPercent).toFixed(1)} percent ${scopedPercent >= 0 ? "reduced" : "increased"}`}`}><span>{label}</span></div>
-          <div className={styles.compactProgressCopy}><strong data-large-value={Math.abs(scopedView.summary.current) >= 1000000}><span className="money-value">{money.format(scopedView.summary.current)}</span></strong><small>Remaining</small><p>{scopedReduction === null ? "Starting comparison unavailable" : <><b>{moneyFormat(Math.abs(scopedReduction), money)}</b> {scopedReduction >= 0 ? "reduced" : "increased"}</>}</p></div>
+          <div className={styles.compactProgressCopy}><small>Paid:</small><p><b className={styles.paidValue}>{scopedReduction === null ? '—' : moneyFormat(scopedReduction, money)}</b></p><small>Balance:</small><strong data-large-value={Math.abs(scopedView.summary.current) >= 1000000}><span className="money-value">{money.format(scopedView.summary.current)}</span></strong></div>
         </div>
-        <small className={styles.compactBaseline}>{scopedView.baselineKind === "original-loan-amounts" ? "Original balances" : scopedView.baselineKind === "mixed" ? "Starting balances" : "Saved start"} · {scopedView.summary.starting === null ? "Unavailable" : money.format(scopedView.summary.starting)}</small>
+
         {scopedView.actual.retainedCount > 0 && option.value !== "loans" && <small className={styles.retained}>Includes last balances for {scopedView.actual.retainedCount} removed accounts.</small>}
       </section>;
     })(),
@@ -147,7 +147,7 @@ export default function ActualProgressPage({ accounts, loans, removedAccounts = 
   const trend = useVisibleTrend(view, range);
   const currentMonth = view.live.asOf.slice(0, 7);
   const accountData = view.actual;
-  const baselineLabel = view.baselineKind === "original-loan-amounts" ? "Original loan balances" : view.baselineKind === "mixed" ? "Saved account and original loan balances" : "Saved starting balance";
+
   const categoryData = (() => {
     const cardsLoans = progressViews.accounts;
     const houses = loans.filter(loan => loan.kind === "house");
@@ -205,7 +205,7 @@ export default function ActualProgressPage({ accounts, loans, removedAccounts = 
       {tab === "milestones" && <div className={styles.stack}>
         <div className={styles.integratedSummary}><DebtScopeCarousel slides={scopeSlides} value={currentScope} onChange={setScope} label="Progress scope" /></div>
         {([['Achieved', view.milestones.filter(item => item.status === 'achieved')], ['Coming next', view.milestones.filter(item => item.status !== 'achieved')]] as const).map(([heading, items]) => <section className={styles.card} key={heading}><header className={styles.cardHeader}><h2>{heading}</h2></header>{items.length ? <ol className={styles.milestoneList}>{items.map(item => <MilestoneItem key={item.id} item={item}/>)}</ol> : <p className={styles.emptyChart}>{heading === 'Achieved' ? 'No achieved milestones recorded yet.' : 'No upcoming milestones.'}</p>}</section>)}
-        <section className={styles.card} aria-labelledby="milestone-progress-ring-title"><header className={styles.cardHeader}><div><h2 id="milestone-progress-ring-title">Milestone progress</h2><p>{baselineLabel}</p></div></header><div className={styles.ringGrid}>{categoryData.map(category => <ProgressRing key={category.label} label={category.label} starting={category.starting} current={category.current} reduction={category.reduction} money={money} />)}</div></section>
+        <section className={styles.card} aria-labelledby="milestone-progress-ring-title"><header className={styles.cardHeader}><div><h2 id="milestone-progress-ring-title">Milestone progress</h2></div></header><div className={styles.ringGrid}>{categoryData.map(category => <ProgressRing key={category.label} label={category.label} starting={category.starting} current={category.current} reduction={category.reduction} money={money} />)}</div></section>
       </div>}
     </>}
   </div>;

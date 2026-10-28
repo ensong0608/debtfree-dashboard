@@ -1,5 +1,6 @@
 import type { DebtAccount, LedgerTransaction, PayoffSnapshot } from "./dashboard-data.ts";
 import { postedMovement } from "./payment-overlap.ts";
+import { displayedStartingBalance } from "./debt-starting-balance.ts";
 import { round } from "./payoff-engine.ts";
 
 export function moneyCents(value: number) {
@@ -29,7 +30,7 @@ export function transactionAdjustedAccounts(openingAccounts: DebtAccount[], tran
 export function buildProgressBalanceView(openingAccounts: DebtAccount[], transactions: LedgerTransaction[], snapshots: PayoffSnapshot[], detailedSpendingTracking = true) {
   const activeTransactions = transactions.filter((transaction) => !transaction.deletedAt);
   const currentAccounts = transactionAdjustedAccounts(openingAccounts, activeTransactions, detailedSpendingTracking);
-  const startingTotal = round([...snapshots].sort((a, b) => a.month.localeCompare(b.month))[0]?.totalBalance ?? openingAccounts.reduce((sum, account) => sum + (account.baselineBalance ?? account.balance), 0));
+  const startingTotal = round(openingAccounts.reduce((sum, account) => sum + (displayedStartingBalance(account, snapshots) ?? 0), 0));
   const currentTotal = round(currentAccounts.reduce((sum, account) => sum + account.balance, 0));
   const orderedSnapshots = [...snapshots].sort((a, b) => a.month.localeCompare(b.month) || a.capturedAt.localeCompare(b.capturedAt));
   const earliestTransactionMonth = activeTransactions.map((transaction) => transaction.date.slice(0, 7)).sort()[0] ?? null;

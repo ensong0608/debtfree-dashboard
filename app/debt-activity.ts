@@ -3,6 +3,7 @@ import type { BalanceAdjustment, DebtAccount, LedgerTransaction, PayoffSnapshot,
 import { paymentActivity } from "./payments.ts";
 import { transactionAdjustedAccounts } from "./progress-balances.ts";
 import { debtDisplayPlacement } from "./debts-screen.ts";
+import { displayedStartingBalance } from "./debt-starting-balance.ts";
 import { round } from "./payoff-engine.ts";
 
 export function recentDebtMonths(date = new Date()) {
@@ -21,14 +22,12 @@ export function buildActualProgress(accounts: DebtAccount[], transactions: Ledge
   const trackedAccounts = [...accounts, ...retained];
   const savedVersions = snapshots.flatMap(s => [...(Array.isArray(s.revisions) ? s.revisions as PayoffSnapshot[] : []), s]);
   const baseline = savedVersions.sort((a,b) => a.capturedAt.localeCompare(b.capturedAt)).find(s => s.accounts?.length > 0);
-  const baselineIds = new Set(baseline?.accounts.map(a => a.accountId) ?? trackedAccounts.map(a => a.id));
-  const hasFixedStart = typeof fixedStartingBalance === "number" && Number.isFinite(fixedStartingBalance) && fixedStartingBalance >= 0;
-  const comparisonAvailable = hasFixedStart || (baseline ? baseline.accounts.every(saved => trackedAccounts.some(a => a.id === saved.accountId)) : trackedAccounts.length > 0 && trackedAccounts.every(a => typeof a.baselineBalance === "number") && [...transactions, ...adjustments].every(entry => trackedAccounts.some(a => a.id === entry.accountId)));
-  const currentAccounts = [...transactionAdjustedAccounts(accounts, transactions).map(account => ({ ...account, removedFromDebts: false })), ...retained].map(account => ({ ...account, baselineBalance: baseline ? baselineIds.has(account.id) ? account.baselineBalance ?? baseline.accounts.find(a => a.accountId === account.id)?.balance : undefined : account.baselineBalance }));
-  // Current totals always include all tracked debts, even when old snapshots
-  // cannot establish a reliable starting comparison for the present accounts.
+  void fixedStartingBalance; // Retained legacy data is not the per-debt display authority.
+  const hasFixedStart = false;
+  const currentAccounts = [...transactionAdjustedAccounts(accounts, transactions).map(account => ({ ...account, removedFromDebts: false })), ...retained].map(account => ({ ...account, baselineBalance: displayedStartingBalance(account, savedVersions) }));
+  const comparisonAvailable = currentAccounts.length > 0 && currentAccounts.every(account => typeof account.baselineBalance === 'number' && Number.isFinite(account.baselineBalance));
   const comparisonAccounts = currentAccounts;
-  const starting = hasFixedStart ? round(fixedStartingBalance) : round(baseline ? baseline.accounts.reduce((sum,a) => sum + (trackedAccounts.find(account => account.id === a.accountId)?.baselineBalance ?? a.balance), 0) : trackedAccounts.reduce((sum,a) => sum + (a.baselineBalance ?? 0), 0));
+  const starting = round(currentAccounts.reduce((sum, account) => sum + (account.baselineBalance ?? 0), 0));
   const current = round(comparisonAccounts.reduce((sum,a) => sum + a.balance, 0));
   const reduction = comparisonAvailable ? round(starting - current) : 0;
   const entries = paymentActivity(transactions, adjustments);

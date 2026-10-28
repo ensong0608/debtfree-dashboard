@@ -136,3 +136,5 @@
 .summaryStats strong{font-size:23px!important}
 :global(html[data-text-size]) .summaryStats{display:flex;flex-wrap:nowrap}
 :global(html[data-text-size]) .summaryStats>div{flex:1 1 0;min-width:0}
+
+.debtBreakdown{margin:0;padding:8px 14px}.debtBreakdown>div{display:flex;justify-content:space-between;gap:12px;padding:8px 0}.debtBreakdown dt{font-size:calc(13px * var(--theme-text-scale,1));min-width:0;overflow-wrap:anywhere}.debtBreakdown dd{margin:0;white-space:nowrap;font-size:14px}.debtBreakdown>div:last-child{border-top:1px solid var(--theme-border);font-weight:700}

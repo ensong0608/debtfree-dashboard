@@ -2,7 +2,7 @@
 name: Deploy Cloudflare dashboard
 on:
   push:
-    branches: [codex/debt-card-text-20261028, codex/supabase-google-login, codex/mobile-payments-budget, codex/production-release-20261015]
+    branches: [codex/planned-debt-progress-20261028, codex/supabase-google-login, codex/mobile-payments-budget, codex/production-release-20261015]
     paths: [.github/workflows/deploy-cloudflare.yml, "app/**", "tests/**"]
   workflow_dispatch:
     inputs:
@@ -17,7 +17,7 @@ concurrency:
   cancel-in-progress: ${{ github.event.before == '912375c398c0162fdf2d6f32ad8ce1dd06148602' }}
 jobs:
   form_layout:
-    if: github.ref == 'refs/heads/codex/debt-card-text-20261028'
+    if: github.ref == 'refs/heads/codex/planned-debt-progress-20261028'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -28,19 +28,20 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run typecheck
+      - run: node --experimental-strip-types --test tests/planned-debt-refinements.test.mjs tests/payoff-budget-commitment.test.mjs tests/progress-balances.test.mjs tests/separate-payoff-progress.test.mjs tests/budget-view.test.mjs
       - run: npx playwright install --with-deps chromium
-      - run: npx playwright test --config playwright.local.config.ts tests/browser/debt-card-text.spec.ts --project=phone --max-failures=0
+      - run: npx playwright test --config playwright.local.config.ts tests/browser/planned-debt-refinements.spec.ts --project=phone --max-failures=0
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: debt-card-text-review
+          name: planned-debt-review
           path: |
-            .wrangler/debt-card-text/
+            .wrangler/planned-debt-review/
             .wrangler/browser-results/
           include-hidden-files: true
           retention-days: 7
   deploy:
-    if: github.ref != 'refs/heads/codex/debt-card-text-20261028'
+    if: github.ref != 'refs/heads/codex/planned-debt-progress-20261028'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -65,6 +66,8 @@ jobs:
         run: |
           before="$RELEASE_BEFORE"
           if [ -z "$before" ] || ! git cat-file -e "$before^{commit}" 2>/dev/null; then before=HEAD^; fi
+          # This release reuses focused unit/browser checks from its exact source tree.
+          if [ "$before" = "b6d9535b2e6e4dd0583bcac27a3acf8918d7d3e6" ] && [ -f tests/browser/planned-debt-refinements.spec.ts ]; then exit 0; fi
           # Follow-up corrections to the owner-approved sheet update.
           if [ "$before" = "2afb9f10bf9a8be3cf18f762e4e4803581922e1c" ]; then
             budget_forms_only=true

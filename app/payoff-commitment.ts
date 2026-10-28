@@ -1,6 +1,6 @@
 import type { CashflowItem, DebtAccount, MonthlyPlanSettings } from './dashboard-data.ts';
 import { linkedLoanPayment, regularLoanPayment, type LoanTracker } from './loan-progress.ts';
-import { forecastMonthKey, round } from './payoff-engine.ts';
+import { effectiveMinimum, forecastMonthKey, round } from './payoff-engine.ts';
 import { buildConfiguredPayoffSchedule } from './payoff-schedule.ts';
 import { loanScheduleType, scheduleExtra, scheduleMinimums, scheduleTypeLabel } from './schedule-view.ts';
 
@@ -41,7 +41,10 @@ export function buildActivePayoffCommitment(accounts: DebtAccount[], loans: Loan
   const outsideSchedulePayments = round(outsideAccountMinimums + outsideLoanPayments);
   const householdPayment = round(schedule.monthly + outsideSchedulePayments);
   const loanPaymentsInSpending = round([...coverageByItem.values()].reduce((sum, coverage) => sum + Math.min(coverage.amount, coverage.payments), 0));
+  const plannedDebtMinimums = activeAccounts.filter(account => !['Mortgage', 'Auto loan'].includes(account.type)).map(account => ({ id: account.id, name: account.name, amount: effectiveMinimum(account) }));
+  const plannedDebtExtra = plannedDebtMinimums.length ? extra : 0;
   return {
+    plannedDebtMinimums, plannedDebtExtra,
     schedule, extra, accountSuggestions, loanSuggestions,
     scopeLabel: excluded.size ? ([...new Set([...includedAccounts.filter(account => !account.archivedAt).map(account => account.type), ...includedLoans.map(loanScheduleType)])].map(scheduleTypeLabel).join(', ') || 'No debt types selected') : 'Whole household',
     scopeBalance: round(includedAccounts.filter(account => !account.archivedAt).reduce((sum, account) => sum + account.balance, 0) + includedLoans.reduce((sum, loan) => sum + loan.remainingAmount, 0)),
@@ -51,7 +54,7 @@ export function buildActivePayoffCommitment(accounts: DebtAccount[], loans: Loan
     knownLoanPayments,
     missingLoanPayments,
     loanPaymentsInSpending,
-    budgetCommitment: round(householdPayment - loanPaymentsInSpending),
+    budgetCommitment: round(plannedDebtMinimums.reduce((sum, row) => sum + row.amount, 0) + plannedDebtExtra),
   };
 }
 

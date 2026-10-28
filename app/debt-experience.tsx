@@ -90,19 +90,20 @@ function remainingTime(month: string | null) {
   if (months < 0) { years--; months += 12; }
   return [years, months, days];
 }
-export function DebtSummary({ accounts, loans, category = 'all' }: { accounts: DebtAccount[]; loans: LoanTracker[]; items: CashflowItem[]; preferenceScope?: string; category?: DebtCategory }) {
+export function DebtSummary({ accounts, loans, progressViews, category = 'all' }: { progressViews?: Record<import('./progress-view').ProgressScope, ReturnType<typeof import('./progress-view').buildProgressView>>; accounts: DebtAccount[]; loans: LoanTracker[]; items: CashflowItem[]; preferenceScope?: string; category?: DebtCategory }) {
  const money=createHouseholdMoneyFormatter(useHouseholdCurrency());
  const active=accounts.filter(a=>!a.archivedAt && (category==='all'||debtListCategory(a.type)===category));
  const includedLoans=category==='cardsLoans'?[]:loans;
  const total=active.reduce((n,a)=>n+a.balance,0)+includedLoans.reduce((n,l)=>n+l.remainingAmount,0);
  const trackedAccounts=active.filter(a=>typeof a.baselineBalance==='number'&&Number.isFinite(a.baselineBalance)&&a.baselineBalance>0);
  const trackedLoans=includedLoans.filter(l=>Number.isFinite(l.originalAmount)&&l.originalAmount>0);
- const starting=trackedAccounts.reduce((n,a)=>n+a.baselineBalance!,0)+trackedLoans.reduce((n,l)=>n+l.originalAmount,0);
+ const scoped = progressViews?.[category==='all'?'household':category==='houseAuto'?'loans':'accounts'];
+ const starting=scoped?.summary.starting ?? trackedAccounts.reduce((n,a)=>n+a.baselineBalance!,0)+trackedLoans.reduce((n,l)=>n+l.originalAmount,0);
  const trackedCurrent=trackedAccounts.reduce((n,a)=>n+a.balance,0)+trackedLoans.reduce((n,l)=>n+l.remainingAmount,0);
- const delta=starting-trackedCurrent;
- const progress=starting>0?Math.max(0,Math.min(100,delta/starting*100)):null;
+ const delta=scoped?.summary.reduction ?? starting-trackedCurrent;
+ const progress=scoped ? scoped.summary.percent : starting>0?Math.max(0,Math.min(100,delta/starting*100)):null;
  return <section className={styles.debtSummary} aria-label="Debt summary">
-  <div className={styles.summaryRow}><div><span>{category==='all'?'All debts':category==='houseAuto'?'Home & Auto':'Cards & Loans'}</span><strong><span className="money-value">{money.format(total)}</span></strong></div><div className={styles.summaryBadge}>{progress===null?<small>Progress unavailable</small>:<><b>{delta>=0?'↓':'↑'} {Math.abs(delta/starting*100).toFixed(1)}%</b><small>{delta>=0?'reduced':'increased'} across tracked debts</small></>}</div></div>
+  <div className={styles.summaryRow}><div><span>{category==='all'?'All debts':category==='houseAuto'?'Home & Auto':'Cards & Loans'}</span><strong><span className="money-value">{money.format(scoped?.summary.current ?? total)}</span></strong></div><div className={styles.summaryBadge}>{progress===null?<small>Progress unavailable</small>:<><b>{delta>=0?'↓':'↑'} {Math.abs(delta/starting*100).toFixed(1)}%</b></>}</div></div>
  </section>;
 }
 export function HomeExperience({ name, accounts, loans, starting, current, schedule, onSchedule, onProgress, onDebts, onAccount }: { name: string; accounts: DebtAccount[]; loans: LoanTracker[]; starting: number; current: number; schedule: PayoffSchedule; onSchedule: () => void; onProgress: () => void; onDebts: () => void; onAccount: () => void }) {
