@@ -1,6 +1,6 @@
 import type { CashflowItem, DebtAccount, MonthlyPlanSettings } from './dashboard-data.ts';
 import { linkedLoanPayment, regularLoanPayment, type LoanTracker } from './loan-progress.ts';
-import { forecastMonthKey, round } from './payoff-engine.ts';
+import { effectiveMinimum, forecastMonthKey, round } from './payoff-engine.ts';
 import { buildConfiguredPayoffSchedule } from './payoff-schedule.ts';
 import { loanScheduleType, scheduleExtra, scheduleMinimums, scheduleTypeLabel } from './schedule-view.ts';
 
@@ -41,7 +41,7 @@ export function buildActivePayoffCommitment(accounts: DebtAccount[], loans: Loan
   const outsideSchedulePayments = round(outsideAccountMinimums + outsideLoanPayments);
   const householdPayment = round(schedule.monthly + outsideSchedulePayments);
   const loanPaymentsInSpending = round([...coverageByItem.values()].reduce((sum, coverage) => sum + Math.min(coverage.amount, coverage.payments), 0));
-  const plannedDebtMinimums = activeAccounts.filter(account => !['Mortgage', 'Auto loan'].includes(account.type)).map(account => ({ id: account.id, name: account.name, amount: accountMinimums[account.id] }));
+  const plannedDebtMinimums = activeAccounts.filter(account => !['Mortgage', 'Auto loan'].includes(account.type)).map(account => ({ id: account.id, name: account.name, amount: effectiveMinimum(account) }));
   const plannedDebtExtra = plannedDebtMinimums.length ? extra : 0;
   return {
     plannedDebtMinimums, plannedDebtExtra,

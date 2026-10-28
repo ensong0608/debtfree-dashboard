@@ -43,3 +43,11 @@ test('editing a recurring paid record preserves identity, prevents regeneration 
  assert.equal(reopened.months['2026-10'].settlements.length,0);
  const reports=buildBudgetActivity([],[],changed,'2026-09');assert.equal(reports.rows.length,0);assert.equal(reports.totals.netDebtChange,0);assert.equal(reports.settlements[0].amount,65);
 });
+
+test('planned minimums use saved current amounts rather than future forecast promo terms',()=>{
+ const f=createDemoFixture().payload;
+ const card={...f.accounts[0],minimum:100,apr:0,promoEndDate:'2026-10-30',postPromoApr:20,postPromoMinimum:200};
+ const result=buildActivePayoffCommitment([card],[],[],{...f.monthlyPlan,payoffExtraPayment:50},date);
+ assert.equal(result.plannedDebtMinimums[0].amount,100);
+ assert.equal(result.budgetCommitment,150);
+});
