@@ -52,7 +52,7 @@ export default function HomeDashboardPage({ accounts, loans, items, progress, pr
     const arc = percent === null ? 0 : Math.max(0, Math.min(100, Math.abs(percent)));
     const ringStyle = { "--home-ring": `${arc * 3.6}deg` } as CSSProperties;
     return { ...slide, content: <div className={styles.progressCompact} data-negative={percent !== null && percent < 0}>
-      <div className={styles.compactRing} style={ringStyle} role="img" aria-label={`${slide.label}: ${percent === null ? "starting comparison unavailable" : `${Math.abs(percent).toFixed(1)} percent ${percent >= 0 ? "reduced" : "increased"}`}`}><span>{percent === null ? "—" : `${Math.abs(percent).toFixed(0)}%`}</span></div>
+      <div className={styles.compactRing} style={ringStyle} role="img" aria-label={`${slide.label}: ${percent === null ? "starting comparison unavailable" : `${Math.abs(percent).toFixed(1)} percent ${percent >= 0 ? "reduced" : "increased"}`}`}><span>{percent === null ? "—" : `${Math.abs(percent).toFixed(1)}%`}</span></div>
       <div className={styles.compactCopy}>
         <small className={styles.paidLabel}>Paid:</small><b className={styles.progressValue}><span className="money-value">{view.summary.reduction === null ? '—' : money.format(view.summary.reduction)}</span></b>
         <small>Balance:</small><strong data-large-value={Math.abs(view.summary.current) >= 1000000}><span className="money-value">{money.format(view.summary.current)}</span></strong>
@@ -66,7 +66,7 @@ export default function HomeDashboardPage({ accounts, loans, items, progress, pr
     <section className={styles.debtSummary} aria-label="Debt summary">
 
       {progressViews && progressSlides?.length ? <DebtScopeCarousel slides={progressSlides} value={activeScope} onChange={setScope} label="Debt progress scope" /> : <div className={styles.progressCompact}>
-        <div className={styles.compactRing} role="img" aria-label={progressPercent === null ? "Starting comparison unavailable" : `${Math.abs(progressPercent).toFixed(1)} percent ${progressPercent >= 0 ? "reduced" : "increased"}`}><span>{progressPercent === null ? "—" : `${Math.abs(progressPercent).toFixed(0)}%`}</span></div>
+        <div className={styles.compactRing} role="img" aria-label={progressPercent === null ? "Starting comparison unavailable" : `${Math.abs(progressPercent).toFixed(1)} percent ${progressPercent >= 0 ? "reduced" : "increased"}`}><span>{progressPercent === null ? "—" : `${Math.abs(progressPercent).toFixed(1)}%`}</span></div>
         <div className={styles.compactCopy}><strong><span className="money-value">{money.format(current)}</span> <small>left</small></strong><span>{progressPercent === null ? "Starting comparison unavailable" : `${money.format(Math.abs(reduction))} ${reduction >= 0 ? "reduced" : "increased"}`}</span><button type="button" className={styles.textLink} onClick={onViewProgress} aria-label="View detailed progress">View progress <OutlineIcon name="chevron"/></button></div>
       </div>}
     </section>
