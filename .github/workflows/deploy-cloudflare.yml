@@ -46,7 +46,7 @@ jobs:
             sheets_only=true
             while IFS= read -r changed_path; do
               case "$changed_path" in
-                .github/workflows/deploy-cloudflare.yml|.github/workflows/redesign-visual-review.yml|app/credit-card-info.tsx|app/use-dialog-focus.ts|app/loan-progress-panel.tsx|app/onboarding-flow.tsx|app/debt-experience.tsx|app/globals.css|app/dashboard-data.ts|app/dashboard-client.tsx|app/debt-entry-dialog.tsx|app/loan-details-fields.tsx|app/institution-icon.tsx|app/debt-experience.module.css|app/date-calendar.tsx|app/loan-progress.ts|tests/browser/debt-sheets.spec.ts|tests/loan-entry.test.mjs) ;;
+                .github/workflows/deploy-cloudflare.yml|.github/workflows/redesign-visual-review.yml|app/debt-presentation.ts|app/schedule-view.ts|app/payoff-strategy.ts|app/payments-page.tsx|app/payoff-calculator-page.tsx|app/credit-card-info.tsx|app/use-dialog-focus.ts|app/loan-progress-panel.tsx|app/onboarding-flow.tsx|app/debt-experience.tsx|app/globals.css|app/dashboard-data.ts|app/dashboard-client.tsx|app/debt-entry-dialog.tsx|app/loan-details-fields.tsx|app/institution-icon.tsx|app/debt-experience.module.css|app/date-calendar.tsx|app/loan-progress.ts|tests/browser/debt-sheets.spec.ts|tests/loan-entry.test.mjs) ;;
                 *) sheets_only=false ;;
               esac
             done < <(git diff --name-only "$before" HEAD)

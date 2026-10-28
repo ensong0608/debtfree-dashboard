@@ -28,7 +28,7 @@ export function isRecentlyDeleted(deletedAt: unknown, now = Date.now()) {
   return !Number.isFinite(timestamp) || now - timestamp < 7 * 24 * 60 * 60 * 1000;
 }
 const explanations = {
-  payments: { title: "Payments recorded", body: "Recorded payments for the selected period and account. Refunds, credits and unidentified balance adjustments are excluded. House and car loan payments are tracked separately." },
+  payments: { title: "Payments recorded", body: "Recorded payments for the selected period and account. Refunds, credits and unidentified balance adjustments are excluded. House and auto loan payments are tracked separately." },
   interest: { title: "Interest & fees", body: "Interest and fees recorded for the selected period and account, including recorded estimates. These increase the debt balance." },
   net: { title: "Net balance change", body: "The combined balance movement for the selected period and account. Payments and credits decrease it; purchases, interest, fees and balance adjustments can increase it. Already-included records add no extra movement." },
 };

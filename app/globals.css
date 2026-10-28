@@ -2508,3 +2508,4 @@ button:focus-visible,summary:focus-visible,input:focus-visible,select:focus-visi
 .transaction-compose .compose-fields{flex:0 0 auto!important}
 .transaction-compose>form{flex:0 1 auto;min-height:0}
 .account-compose .form-grid>label,.account-compose .loan-detail-field,.transaction-compose .compose-field{box-sizing:border-box}
+[role=dialog].app-sheet{max-height:calc(var(--dialog-viewport-height,100dvh) - 24px)!important;align-self:flex-end!important}
