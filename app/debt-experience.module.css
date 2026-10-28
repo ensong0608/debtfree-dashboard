@@ -176,5 +176,5 @@
 .debtProgress progress::-moz-progress-bar{background:var(--theme-accent-fill);border-radius:8px}
 /* Summary and card amounts retain their designed sizes; card details follow Appearance. */
 .debtSummary{--theme-text-scale:1;font-size:14px}
-.debtCard strong:has(.money-value){font-size:17px!important;white-space:nowrap}
+.debtCard strong:has(:global(.money-value)){font-size:17px!important;white-space:nowrap}
 .debtCard{min-width:0}.debtCard strong,.debtCard small{overflow-wrap:anywhere}
