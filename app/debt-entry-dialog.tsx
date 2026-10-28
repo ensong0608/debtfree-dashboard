@@ -54,7 +54,7 @@ export default function DebtEntryDialog({ state, command, readOnly, onSave, onCl
   const hasUnsavedChanges = command.action === "save" && (JSON.stringify(fields) !== JSON.stringify(initialFields) || category !== initialCategory || JSON.stringify(overlapChoice) !== JSON.stringify(initialOverlapChoice));
   const requestClose = () => { if (hasUnsavedChanges) setConfirmExit(true); else onClose(); };
   const saveEntry = () => {
-    if (adjustment && command.action === "save") { setSaveError("Update the balance in the debt Info tab."); return; }
+    if (adjustment && command.action === "save") { setSaveError("Update the balance in the debt Detail tab."); return; }
     if (readOnly) return;
     if (error) { setSaveError(error); setConfirmExit(false); return; }
     if (matches.length && !overlapChoice) { setReviewOverlap(true); return; }

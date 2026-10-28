@@ -18,7 +18,7 @@ export default function InstitutionIcon({ institutionKey, debtType, accountName 
  const {label,icon}=institutionPresentation(institutionKey,debtType);
  const [failed,setFailed]=useState(false);
  const initials=(accountName || label).trim().split(/\s+/).map(word=>word[0]).slice(0,2).join('').toUpperCase();
- return <span className={styles.tile} data-institution={loanIcon ? `loan-${loanIcon}` : known?.id ?? 'fallback'} role="img" aria-label={loanIcon ? loanIcon==='car' ? 'Car loan' : 'House loan' : known?.label ?? (label && label!=='Other' ? label : accountName || debtType)}>
+ return <span className={styles.tile} data-institution={loanIcon ? `loan-${loanIcon}` : known?.id ?? 'fallback'} role="img" aria-label={loanIcon ? loanIcon==='car' ? 'Auto loan' : 'House loan' : known?.label ?? (label && label!=='Other' ? label : accountName || debtType)}>
   {loanIcon ? <OutlineIcon name={loanIcon}/> : known && !failed ? <img src={`/institutions/${known.file}`} alt="" width="36" height="36" onError={()=>setFailed(true)}/> : initials ? <span className={styles.initials}>{initials}</span> : <OutlineIcon name={icon}/>}
  </span>;
 }

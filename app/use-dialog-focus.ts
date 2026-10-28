@@ -35,9 +35,57 @@ export function useDialogFocus() {
     const lastFocus = new WeakMap<HTMLElement, HTMLElement>();
     const selector = 'button:not(:disabled), input:not(:disabled), select:not(:disabled), textarea:not(:disabled), a[href], [tabindex="0"]';
     const focusable = (dialog: HTMLElement) => [...dialog.querySelectorAll<HTMLElement>(selector)].filter((el) => el.getClientRects().length > 0);
+    const closeControl = (dialog: HTMLElement) => dialog.querySelector<HTMLButtonElement>('button[data-dialog-close]:not(.sheet-handle), header button[aria-label^="Close"]:not(.sheet-handle)');
+    const prepareSheet = (dialog: HTMLElement) => {
+      dialog.classList.add('app-sheet');
+      dialog.parentElement?.classList.add('sheet-backdrop');
+      if (dialog.querySelector(':scope > .sheet-handle')) return;
+      const close = closeControl(dialog);
+      if (!close) return;
+      close.classList.add('sheet-dismiss');
+      const handle = document.createElement('button');
+      handle.type = 'button'; handle.className = 'sheet-handle';
+      handle.setAttribute('aria-label', 'Close sheet');
+      handle.onclick = () => closeControl(dialog)?.click();
+      dialog.insertBefore(handle,dialog.firstChild);
+      // Confirmation dialogs also get the same explicit X; it invokes Cancel.
+      if (!dialog.querySelector('header button[data-dialog-close], header button[aria-label^="Close"]')) {
+        const x = document.createElement('button'); x.type = 'button'; x.className = 'sheet-close';
+        x.setAttribute('aria-label', 'Close dialog'); x.onclick = () => closeControl(dialog)?.click();
+        dialog.querySelector('header')?.appendChild(x);
+      }
+    };
+    let drag: {dialog: HTMLElement; target: HTMLElement; y: number; time: number; distance: number; pointer: number} | null = null;
+    const pointerdown = (event: PointerEvent) => {
+      const target = event.target instanceof HTMLElement ? event.target : null;
+      const dialog = target?.closest<HTMLElement>('.app-sheet');
+      if (!dialog || dialog !== current || event.button !== 0 || !target) return;
+      const handle = target.closest('.sheet-handle');
+      if (!handle && (!target.closest('header') || target.closest('button,input,select,textarea,a'))) return;
+      drag = {dialog,target,y:event.clientY,time:performance.now(),distance:0,pointer:event.pointerId};
+      target.setPointerCapture(event.pointerId);
+    };
+    const pointermove = (event: PointerEvent) => {
+      if (!drag || event.pointerId !== drag.pointer) return;
+      drag.distance = Math.max(0,event.clientY-drag.y);
+      drag.dialog.style.setProperty('--sheet-drag', `${drag.distance}px`);
+    };
+    const pointerup = (event: PointerEvent) => {
+      if (!drag || event.pointerId !== drag.pointer) return;
+      const active = drag; drag = null;
+      active.dialog.style.removeProperty('--sheet-drag');
+      if (event.type !== 'pointercancel' && (active.distance > 88 || active.distance > 40 && active.distance / (performance.now()-active.time) > .6)) {
+        event.preventDefault(); closeControl(active.dialog)?.click();
+      }
+    };
+    document.addEventListener('pointerdown',pointerdown);
+    document.addEventListener('pointermove',pointermove);
+    document.addEventListener('pointerup',pointerup);
+    document.addEventListener('pointercancel',pointerup);
     const update = () => {
       measure();
       const dialogs = [...document.querySelectorAll<HTMLElement>('[role="dialog"][aria-modal="true"], dialog[open][aria-modal="true"]')].filter(dialog => dialog.getClientRects().length > 0);
+      dialogs.forEach(prepareSheet);
       const next = dialogs[dialogs.length - 1] ?? null;
       if (next === current) return;
       if (!current && next) returnTo = lastOutside;
@@ -80,6 +128,6 @@ export function useDialogFocus() {
     observer.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['hidden', 'open'] });
     document.addEventListener("keydown", keydown, true);
     document.addEventListener("focusin", focusin);
-    return () => { observer.disconnect(); measured.disconnect(); document.removeEventListener("keydown", keydown, true); document.removeEventListener("focusin", focusin); viewport?.removeEventListener("resize", resize); viewport?.removeEventListener("scroll", resize); document.documentElement.style.removeProperty("--bottom-navigation-height"); document.documentElement.style.removeProperty("--dialog-viewport-top"); document.documentElement.style.removeProperty("--dialog-viewport-height"); };
+    return () => { document.removeEventListener('pointerdown',pointerdown);document.removeEventListener('pointermove',pointermove);document.removeEventListener('pointerup',pointerup);document.removeEventListener('pointercancel',pointerup);observer.disconnect(); measured.disconnect(); document.removeEventListener("keydown", keydown, true); document.removeEventListener("focusin", focusin); viewport?.removeEventListener("resize", resize); viewport?.removeEventListener("scroll", resize); document.documentElement.style.removeProperty("--bottom-navigation-height"); document.documentElement.style.removeProperty("--dialog-viewport-top"); document.documentElement.style.removeProperty("--dialog-viewport-height"); };
   }, []);
 }
