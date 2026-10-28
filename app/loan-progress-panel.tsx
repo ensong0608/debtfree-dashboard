@@ -85,7 +85,7 @@ export default function LoanProgressPanel({ loans, items, onChange, onDialog, in
         <LoanDetailsFields onDebtType={onDebtType} mode={detailLoan ? "info" : "all"} draft={draft} onChange={next=>{setDraft(next);onDraftChange?.(next);}} errors={fieldErrors}/>
         {Object.keys(fieldErrors).length > 0 && <div className="wide form-error" role="alert">Check the highlighted fields.</div>}
         {error && <p className="wide form-error" role="alert">{error.replace(/\$0(?:\.00)?/g, symbol + "0")}</p>}
-        {embedded && advanced && <DateCalendar label="Balance date" value={draft.asOf} max={householdDate()} onChange={asOf=>{const next={...draft,asOf};setDraft(next);onDraftChange?.(next);}}/>}
+        {embedded && advanced && <><LoanDetailsFields mode="principal" draft={draft} onChange={next=>{setDraft(next);onDraftChange?.(next);}} errors={fieldErrors}/><DateCalendar label="Balance date" value={draft.asOf} max={householdDate()} onChange={asOf=>{const next={...draft,asOf};setDraft(next);onDraftChange?.(next);}}/></>}
       </div><footer className="form-action-footer"><button className="primary" type="submit" disabled={readOnly}>Save</button><button className="secondary" type="button" onClick={() => setAdvanced(open=>!open)}>Advanced</button></footer>
     </form>;
   if (embedded) return <>{editor}{pendingLoanExit && <UnsavedChangesDialog subject="loan" onSave={()=>loanForm.current?.requestSubmit()} onDiscard={()=>finishLoanExit(pendingLoanExit)} onCancel={()=>setPendingLoanExit(null)}/>}</>;

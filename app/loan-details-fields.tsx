@@ -18,12 +18,13 @@ function CurrencyInput({ label, name, value, onChange, invalid, describedBy }: {
   return <span className="loan-currency-input"><span aria-hidden="true">{symbol}</span><NumericInput id={`loan-${name}`} name={name} aria-label={label} aria-invalid={invalid} aria-describedby={describedBy} value={value} emptyValue={name === 'principalBalance' ? 0 : NaN} onValueChange={(amount, text) => onChange(name === 'principalBalance' && text.trim() === '' ? undefined : amount)}/></span>;
 }
 
-export default function LoanDetailsFields({ draft, onChange, errors, mode = "all", onDebtType }: { onDebtType?: (type: string) => void; mode?: "all" | "info" | "advanced"; draft: LoanTracker; onChange: (draft: LoanTracker) => void; errors: Partial<Record<LoanEntryField, string>> }) {
+export default function LoanDetailsFields({ draft, onChange, errors, mode = "all", onDebtType }: { onDebtType?: (type: string) => void; mode?: "all" | "info" | "advanced" | "principal"; draft: LoanTracker; onChange: (draft: LoanTracker) => void; errors: Partial<Record<LoanEntryField, string>> }) {
   const error = (field: LoanEntryField) => errors[field] && <small className="form-error" id={`loan-error-${field}`}>{errors[field]}</small>;
   const described = (field: LoanEntryField) => errors[field] ? `loan-error-${field}` : undefined;
   const currency = (field: 'originalAmount' | 'remainingAmount' | 'monthlyPayment' | 'escrow' | 'principalBalance', label: string, help?: string) => <div className="loan-detail-field"><div className="loan-field-label"><label htmlFor={`loan-${field}`}>{label}{field === "principalBalance" ? "" : "*"}</label>{help && <PaymentHelp label={label}>{help}</PaymentHelp>}</div><div className="loan-input-label">
     <CurrencyInput key={field} label={label} name={field} value={draft[field]} invalid={Boolean(errors[field])} describedBy={described(field)} onChange={value => onChange({ ...draft, ...(field === 'remainingAmount' ? {principalBalance: undefined} : {}), [field]: value ?? (field === 'originalAmount' || field === 'remainingAmount' ? Number.NaN : undefined) })}/>
   </div>{error(field)}</div>;
+  if (mode === "principal") return <>{currency('principalBalance', 'Remaining principal (optional)')}</>;
   if (mode === "advanced") return <>{currency('originalAmount', 'Original balance')}{currency('principalBalance', 'Remaining principal (optional)')}</>;
   return <>
     <label><span>Account</span><input placeholder="Name" autoFocus name="name" aria-label="Account" required maxLength={100} aria-invalid={Boolean(errors.name)} aria-describedby={described('name')} value={draft.name} onChange={event => onChange({ ...draft, name: event.target.value })}/>{error('name')}</label>
