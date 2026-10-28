@@ -2460,7 +2460,7 @@ button:focus-visible,summary:focus-visible,input:focus-visible,select:focus-visi
 .app-sheet footer{padding-bottom:max(16px,env(safe-area-inset-bottom))!important}
 .app-sheet .date-field-trigger svg{width:22px;height:22px;flex:none}
 .sheet-delete{display:block;margin:20px auto 4px;padding:12px;min-height:44px;color:var(--theme-danger);background:transparent;border:0;font:inherit}
-@keyframes sheet-enter{from{translate:0 36px;opacity:.6}to{translate:0 0;opacity:1}}
+@keyframes sheet-enter{from{translate:0 36px}to{translate:0 0}}
 @media(prefers-reduced-motion:reduce){[role=dialog].app-sheet{animation:none}}
 
 /* Inline form rows: a label and right-aligned value share one input surface. */
@@ -2492,3 +2492,10 @@ button:focus-visible,summary:focus-visible,input:focus-visible,select:focus-visi
 .app-sheet>.sheet-close{position:absolute;right:12px;top:24px;width:44px;height:44px;border:0;background:transparent;color:var(--theme-text);font-size:30px;z-index:5}
 .app-sheet>h2{text-align:center;padding:10px 52px;font-size:20px}
 .app-sheet .loan-help{min-height:22px!important;height:22px!important;width:22px!important;min-width:22px!important;padding:0;flex:none}
+
+.transaction-compose .compose-field{flex-direction:row;flex-wrap:nowrap;text-align:left}
+.transaction-compose .compose-field>span{flex:1;min-width:0}
+.transaction-compose .compose-field>select{flex:0 1 52%;text-align:right}
+.transaction-compose .signed-money-input:focus-within{outline:0!important;box-shadow:none!important}
+.transaction-compose .signed-money-input>span{font-size:16px;font-weight:400}
+.transaction-compose .compose-field:focus-within{border-bottom-color:var(--theme-focus)}

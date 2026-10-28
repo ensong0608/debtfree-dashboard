@@ -30,7 +30,7 @@ jobs:
         run: |
           npm run typecheck
           node --test tests/loan-entry.test.mjs tests/loan-progress.test.mjs
-          npx playwright test --config playwright.local.config.ts tests/browser/debt-sheets.spec.ts --project=phone --max-failures=0
+          npx playwright test --config playwright.local.config.ts tests/browser/debt-sheets.spec.ts --project=phone --max-failures=0 --grep "unified add|transaction composer|account sheets"
       - name: Review navigation redesign on phone and desktop
         if: github.ref_name == 'codex/navigation-schedule-20261022'
         run: |

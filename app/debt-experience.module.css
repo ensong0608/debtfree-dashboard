@@ -169,3 +169,8 @@
 .cardField>span{font-size:14px}.cardField>input,.cardField :global(.field-input){width:52%;min-width:0;border:0!important;background:transparent!important;box-shadow:none!important;padding:0!important;text-align:right}
 .cardField input{min-width:0;text-align:right;border:0!important;background:transparent!important;box-shadow:none!important}
 .cardInfo>:global(.date-calendar-field){margin:0 16px;width:calc(100% - 32px)}
+
+.debtProgress progress{appearance:none;border:0;border-radius:8px;overflow:hidden;height:8px;background:var(--theme-track)}
+.debtProgress progress::-webkit-progress-bar{background:var(--theme-track);border-radius:8px}
+.debtProgress progress::-webkit-progress-value{background:var(--theme-accent-fill);border-radius:8px}
+.debtProgress progress::-moz-progress-bar{background:var(--theme-accent-fill);border-radius:8px}

@@ -14,7 +14,7 @@ async function seed(page:Page){
  await page.getByRole('navigation',{name:'Primary navigation'}).getByRole('button',{name:'Debt',exact:true}).click();
 }
 test.beforeEach(async({},info)=>expect(['localhost','127.0.0.1']).toContain(new URL(String(info.project.use.baseURL)).hostname));
-async function screenshot(page:Page,name:string){mkdirSync('.wrangler/control-polish',{recursive:true});await page.screenshot({path:`.wrangler/control-polish/${name}.png`});}
+async function screenshot(page:Page,name:string){mkdirSync('.wrangler/control-polish',{recursive:true});await page.screenshot({animations:'disabled',path:`.wrangler/control-polish/${name}.png`});}
 test('unified add sheet switches loan contents inline, calendar works and saves Auto loan',async({page})=>{
  await seed(page);await page.getByRole('button',{name:'Add debt',exact:true}).click();
  const sheet=page.getByRole('dialog',{name:'Add Debt Account',exact:true});await expect(sheet.locator('.sheet-handle')).toBeVisible();
@@ -22,7 +22,7 @@ test('unified add sheet switches loan contents inline, calendar works and saves 
  await expect(sheet).toHaveCount(1);await expect(sheet.getByRole('heading',{name:'Add Debt Account'})).toBeVisible();await expect(sheet.getByRole('textbox',{name:'Account',exact:true})).toHaveValue('New auto');
  await sheet.getByRole('combobox').selectOption('House loan');await expect(sheet.getByRole('textbox',{name:'Escrow amount',exact:true})).toBeVisible();await sheet.getByRole('combobox').selectOption('Auto loan');await expect(sheet.getByRole('textbox',{name:'Escrow amount',exact:true})).toHaveCount(0);
  await sheet.getByRole('textbox',{name:'Original balance',exact:true}).fill('20000');await sheet.getByRole('textbox',{name:'Current balance',exact:true}).fill('15000');await sheet.getByRole('textbox',{name:'APR (optional)',exact:true}).fill('6');await sheet.getByRole('textbox',{name:'Minimum payment',exact:true}).fill('500');
- await expect(sheet.locator('.date-field-trigger svg')).toBeVisible();await sheet.locator('.date-field-trigger').click();const calendar=page.getByRole('dialog',{name:'Due date',exact:true});await calendar.getByRole('button',{name:'2026-10-30',exact:true}).click();await calendar.getByRole('button',{name:'Confirm date',exact:true}).click();await expect(calendar).toHaveCount(0);
+ await expect(sheet.locator('.date-field-trigger:visible svg')).toBeVisible();await sheet.locator('.date-field-trigger:visible').click();const calendar=page.getByRole('dialog',{name:'Due date',exact:true});await calendar.getByRole('button',{name:'2026-10-30',exact:true}).click();await calendar.getByRole('button',{name:'Confirm date',exact:true}).click();await expect(calendar).toHaveCount(0);
  await screenshot(page,'add-debt-sheet');await sheet.getByRole('button',{name:'Save',exact:true}).click();await expect(sheet).toHaveCount(0);await expect.poll(async()=>(await saved(page)).monthlyPlan?.loanTrackers?.some(loan=>loan.name==='New auto'&&loan.kind==='car'&&loan.monthlyPayment===500)).toBe(true);
 });
 test('account sheets use Detail, close on swipe and protect unsaved edits',async({page})=>{
