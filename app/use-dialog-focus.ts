@@ -38,6 +38,9 @@ export function useDialogFocus() {
     const closeControl = (dialog: HTMLElement) => dialog.querySelector<HTMLButtonElement>('button[data-dialog-close]:not(.sheet-handle), header button[aria-label^="Close"]:not(.sheet-handle)');
     const prepareSheet = (dialog: HTMLElement) => {
       dialog.classList.add('app-sheet');
+      dialog.style.setProperty('max-height','calc(var(--dialog-viewport-height, 100dvh) - 24px)','important');
+      dialog.style.setProperty('min-height','0','important');
+      dialog.style.setProperty('box-sizing','border-box','important');
       dialog.parentElement?.classList.add('sheet-backdrop');
       if (dialog.querySelector(':scope > .sheet-handle')) return;
       const close = closeControl(dialog);
