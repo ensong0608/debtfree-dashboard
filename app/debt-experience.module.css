@@ -174,3 +174,5 @@
 .debtProgress progress::-webkit-progress-bar{background:var(--theme-track);border-radius:8px}
 .debtProgress progress::-webkit-progress-value{background:var(--theme-accent-fill);border-radius:8px}
 .debtProgress progress::-moz-progress-bar{background:var(--theme-accent-fill);border-radius:8px}
+/* Debt summary and account cards keep their designed typography at every text preference. */
+.debtSummary,.debtCard{--theme-text-scale:1;font-size:14px}

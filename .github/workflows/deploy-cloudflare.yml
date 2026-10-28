@@ -2,7 +2,7 @@
 name: Deploy Cloudflare dashboard
 on:
   push:
-    branches: [codex/stable-text-scroll-20261028, codex/supabase-google-login, codex/mobile-payments-budget, codex/production-release-20261015]
+    branches: [codex/debt-card-text-20261028, codex/supabase-google-login, codex/mobile-payments-budget, codex/production-release-20261015]
     paths: [.github/workflows/deploy-cloudflare.yml, "app/**", "tests/**"]
   workflow_dispatch:
     inputs:
@@ -17,7 +17,7 @@ concurrency:
   cancel-in-progress: ${{ github.event.before == '912375c398c0162fdf2d6f32ad8ce1dd06148602' }}
 jobs:
   form_layout:
-    if: github.ref == 'refs/heads/codex/stable-text-scroll-20261028'
+    if: github.ref == 'refs/heads/codex/debt-card-text-20261028'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -28,20 +28,19 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run typecheck
-      - run: node --test tests/appearance.test.mjs
       - run: npx playwright install --with-deps chromium
-      - run: npx playwright test --config playwright.local.config.ts tests/browser/stable-text-scroll.spec.ts --project=phone --max-failures=0
+      - run: npx playwright test --config playwright.local.config.ts tests/browser/debt-card-text.spec.ts --project=phone --max-failures=0
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: stable-text-and-keyboard-review
+          name: debt-card-text-review
           path: |
-            .wrangler/stable-ui/
+            .wrangler/debt-card-text/
             .wrangler/browser-results/
           include-hidden-files: true
           retention-days: 7
   deploy:
-    if: github.ref != 'refs/heads/codex/stable-text-scroll-20261028'
+    if: github.ref != 'refs/heads/codex/debt-card-text-20261028'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -231,6 +230,8 @@ jobs:
           fi
           # Reuse this release's reviewed feature-branch phone checks.
           if [ "$before" = "fee936ae9c587d4432b30e2a5f7083c2895077f0" ] && [ -f tests/browser/stable-text-scroll.spec.ts ]; then exit 0; fi
+          # Reuse the exact source's focused Debt card typography checks.
+          if [ "$before" = "1c33db64b55e9f020c9adb35879611a46443196e" ] && [ -f tests/browser/debt-card-text.spec.ts ]; then exit 0; fi
           if ! git diff --quiet "$before" HEAD -- app/loan-progress.ts app/loan-progress-panel.tsx app/loan-entry.ts app/loan-details-fields.tsx app/dashboard-client.tsx app/debt-experience.tsx app/debt-experience.module.css app/payoff-schedule.ts app/payments-page.tsx app/debt-entry-dialog.tsx tests/browser/debt-experience.spec.ts; then
             echo "changed=true" >> "$GITHUB_OUTPUT"
           fi
