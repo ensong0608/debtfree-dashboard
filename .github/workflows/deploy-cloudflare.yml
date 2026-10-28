@@ -191,6 +191,10 @@ jobs:
               exit 0
             fi
           fi
+          if [ "$before" = "656f5520eb1323e90c74401243cb60ae0274da61" ]; then
+            echo "appearance_visual=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
           # This approved account/history and Appearance release uses its focused regressions.
           if { [ "$before" = "e6eac7b3b9a81c4caf941c9338341e39c532c95c" ] || [ "$before" = "29d3d5c30b76b3ac5278310b0d5b56f800084e16" ]; } && [ -f tests/browser/debt-cleanup.spec.ts ]; then
             echo "debt_cleanup=true" >> "$GITHUB_OUTPUT"
@@ -200,7 +204,7 @@ jobs:
             echo "changed=true" >> "$GITHUB_OUTPUT"
           fi
       - name: Install browser for focused debt checks
-        if: steps.loan_changes.outputs.debt_cleanup == 'true' || steps.loan_changes.outputs.budget_forms == 'true' || steps.loan_changes.outputs.sheet_visual == 'true' || steps.loan_changes.outputs.debt_sheets == 'true' || steps.loan_changes.outputs.minimum_cycle == 'true' || steps.loan_changes.outputs.upcoming == 'true' || steps.loan_changes.outputs.budget_ui == 'true' || steps.loan_changes.outputs.changed == 'true' || steps.loan_changes.outputs.form_reliability == 'true' || steps.loan_changes.outputs.home_reminders == 'true'
+        if: steps.loan_changes.outputs.appearance_visual == 'true' || steps.loan_changes.outputs.debt_cleanup == 'true' || steps.loan_changes.outputs.budget_forms == 'true' || steps.loan_changes.outputs.sheet_visual == 'true' || steps.loan_changes.outputs.debt_sheets == 'true' || steps.loan_changes.outputs.minimum_cycle == 'true' || steps.loan_changes.outputs.upcoming == 'true' || steps.loan_changes.outputs.budget_ui == 'true' || steps.loan_changes.outputs.changed == 'true' || steps.loan_changes.outputs.form_reliability == 'true' || steps.loan_changes.outputs.home_reminders == 'true'
         run: |
           if [ "${{ steps.loan_changes.outputs.budget_forms }}" = 'true' ] || [ "${{ steps.loan_changes.outputs.sheet_visual }}" = 'true' ] || [ "${{ steps.loan_changes.outputs.debt_sheets }}" = 'true' ] || [ "${{ steps.loan_changes.outputs.minimum_cycle }}" = 'true' ] || [ "${{ steps.loan_changes.outputs.upcoming }}" = 'true' ] || [ "${{ steps.loan_changes.outputs.budget_ui }}" = 'true' ] || [ "${{ steps.loan_changes.outputs.form_reliability }}" = 'true' ] || [ "${{ steps.loan_changes.outputs.home_reminders }}" = 'true' ]; then
             npx playwright install chromium
@@ -254,6 +258,9 @@ jobs:
             .wrangler/browser-results/
           include-hidden-files: true
           retention-days: 7
+      - name: Verify text size picker layout on phone
+        if: steps.loan_changes.outputs.appearance_visual == 'true'
+        run: npx playwright test --config playwright.local.config.ts tests/browser/debt-cleanup.spec.ts --project=phone --grep Appearance
       - name: Verify account history cleanup and Appearance on phone
         if: steps.loan_changes.outputs.debt_cleanup == 'true'
         run: |
@@ -261,7 +268,7 @@ jobs:
           node --test tests/permanent-debt-deletion.test.mjs tests/appearance.test.mjs
           npx playwright test --config playwright.local.config.ts tests/browser/debt-cleanup.spec.ts --project=phone
       - name: Preserve account cleanup screenshots and traces
-        if: always() && steps.loan_changes.outputs.debt_cleanup == 'true'
+        if: always() && (steps.loan_changes.outputs.debt_cleanup == 'true' || steps.loan_changes.outputs.appearance_visual == 'true')
         uses: actions/upload-artifact@v4
         with:
           name: debt-cleanup-phone-checks
