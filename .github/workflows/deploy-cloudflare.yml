@@ -60,7 +60,7 @@ jobs:
             minimum_cycle_only=true
             while IFS= read -r changed_path; do
               case "$changed_path" in
-                .github/workflows/redesign-visual-review.yml|.github/workflows/deploy-cloudflare.yml|app/dashboard-client.tsx|app/dashboard-data.ts|app/due-reminders.ts|app/minimum-cycle.ts|app/home-due-reminders.tsx|tests/browser/minimum-cycle-policy.spec.ts|tests/due-reminders.test.mjs) ;;
+                .github/workflows/redesign-visual-review.yml|.github/workflows/deploy-cloudflare.yml|app/credit-card-info.tsx|app/dashboard-client.tsx|app/dashboard-data.ts|app/due-reminders.ts|app/minimum-cycle.ts|app/home-due-reminders.tsx|tests/browser/minimum-cycle-policy.spec.ts|tests/due-reminders.test.mjs) ;;
                 *) minimum_cycle_only=false ;;
               esac
             done < <(git diff --name-only "$before" HEAD)
@@ -185,7 +185,7 @@ jobs:
         run: |
           npm run typecheck
           node --test tests/loan-entry.test.mjs tests/loan-progress.test.mjs
-          npx playwright test --config playwright.local.config.ts tests/browser/debt-sheets.spec.ts --project=phone
+          npx playwright test --config playwright.local.config.ts tests/browser/debt-sheets.spec.ts --project=phone --max-failures=0
       - name: Verify minimum-cycle policy
         if: steps.loan_changes.outputs.minimum_cycle == 'true'
         run: |

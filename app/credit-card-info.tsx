@@ -18,7 +18,7 @@ export default function CreditCardInfo({draft, interestAutomated, readOnly, onCh
  const symbol=householdCurrencySymbol(useHouseholdCurrency());
  const numeric=(key: 'balance'|'baselineBalance'|'apr'|'minimum'|'creditLimit'|'interestFee'|'postPromoApr'|'postPromoMinimum',label:string,affix=symbol,disabled=false)=><label className={styles.cardField}><span>{label}</span><div className="field-input">{affix!== '%' && <b>{affix}</b>}<NumericInput aria-label={label} disabled={disabled} value={key==='minimum' && draft.minimumMode==='auto'?estimatedMinimum(draft.balance,draft.apr):draft[key]} max={affix==='%'?100:undefined} emptyValue={['balance','baselineBalance'].includes(key)?NaN:0} onValueChange={value=>onChange({...draft,[key]:value})}/>{affix==='%'&&<b>%</b>}</div></label>;
  return <fieldset className={styles.cardInfo} disabled={readOnly}>
-  <label className={styles.cardField}><span>Account name</span><input value={draft.name} onChange={event=>onChange({...draft,name:event.target.value})}/></label>
+  <label className={styles.cardField}><span>Account</span><input placeholder="Name" value={draft.name} onChange={event=>onChange({...draft,name:event.target.value})}/></label>
 
   {numeric('balance','Current balance')}{numeric('baselineBalance','Starting balance')}{numeric('apr','APR','%')}
   <div>{numeric('minimum','Minimum payment',symbol,draft.minimumMode==='auto')}<label className={styles.autoMinimum}><input type="checkbox" checked={draft.minimumMode==='auto'} onChange={event=>onChange({...draft,minimumMode:event.target.checked?'auto':'manual'})}/>Auto estimate</label></div>
