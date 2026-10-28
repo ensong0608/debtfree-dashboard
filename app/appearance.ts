@@ -13,7 +13,7 @@ export const PRIMARY_PRESETS = {
   dark: [{ name: 'Midnight Navy', color: '#182b45' }, { name: 'Deep Indigo', color: '#292343' }, { name: 'Deep Teal', color: '#123639' }, { name: 'Graphite', color: '#252b35' }],
   light: [{ name: 'Blue & Slate', color: '#295e9b' }, { name: 'Lavender', color: '#e4dcf6' }, { name: 'Mint', color: '#d2eee5' }, { name: 'Silver', color: '#e1e6ed' }],
 } satisfies Record<Theme, { name: string; color: string }[]>;
-export function primaryColor(p: Appearance, theme = p.theme) { return (theme === 'dark' ? p.primaryDark : p.primaryLight) ?? PRIMARY_DEFAULTS[theme]; }
+export function primaryColor(p: Appearance, theme = p.theme) { return (theme === 'dark' ? p.primaryDark : p.primaryLight) ?? (p.theme===theme && p.accent.toLowerCase()!==THEMES[theme].accent.toLowerCase() ? p.accent : PRIMARY_DEFAULTS[theme]); }
 const PREVIOUS_LIGHT: Colors = { accent: '#0961d9', background: '#f3f7fd', surface: '#ffffff', text: '#101b31' };
 const LIGHT: Colors = { accent: '#295e9b', background: '#e4ebf3', surface: '#f5f8fc', text: '#101b31' };
 const DARK: Colors = { accent: '#42cfff', background: '#080e16', surface: '#131e2b', text: '#edf3ff' };
@@ -115,6 +115,8 @@ export function appearanceTokens(p: Appearance): Record<string, string> {
   const mutedCandidate = mix(text, surface, .76);
   const readable = (candidate: string, surfaces = [surface, background, raised], ratio = 4.5) => surfaces.every(bg => contrast(candidate, bg) >= ratio) ? candidate : text;
   const on = (bg: string) => contrast('#ffffff', bg) >= 4.5 ? '#ffffff' : '#000000';
+  const gradientStart=mix(accent,surface,dark?.16:.14),gradientEnd=mix(accent,background,dark?.08:.06);
+  const onGradient=[gradientStart,gradientEnd].every(bg=>contrast(text,bg)>=4.5)?text:on(gradientStart);
   const headerRail = mix(primary, '#000000', .82);
   const headerSelected = mix(primary, on(primary), .8);
   const t: Record<string, string> = {
@@ -137,8 +139,8 @@ export function appearanceTokens(p: Appearance): Record<string, string> {
     '--theme-art-mountain-back': tint(accent, .14), '--theme-art-mountain-front': tint(text, .12),
     '--theme-art-water': tint(accent, .1), '--theme-art-tree': tint(text, .18),
     '--theme-art-sun': tint(dark ? '#ffd078' : '#855000', .14),
-    '--theme-gradient-start': dark ? '#12443F' : '#d4e3f4', '--theme-gradient-end': dark ? '#152B35' : '#e1edfa',
-    '--theme-on-gradient': dark ? '#edf3ff' : '#101b31',
+    '--theme-gradient-start': gradientStart, '--theme-gradient-end': gradientEnd,
+    '--theme-on-gradient': onGradient,
     '--theme-summary-ring': dark ? '#82DFC4' : '#007458',
     '--theme-font': FONTS[p.font], '--theme-text-scale': String(textSizePoints(p.size) / 12),
   };

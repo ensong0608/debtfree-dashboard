@@ -7,7 +7,7 @@ import type { DebtAccount, LedgerTransaction, BalanceAdjustment, CashflowItem } 
 import type { buildActualProgress } from "./debt-activity";
 import type { PayoffSchedule as Schedule } from "./payoff-schedule";
 import type { LoanTracker } from "./loan-progress";
-import type { ProgressScope, buildProgressView } from "./progress-view";
+import type { ProgressCarouselScope, ProgressViews } from "./progress-view";
 import { createHouseholdMoneyFormatter } from "./household-currency";
 import { useHouseholdCurrency } from "./household-currency-context";
 import { paymentActivity } from "./payments";
@@ -25,7 +25,7 @@ export default function HomeDashboardPage({ accounts, loans, items, progress, pr
   strategyRows: PayoffStrategyRow[]; strategy: "avalanche" | "snowball";
   name: string; accounts: DebtAccount[]; schedule: Schedule; scopeLabel?: string; loans: LoanTracker[]; items: CashflowItem[];
   householdPayment?: number;
-  progressViews?: Record<ProgressScope, ReturnType<typeof buildProgressView>>;
+  progressViews?: ProgressViews;
   progress: ReturnType<typeof buildActualProgress>; transactions: LedgerTransaction[]; adjustments: BalanceAdjustment[];
   onViewTransactions: () => void;
   onViewDue: () => void;
@@ -41,11 +41,11 @@ export default function HomeDashboardPage({ accounts, loans, items, progress, pr
   const progressPercent = progress.comparisonAvailable && starting > 0 ? reduction / starting * 100 : null;
   const recent = paymentActivity(transactions, adjustments).slice(0, 4);
   const accountNames = new Map(accounts.map(account => [account.id, account.name]));
-  const [scope, setScope] = useState<ProgressScope>(accounts.length ? "accounts" : loans.length ? "loans" : "household");
+  const [scope, setScope] = useState<ProgressCarouselScope>("accounts");
   const progressSlides = progressViews ? ([
     { scope: "accounts" as const, label: "Cards & Loans" },
-    { scope: "loans" as const, label: "Home & Auto" },
-    { scope: "household" as const, label: "All debts" },
+    { scope: "home" as const, label: "Home" },
+    { scope: "auto" as const, label: "Auto" },
   ].map(slide => {
     const view = progressViews[slide.scope];
     const percent = view.summary.percent;
@@ -60,7 +60,7 @@ export default function HomeDashboardPage({ accounts, loans, items, progress, pr
       </div>
     </div> };
   })) : null;
-  const activeScope = progressSlides?.some(slide => slide.scope === scope) ? scope : progressSlides?.[0]?.scope ?? "household";
+  const activeScope = progressSlides?.some(slide => slide.scope === scope) ? scope : progressSlides?.[0]?.scope ?? "accounts";
 
   return <div className={styles.home}>
     <section className={styles.debtSummary} aria-label="Debt summary">

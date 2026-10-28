@@ -1,11 +1,11 @@
 "use client";
 import { useEffect, useRef, type KeyboardEvent, type ReactNode } from "react";
-import type { ProgressScope } from "./progress-view";
+import type { ProgressCarouselScope } from "./progress-view";
 import styles from "./debt-scope-carousel.module.css";
-export type DebtScopeSlide = { scope: ProgressScope; label: string; content: ReactNode };
+export type DebtScopeSlide = { scope: ProgressCarouselScope; label: string; content: ReactNode };
 /** Whole-card presentation only; never writes household settings. */
 export default function DebtScopeCarousel({ slides, value, onChange, label = "Debt categories" }: {
-  slides: DebtScopeSlide[]; value: ProgressScope; onChange: (scope: ProgressScope) => void; label?: string;
+  slides: DebtScopeSlide[]; value: ProgressCarouselScope; onChange: (scope: ProgressCarouselScope) => void; label?: string;
 }) {
   const viewport = useRef<HTMLDivElement>(null);
   const settling = useRef<ReturnType<typeof setTimeout> | null>(null);
