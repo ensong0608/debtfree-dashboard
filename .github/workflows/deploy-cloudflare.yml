@@ -41,6 +41,17 @@ jobs:
         run: |
           before="$RELEASE_BEFORE"
           if [ -z "$before" ] || ! git cat-file -e "$before^{commit}" 2>/dev/null; then before=HEAD^; fi
+          # Complete the approved sheet visuals without repeating loan/unit coverage.
+          if [ "$before" = "3b50eff5930488c6ce5828cb310b886d342b00b2" ]; then
+            sheet_visual_only=true
+            while IFS= read -r changed_path; do
+              case "$changed_path" in
+                .github/workflows/deploy-cloudflare.yml|app/visual-refresh.css|tests/browser/debt-sheets.spec.ts) ;;
+                *) sheet_visual_only=false ;;
+              esac
+            done < <(git diff --name-only "$before" HEAD)
+            if [ "$sheet_visual_only" = true ]; then echo "sheet_visual=true" >> "$GITHUB_OUTPUT"; exit 0; fi
+          fi
           # Approved debt-sheet release: only affected form, gesture and loan checks.
           if [ "$before" = "cd4bcc346538c128b21903be9f952eec31689d68" ]; then
             sheets_only=true
@@ -173,13 +184,16 @@ jobs:
             echo "changed=true" >> "$GITHUB_OUTPUT"
           fi
       - name: Install browser for focused debt checks
-        if: steps.loan_changes.outputs.debt_sheets == 'true' || steps.loan_changes.outputs.minimum_cycle == 'true' || steps.loan_changes.outputs.upcoming == 'true' || steps.loan_changes.outputs.budget_ui == 'true' || steps.loan_changes.outputs.changed == 'true' || steps.loan_changes.outputs.form_reliability == 'true' || steps.loan_changes.outputs.home_reminders == 'true'
+        if: steps.loan_changes.outputs.sheet_visual == 'true' || steps.loan_changes.outputs.debt_sheets == 'true' || steps.loan_changes.outputs.minimum_cycle == 'true' || steps.loan_changes.outputs.upcoming == 'true' || steps.loan_changes.outputs.budget_ui == 'true' || steps.loan_changes.outputs.changed == 'true' || steps.loan_changes.outputs.form_reliability == 'true' || steps.loan_changes.outputs.home_reminders == 'true'
         run: |
-          if [ "${{ steps.loan_changes.outputs.debt_sheets }}" = 'true' ] || [ "${{ steps.loan_changes.outputs.minimum_cycle }}" = 'true' ] || [ "${{ steps.loan_changes.outputs.upcoming }}" = 'true' ] || [ "${{ steps.loan_changes.outputs.budget_ui }}" = 'true' ] || [ "${{ steps.loan_changes.outputs.form_reliability }}" = 'true' ] || [ "${{ steps.loan_changes.outputs.home_reminders }}" = 'true' ]; then
+          if [ "${{ steps.loan_changes.outputs.sheet_visual }}" = 'true' ] || [ "${{ steps.loan_changes.outputs.debt_sheets }}" = 'true' ] || [ "${{ steps.loan_changes.outputs.minimum_cycle }}" = 'true' ] || [ "${{ steps.loan_changes.outputs.upcoming }}" = 'true' ] || [ "${{ steps.loan_changes.outputs.budget_ui }}" = 'true' ] || [ "${{ steps.loan_changes.outputs.form_reliability }}" = 'true' ] || [ "${{ steps.loan_changes.outputs.home_reminders }}" = 'true' ]; then
             npx playwright install chromium
           else
             npx playwright install --with-deps chromium
           fi
+      - name: Verify sheet corners and inline form
+        if: steps.loan_changes.outputs.sheet_visual == 'true'
+        run: npx playwright test --config playwright.local.config.ts tests/browser/debt-sheets.spec.ts --project=phone --grep "unified add"
       - name: Verify debt account sheets
         if: steps.loan_changes.outputs.debt_sheets == 'true'
         run: |
@@ -209,7 +223,7 @@ jobs:
             npx playwright test --config playwright.local.config.ts tests/browser/budget-next-due-ui.spec.ts --project=phone
           fi
       - name: Preserve focused control screenshots
-        if: always() && (steps.loan_changes.outputs.debt_sheets == 'true' || steps.loan_changes.outputs.budget_ui == 'true' || steps.loan_changes.outputs.upcoming == 'true' || steps.loan_changes.outputs.minimum_cycle == 'true')
+        if: always() && (steps.loan_changes.outputs.sheet_visual == 'true' || steps.loan_changes.outputs.debt_sheets == 'true' || steps.loan_changes.outputs.budget_ui == 'true' || steps.loan_changes.outputs.upcoming == 'true' || steps.loan_changes.outputs.minimum_cycle == 'true')
         uses: actions/upload-artifact@v4
         with:
           name: focused-control-screenshots
