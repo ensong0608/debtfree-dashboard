@@ -44,3 +44,11 @@ test('auto APR and principal may be omitted without inventing persisted values',
  assert.deepEqual(loanEntryErrors(car,today),{}); assert.equal(car.apr,undefined);
  for(const apr of [NaN,-1,101]) assert.ok(loanEntryErrors({...car,apr},today).apr);
 });
+
+test('removed loans retain full terms and payment history in backups; malformed removal metadata is rejected',()=>{
+ const f=JSON.parse(readFileSync('tests/fixtures/legacy-v0.json','utf8'));
+ const removed={...loan,removedAt:'2026-10-27T20:00:00Z',history:[{date:today,amount:80000,balanceKind:'principal',recordedAt:'2026-10-14T20:00:00Z',payment:1000,principal:700,interest:300}]};
+ f.monthlyPlan={months:{},detailedSpendingTracking:false,loanTrackers:[removed]};
+ assert.deepEqual(parseDashboardContract(f).payload.monthlyPlan.loanTrackers[0],removed);
+ f.monthlyPlan.loanTrackers[0].removedAt='bad';assert.throws(()=>parseDashboardContract(f),/removedAt/);
+});

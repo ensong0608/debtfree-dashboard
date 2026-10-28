@@ -1,4 +1,5 @@
 "use client";
+import OutlineIcon from './outline-icon';
 import { useId, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { recurringDueDate } from './recurring-due-date';
@@ -28,7 +29,7 @@ export default function DateCalendar({ label, value, onChange, min, max, disable
   };
   return <fieldset className={`date-calendar-field ${className}`} disabled={disabled} aria-label={label} aria-invalid={invalid || undefined} aria-describedby={describedBy}>
     <legend id={id}>{label}</legend>
-    <button className="date-field-trigger" type="button" ref={trigger} aria-haspopup="dialog" aria-expanded={open} onClick={show}>{display}<span aria-hidden="true">▣</span></button>
+    <button className="date-field-trigger" type="button" ref={trigger} aria-haspopup="dialog" aria-expanded={open} onClick={show}>{display}<OutlineIcon name="calendar"/></button>
     {open && createPortal(<div className="date-picker-backdrop" onMouseDown={event => { if (event.target === event.currentTarget) close(); }}><section className="date-picker-sheet" role="dialog" aria-modal="true" aria-labelledby={`${id}-title`} onKeyDown={event => { if (event.key === 'Escape') { event.stopPropagation(); close(); } }}>
     <header><h2 id={`${id}-title`}>{label}</h2><button type="button" data-dialog-close aria-label="Close date picker" onClick={close}>×</button></header>
     <div className="loan-calendar date-calendar">

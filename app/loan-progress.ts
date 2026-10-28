@@ -2,6 +2,7 @@ import type { InstitutionKey } from './institutions.ts';
 import type { CashflowItem } from './dashboard-data.ts';
 
 export type LoanTracker = {
+  removedAt?: string;
   institutionKey?: InstitutionKey;
   id: string;
   name: string;

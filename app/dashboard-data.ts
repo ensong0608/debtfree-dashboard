@@ -1002,6 +1002,7 @@ function validateMonthlyPlan(value: unknown, path: string, issues: string[]) {
       for (const key of ["budgetItemId", "budgetItemName"]) requiredString(loan[key], p + "." + key, issues, true);
       if (typeof loan.budgetItemId === "string" && typeof loan.budgetItemName === "string" && Boolean(loan.budgetItemId.trim()) !== Boolean(loan.budgetItemName.trim())) issues.push(p + ".budgetItemId and budgetItemName must both be set or both be empty.");
       if (typeof loan.id === "string") { if (ids.has(loan.id)) issues.push(p + ".id is duplicated."); ids.add(loan.id); }
+      if (loan.removedAt !== undefined && (typeof loan.removedAt !== "string" || !Number.isFinite(Date.parse(loan.removedAt)))) issues.push(p + ".removedAt must be a valid timestamp.");
       enumValue(loan.kind, new Set(["house", "car"]), p + ".kind", issues);
       enumValue(loan.balanceKind, new Set(["principal", "payoff"]), p + ".balanceKind", issues);
       requiredNumber(loan.originalAmount, p + ".originalAmount", issues);

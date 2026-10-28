@@ -4,7 +4,7 @@ import type { PayoffPlan } from "./payoff-engine.ts";
 
 export const DEBT_CATEGORY_COLORS: Record<DebtType, { key: string; color: string; label: string }> = {
   "Credit card": { key: "credit", color: "var(--theme-warning)", label: "Credit card" },
-  "Auto loan": { key: "auto", color: "var(--theme-violet)", label: "Car loan" },
+  "Auto loan": { key: "auto", color: "var(--theme-violet)", label: "Auto loan" },
   "Medical debt": { key: "medical", color: "var(--theme-danger)", label: "Medical debt" },
   "Student loan": { key: "student", color: "var(--theme-success)", label: "Student loan" },
   "Personal loan": { key: "personal", color: "var(--theme-info)", label: "Personal loan" },

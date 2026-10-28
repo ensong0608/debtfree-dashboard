@@ -1,7 +1,7 @@
 name: Redesign visual review
 on:
   push:
-    branches: [codex/visual-redesign-20261016, codex/reference-fidelity-20261016, codex/navigation-schedule-20261022, codex/compact-headers-appearance-20261024, codex/blue-slate-light-20261026]
+    branches: [codex/debt-sheets-20261027, codex/visual-redesign-20261016, codex/reference-fidelity-20261016, codex/navigation-schedule-20261022, codex/compact-headers-appearance-20261024, codex/blue-slate-light-20261026]
 permissions:
   contents: read
 concurrency:
@@ -20,11 +20,17 @@ jobs:
       - run: npm ci
       - name: Install browser for focused review
         run: |
-          if [ "$GITHUB_REF_NAME" = 'codex/blue-slate-light-20261026' ]; then
+          if [ "$GITHUB_REF_NAME" = 'codex/blue-slate-light-20261026' ] || [ "$GITHUB_REF_NAME" = 'codex/debt-sheets-20261027' ]; then
             npx playwright install chromium
           else
             npx playwright install --with-deps chromium
           fi
+      - name: Review approved debt sheets
+        if: github.ref_name == 'codex/debt-sheets-20261027'
+        run: |
+          npm run typecheck
+          node --test tests/loan-entry.test.mjs tests/loan-progress.test.mjs
+          npx playwright test --config playwright.local.config.ts tests/browser/debt-sheets.spec.ts --project=phone --max-failures=0 --grep "unified add|transaction composer|account sheets"
       - name: Review navigation redesign on phone and desktop
         if: github.ref_name == 'codex/navigation-schedule-20261022'
         run: |
@@ -43,13 +49,14 @@ jobs:
           npm run typecheck
           npx playwright test tests/browser/blue-slate-light.spec.ts --project=phone
       - name: Review historical reference redesign
-        if: github.ref_name != 'codex/navigation-schedule-20261022' && github.ref_name != 'codex/compact-headers-appearance-20261024' && github.ref_name != 'codex/blue-slate-light-20261026'
+        if: github.ref_name != 'codex/debt-sheets-20261027' && github.ref_name != 'codex/navigation-schedule-20261022' && github.ref_name != 'codex/compact-headers-appearance-20261024' && github.ref_name != 'codex/blue-slate-light-20261026'
         run: npx playwright test tests/browser/redesign.spec.ts --project=phone
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: redesign-synthetic-visual-review
           path: |
+            .wrangler/control-polish/
             outputs/ui-verification/redesign/
             outputs/redesign/
             outputs/compact-headers/

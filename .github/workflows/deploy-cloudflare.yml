@@ -41,6 +41,20 @@ jobs:
         run: |
           before="$RELEASE_BEFORE"
           if [ -z "$before" ] || ! git cat-file -e "$before^{commit}" 2>/dev/null; then before=HEAD^; fi
+          # Approved debt-sheet release: only affected form, gesture and loan checks.
+          if [ "$before" = "cd4bcc346538c128b21903be9f952eec31689d68" ]; then
+            sheets_only=true
+            while IFS= read -r changed_path; do
+              case "$changed_path" in
+                .github/workflows/deploy-cloudflare.yml|.github/workflows/redesign-visual-review.yml|app/debt-presentation.ts|app/schedule-view.ts|app/payoff-strategy.ts|app/payments-page.tsx|app/payoff-calculator-page.tsx|app/credit-card-info.tsx|app/use-dialog-focus.ts|app/loan-progress-panel.tsx|app/onboarding-flow.tsx|app/debt-experience.tsx|app/globals.css|app/dashboard-data.ts|app/dashboard-client.tsx|app/debt-entry-dialog.tsx|app/loan-details-fields.tsx|app/institution-icon.tsx|app/debt-experience.module.css|app/date-calendar.tsx|app/loan-progress.ts|tests/browser/debt-sheets.spec.ts|tests/loan-entry.test.mjs) ;;
+                *) sheets_only=false ;;
+              esac
+            done < <(git diff --name-only "$before" HEAD)
+            if [ "$sheets_only" = true ]; then
+              echo "debt_sheets=true" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+          fi
           # Approved minimum-cycle policy correction: focused checks only.
           if [ "$before" = "b0a416e9ec120ca7d208be2198fabe2c8231f397" ]; then
             minimum_cycle_only=true
@@ -159,13 +173,19 @@ jobs:
             echo "changed=true" >> "$GITHUB_OUTPUT"
           fi
       - name: Install browser for focused debt checks
-        if: steps.loan_changes.outputs.minimum_cycle == 'true' || steps.loan_changes.outputs.upcoming == 'true' || steps.loan_changes.outputs.budget_ui == 'true' || steps.loan_changes.outputs.changed == 'true' || steps.loan_changes.outputs.form_reliability == 'true' || steps.loan_changes.outputs.home_reminders == 'true'
+        if: steps.loan_changes.outputs.debt_sheets == 'true' || steps.loan_changes.outputs.minimum_cycle == 'true' || steps.loan_changes.outputs.upcoming == 'true' || steps.loan_changes.outputs.budget_ui == 'true' || steps.loan_changes.outputs.changed == 'true' || steps.loan_changes.outputs.form_reliability == 'true' || steps.loan_changes.outputs.home_reminders == 'true'
         run: |
-          if [ "${{ steps.loan_changes.outputs.minimum_cycle }}" = 'true' ] || [ "${{ steps.loan_changes.outputs.upcoming }}" = 'true' ] || [ "${{ steps.loan_changes.outputs.budget_ui }}" = 'true' ] || [ "${{ steps.loan_changes.outputs.form_reliability }}" = 'true' ] || [ "${{ steps.loan_changes.outputs.home_reminders }}" = 'true' ]; then
+          if [ "${{ steps.loan_changes.outputs.debt_sheets }}" = 'true' ] || [ "${{ steps.loan_changes.outputs.minimum_cycle }}" = 'true' ] || [ "${{ steps.loan_changes.outputs.upcoming }}" = 'true' ] || [ "${{ steps.loan_changes.outputs.budget_ui }}" = 'true' ] || [ "${{ steps.loan_changes.outputs.form_reliability }}" = 'true' ] || [ "${{ steps.loan_changes.outputs.home_reminders }}" = 'true' ]; then
             npx playwright install chromium
           else
             npx playwright install --with-deps chromium
           fi
+      - name: Verify debt account sheets
+        if: steps.loan_changes.outputs.debt_sheets == 'true'
+        run: |
+          npm run typecheck
+          node --test tests/loan-entry.test.mjs tests/loan-progress.test.mjs
+          npx playwright test --config playwright.local.config.ts tests/browser/debt-sheets.spec.ts --project=phone --max-failures=0
       - name: Verify minimum-cycle policy
         if: steps.loan_changes.outputs.minimum_cycle == 'true'
         run: |
@@ -189,7 +209,7 @@ jobs:
             npx playwright test --config playwright.local.config.ts tests/browser/budget-next-due-ui.spec.ts --project=phone
           fi
       - name: Preserve focused control screenshots
-        if: always() && (steps.loan_changes.outputs.budget_ui == 'true' || steps.loan_changes.outputs.upcoming == 'true' || steps.loan_changes.outputs.minimum_cycle == 'true')
+        if: always() && (steps.loan_changes.outputs.debt_sheets == 'true' || steps.loan_changes.outputs.budget_ui == 'true' || steps.loan_changes.outputs.upcoming == 'true' || steps.loan_changes.outputs.minimum_cycle == 'true')
         uses: actions/upload-artifact@v4
         with:
           name: focused-control-screenshots
