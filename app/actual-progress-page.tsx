@@ -196,7 +196,7 @@ export default function ActualProgressPage({ accounts, loans, removedAccounts = 
         </section>
 
         {currentScope !== "loans" && <section className={`${styles.card} ${styles.compactAccountRows}`} aria-label="Account balance changes">
-          {accountData.groups.flatMap(group=>group.accounts).map(account=><article key={account.id}><span><strong>{account.name}</strong>{account.removedFromDebts && <small>Removed debt · retained balance</small>}</span><b>{account.baselineBalance === undefined ? 'Unavailable' : `${money.format(Math.abs(account.baselineBalance-account.balance))} ${account.baselineBalance>=account.balance?'lower':'higher'}`}</b></article>)}
+          {accountData.groups.flatMap(group=>group.accounts).filter(account=>!account.removedFromDebts && accounts.some(a=>a.id===account.id && !a.archivedAt) && account.balance>0).map(account=><article key={account.id}><span><strong>{account.name}</strong>{account.removedFromDebts && <small>Removed debt · retained balance</small>}</span><b>{account.baselineBalance === undefined ? 'Unavailable' : `${money.format(Math.abs(account.baselineBalance-account.balance))} ${account.baselineBalance>=account.balance?'lower':'higher'}`}</b></article>)}
         </section>}
       </div>}
 

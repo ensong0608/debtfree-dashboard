@@ -1,6 +1,7 @@
 'use client';
+import TitleSelect from './title-select';
 import { useEffect, useRef, useState } from 'react';
-import { APPEARANCE_EVENT, APPEARANCE_KEY, DEFAULT_APPEARANCE, FONTS, THEMES, PRIMARY_PRESETS, primaryColor, appearanceError, appearanceTokens, loadAppearance, resetAppearance, saveAppearance, withTheme, type Appearance, type Theme } from './appearance';
+import { APPEARANCE_EVENT, APPEARANCE_KEY, DEFAULT_APPEARANCE, FONTS, THEMES, PRIMARY_PRESETS, TEXT_SIZES, textSizePoints, primaryColor, appearanceError, appearanceTokens, loadAppearance, resetAppearance, saveAppearance, withTheme, type Appearance, type Theme } from './appearance';
 import type { CSSProperties } from 'react';
 import styles from './appearance-settings.module.css';
 
@@ -69,7 +70,19 @@ export default function AppearanceSettings() {
     const next = { ...draft, [key]: value } as Appearance;
     setDraft(next);
     setMessage('');
-    announce(appearanceError(next) ? saved : next);
+    if (appearanceError(next)) return;
+    try {
+      const current = loadAppearance(window.localStorage);
+      const merged = { ...current } as Appearance;
+      for (const field of EDITABLE_KEYS) if (next[field] !== base.current[field]) (merged as unknown as Record<string, unknown>)[field] = next[field];
+      const customColors = { accent: merged.accent, background: merged.background, surface: merged.surface, text: merged.text };
+      if (['accent', 'background', 'surface', 'text'].includes(key) && !appearanceError({ ...merged, theme: 'light', legacyColors: undefined })) merged.legacyColors = customColors;
+      saveAppearance(window.localStorage, merged);
+      setSaved(merged); base.current = merged; setDraft(merged); announce(merged);
+      setMessage('Saved on this device.');
+    } catch {
+      setMessage('Could not save appearance. Try again.');
+    }
   };
 
   const selectTheme = (theme: Theme) => {
@@ -96,37 +109,6 @@ export default function AppearanceSettings() {
     }
   };
 
-  const save = () => {
-    try {
-      const current = loadAppearance(window.localStorage);
-      const next = { ...current } as Appearance;
-      // Save only fields actually edited since the latest saved baseline.
-      for (const key of EDITABLE_KEYS) if (draft[key] !== base.current[key]) (next as unknown as Record<string, unknown>)[key] = draft[key];
-      next.theme = current.theme;
-      const colorEdited = (['accent', 'background', 'surface', 'text'] as const).some(key => draft[key] !== base.current[key]);
-      const customColors = { accent: draft.accent, background: draft.background, surface: draft.surface, text: draft.text };
-      const legacyCandidate = { ...next, theme: 'light' as const, ...customColors, legacyColors: undefined };
-      next.legacyColors = colorEdited && !appearanceError(legacyCandidate) ? customColors : current.legacyColors;
-      saveAppearance(window.localStorage, next);
-      setSaved(next); base.current = next; setDraft(next); setStorageError(false); announce(next);
-      setMessage('Appearance saved on this device.');
-    } catch {
-      setStorageError(true);
-      setMessage('Could not save appearance. Try again.');
-    }
-  };
-
-  const cancel = () => {
-    try {
-      const current = loadAppearance(window.localStorage);
-      setSaved(current); base.current = current; setDraft(current); setStorageError(false); announce(current);
-      setMessage('Unsaved changes canceled.');
-    } catch {
-      setStorageError(true);
-      setMessage('Could not reload saved appearance. Try again.');
-    }
-  };
-
   const reset = () => {
     try {
       resetAppearance(window.localStorage);
@@ -142,10 +124,9 @@ export default function AppearanceSettings() {
   return <section className={`${styles.settings} appearance-board`} aria-label="Appearance settings">
     <fieldset className="appearance-theme-section"><legend>Theme</legend><div className={styles.themes} role="group" aria-label="Choose theme">{(Object.keys(THEMES) as Theme[]).map(theme=><button type="button" key={theme} className={`${styles.themeCard} ${saved.theme===theme?styles.selected:''}`} aria-pressed={saved.theme===theme} disabled={!ready||storageError} onClick={()=>selectTheme(theme)}><span className={`${styles.swatch} ${theme==='dark'?styles.darkSwatch:styles.lightSwatch}`} aria-hidden="true"><i/><i/><i/><i/><i/></span><span className={styles.cardText}><i className="appearance-radio" aria-hidden="true">{saved.theme===theme?'✓':''}</i><strong>{theme==='light'?'Light':'Dark'}</strong></span></button>)}</div></fieldset>
     <fieldset className="appearance-accents"><legend>Accent color</legend><div>{accents.map(accent=><button type="button" key={accent.name} aria-pressed={draft.accent.toLowerCase()===accent.color} disabled={!ready||storageError} onClick={()=>edit('accent',accent.color)}><span style={{background:accent.color}}>{draft.accent.toLowerCase()===accent.color?'✓':''}</span><small>{accent.name}</small></button>)}</div></fieldset>
-    <fieldset className="appearance-text-size"><legend>Text size</legend><div>{(['standard','large','larger'] as const).map(size=><label key={size}><input type="radio" name="appearance-text-size" checked={draft.size===size} disabled={!ready||storageError} onChange={()=>edit('size',size)}/><span>{size==='standard'?'Standard':size==='large'?'Large':'Larger'}</span></label>)}</div></fieldset>
+    <fieldset className="appearance-text-size"><legend>Text size</legend><label><span className="sr-only">Text size</span><TitleSelect aria-label="Text size" value={textSizePoints(draft.size)} disabled={!ready||storageError} onChange={e=>edit('size',Number(e.target.value) as Appearance['size'])}>{TEXT_SIZES.map(size=><option key={size} value={size}>{size} pt</option>)}</TitleSelect></label></fieldset>
     <div className={styles.preview} aria-label="Appearance preview" style={!error ? {...previewTokens,fontFamily:FONTS[draft.font]} as CSSProperties : undefined}><h3>Preview</h3><div className="appearance-summary-preview"><span>Sample balance</span><strong>$1,250.00</strong><div className="appearance-preview-progress"><i/><span>62%</span></div></div></div>
-    <details className={styles.customColors}><summary><span>Advanced colors</span><span aria-hidden="true">›</span></summary><fieldset className={styles.primaryColors}><legend>Header color · {draft.theme==='dark'?'Dark':'Light'}</legend><div className={styles.colorPresets}>{PRIMARY_PRESETS[draft.theme].map(preset=><button type="button" key={preset.name} aria-pressed={primaryColor(draft).toLowerCase()===preset.color} disabled={!ready||storageError} onClick={()=>edit(primaryKey,preset.color)}><span style={{background:preset.color}}/>{preset.name}</button>)}</div><div className={styles.colorPicker}><label>Custom color<input type="color" aria-label="Custom primary color" value={/^#[0-9a-f]{6}$/i.test(primaryColor(draft))?primaryColor(draft):primaryColor(saved)} disabled={!ready||storageError} onChange={e=>edit(primaryKey,e.target.value)}/></label><label>Hex color<input aria-label="Primary color hex" value={draft[primaryKey]??primaryColor(draft)} maxLength={7} disabled={!ready||storageError} aria-invalid={Boolean(error)} onChange={e=>edit(primaryKey,e.target.value)}/></label></div></fieldset><div className={styles.fields}>{(['accent','background','surface','text'] as const).map(key=><label key={key}>{key[0].toUpperCase()+key.slice(1)}<input spellCheck={false} maxLength={7} value={draft[key]} disabled={!ready||storageError} aria-invalid={Boolean(error)} onChange={e=>edit(key,e.target.value)}/></label>)}</div><label className="appearance-font">Font<select aria-label="Font" value={draft.font} disabled={!ready||storageError} onChange={e=>edit('font',e.target.value as Appearance['font'])}><option value="default">Helvetica / Arial</option><option value="system">System</option><option value="serif">Georgia / serif</option></select></label>{saved.legacyColors&&<button className="secondary" type="button" onClick={()=>{setDraft(current=>({...current,theme:'light',...saved.legacyColors}));announce({...saved,theme:'light',...saved.legacyColors});}}>Preview saved custom colors</button>}<button className="secondary" type="button" disabled={!ready} onClick={reset}>Reset to Light</button></details>
+    <details className={styles.customColors}><summary><span>Advanced colors</span><span aria-hidden="true">›</span></summary><fieldset className={styles.primaryColors}><legend>Header color · {draft.theme==='dark'?'Dark':'Light'}</legend><div className={styles.colorPresets}>{PRIMARY_PRESETS[draft.theme].map(preset=><button type="button" key={preset.name} aria-pressed={primaryColor(draft).toLowerCase()===preset.color} disabled={!ready||storageError} onClick={()=>edit(primaryKey,preset.color)}><span style={{background:preset.color}}/>{preset.name}</button>)}</div><div className={styles.colorPicker}><label>Custom color<input type="color" aria-label="Custom primary color" value={/^#[0-9a-f]{6}$/i.test(primaryColor(draft))?primaryColor(draft):primaryColor(saved)} disabled={!ready||storageError} onChange={e=>edit(primaryKey,e.target.value)}/></label><label>Hex color<input aria-label="Primary color hex" value={draft[primaryKey]??primaryColor(draft)} maxLength={7} disabled={!ready||storageError} aria-invalid={Boolean(error)} onChange={e=>edit(primaryKey,e.target.value)}/></label></div></fieldset><div className={styles.fields}>{(['accent','background','surface','text'] as const).map(key=><label key={key}>{key[0].toUpperCase()+key.slice(1)}<input spellCheck={false} maxLength={7} value={draft[key]} disabled={!ready||storageError} aria-invalid={Boolean(error)} onChange={e=>edit(key,e.target.value)}/></label>)}</div><label className="appearance-font">Font<TitleSelect aria-label="Font" value={draft.font} disabled={!ready||storageError} onChange={e=>edit('font',e.target.value as Appearance['font'])}><option value="default">Helvetica / Arial</option><option value="system">System</option><option value="serif">Georgia / serif</option></TitleSelect></label>{saved.legacyColors&&<button className="secondary" type="button" onClick={()=>{const next={...saved,theme:'light' as const,...saved.legacyColors};try{saveAppearance(window.localStorage,next);setSaved(next);base.current=next;setDraft(next);announce(next);}catch{setMessage('Could not save appearance. Try again.');}}}>Use saved custom colors</button>}<button className="secondary" type="button" disabled={!ready} onClick={reset}>Reset to Light</button></details>
     {error&&<p role="alert" className={styles.error}>{error}</p>}{message&&<p className="appearance-message" role={storageError?'alert':'status'}>{message}</p>}
-    <div className={styles.actions}><button className="primary" type="button" disabled={!ready||storageError||Boolean(error)} onClick={save}>Save changes</button><button className="secondary" type="button" disabled={!ready} onClick={cancel}>Cancel</button></div>
   </section>;
 }

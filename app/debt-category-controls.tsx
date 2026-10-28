@@ -1,4 +1,5 @@
 "use client";
+import TitleSelect from './title-select';
 
 import { useState } from 'react';
 import { validDisplayName, type DebtGroup } from './debt-groups';
@@ -26,13 +27,13 @@ export function DebtCategoryField({ groups, value, onChange, onCreate, onErrorCh
     cancel();
   };
   return <div className="debt-category-field">
-    <label><span>Debt category</span><select aria-label="Debt category" value={creating ? '__new__' : value} onChange={event => {
+    <label><span>Debt category</span><TitleSelect aria-label="Debt category" value={creating ? '__new__' : value} onChange={event => {
       if (event.target.value === '__new__') { setCreating(true); onErrorChange(true); }
       else { cancel(); onChange(event.target.value); }
     }}>
       {groups.map(group => <option key={group.id} value={group.id}>{group.name}</option>)}
       {groups.length < 20 && <option value="__new__">+ Add category…</option>}
-    </select></label>
+    </TitleSelect></label>
     {creating && <div className="category-inline-editor">
       <label><span>New category name</span><input autoFocus value={name} maxLength={40} placeholder="e.g. Shared expenses" aria-invalid={Boolean(error)} aria-describedby={error ? 'new-category-error' : undefined} onChange={event => { setName(event.target.value); setError(''); }} onKeyDown={event => {
         if (event.key === 'Enter') { event.preventDefault(); create(); }
