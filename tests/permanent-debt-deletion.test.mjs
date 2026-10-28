@@ -63,3 +63,11 @@ test('9–15 point sizes persist with correct scaling in both themes',()=>{
  }
  assert.equal(textSizePoints('standard'),12);assert.equal(textSizePoints('large'),14);assert.equal(textSizePoints('larger'),15);
 });
+
+test('purging a later test account preserves the original fixed starting total',()=>{
+ const payload=createDemoFixture().payload;
+ payload.accounts.push({...payload.accounts[0],id:'later',name:'Later test',baselineBalance:99,balance:99});
+ const next=permanentlyDeleteDebt(payload,'later');
+ assert.equal(next.monthlyPlan.progressStartingBalance,1500);
+ assert.deepEqual(next.snapshots,payload.snapshots);
+});
