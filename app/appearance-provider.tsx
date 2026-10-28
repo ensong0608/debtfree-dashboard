@@ -1,6 +1,6 @@
 'use client';
 import { useLayoutEffect } from 'react';
-import { APPEARANCE_EVENT, APPEARANCE_KEY, DEFAULT_APPEARANCE, appearanceError, appearanceTokens, loadAppearance, type Appearance } from './appearance';
+import { APPEARANCE_EVENT, APPEARANCE_KEY, DEFAULT_APPEARANCE, textSizePoints, appearanceError, appearanceTokens, loadAppearance, type Appearance } from './appearance';
 
 // SSR and the first hydration render both use Light. No inline bootstrap script,
 // suppressed hydration warnings, hidden app, or relaxed CSP is needed.
@@ -10,7 +10,7 @@ export default function AppearanceProvider() {
     const stored = () => { try { return loadAppearance(window.localStorage); } catch { return { ...DEFAULT_APPEARANCE }; } };
     const apply = (value: Appearance) => {
       root.dataset.theme = value.theme;
-      root.dataset.textSize = value.size;
+      root.dataset.textSize = textSizePoints(value.size) >= 15 ? 'larger' : textSizePoints(value.size) >= 14 ? 'large' : 'standard';
       root.style.colorScheme = value.theme;
       for (const [key, color] of Object.entries(appearanceTokens(value))) root.style.setProperty(key, color);
     };

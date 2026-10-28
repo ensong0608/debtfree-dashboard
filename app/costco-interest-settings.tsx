@@ -1,4 +1,5 @@
 "use client";
+import TitleSelect from './title-select';
 import DateCalendar from './date-calendar';
 import NumericInput from './numeric-input';
 import InfoTooltip from './info-tooltip';
@@ -8,7 +9,7 @@ export default function InterestSettings({ value, apr, onChange }: { value?: Int
   const config = value ?? { enabled: false, closingDay: 2, coveredThrough: coveredClose(householdDate()), estimatedApr: Number.isFinite(apr) ? apr : 0 };
   const error = interestSettingsError(config);
   return <fieldset className="wide costco-interest-settings"><legend>Interest entry</legend>
-    <label>Interest method<select aria-label="Interest method" value={config.enabled ? "estimate" : "manual"} onChange={event => onChange({ ...config, enabled: event.target.value === "estimate" })}><option value="manual">Manual</option><option value="estimate">Automatic estimates</option></select></label>
+    <label>Interest method<TitleSelect aria-label="Interest method" value={config.enabled ? "estimate" : "manual"} onChange={event => onChange({ ...config, enabled: event.target.value === "estimate" })}><option value="manual">Manual</option><option value="estimate">Automatic estimates</option></TitleSelect></label>
     {(config.enabled || value) && <>
       <div><InfoTooltip label="Statement closing day">The day each month your credit card statement closes. This is different from your payment due date.</InfoTooltip><NumericInput aria-label="Statement closing day" min={1} max={31} decimals={0} value={config.closingDay ?? 2} onValueChange={closingDay => onChange({ ...config, closingDay })}/></div>
       <div><InfoTooltip label="Estimated APR">The annual interest rate used for estimates. You can update it when your lender provides the actual rate.</InfoTooltip><NumericInput aria-label="Estimated APR" min={config.enabled ? 0.01 : 0} max={100} decimals={16} value={config.estimatedApr} onValueChange={estimatedApr => onChange({ ...config, estimatedApr })}/></div>

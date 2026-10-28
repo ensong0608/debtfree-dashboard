@@ -1,4 +1,5 @@
 "use client";
+import TitleSelect from './title-select';
 import { householdMonthOffset } from "./household-date";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import type { BalanceAdjustment, DebtAccount, LedgerTransaction, MonthlyPlanSettings } from "./dashboard-data";
@@ -84,7 +85,7 @@ export default function PaymentsPage({ readOnly, accounts, transactions, adjustm
     ...adjustments.filter(a => a.deletedAt && (!mobile || isRecentlyDeleted(a.deletedAt))).map(a => ({ id: "adjustment:" + a.id, accountId: a.accountId, amount: Math.abs(a.difference), date: a.date, kind: "adjustment" })),
   ].filter(t => inPeriod(t.date) && ((accountScope ?? accountId) === "all" || t.accountId === (accountScope ?? accountId)));
   const periodControl = (
-      <label className="transaction-period-control budget-board-filter"><span><OutlineIcon name="calendar"/><span className="sr-only">Period</span></span><select aria-label="Period" value={period === "lifetime" ? "lifetime" : period === "year" ? `year:${month.slice(0, 4)}` : `month:${month}`} onChange={e => {
+      <label className="transaction-period-control budget-board-filter"><span><OutlineIcon name="calendar"/><span className="sr-only">Period</span></span><TitleSelect aria-label="Period" value={period === "lifetime" ? "lifetime" : period === "year" ? `year:${month.slice(0, 4)}` : `month:${month}`} onChange={e => {
         const value = e.target.value;
         if (value === "lifetime") setPeriod("lifetime");
         else if (value.startsWith("year:")) { setPeriod("year"); setMonth(`${value.slice(5)}-${month.slice(5, 7)}`); }
@@ -96,7 +97,7 @@ export default function PaymentsPage({ readOnly, accounts, transactions, adjustm
           const value = `${year}-${String(12 - i).padStart(2, "0")}`;
           return <option key={value} value={`month:${value}`}>{new Date(`${value}-01T12:00:00`).toLocaleDateString("en-US", {month: "short", year: "numeric"})}</option>;
         }))}</optgroup>
-      </select><OutlineIcon name="chevron"/></label>
+      </TitleSelect><OutlineIcon name="chevron"/></label>
   );
   const paidFeed = budgetSettings ? [
         ...(budgetActivity?.settlements ?? []).map(row => ({id: row.id, title: row.payeeName, date: row.date, amount: row.amount, loanId: undefined as string | undefined, settlementId: row.id.slice('settlement:'.length), automatic: row.memo.includes('Automatically')})),
@@ -125,13 +126,13 @@ export default function PaymentsPage({ readOnly, accounts, transactions, adjustm
     {message && <p className="debt-action-message" role="status">{message}</p>}
     <div className={`payments-filters${mobile ? " " + styles.filters : ""}`}>
       {periodControl}
-      {!accountScope && <label className="budget-board-filter"><span><OutlineIcon name="list"/><span className="sr-only">Account</span></span><select aria-label="Account" value={accountId} onChange={e => setAccountId(e.target.value)}><option value="all">All accounts</option>{knownIds.map(id => <option key={id} value={id}>{names.get(id) ?? "Removed debt (" + id + ")"}</option>)}</select><OutlineIcon name="chevron"/></label>}
+      {!accountScope && <label className="budget-board-filter"><span><OutlineIcon name="list"/><span className="sr-only">Account</span></span><TitleSelect aria-label="Account" value={accountId} onChange={e => setAccountId(e.target.value)}><option value="all">All accounts</option>{knownIds.map(id => <option key={id} value={id}>{names.get(id) ?? "Removed debt (" + id + ")"}</option>)}</TitleSelect><OutlineIcon name="chevron"/></label>}
     </div>
     <section className="budget-board-summary" aria-label={summaryLabel}>
       {([{key:'payments',label:'Payments',icon:'arrow-down',value:currency.format(paymentTotal)},{key:'interest',label:'Interest & fees',icon:'arrow-up',value:currency.format(interestTotal)}] as const).map(card=><button type="button" className={`budget-summary-tile ${card.key}`} key={card.key} aria-label={`Explain ${explanations[card.key].title}`} onClick={()=>{setExplanation(card.key);onDialog(true);}}><i><OutlineIcon name={card.icon}/></i><span><small>{card.label}</small><strong><span className="money-value">{card.value}</span></strong></span></button>)}
       <button type="button" className="budget-net-change" aria-label="Explain Net balance change" onClick={()=>{setExplanation('net');onDialog(true);}}><span>Net balance change <OutlineIcon name="help"/></span><strong className={netChange>0?'increases':netChange<0?'decreases':''}>{netChange<0?'−':netChange>0?'+':''}<span className="money-value">{currency.format(Math.abs(netChange))}</span></strong></button>
     </section>
-    <div className="budget-board-toolbar"><label className="budget-transaction-search"><OutlineIcon name="search"/><span className="sr-only">Search transactions</span><input aria-label="Search transactions" type="search" value={search} onChange={event=>setSearch(event.target.value)} placeholder="Search transactions"/></label><label className="budget-board-sort"><OutlineIcon name="sort"/><span>Sort</span><select aria-label="Sort transactions" value={sortOrder} onChange={event=>setSortOrder(event.target.value)}><option value="recent">Newest first</option><option value="oldest">Oldest first</option><option value="amount">Largest amount</option></select><OutlineIcon name="chevron"/></label></div>
+    <div className="budget-board-toolbar"><label className="budget-transaction-search"><OutlineIcon name="search"/><span className="sr-only">Search transactions</span><input aria-label="Search transactions" type="search" value={search} onChange={event=>setSearch(event.target.value)} placeholder="Search transactions"/></label><label className="budget-board-sort"><OutlineIcon name="sort"/><span>Sort</span><TitleSelect aria-label="Sort transactions" value={sortOrder} onChange={event=>setSortOrder(event.target.value)}><option value="recent">Newest first</option><option value="oldest">Oldest first</option><option value="amount">Largest amount</option></TitleSelect><OutlineIcon name="chevron"/></label></div>
     <div className={segmentedStyles.root} role="group" aria-label="Filter activity category">{[{id:"all",label:"All"},{id:"payments",label:"Payments only"},{id:"interest",label:"Interest & fees"}].map(filter => <button type="button" key={filter.id} aria-pressed={kindFilter === filter.id} onClick={() => setKindFilter(filter.id)}>{filter.id === "payments" ? "Payments" : filter.label}</button>)}</div>
 
     <section className="payment-activity" aria-label="Transaction activity">{dates.map(date=><section className="transaction-date-group" data-activity-date={date} key={date}><h2>{dateLabel(date)}</h2>{feed.filter(row=>row.date===date).map(row=><div key={row.id}>{row.node}</div>)}</section>)}{!feed.length&&<p>No activity in this period.</p>}</section>

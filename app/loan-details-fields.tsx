@@ -1,4 +1,5 @@
 'use client';
+import TitleSelect from './title-select';
 const DEBT_TYPES = ["Credit card", "Personal loan", "Auto loan", "Student loan", "Medical debt", "Other"];
 import NumericInput from "./numeric-input";
 import DateCalendar from './date-calendar';
@@ -29,7 +30,7 @@ export default function LoanDetailsFields({ draft, onChange, errors, mode = "all
   return <>
     <label><span>Account</span><input placeholder="Name" autoFocus name="name" aria-label="Account" required maxLength={100} aria-invalid={Boolean(errors.name)} aria-describedby={described('name')} value={draft.name} onChange={event => onChange({ ...draft, name: event.target.value })}/>{error('name')}</label>
     {error('institutionKey')}
-    <label><span>Debt type</span><select name="kind" aria-label="Debt type*" required aria-invalid={Boolean(errors.kind)} value={onDebtType ? draft.kind === "house" ? "House loan" : "Auto loan" : draft.kind} onChange={event => onDebtType ? onDebtType(event.target.value) : onChange({ ...draft, kind: event.target.value as LoanTracker['kind'] })}>{onDebtType ? <><option value="House loan">Mortgage</option>{DEBT_TYPES.map(type=><option key={type} value={type}>{type}</option>)}</> : <><option value="house">Mortgage</option><option value="car">Auto loan</option></>}</select>{error('kind')}</label>
+    <label><span>Debt type</span><TitleSelect name="kind" aria-label="Debt type*" required aria-invalid={Boolean(errors.kind)} value={onDebtType ? draft.kind === "house" ? "House loan" : "Auto loan" : draft.kind} onChange={event => onDebtType ? onDebtType(event.target.value) : onChange({ ...draft, kind: event.target.value as LoanTracker['kind'] })}>{onDebtType ? <><option value="House loan">Mortgage</option>{DEBT_TYPES.map(type=><option key={type} value={type}>{type}</option>)}</> : <><option value="house">Mortgage</option><option value="car">Auto loan</option></>}</TitleSelect>{error('kind')}</label>
     {mode === 'all' && currency('originalAmount', 'Original balance')}
     {currency('remainingAmount', 'Current balance')}
     <label><span>APR*</span><span className="loan-percentage-input"><NumericInput name="apr" aria-label="APR*" required placeholder="0.00" max={100} decimals={16} emptyValue={NaN} aria-invalid={Boolean(errors.apr)} aria-describedby={described('apr')} value={draft.apr} onValueChange={apr => onChange({ ...draft, apr })}/><span aria-hidden="true">%</span></span>{error('apr')}</label>

@@ -6,15 +6,15 @@ type Props = Omit<InputHTMLAttributes<HTMLInputElement>, 'value' | 'onChange' | 
   value?: number; onValueChange: (value: number, text: string) => void;
   text?: string;
   min?: number; max?: number; decimals?: number; emptyValue?: number;
-  publishValidOnly?: boolean;
+  publishValidOnly?: boolean; blankZero?: boolean;
 };
 
 /** Keep the editing text separate from the existing numeric draft/model. */
-export default function NumericInput({ value, text, onValueChange, min = 0, max, decimals = 2, emptyValue = NaN, publishValidOnly = false, disabled, onBlur, ...props }: Props) {
+export default function NumericInput({ value, text, onValueChange, min = 0, max, decimals = 2, emptyValue = NaN, publishValidOnly = false, blankZero = false, disabled, onBlur, ...props }: Props) {
   const id = useId();
-  const [edit, setEdit] = useState(() => ({ value, text: value === undefined || !Number.isFinite(value) ? '' : String(value) }));
+  const [edit, setEdit] = useState(() => ({ value, text: value === undefined || !Number.isFinite(value) || blankZero && value === 0 ? '' : String(value) }));
   const [touched, setTouched] = useState(false);
-  if (!Object.is(value, edit.value)) setEdit({ value, text: value === undefined || !Number.isFinite(value) ? '' : String(value) });
+  if (!Object.is(value, edit.value)) setEdit({ value, text: value === undefined || !Number.isFinite(value) || blankZero && value === 0 ? '' : String(value) });
   const raw = text ?? edit.text;
   const parsed = parseFinancialInput(raw, { min, max, decimals, emptyValue });
   const error = disabled ? '' : parsed.error;

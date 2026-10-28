@@ -2,9 +2,12 @@
 export const APPEARANCE_KEY = 'debtfree-device-appearance-v1';
 export const APPEARANCE_EVENT = 'debtfree-appearance-change';
 export const FONTS = { default: 'Helvetica,"Helvetica Neue",Arial,sans-serif', system: 'system-ui,sans-serif', serif: 'Georgia,"Times New Roman",serif' } as const;
+export const TEXT_SIZES = [9, 10, 11, 12, 13, 14, 15] as const;
+export type TextSize = typeof TEXT_SIZES[number] | 'standard' | 'large' | 'larger';
+export function textSizePoints(size: TextSize) { return typeof size === 'number' ? size : size === 'large' ? 14 : size === 'larger' ? 15 : 12; }
 export type Theme = 'light' | 'dark';
 type Colors = { accent: string; background: string; surface: string; text: string };
-export type Appearance = Colors & { version: 2; theme: Theme; font: keyof typeof FONTS; size: 'standard' | 'large' | 'larger'; legacyColors?: Colors; primaryLight?: string; primaryDark?: string };
+export type Appearance = Colors & { version: 2; theme: Theme; font: keyof typeof FONTS; size: TextSize; legacyColors?: Colors; primaryLight?: string; primaryDark?: string };
 export const PRIMARY_DEFAULTS = { light: '#295e9b', dark: '#182b45' };
 export const PRIMARY_PRESETS = {
   dark: [{ name: 'Midnight Navy', color: '#182b45' }, { name: 'Deep Indigo', color: '#292343' }, { name: 'Deep Teal', color: '#123639' }, { name: 'Graphite', color: '#252b35' }],
@@ -39,7 +42,7 @@ function lightSurfaces(c: Colors) { return [c.background, c.surface].every(bg =>
 export function appearanceError(value: unknown): string | null {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return 'Choose valid appearance settings.';
   const p = value as Record<string, unknown>;
-  if (p.version !== 2 || !['light', 'dark'].includes(p.theme as string) || typeof p.font !== 'string' || !Object.hasOwn(FONTS, p.font) || !['standard', 'large', 'larger'].includes(p.size as string)) return 'Choose a supported theme, font and text size.';
+  if (p.version !== 2 || !['light', 'dark'].includes(p.theme as string) || typeof p.font !== 'string' || !Object.hasOwn(FONTS, p.font) || ![...TEXT_SIZES, 'standard', 'large', 'larger'].includes(p.size as never)) return 'Choose a supported theme, font and text size.';
   if (!validColors(p)) return 'Use six-digit hex colors, such as #0961d9.';
   if (['primaryLight', 'primaryDark'].some(key => p[key] !== undefined && (typeof p[key] !== 'string' || !/^#[0-9a-f]{6}$/i.test(p[key] as string)))) return 'Use a six-digit primary color, such as #182b45.';
   if (!readableColors(p)) return 'Text and accent need more contrast against background and surface.';
@@ -82,7 +85,7 @@ export function saveAppearance(storage: PreferenceStorage, value: Appearance) {
 }
 export function resetAppearance(storage: PreferenceStorage) { storage.removeItem(APPEARANCE_KEY); }
 export function appearanceFlags(p: Appearance) {
-  return { colors: colorKeys.some(k => p[k] !== THEMES[p.theme][k]) || primaryColor(p) !== PRIMARY_DEFAULTS[p.theme], font: p.font !== 'default', size: p.size !== 'standard' };
+  return { colors: colorKeys.some(k => p[k] !== THEMES[p.theme][k]) || primaryColor(p) !== PRIMARY_DEFAULTS[p.theme], font: p.font !== 'default', size: textSizePoints(p.size) !== 12 };
 }
 function mix(a: string, b: string, amount: number) {
   return '#' + [1, 3, 5].map(i => Math.round(parseInt(a.slice(i, i + 2), 16) * amount + parseInt(b.slice(i, i + 2), 16) * (1 - amount)).toString(16).padStart(2, '0')).join('');
@@ -136,7 +139,7 @@ export function appearanceTokens(p: Appearance): Record<string, string> {
     '--theme-gradient-start': dark ? '#12443F' : '#d4e3f4', '--theme-gradient-end': dark ? '#152B35' : '#e1edfa',
     '--theme-on-gradient': dark ? '#edf3ff' : '#101b31',
     '--theme-summary-ring': dark ? '#82DFC4' : '#007458',
-    '--theme-font': FONTS[p.font], '--theme-text-scale': p.size === 'large' ? '1.12' : p.size === 'larger' ? '1.24' : '1',
+    '--theme-font': FONTS[p.font], '--theme-text-scale': String(textSizePoints(p.size) / 12),
   };
   for (const [name, candidate] of Object.entries(dark
     ? { success: '#79DDBB', warning: '#ffd078', danger: '#F3A3B7', info: '#7bcaff', violet: '#A78BFA' }
