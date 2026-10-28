@@ -2,7 +2,7 @@
 export const APPEARANCE_KEY = 'debtfree-device-appearance-v1';
 export const APPEARANCE_EVENT = 'debtfree-appearance-change';
 export const FONTS = { default: 'Helvetica,"Helvetica Neue",Arial,sans-serif', system: 'system-ui,sans-serif', serif: 'Georgia,"Times New Roman",serif' } as const;
-export const TEXT_SIZES = [9, 10, 11, 12, 13, 14, 15] as const;
+export const TEXT_SIZES = [12, 13, 14, 15, 16, 17, 18, 19, 20] as const;
 export type TextSize = typeof TEXT_SIZES[number] | 'standard' | 'large' | 'larger';
 export function textSizePoints(size: TextSize) { return typeof size === 'number' ? size : size === 'large' ? 14 : size === 'larger' ? 15 : 12; }
 export type Theme = 'light' | 'dark';
@@ -66,6 +66,7 @@ export function parseAppearance(raw: string | null): Appearance {
       }
       return { ...DEFAULT_APPEARANCE, font, size };
     }
+    if (typeof p.size === 'number' && [9,10,11].includes(p.size)) p.size = 12;
     if (appearanceError(p)) return { ...DEFAULT_APPEARANCE };
     // Upgrade only the former built-in Light palette in memory. Keep custom
     // surfaces, typography, the selected theme and separately saved Dark color.

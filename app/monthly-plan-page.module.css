@@ -123,3 +123,11 @@
 
 :global(html[data-theme=light]) .page{--budget-home:#a58cc6;--budget-insurance:#82accd;--budget-transport:#c3aa80;--budget-food:#8db9a4;--budget-debt:#ca94a6;--budget-bills:#89aabf;--budget-other:#c7b08f;--budget-subscriptions:#e6bf8b;--theme-track:#dfe6ef;--theme-summary-ring:#a7cbbf}
 :global(html[data-theme=light]) .categoryIcon{background:color-mix(in srgb,var(--category-tone) 17%,transparent)}
+
+/* Inset each summary and keep expanded bills compact within that same surface. */
+.category>summary{padding-inline:14px}
+.categoryItems{margin:0 14px 10px;padding:0 10px;border-top:1px solid var(--theme-border);border-radius:8px;background:var(--theme-background)}
+.categoryItems .entry{padding:9px 2px;min-height:52px;box-sizing:border-box}
+.categoryItems .entry:last-child{border-bottom:0}
+.categoryItems .entryText strong,.categoryItems .entry b{font-size:calc(14px * var(--theme-text-scale,1))}
+.categoryItems .entryText small{font-size:calc(12px * var(--theme-text-scale,1))}

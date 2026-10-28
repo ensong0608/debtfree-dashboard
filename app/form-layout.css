@@ -1,0 +1,60 @@
+/* One field rhythm for the inline debt, transaction and Budget sheets. */
+:is(.account-compose,.budget-entry-sheet,.transaction-compose,.inline-loan-entry,.inline-debt-info,.loan-detail-info) {
+ --form-font-size:calc(16px * var(--theme-text-scale,1));
+ --form-symbol-size:calc(18px * var(--theme-text-scale,1));
+}
+:is(.account-compose,.budget-entry-sheet,.transaction-compose,.inline-loan-entry,.inline-debt-info,.loan-detail-info) :is(.form-grid,.sheet-fields,.compose-fields) {
+ gap:0!important;
+ justify-content:flex-start;
+}
+:is(.account-compose,.budget-entry-sheet,.transaction-compose,.inline-loan-entry,.inline-debt-info,.loan-detail-info) :is(.form-grid>label,.minimum-editor>label,.sheet-fields>label,.compose-field,.loan-detail-field,.date-calendar-field) {
+ box-sizing:border-box;
+ flex:0 0 auto;
+ min-height:58px;
+ height:auto;
+ padding:8px 0;
+ gap:12px;
+ align-items:center;
+ flex-wrap:nowrap;
+ font-size:var(--form-font-size)!important;
+ font-weight:400;
+}
+:is(.account-compose,.budget-entry-sheet,.transaction-compose,.inline-loan-entry,.inline-debt-info,.loan-detail-info) :is(label>span:first-child,.loan-field-label,.loan-field-label label,.date-calendar-field legend) {
+ margin:0;
+ font-size:var(--form-font-size)!important;
+ line-height:1.4;
+ font-weight:400;
+}
+:is(.account-compose,.budget-entry-sheet,.transaction-compose,.inline-loan-entry,.inline-debt-info,.loan-detail-info) :is(input:not([type=checkbox]):not([type=radio]),select,.date-field-trigger) {
+ box-sizing:border-box;
+ height:40px;
+ min-height:40px;
+ margin:0;
+ padding-block:6px;
+ font-size:var(--form-font-size)!important;
+ line-height:1.4;
+ font-weight:400!important;
+}
+:is(.account-compose,.budget-entry-sheet,.transaction-compose,.inline-loan-entry,.inline-debt-info,.loan-detail-info) :is(.field-input,.sheet-money,.signed-money-input,.loan-currency-input,.loan-percentage-input) {
+ box-sizing:border-box;
+ min-height:40px;
+ height:auto;
+ margin:0;
+ align-items:center;
+}
+:is(.account-compose,.budget-entry-sheet,.transaction-compose,.inline-loan-entry,.inline-debt-info,.loan-detail-info) :is(.numeric-control,.loan-input-label) {margin:0!important}
+:is(.account-compose,.budget-entry-sheet,.transaction-compose,.inline-loan-entry,.inline-debt-info,.loan-detail-info) :is(.field-input>b,.sheet-money>span:first-child,.signed-money-input>span:first-child,.loan-currency-input>span:first-child,.loan-percentage-input>span:last-child) {
+ flex:none;
+ font-size:var(--form-symbol-size)!important;
+ font-weight:400;
+ line-height:1;
+ color:var(--theme-muted);
+}
+/* Freeze the page behind sheets; only the sheet's own content can scroll. */
+html[data-dialog-open=true],html[data-dialog-open=true] body {overflow:hidden;overscroll-behavior:none}
+html[data-dialog-open=true] body {position:fixed;top:var(--dialog-scroll-top,0);left:0;right:0;width:100%}
+.sheet-backdrop {position:fixed!important;isolation:isolate}
+@media(max-width:820px){
+ html[data-dialog-keyboard=true] .sheet-backdrop {background:var(--theme-background)!important}
+ html[data-dialog-keyboard=true] .sheet-backdrop>.app-sheet {flex:1 1 auto!important;min-height:calc(var(--dialog-viewport-height,100dvh) - 24px)!important}
+}
