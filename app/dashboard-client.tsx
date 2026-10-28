@@ -213,7 +213,7 @@ export default function DashboardClient({ user, householdId, lifecycleEnabled = 
   const [canEditCloud, setCanEditCloud] = useState(false);
   const [localError, setLocalError] = useState("");
   const dashboardContract = useRef<DashboardBackup | null>(null);
-  const [page, setPage] = useState<PageId>("home");
+  const [page, setCurrentPage] = useState<PageId>("home");
   const [selectedDebt, setSelectedDebt] = useState<DebtSelection | null>(null);
   const [detailTab, setDetailTab] = useState<DebtDetailTab>("Overview");
   const [scheduleOpen, setScheduleOpen] = useState(false);
@@ -222,7 +222,13 @@ export default function DashboardClient({ user, householdId, lifecycleEnabled = 
   const [billPaymentItem, setBillPaymentItem] = useState<string | undefined>();
   const [budgetTab, setBudgetTab] = useState<BudgetTab>("Overview");
   const [progressTab, setProgressTab] = useState<ProgressTab>("overview");
-  const [debtCategory, setDebtCategory] = useState<DebtCategory>("all");
+  const [debtCategory, setDebtCategory] = useState<DebtCategory>("cardsLoans");
+  const setPage=useCallback((next:PageId)=>{
+    if(next==='accounts')setDebtCategory('cardsLoans');
+    if(next==='monthly')setBudgetTab('Overview');
+    if(next==='snapshots')setProgressTab('overview');
+    setCurrentPage(next);
+  },[]);
   const [accountReturnPage, setAccountReturnPage] = useState<PageId>("home");
   const [accounts, setAccounts] = useState<DebtAccount[]>([]);
   const [monthlyBudgets, setMonthlyBudgets] = useState<Record<string, CashflowItem[]>>({});
@@ -1152,7 +1158,7 @@ export default function DashboardClient({ user, householdId, lifecycleEnabled = 
         {page === "payments" && <PaymentsPage onBalanceInfo={id=>{openDebt({kind:"account",id});setDetailTab("Info");}} budgetSettings={monthlyPlan} loans={monthlyPlan.loanTrackers??[]} onLoan={id=>openDebt({kind:"loan",id})} onUndoBudgetPaid={undoBudgetPaid} onEditBudgetPaid={entry=>{if(!isViewer)setMonthlyPlan(current=>editPlanSettlement(current,entry));}} mobile={mobileView} readOnly={isViewer} accounts={calculatedAccounts} transactions={transactions} adjustments={balanceAdjustments} message={showEntryUndo ? "" : visibleDebtActionMessage} onConfirm={confirmBalancePayment} onUndoConfirmation={undoBalancePayment} storedAccounts={accounts} onChange={changeTransactionEntry} onDialog={setDebtEntryOpen}/>}
         <fieldset className="viewer-readonly-surface" disabled={isViewer && !["home", "accounts", "snapshots", "monthly", "profile", "settings"].includes(page)}>
 
-        {page === "home" && <HomeDashboardPage reminderPaymentActions={reminderActions} dueReminders={dueReminders} onOpenReminder={reminder => { if (reminder.kind === "spending") { setSelectedMonth(automaticDate.slice(0, 7)); setBudgetTab("Overview"); setPage("monthly"); } else openDebt({ kind: reminder.kind, id: reminder.targetId }); }} onViewTransactions={()=>setPage("payments")} onViewDue={()=>{setBudgetTab("Next Due");setBudgetAddOpen(false);setPage("monthly");}} strategyRows={strategyRows} strategy={monthlyPlan.payoffPlanStrategy === "snowball" ? "snowball" : "avalanche"} name={user.displayName} accounts={payoffAccounts} loans={progressViews.presentationLoans} items={planningCashflowItems} progressViews={progressViews} schedule={payoffSchedule} householdPayment={activePayoff.householdPayment} scopeLabel={activePayoff.scopeLabel} progress={householdProgress} transactions={transactions} adjustments={balanceAdjustments} onSchedule={() => setScheduleOpen(true)} onAccount={toggleAccount} onViewProgress={() => setPage("snapshots")} onViewDebts={() => setPage("accounts")}/> }
+        {page === "home" && <HomeDashboardPage reminderPaymentActions={reminderActions} dueReminders={dueReminders} onOpenReminder={reminder => { if (reminder.kind === "spending") { setSelectedMonth(automaticDate.slice(0, 7)); setBudgetTab("Overview"); setPage("monthly"); } else openDebt({ kind: reminder.kind, id: reminder.targetId }); }} onViewTransactions={()=>setPage("payments")} onViewDue={()=>{setBudgetAddOpen(false);setPage("monthly");setBudgetTab("Next Due");}} strategyRows={strategyRows} strategy={monthlyPlan.payoffPlanStrategy === "snowball" ? "snowball" : "avalanche"} name={user.displayName} accounts={payoffAccounts} loans={progressViews.presentationLoans} items={planningCashflowItems} progressViews={progressViews} schedule={payoffSchedule} householdPayment={activePayoff.householdPayment} scopeLabel={activePayoff.scopeLabel} progress={householdProgress} transactions={transactions} adjustments={balanceAdjustments} onSchedule={() => setScheduleOpen(true)} onAccount={toggleAccount} onViewProgress={() => setPage("snapshots")} onViewDebts={() => setPage("accounts")}/> }
         {page === "monthly" && <div className="budget-workspace">
         {budgetTab === "Next Due" && <section className="next-due-page" aria-label="Upcoming"><HomeDueReminders {...reminderActions} reminders={allDueReminders} fullPage/>{!allDueReminders.length && <p className="simple-empty">No upcoming bills.</p>}</section>}
         {budgetTab === "Schedule" && <PayoffSchedulePopup inline onReviewTerms={issue => { const loan=loans.find(item=>issue.startsWith(item.name+": "));setScheduleOpen(false);if(loan){setSelectedDebt({kind:"loan",id:loan.id});setDetailTab("Info");}else setPage("accounts"); }} schedule={payoffSchedule} amount={extraPayment} date={new Date()} readOnly={isViewer} onAmount={payoffExtraPayment=>setScheduleChoices({payoffExtraPayment})} strategy={monthlyPlan.payoffPlanStrategy==='snowball'?'snowball':'avalanche'} onStrategy={payoffPlanStrategy=>setScheduleChoices({payoffPlanStrategy})} rows={strategyRows} minimums={minimumItems} minimumExpected={minimumExpected} onMinimums={saveScheduleMinimums} onClose={()=>setScheduleOpen(false)}/>}

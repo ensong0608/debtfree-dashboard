@@ -70,4 +70,4 @@
 
 .compactCopy .progressValue,.compactCopy>strong,.compactCopy>strong[data-large-value=true]{font-size:clamp(18px,5.5vw,24px)!important;font-weight:700}.compactCopy .progressValue{color:var(--theme-success)}.compactCopy>strong{color:var(--theme-danger)}.compactRing>span{font-size:22px!important}.compactRing{background:conic-gradient(var(--theme-summary-ring) var(--home-ring,0deg),var(--debt-ring-track) 0)}
 
-.compactCopy .progressValue,.compactCopy .paidLabel{color:var(--theme-on-gradient)}
+.compactCopy .paidLabel{color:var(--theme-on-gradient)}.compactCopy .progressValue{color:var(--theme-success)}
