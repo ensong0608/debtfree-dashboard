@@ -30,6 +30,7 @@ for(const theme of ['light','dark'] as const)for(const size of [12,20]){
   expect(await amount.evaluate(el=>getComputedStyle(el).fontWeight)).toBe('400');
   expect(await amountRow.locator('.field-input>b').evaluate(el=>parseFloat(getComputedStyle(el).fontSize))).toBeGreaterThan(await amount.evaluate(el=>parseFloat(getComputedStyle(el).fontSize)));
   const dates=debt.locator('.date-calendar-field:visible').first();const dateBox=(await dates.boundingBox())!;const dateButton=(await dates.locator('button').boundingBox())!;expect(Math.abs(dateBox.x+dateBox.width-dateButton.x-dateButton.width)).toBeLessThan(2);
+  const dateLabel=(await dates.locator('.date-field-label').boundingBox())!;expect(Math.abs(dateLabel.y+dateLabel.height/2-dateButton.y-dateButton.height/2)).toBeLessThan(3);
   await capture(page,`debt-${theme}-${size}`);
   await amount.focus();await keyboard(page,420,32);
   await expect(page.locator('html')).toHaveAttribute('data-dialog-keyboard','true');

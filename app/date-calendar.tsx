@@ -28,7 +28,7 @@ export default function DateCalendar({ label, value, onChange, min, max, disable
     setMonth(date.toISOString().slice(0,7));
   };
   return <fieldset className={`date-calendar-field ${className}`} disabled={disabled} aria-label={label} aria-invalid={invalid || undefined} aria-describedby={describedBy}>
-    <legend id={id}>{label}</legend>
+    <legend id={id}>{label}</legend><span className="date-field-label" aria-hidden="true">{label}</span>
     <button className="date-field-trigger" type="button" ref={trigger} aria-haspopup="dialog" aria-expanded={open} onClick={show}>{display}<OutlineIcon name="calendar"/></button>
     {open && createPortal(<div className="date-picker-backdrop" onMouseDown={event => { if (event.target === event.currentTarget) close(); }}><section className="date-picker-sheet" role="dialog" aria-modal="true" aria-labelledby={`${id}-title`} onKeyDown={event => { if (event.key === 'Escape') { event.stopPropagation(); close(); } }}>
     <header><h2 id={`${id}-title`}>{label}</h2><button type="button" data-dialog-close aria-label="Close date picker" onClick={close}>×</button></header>

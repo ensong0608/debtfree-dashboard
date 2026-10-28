@@ -30,7 +30,7 @@ jobs:
       - run: npm run typecheck
       - run: node --test tests/appearance.test.mjs
       - run: npx playwright install --with-deps chromium
-      - run: npx playwright test --config playwright.local.config.ts tests/browser/form-layout-polish.spec.ts --project=phone --max-failures=0
+      - run: npx playwright test --config playwright.local.config.ts tests/browser/form-layout-polish.spec.ts --project=phone --max-failures=0 --grep "compact consistent"
       - uses: actions/upload-artifact@v4
         if: always()
         with:

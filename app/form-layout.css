@@ -58,24 +58,38 @@ html[data-dialog-open=true] body {position:fixed;top:var(--dialog-scroll-top,0);
  html[data-dialog-keyboard=true] .sheet-backdrop {background:var(--theme-background)!important}
  html[data-dialog-keyboard=true] .sheet-backdrop>.app-sheet {flex:1 1 auto!important;min-height:calc(var(--dialog-viewport-height,100dvh) - 24px)!important}
 }
-/* Fieldset legends need explicit placement; their anonymous content box is not a flex row. */
-:is(.account-compose,.budget-entry-sheet,.transaction-compose,.inline-loan-entry,.inline-debt-info,.loan-detail-info) .date-calendar-field {
+/* Keep the accessible legend separate from the two visible flex items. */
+.date-field-label{display:none}
+:is(.account-compose,.budget-entry-sheet,.transaction-compose,.inline-loan-entry,.inline-debt-info,.loan-detail-info) .date-calendar-field.date-calendar-field {
  position:relative;
- display:block;
- min-height:max(58px,calc(var(--form-font-size) * 2.8 + 12px));
+ display:flex;
+ min-height:58px;
+ height:auto;
 }
 :is(.account-compose,.budget-entry-sheet,.transaction-compose,.inline-loan-entry,.inline-debt-info,.loan-detail-info) .date-calendar-field legend {
  position:absolute;
- left:0;
- top:50%;
- transform:translateY(-50%);
- float:none;
- max-width:44%;
+ width:1px;
+ height:1px;
+ padding:0;
+ margin:-1px;
+ overflow:hidden;
+ clip-path:inset(50%);
+ white-space:nowrap;
+}
+:is(.account-compose,.budget-entry-sheet,.transaction-compose,.inline-loan-entry,.inline-debt-info,.loan-detail-info) .date-field-label {
+ display:block;
+ flex:1;
+ min-width:0;
+ margin:0;
+ font-size:var(--form-font-size)!important;
+ line-height:1.4;
+ font-weight:400;
 }
 :is(.account-compose,.budget-entry-sheet,.transaction-compose,.inline-loan-entry,.inline-debt-info,.loan-detail-info) .date-calendar-field .date-field-trigger {
- position:absolute;
- right:0;
- top:50%;
- transform:translateY(-50%);
- max-width:55%;
+ position:static;
+ transform:none;
+ margin-left:auto;
+ flex:0 0 auto;
+ max-width:60%;
+ white-space:nowrap;
 }

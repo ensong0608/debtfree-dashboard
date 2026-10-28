@@ -91,6 +91,8 @@ export function useDialogFocus() {
       const target = event.target instanceof HTMLElement ? event.target : null;
       const dialog = target?.closest<HTMLElement>('.app-sheet');
       if (!dialog || dialog !== current || event.button !== 0 || !target) return;
+      // Keep the close target still if blurring an empty field adds validation text.
+      if (target.closest('button.sheet-close,button.sheet-dismiss,button[data-dialog-close]')) { event.preventDefault(); return; }
       const handle = target.closest('.sheet-handle');
       if (!handle && (!target.closest('header') || target.closest('button,input,select,textarea,a'))) return;
       drag = {dialog,target,y:event.clientY,time:performance.now(),distance:0,pointer:event.pointerId};
