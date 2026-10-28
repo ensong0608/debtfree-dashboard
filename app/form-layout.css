@@ -111,3 +111,7 @@ html[data-dialog-keyboard=true] .app-sheet:is(.account-compose,.budget-entry-she
 .account-compose .form-action-footer>div>button,.inline-loan-entry .form-action-footer>button{flex:1;min-width:0;width:auto;min-height:48px}
 .account-compose .form-action-footer .secondary{justify-content:center}
 .account-compose .form-action-footer .secondary::after{display:none}
+
+.back-form-header>.form-back-button{order:-1;margin-left:0;margin-right:8px}.shared-dashboard-title-row>.shared-header-back{order:-1}.shared-dashboard-title-row>.shared-dashboard-title{flex:1}
+
+.budget-summary-tile.adjustments{grid-column:1/-1}.budget-summary-tile strong{font-size:20px!important}.budget-record-amount>strong{font-size:16px!important}

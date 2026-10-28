@@ -51,16 +51,16 @@ test('excluded debts retain minimum obligations and never receive schedule extra
   assert.equal(result.loanSuggestions.home, 600);
 });
 
-test('linked loans use only actual spending coverage, including partial coverage and shared links', () => {
+test('mortgage and auto payments never enter planned Debt payments regardless of Budget links', () => {
   const car = home({ id: 'car', kind: 'car', monthlyPayment: 300, escrow: undefined });
   const result = buildActivePayoffCommitment([], [home(), car], [{ ...mortgage, amount: 650 }], settings({ payoffExtraPayment: 0 }), date);
   assert.equal(result.householdPayment, 900);
   assert.equal(result.loanPaymentsInSpending, 650);
-  assert.equal(result.budgetCommitment, 250);
+  assert.equal(result.budgetCommitment, 0);
   const partial = buildActivePayoffCommitment([], [home()], [{ ...mortgage, amount: 550 }], settings({ payoffExtraPayment: 0 }), date);
-  assert.equal(partial.budgetCommitment, 50);
+  assert.equal(partial.budgetCommitment, 0);
   const unlinked = buildActivePayoffCommitment([], [home({ budgetItemId: '', budgetItemName: '' })], [], settings({ payoffExtraPayment: 0 }), date);
-  assert.equal(unlinked.budgetCommitment, 600);
+  assert.equal(unlinked.budgetCommitment, 0);
 });
 
 test('final loan payments cannot create excess spending coverage or a negative commitment', () => {
@@ -73,7 +73,7 @@ test('final loan payments cannot create excess spending coverage or a negative c
 
 test('missing terms do not erase known loan payments or infer unknown payment amounts', () => {
   const known = buildActivePayoffCommitment([], [home({ apr: undefined })], [], settings({ payoffExtraPayment: 0 }), date);
-  assert.equal(known.budgetCommitment, 600);
+  assert.equal(known.budgetCommitment, 0);
   assert.ok(known.schedule.issues.length);
   const unknown = buildActivePayoffCommitment([], [home({ monthlyPayment: undefined })], [], settings({ payoffExtraPayment: 0 }), date);
   assert.equal(unknown.budgetCommitment, 0);
@@ -81,10 +81,10 @@ test('missing terms do not erase known loan payments or infer unknown payment am
   assert.ok(unknown.schedule.issues.length);
 });
 
-test('empty or fully excluded forecasts do not reserve an unallocated extra payment', () => {
+test('planned Debt payments include saved extra independently of forecast exclusions, but empty debts reserve none', () => {
   const result = buildActivePayoffCommitment([account(), account({ id: 'archived', archivedAt: date.toISOString() })], [], [], settings({ payoffExcludedTypes: ['Credit card'] }), date);
   assert.equal(result.schedule.monthly, 0);
-  assert.equal(result.budgetCommitment, 25);
+  assert.equal(result.budgetCommitment, 100);
   assert.equal(result.extra, 75); // retain the saved choice for a later included debt
   assert.equal(buildActivePayoffCommitment([], [], [], settings(), date).budgetCommitment, 0);
 });

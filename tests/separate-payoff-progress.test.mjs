@@ -74,10 +74,10 @@ test("archive, removal, restoration and new accounts cannot falsely create repay
   assert.equal(buildActualProgress([card], transactions, [adjustment], [], date, 1000, retained).current, before.current);
   assert.equal(buildActualProgress([card], transactions, [adjustment], [], date, 1000, retained).retainedCount, 0);
   assert.equal(retainRemovedProgressAccount(retained, card, before.current).length, 1);
-  const added = buildActualProgress([card, account("new", { balance: 500 })], transactions, [adjustment], [], date, 1000);
-  assert.equal(added.starting, 1000);
+  const added = buildActualProgress([card, account("new", { balance: 500, baselineBalance: 500 })], transactions, [adjustment], [], date, 1000);
+  assert.equal(added.starting, 1500);
   assert.equal(added.monthlyReductions, before.monthlyReductions);
-  assert.equal(added.reduction, before.reduction - 500);
+  assert.equal(added.reduction, before.reduction);
 });
 
 test("backup round trip preserves independent settings, removed balances and snapshots", () => {
@@ -90,25 +90,26 @@ test("backup round trip preserves independent settings, removed balances and sna
   assert.throws(() => parseDashboardContract(restored), /payoffPlanAmount/);
 });
 
-test('preserved zero baseline, increases, added debts and removed scopes share signed progress', () => {
+test('per-debt baselines supersede the retained legacy total without changing it', () => {
   const original = account('a', { balance: 800, baselineBalance: 1000 });
   const added = account('b', { balance: 500, baselineBalance: 500 });
   const report = buildActualProgress([original, added], [], [], [], date, 1000);
-  assert.equal(report.starting, 1000); assert.equal(report.current, 1300); assert.equal(report.percent, -30);
+  assert.equal(report.starting, 1500); assert.equal(report.current, 1300); assert.equal(report.reduction, 200);
   const archived = buildActualProgress([{ ...original, archivedAt: '2026-10-08' }, added], [], [], [], date, 1000);
   assert.equal(archived.current, report.current);
   const removed = retainRemovedProgressAccount([], added, 500);
   assert.equal(buildActualProgress([original], [], [], [], date, 1000, removed).current, 1300);
   const zero = buildActualProgress([added], [], [], [], date, 0);
-  assert.equal(zero.starting, 0); assert.equal(zero.comparisonAvailable, true); assert.equal(zero.percent, null);
+  assert.equal(zero.starting, 500); assert.equal(zero.comparisonAvailable, true); assert.equal(zero.percent, 0);
+  const zeroAccount=buildActualProgress([{...added,baselineBalance:0}],[],[],[],date,999);assert.equal(zeroAccount.starting,0);assert.equal(zeroAccount.percent,null);
 });
 
 test('unmatched historical snapshots never hide current debts or fabricate a baseline',()=>{
  const cards=[account('new-a'),account('new-b')];
  const snapshot={id:'old',month:'2026-01',capturedAt:'2026-01-01T12:00:00Z',totalBalance:5000,accounts:[{accountId:'missing',balance:5000,name:'Old',type:'Credit card',apr:0}]};
  const report=buildActualProgress(cards,[],[],[snapshot],date);
- assert.equal(report.current,20000);assert.equal(report.comparisonAvailable,false);assert.equal(report.percent,null);
- assert.equal(report.starting,5000);assert.equal(snapshot.totalBalance,5000);
+ assert.equal(report.current,20000);assert.equal(report.comparisonAvailable,true);assert.equal(report.percent,0);
+ assert.equal(report.starting,20000);assert.equal(snapshot.totalBalance,5000);
  const added=buildActualProgress(cards,[],[],[{...snapshot,accounts:[{accountId:'new-a',balance:10000}]}],date);
- assert.equal(added.current,20000);assert.equal(added.starting,10000);assert.equal(added.percent,-100);
+ assert.equal(added.current,20000);assert.equal(added.starting,20000);assert.equal(added.percent,0);
 });

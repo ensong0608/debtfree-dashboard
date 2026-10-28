@@ -63,3 +63,5 @@
 :global(html[data-text-size]) .compactCopy{flex:1 1 0;min-width:0}
 .compactCopy>strong{font-size:clamp(20px,6.7vw,28px)!important;white-space:nowrap}
 .compactCopy>strong[data-large-value=true]{font-size:20px!important}
+
+.updateRows>article>span>b{font-size:calc(14px * var(--theme-text-scale,1))}.updateRows small,.updateRows time{font-size:calc(12px * var(--theme-text-scale,1))}.updateMeta>b{font-size:14px!important}.updateRows>article>span{flex:1 1 90px}.compactCopy .progressValue{font-size:clamp(18px,5.5vw,24px);white-space:nowrap}.compactCopy .paidLabel{color:var(--theme-success)}

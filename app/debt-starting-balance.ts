@@ -2,7 +2,7 @@ import type {DebtAccount, PayoffSnapshot} from './dashboard-data.ts';
 
 /** Match the existing account overview; never infer a start from APR or ledger movement. */
 export function displayedStartingBalance(account: DebtAccount, snapshots: PayoffSnapshot[] = []) {
-  return account.baselineBalance ?? [...snapshots].sort((a,b)=>a.capturedAt.localeCompare(b.capturedAt))
+  return account.baselineBalance ?? snapshots.flatMap(snapshot=>[...(Array.isArray(snapshot.revisions) ? snapshot.revisions as PayoffSnapshot[] : []),snapshot]).sort((a,b)=>a.capturedAt.localeCompare(b.capturedAt))
     .flatMap(snapshot=>snapshot.accounts).find(saved=>saved.accountId===account.id)?.balance;
 }
 

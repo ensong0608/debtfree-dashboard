@@ -54,9 +54,9 @@ export default function HomeDashboardPage({ accounts, loans, items, progress, pr
     return { ...slide, content: <div className={styles.progressCompact} data-negative={percent !== null && percent < 0}>
       <div className={styles.compactRing} style={ringStyle} role="img" aria-label={`${slide.label}: ${percent === null ? "starting comparison unavailable" : `${Math.abs(percent).toFixed(1)} percent ${percent >= 0 ? "reduced" : "increased"}`}`}><span>{percent === null ? "—" : `${Math.abs(percent).toFixed(0)}%`}</span></div>
       <div className={styles.compactCopy}>
-        <strong data-large-value={Math.abs(view.summary.current) >= 1000000}><span className="money-value">{money.format(view.summary.current)}</span></strong><small>Remaining</small>
-        <span>{view.summary.reduction === null ? "Starting comparison unavailable" : `${money.format(Math.abs(view.summary.reduction))} ${view.summary.reduction >= 0 ? "reduced" : "increased"}`}</span>
-        <small>{view.baselineKind === "original-loan-amounts" ? "Original balances" : view.baselineKind === "mixed" ? "Starting balances" : "Saved start"} · {view.summary.starting === null ? "Unavailable" : money.format(view.summary.starting)}</small><button type="button" className={styles.textLink} onClick={onViewProgress} aria-label="View detailed progress">View progress <OutlineIcon name="chevron"/></button>
+        <small className={styles.paidLabel}>Paid:</small><b className={styles.progressValue}><span className="money-value">{view.summary.reduction === null ? '—' : money.format(view.summary.reduction)}</span></b>
+        <small>Balance:</small><strong data-large-value={Math.abs(view.summary.current) >= 1000000}><span className="money-value">{money.format(view.summary.current)}</span></strong>
+        <button type="button" className={styles.textLink} onClick={onViewProgress} aria-label="View detailed progress">View progress <OutlineIcon name="chevron"/></button>
       </div>
     </div> };
   })) : null;
