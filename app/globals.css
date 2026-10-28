@@ -2489,3 +2489,6 @@ button:focus-visible,summary:focus-visible,input:focus-visible,select:focus-visi
 .app-sheet .numeric-control>input{width:100%!important;min-width:0!important;text-align:right}
 .account-compose input:focus-visible,.account-compose select:focus-visible,.app-sheet .loan-currency-input:focus-within,.app-sheet .loan-percentage-input:focus-within,.account-compose .field-input:focus-within{outline:0!important;box-shadow:none!important}
 .account-compose .form-grid>label:focus-within,.account-compose .loan-detail-field:focus-within{border-bottom-color:var(--theme-focus)}
+.app-sheet>.sheet-close{position:absolute;right:12px;top:24px;width:44px;height:44px;border:0;background:transparent;color:var(--theme-text);font-size:30px;z-index:5}
+.app-sheet>h2{text-align:center;padding:10px 52px;font-size:20px}
+.app-sheet .loan-help{min-height:22px!important;height:22px!important;width:22px!important;min-width:22px!important;padding:0;flex:none}

@@ -52,7 +52,8 @@ export function useDialogFocus() {
       if (!dialog.querySelector('header button[data-dialog-close], header button[aria-label^="Close"]')) {
         const x = document.createElement('button'); x.type = 'button'; x.className = 'sheet-close';
         x.setAttribute('aria-label', 'Close dialog'); x.onclick = () => closeControl(dialog)?.click();
-        dialog.querySelector('header')?.appendChild(x);
+        const header = dialog.querySelector('header');
+        if (header) header.appendChild(x); else dialog.insertBefore(x,handle.nextSibling);
       }
     };
     let drag: {dialog: HTMLElement; target: HTMLElement; y: number; time: number; distance: number; pointer: number} | null = null;
