@@ -6,6 +6,7 @@ import "./reference-layout.css";
 import "./theme.css";
 import "./visual-refresh.css";
 import "./mockup-fidelity.css";
+import "./form-layout.css";
 import AppearanceProvider from "./appearance-provider";
 
 export async function generateMetadata(): Promise<Metadata> {

@@ -88,3 +88,10 @@ test('previous built-in Light preferences receive Blue & Slate without rewriting
   const storage={getItem:()=>raw,setItem:()=>assert.fail('loading does not rewrite preferences')};
   assert.deepEqual(loadAppearance(storage),upgraded);
 });
+
+test('older 9–11 point choices upgrade to 12 without losing custom colors',()=>{
+ for(const size of [9,10,11]){
+  const next=parseAppearance(JSON.stringify({...THEMES.dark,size,primaryDark:'#123639'}));
+  assert.equal(next.size,12);assert.equal(next.theme,'dark');assert.equal(next.primaryDark,'#123639');
+ }
+});

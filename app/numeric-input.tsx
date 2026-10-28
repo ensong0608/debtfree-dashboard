@@ -16,7 +16,7 @@ export default function NumericInput({ value, text, onValueChange, min = 0, max,
   const [touched, setTouched] = useState(false);
   if (!Object.is(value, edit.value)) setEdit({ value, text: value === undefined || !Number.isFinite(value) || blankZero && value === 0 ? '' : String(value) });
   const raw = text ?? edit.text;
-  const parsed = parseFinancialInput(raw, { min, max, decimals, emptyValue });
+  const parsed = parseFinancialInput(raw, { min, max, decimals, emptyValue: blankZero && value === 0 ? 0 : emptyValue });
   const error = disabled ? '' : parsed.error;
   const change = (text: string) => {
     const next = parseFinancialInput(text, { min, max, decimals, emptyValue });

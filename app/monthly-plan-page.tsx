@@ -114,8 +114,8 @@ export default function MonthlyPlanPage(props: Props) {
     </section>}
 
 
-    <section className={styles.categorySection} aria-label="Planned spending by category">
-      <header className={styles.sectionHeading}><h2>Spending by category</h2></header>
+    <section className={styles.categorySection} aria-label="Budget Summary">
+      <header className={styles.sectionHeading}><h2>Budget Summary</h2></header>
       {!hasMonth ? <section className={styles.monthStart}>
         <span>New month</span><h2>Set up {monthLabel(month)}</h2><p>Copy recurring items from last month or start clean. One-time adjustments are never copied.</p>
         <div>{previousHasItems && <button className="primary" type="button" disabled={props.readOnly} onClick={props.onCopyPrevious}>Copy recurring items</button>}<button className="secondary" type="button" disabled={props.readOnly} onClick={props.onStartBlank}>Start with no entries</button></div>
