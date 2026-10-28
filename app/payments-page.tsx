@@ -122,7 +122,7 @@ export default function PaymentsPage({ readOnly, accounts, transactions, adjustm
         const name = names.get(row.accountId) ?? 'Removed debt';
         return {id:row.id,date:row.date,amount:row.amount,node:<TransactionCard key={row.id} id={row.id} kind={row.kind} date={row.date} title={title} account={account} accountName={name} amount={row.amount} difference={row.difference} readOnly={readOnly} editLabel={`Edit ${row.title} for ${name}`} onEdit={() => row.kind === 'adjustment' && onBalanceInfo ? onBalanceInfo(row.accountId) : open({ action: 'save', id: row.id })}
           description={row.title !== title && !/^(payment|balance (update|adjustment|increased|decreased))$/i.test(row.title) ? row.title : undefined}
-          footer={<>{!mobile && <button type="button" className="budget-record-delete" disabled={readOnly} aria-label={`Delete transaction for ${name}`} onClick={() => open({ action: 'delete', id: row.id })}>×</button>}</>}/>};
+          footer={!mobile ? <button type="button" className="budget-record-delete" disabled={readOnly} aria-label={`Delete transaction for ${name}`} onClick={() => open({ action: 'delete', id: row.id })}>×</button> : undefined}/>};
       });
   const feed: {id:string;date:string;amount:number;node:ReactNode}[] = [...paidFeed,...ledgerFeed];
   feed.sort((a,b)=>sortOrder === "amount" ? b.amount-a.amount || b.date.localeCompare(a.date) : (sortOrder === "oldest" ? a.date.localeCompare(b.date) : b.date.localeCompare(a.date)) || a.id.localeCompare(b.id));

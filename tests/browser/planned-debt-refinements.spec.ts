@@ -33,7 +33,7 @@ for(const theme of ['light','dark'] as const)for(const width of [360,390])test(`
  await nav(page).getByRole('button',{name:'Debt',exact:true}).click();
  const summary=page.getByRole('region',{name:'Debt summary',exact:true});await expect(summary).not.toContainText('across tracked');
  for(const category of ['All','Cards & Loans','Home & Auto']){
-  await page.getByRole('navigation',{name:'Debt type filters'}).getByRole('button',{name:category,exact:true}).click();
+  await page.getByRole('navigation',{name:'Debt type filters'}).getByRole('button',{name:new RegExp('^'+category)}).click();
   const cards=page.locator('[data-dialog-return-id]');let initial=0;let amountFont='';
   for(const point of [9,12,16]){
    await size(page,point);const f=await cards.first().locator('strong').first().evaluate(el=>parseFloat(getComputedStyle(el).fontSize));if(point===9)initial=f;else expect(f).toBeGreaterThan(initial);

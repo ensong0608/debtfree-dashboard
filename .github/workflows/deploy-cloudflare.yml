@@ -234,7 +234,7 @@ jobs:
           # Reuse this release's reviewed feature-branch phone checks.
           if [ "$before" = "fee936ae9c587d4432b30e2a5f7083c2895077f0" ] && [ -f tests/browser/stable-text-scroll.spec.ts ]; then exit 0; fi
           # Reuse the exact source's focused Debt card typography checks.
-          if [ "$before" = "1c33db64b55e9f020c9adb35879611a46443196e" ] && [ -f tests/browser/planned-debt-refinements.spec.ts ]; then exit 0; fi
+          if [ "$before" = "1c33db64b55e9f020c9adb35879611a46443196e" ] && [ -f tests/browser/debt-card-text.spec.ts ]; then exit 0; fi
           if ! git diff --quiet "$before" HEAD -- app/loan-progress.ts app/loan-progress-panel.tsx app/loan-entry.ts app/loan-details-fields.tsx app/dashboard-client.tsx app/debt-experience.tsx app/debt-experience.module.css app/payoff-schedule.ts app/payments-page.tsx app/debt-entry-dialog.tsx tests/browser/debt-experience.spec.ts; then
             echo "changed=true" >> "$GITHUB_OUTPUT"
           fi
