@@ -74,11 +74,11 @@ test('all presets and extreme custom primary colors keep headers, segments and a
 });
 
 
-test('previous built-in Light preferences receive Blue & Slate without rewriting saved custom preferences', () => {
+test('previous built-in Light preferences receive Brighter Tomorrow without rewriting saved custom preferences', () => {
   const previous = {...DEFAULT_APPEARANCE, accent:'#0961d9', background:'#f3f7fd', surface:'#ffffff', text:'#101b31', primaryLight:'#cfe7fa', primaryDark:'#123639', font:'serif', size:'large'};
   const upgraded = parseAppearance(JSON.stringify(previous));
   for (const key of ['accent','background','surface','text']) assert.equal(upgraded[key], DEFAULT_APPEARANCE[key]);
-  assert.equal(primaryColor(upgraded),'#295e9b');
+  assert.equal(primaryColor(upgraded),'#d2eee5');
   assert.equal(upgraded.primaryDark,previous.primaryDark);
   assert.equal(upgraded.font,'serif'); assert.equal(upgraded.size,'large');
   const custom = {...PRESETS.sand, primaryLight:'#aaccee', primaryDark:'#123639'};
@@ -95,4 +95,15 @@ test('older oversized choices clamp to 16 without losing colors; 9–11 remain s
   assert.equal(next.size,16);assert.equal(next.theme,'dark');assert.equal(next.primaryDark,'#123639');
  }
  for(const size of [9,10,11])assert.equal(parseAppearance(JSON.stringify({...THEMES.dark,size})).size,size);
+});
+
+
+test('Brighter Tomorrow upgrades old built-in surfaces and preserves an existing custom accent',()=>{
+ const saved={...DEFAULT_APPEARANCE,background:'#e4ebf3',surface:'#f5f8fc',text:'#101b31',accent:'#7040b4',primaryLight:'#7040b4',size:15};
+ const next=parseAppearance(JSON.stringify(saved));
+ assert.equal(next.background,DEFAULT_APPEARANCE.background);
+ assert.equal(next.accent,saved.accent);assert.equal(next.primaryLight,saved.primaryLight);assert.equal(next.size,15);
+ const mint=appearanceTokens(DEFAULT_APPEARANCE),purple=appearanceTokens(next);
+ for(const key of ['primary','accent-fill','gradient-start','scenery-back','scenery-front','scenery-leaf'])assert.notEqual(mint['--theme-'+key],purple['--theme-'+key]);
+ for(const key of ['success','danger','warning'])assert.equal(mint['--theme-'+key],purple['--theme-'+key]);
 });
