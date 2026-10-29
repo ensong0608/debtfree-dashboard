@@ -1,0 +1,10 @@
+import {env} from 'cloudflare:workers';
+import {householdContext} from '../household/store';
+import {authConfiguration} from '../../auth-config';
+import {createNotificationApi} from '../../notification-api';
+import {readPushKeys} from '../../web-push';
+export const dynamic='force-dynamic';
+const api=createNotificationApi(householdContext,()=>({origin:authConfiguration().origin,publicKey:readPushKeys((env as unknown as {WEB_PUSH_KEYS?:string}).WEB_PUSH_KEYS)?.publicKey??null}));
+export const GET=api.GET;
+export const PUT=api.PUT;
+export const DELETE=api.DELETE;

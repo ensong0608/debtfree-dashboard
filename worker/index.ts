@@ -1,5 +1,6 @@
 /** Cloudflare Worker entry point for the vinext-starter template. */
 import { handleImageOptimization, DEFAULT_DEVICE_SIZES, DEFAULT_IMAGE_SIZES } from "vinext/server/image-optimization";
+import {dispatchNotifications} from "../app/notification-dispatch";
 import handler from "vinext/server/app-router-entry";
 
 type ImageOutputFormat = "image/jpeg" | "image/png" | "image/gif" | "image/webp" | "image/avif" | "rgb" | "rgba";
@@ -20,6 +21,9 @@ interface ExecutionContext {
 // const imageConfig: ImageConfig = { dangerouslyAllowSVG: true };
 
 const worker = {
+  async scheduled(event: {scheduledTime:number}, env: Env & {WEB_PUSH_KEYS?:string}, ctx: ExecutionContext) {
+    ctx.waitUntil(dispatchNotifications(env,new Date(event.scheduledTime)));
+  },
   async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
     const url = new URL(request.url);
 

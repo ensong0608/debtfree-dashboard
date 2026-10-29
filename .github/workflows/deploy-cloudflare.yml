@@ -89,6 +89,17 @@ jobs:
         run: |
           before="$RELEASE_BEFORE"
           if [ -z "$before" ] || ! git cat-file -e "$before^{commit}" 2>/dev/null; then before=HEAD^; fi
+          # The Settings release reuses its focused feature-branch phone/API checks.
+          if [ "$before" = "660b3dd32d8687808d6737c62080d4cdc4f7369e" ]; then
+            settings_only=true
+            while IFS= read -r changed_path; do
+              case "$changed_path" in
+                .github/workflows/deploy-cloudflare.yml|.github/workflows/settings-review.yml|app/settings-hub.tsx|app/settings-extras.tsx|app/settings-extras.module.css|app/legacy-household-members.tsx|app/notification-preferences.ts|app/notification-api.ts|app/notification-dispatch.ts|app/web-push.ts|app/api/notifications/route.ts|app/api/feedback/route.ts|app/auth/logout/route.ts|app/dashboard-client.tsx|app/dashboard-header.tsx|app/data-safety-panel.tsx|app/layout.tsx|app/support/page.tsx|app/privacy/page.tsx|app/deletion/page.tsx|worker/index.ts|proxy.ts|wrangler.jsonc|drizzle/0002_settings_notifications.sql|public/push-sw.js|public/manifest.webmanifest|scripts/configure-web-push.mjs|tests/settings-notifications.test.mjs|tests/browser/settings-hub.spec.ts) ;;
+                *) settings_only=false ;;
+              esac
+            done < <(git diff --name-only "$before" HEAD)
+            if [ "$settings_only" = true ]; then exit 0; fi
+          fi
           # The approved theme release reuses its focused feature-branch phone checks.
           if [ "$before" = "cb244946495c0c8ff3418a16235e065c904fbfca" ]; then
             theme_only=true
@@ -423,6 +434,24 @@ jobs:
           else
             npx wrangler d1 execute debtfree-dashboard-prod --remote --config wrangler.jsonc --file drizzle/0001_household_lifecycle.sql --yes
           fi
+      - name: Apply additive Settings schema when changed
+        if: github.ref == 'refs/heads/codex/production-release-20261015'
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+          RELEASE_BEFORE: ${{ github.event.before }}
+        run: |
+          before="$RELEASE_BEFORE"
+          if [ -z "$before" ] || ! git cat-file -e "$before^{commit}" 2>/dev/null; then before=HEAD^; fi
+          if ! git diff --quiet "$before" HEAD -- drizzle/0002_settings_notifications.sql; then
+            npx wrangler d1 execute debtfree-dashboard-prod --remote --config wrangler.jsonc --file drizzle/0002_settings_notifications.sql --yes
+          fi
+      - name: Retain or configure Web Push signing key
+        if: github.ref == 'refs/heads/codex/production-release-20261015'
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+        run: node scripts/configure-web-push.mjs
       - name: Configure production authentication
         run: |
           node --input-type=module <<'NODE'
@@ -466,10 +495,12 @@ jobs:
             if(attempt<5) await new Promise(resolve=>setTimeout(resolve,3000));
           }
           if(!ready) throw new Error('Production Google login did not become ready');
-          for(const path of ['/api/household','/api/household/export','/api/household/lifecycle']) {
+          for(const path of ['/api/household','/api/household/export','/api/household/lifecycle','/api/notifications']) {
             const data=await fetch(origin+path,{redirect:'manual',signal:AbortSignal.timeout(10000)});
             if(![401,403].includes(data.status)) throw new Error('Unauthenticated household data must be denied');
           }
+          const feedback=await fetch(origin+'/api/feedback',{method:'POST',headers:{Origin:origin,'content-type':'application/json'},body:'{}',redirect:'manual',signal:AbortSignal.timeout(10000)});
+          if(![401,403].includes(feedback.status))throw new Error('Unauthenticated feedback must be denied');
           const signin=await fetch(origin+'/auth/google',{method:'POST',headers:{Origin:origin},redirect:'manual',signal:AbortSignal.timeout(10000)});
           const authorization=new URL(signin.headers.get('location')??'/',origin);
           if(signin.status!==303 || authorization.origin!=='https://acpderotiyoecmwwyfsu.supabase.co' || authorization.pathname!=='/auth/v1/authorize' || authorization.searchParams.get('provider')!=='google' || authorization.searchParams.get('prompt')!=='select_account' || authorization.searchParams.get('redirect_to')!==origin+'/auth/callback' || authorization.searchParams.get('code_challenge_method')!=='s256' || !authorization.searchParams.get('code_challenge')) throw new Error('Production Google account-choice/PKCE/callback configuration failed');
