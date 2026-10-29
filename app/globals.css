@@ -2361,6 +2361,7 @@ button:focus-visible,summary:focus-visible,input:focus-visible,select:focus-visi
 .shared-header-action svg{width:24px;height:24px}
 .shared-header-back{font-size:28px}
 .shared-header-action:disabled{opacity:.45}
+.app-shell[data-page=home] .shared-dashboard-header{margin-bottom:0}
 .home-welcome{width:min(100%,760px);padding:4px 16px 4px;margin:0 auto}
 .home-welcome h1{font-size:calc(22px * var(--theme-text-scale,1));font-weight:400;margin:0}
 .home-welcome p{font-size:calc(13px * var(--theme-text-scale,1));color:var(--theme-muted);margin:4px 0 0}
