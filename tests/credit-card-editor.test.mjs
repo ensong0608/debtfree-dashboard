@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {saveCreditCardDetails, markCreditCardPaidOff} from '../app/credit-card-editor.ts';
+import {saveCreditCardDetails} from '../app/credit-card-editor.ts';
 import {changeDebtEntry} from '../app/debt-transactions.ts';
 import {transactionAdjustedAccounts} from '../app/progress-balances.ts';
 const card={id:'card',name:'Card',type:'Credit card',balance:1000,baselineBalance:1000,apr:12,minimum:25,minimumMode:'manual',payoffMode:'priority',interestFee:0,creditLimit:2000,dueDate:'',promoEndDate:'',postPromoApr:0,postPromoMinimum:0,createdAt:'2026-10-01T12:00:00Z'};
@@ -26,7 +26,8 @@ test('card group changes save without changing balances or transaction history',
  const saved=saveCreditCardDetails(before,'card',{...before.accounts[0],displayGroup:'Papi'},{account:before.accounts[0],balance:1000});
  assert.equal(saved.accounts[0].displayGroup,'Papi');assert.equal(saved.accounts[0].displayOrder,0);assert.equal(balance(saved),1000);assert.deepEqual(saved.transactions,before.transactions);assert.deepEqual(saved.adjustments,before.adjustments);assert.deepEqual(saved.accounts[1],before.accounts[1]);
 });
-test('mark paid off records an adjustment and archives without erasing ledger or starting balance',()=>{
+test('paying off requires a recorded final payment and keeps the ledger and starting balance',()=>{
  const next=changeDebtEntry(state(),{action:'save',draft:{accountId:'card',kind:'payment',direction:'decrease',amount:100,date:'2026-10-22',title:'Payment',note:''}});
- const paid=markCreditCardPaidOff(next,'card');assert.equal(balance(paid),0);assert.ok(paid.accounts[0].archivedAt);assert.equal(paid.accounts[0].baselineBalance,1000);assert.deepEqual(paid.transactions,next.transactions);assert.equal(paid.adjustments.at(-1).difference,-900);assert.deepEqual(paid.accounts[1],next.accounts[1]);
+ const paid=changeDebtEntry(next,{action:'save',draft:{accountId:'card',kind:'payment',direction:'decrease',amount:900,date:'2026-10-23',title:'Payment',note:''}});
+ assert.equal(balance(paid),0);assert.equal(paid.accounts[0].baselineBalance,1000);assert.equal(paid.transactions.length,2);assert.deepEqual(paid.adjustments,[]);assert.deepEqual(paid.accounts[1],next.accounts[1]);
 });

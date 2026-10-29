@@ -8,7 +8,7 @@ async function scrollBothWays(page:Page,dialog:Locator,touch:boolean) {
  const header=dialog.locator(':scope > header');
  const before=(await header.boundingBox())!;
  const owner=await dialog.evaluateHandle(el=>[el,...el.querySelectorAll<HTMLElement>('*')].filter(node=>
-  node instanceof HTMLElement && node.getClientRects().length>0 && node.closest('[role=dialog]')===el &&
+  node instanceof HTMLElement && node.getClientRects().length>0 && node.closest('[role=dialog], [data-reading-page]')===el &&
   /auto|scroll/.test(getComputedStyle(node).overflowY) && node.scrollHeight>node.clientHeight+2
  ).sort((a,b)=>b.clientWidth*b.clientHeight-a.clientWidth*a.clientHeight)[0]??null);
  const scroll=owner.asElement() as ElementHandle<HTMLElement>|null;
@@ -35,11 +35,11 @@ async function scrollBothWays(page:Page,dialog:Locator,touch:boolean) {
   await session.detach();
  }
  expect(Math.abs((await header.boundingBox())!.y-before.y)).toBeLessThan(1);
- await expect(header.getByRole('button',{name:/^Close /})).toBeInViewport();
+ await expect(header.getByRole('button',{name:/^Close |^Back to DebtFree$/})).toBeInViewport();
  await owner.dispose();
 }
 
-test('Advanced and Settings panels scroll in both directions while close controls stay reachable',async({page},info)=>{
+test('Debt terms and Settings panels scroll in both directions while close controls stay reachable',async({page},info)=>{
  expect(['localhost','127.0.0.1']).toContain(new URL(String(info.project.use.baseURL)).hostname);
  const phone=info.project.name==='phone';
  await page.setViewportSize({width:phone?390:1280,height:phone?568:600});
@@ -55,11 +55,11 @@ test('Advanced and Settings panels scroll in both directions while close control
  await page.getByRole('button',{name:'Open Sample card',exact:true}).click();
  const account=page.getByRole('dialog',{name:'Sample card',exact:true});
  await account.getByRole('tab',{name:'Detail',exact:true}).click();
- await account.getByRole('button',{name:'Advanced',exact:true}).click();
- const advanced=page.getByRole('dialog',{name:'Advanced',exact:true});
+ await account.getByRole('button',{name:/^Payment & Terms/}).click();
+ const advanced=page.getByRole('dialog',{name:'Payment & Terms',exact:true});
  await scrollBothWays(page,advanced,phone);
- await advanced.getByRole('button',{name:'Close Advanced',exact:true}).click();
- await scrollBothWays(page,account,phone);
+ await advanced.getByRole('button',{name:'Close Payment & Terms',exact:true}).click();
+
  await account.getByRole('button',{name:'Close Sample card',exact:true}).click();
  await nav.getByRole('button',{name:'Home',exact:true}).click();
  await page.getByRole('button',{name:'Open Settings',exact:true}).click();
@@ -69,5 +69,38 @@ test('Advanced and Settings panels scroll in both directions while close control
   await scrollBothWays(page,panel,phone);
   await panel.getByRole('button',{name:'Close '+title,exact:true}).click();
  }
+ // These screens must preserve the mounted dashboard, not navigate away and reload it.
+ await page.evaluate(()=>{(window as unknown as {readingSentinel:string}).readingSentinel='still mounted';});
+ const url=page.url();let navigations=0;
+ page.on('framenavigated',frame=>{if(frame===page.mainFrame())navigations++;});
+ const hub=page.locator('.settings-hub');
+ await hub.getByRole('button',{name:/^Help & support/}).click();
+ await scrollBothWays(page,page.getByRole('dialog',{name:'Help & support',exact:true}),phone);
+ // Follow a cross-link inside Help without leaving the app.
+ await page.getByRole('dialog',{name:'Help & support',exact:true}).getByRole('button',{name:'Privacy draft',exact:true}).click();
+ await expect(page.getByRole('dialog',{name:'Privacy policy',exact:true})).toBeVisible();
+ await page.getByRole('button',{name:'Close Privacy policy',exact:true}).click();
+ for(const title of ['Privacy policy','Terms of service','Account deletion']) {
+  await hub.getByRole('button',{name:/^Privacy & terms/}).click();
+  await page.getByRole('dialog',{name:'Privacy & terms',exact:true}).getByRole('button',{name:new RegExp('^'+title)}).click();
+  const panel=page.getByRole('dialog',{name:title,exact:true});
+  await scrollBothWays(page,panel,phone);
+  await panel.getByRole('button',{name:'Close '+title,exact:true}).click();
+  await expect(page.locator('.shared-dashboard-title')).toHaveText('Settings');
+ }
+ expect(page.url()).toBe(url);expect(navigations).toBe(0);
+ expect(await page.evaluate(()=>(window as unknown as {readingSentinel:string}).readingSentinel)).toBe('still mounted');
  await expect(page.locator('html')).not.toHaveAttribute('data-dialog-open','true');
+});
+
+
+test('direct Help and policy pages have their own scroll area and reachable back button',async({page},info)=>{
+ expect(['localhost','127.0.0.1']).toContain(new URL(String(info.project.use.baseURL)).hostname);
+ const phone=info.project.name==='phone';
+ await page.setViewportSize({width:phone?390:1280,height:phone?568:600});
+ await page.addInitScript(({key,look})=>localStorage.setItem(key,JSON.stringify(look)),{key:APPEARANCE_KEY,look:{...THEMES.light,size:16}});
+ for(const path of ['/support','/privacy','/terms','/deletion']) {
+  await page.goto(path);
+  await scrollBothWays(page,page.locator('[data-reading-page]'),phone);
+ }
 });

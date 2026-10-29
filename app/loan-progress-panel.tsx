@@ -10,6 +10,7 @@ import { createHouseholdMoneyFormatter, householdCurrencySymbol } from "./househ
 import { useHouseholdCurrency } from "./household-currency-context";
 import InstitutionIcon from "./institution-icon";
 import OutlineIcon from "./outline-icon";
+import {DetailSection,DetailSummary,detailStyles} from './debt-detail-sections';
 import LoanDetailsFields from "./loan-details-fields";
 import FloatingAddButton from "./floating-add-button";
 import LoanActivityPanel from "./loan-activity-panel";
@@ -33,7 +34,6 @@ export default function LoanProgressPanel({ onDeleteDebt, loans, items, onChange
   const detailRegularPayment = detailLoan ? regularLoanPayment(detailLoan, items) ?? 0 : 0;
   const suggestedRegular = Math.min(detailRegularPayment, paymentSuggestion ?? detailRegularPayment);
   const suggestedExtra = Math.max(0, (paymentSuggestion ?? detailRegularPayment) - detailRegularPayment);
-  const [advanced, setAdvanced] = useState(false);
   const [activityLoan,setActivityLoan]=useState<LoanTracker|null>(null);
   const [draft, setDraft] = useState<LoanTracker | null>(initialDraft ?? (detailLoan ? {...detailLoan, monthlyPayment: regularLoanPayment(detailLoan, items)} : null));
   const [initialEditorDraft] = useState(draft);
@@ -57,7 +57,7 @@ export default function LoanProgressPanel({ onDeleteDebt, loans, items, onChange
   };
   let paymentPreview = null;
   try { if (paymentDraft) paymentPreview = loanPaymentSplit(paymentDraft.loan, paymentDraft.amount, paymentDraft.extra); } catch {}
-  const close = () => { if (pendingLoanExit) { finishLoanExit(pendingLoanExit); onDialog(false); return; } if (detailLoan) { onDetailTab?.("Overview"); setAdvanced(false); } else setDraft(null); onDialog(false); };
+  const close = () => { if (pendingLoanExit) { finishLoanExit(pendingLoanExit); onDialog(false); return; } if (detailLoan) { onDetailTab?.("Overview"); } else setDraft(null); onDialog(false); };
   const open = (loan: LoanTracker) => {
     setError(''); setFieldErrors({}); setSourceLoan(loan);
     setDraft({ ...loan, monthlyPayment: regularLoanPayment(loan, items) });
@@ -71,7 +71,6 @@ export default function LoanProgressPanel({ onDeleteDebt, loans, items, onChange
       const errors = loanEntryErrors(candidate);
       setFieldErrors(errors);
       const first = Object.keys(errors)[0];
-      if (first === "asOf" || detailLoan && first === "originalAmount") setAdvanced(true);
       if (first) { (event.currentTarget.elements.namedItem(first) as HTMLElement | null)?.focus(); return; }
       if (sourceLoan && JSON.stringify(existing) !== JSON.stringify(sourceLoan)) { setError('This loan changed. Reopen it to review the latest balance.'); return; }
       const cents = (value: number) => Math.round((value + Number.EPSILON) * 100) / 100;
@@ -81,11 +80,14 @@ export default function LoanProgressPanel({ onDeleteDebt, loans, items, onChange
       onChange(existing ? loans.map(loan => loan.id === saved.id ? saved : loan) : [...loans, saved]); close();
     }}>{!detailLoan && !embedded && <header className="back-form-header"><BackButton type="button" data-dialog-close aria-label="Back from loan form" onClick={() => requestLoanExit("close")}/><h2 id="loan-dialog-title">{draft.kind === 'house' ? 'Mortgage Details' : 'Auto Loan Details'}</h2></header>}
       <div className="form-grid">
-        <LoanDetailsFields onDebtType={onDebtType} mode={detailLoan ? "info" : "all"} draft={draft} onChange={next=>{setDraft(next);onDraftChange?.(next);}} errors={fieldErrors}/>
+        <div className={detailStyles.stack}>
+         <DetailSection title="Debt details" summary={<><DetailSummary label="Account name" value={draft.name||'Add a name'}/>{draft.customNoteEnabled&&draft.customNote&&<DetailSummary label="Custom note" value={draft.customNote}/>}</>}><LoanDetailsFields onDebtType={onDebtType} mode="debt" draft={draft} onChange={next=>{setDraft(next);onDraftChange?.(next);}} errors={fieldErrors}/></DetailSection>
+         <DetailSection title="Payment & Terms" summary={<><DetailSummary label="Current balance" value={money.format(draft.remainingAmount||0)}/><DetailSummary label="APR" value={`${draft.apr??0}%`}/><DetailSummary label="Minimum payment" value={money.format(draft.monthlyPayment??0)}/></>}><LoanDetailsFields mode="terms" draft={draft} onChange={next=>{setDraft(next);onDraftChange?.(next);}} errors={fieldErrors}/><DateCalendar label="Balance date" value={draft.asOf} max={householdDate()} onChange={asOf=>{const next={...draft,asOf};setDraft(next);onDraftChange?.(next);}}/></DetailSection>
+        </div>
         {Object.keys(fieldErrors).length > 0 && <div className="wide form-error" role="alert">Check the highlighted fields.</div>}
         {error && <p className="wide form-error" role="alert">{error.replace(/\$0(?:\.00)?/g, symbol + "0")}</p>}
-        {embedded && advanced && <><LoanDetailsFields mode="principal" draft={draft} onChange={next=>{setDraft(next);onDraftChange?.(next);}} errors={fieldErrors}/><DateCalendar label="Balance date" value={draft.asOf} max={householdDate()} onChange={asOf=>{const next={...draft,asOf};setDraft(next);onDraftChange?.(next);}}/></>}
-      </div><footer className="form-action-footer"><button className="primary" type="submit" disabled={readOnly}>Save</button><button className="secondary" type="button" onClick={() => setAdvanced(open=>!open)}>Advanced</button></footer>
+      </div><footer className="form-action-footer"><button className="primary" type="submit" disabled={readOnly}>Save</button></footer>
+      {detailLoan&&onDeleteDebt&&<button type="button" className={detailStyles.delete} onClick={()=>onDeleteDebt(detailLoan)}>Delete debt</button>}
     </form>;
   if (embedded) return <>{editor}{pendingLoanExit && <UnsavedChangesDialog subject="loan" onSave={()=>loanForm.current?.requestSubmit()} onDiscard={()=>finishLoanExit(pendingLoanExit)} onCancel={()=>setPendingLoanExit(null)}/>}</>;
   return <section className="loan-progress-section" aria-labelledby={editorOnly || detailLoan ? undefined : "loan-progress-title"}>
@@ -108,10 +110,10 @@ export default function LoanProgressPanel({ onDeleteDebt, loans, items, onChange
     })}</div></>}
     {activityLoan&&<div className="modal-backdrop account-activity-backdrop"><section className="modal account-activity-modal" role="dialog" aria-modal="true" aria-label={`Activity for ${activityLoan.name}`}><header><h2>{activityLoan.name}</h2><button type="button" aria-label="Close activity" onClick={()=>setActivityLoan(null)}>×</button></header><LoanActivityPanel expanded loan={activityLoan}/></section></div>}
     {!detailLoan && draft && <div className="modal-backdrop"><section className="modal loan-modal loan-details-modal" role="dialog" aria-modal="true" aria-labelledby="loan-dialog-title">{editor}</section></div>}
-    {detailLoan && <DebtDetail readOnly={readOnly} onEdit={() => { setDraft({...detailLoan, monthlyPayment:regularLoanPayment(detailLoan, items)}); setSourceLoan(detailLoan); setError(''); setFieldErrors({}); requestLoanExit("Info"); }} name={detailLoan.name} tab={detailTab} onTab={tab => { if (tab === "Info" && detailTab !== "Info") { setDraft({...detailLoan, monthlyPayment:regularLoanPayment(detailLoan, items)}); setSourceLoan(detailLoan); setError(''); setFieldErrors({}); } requestLoanExit(tab); }} onBack={() => requestLoanExit("close")} overview={<DebtOverview completedOn={detailLoan.remainingAmount <= .005 ? [...detailLoan.history].filter(entry => entry.amount <= .005).sort((a,b)=>b.date.localeCompare(a.date))[0]?.date : undefined} history={loanForecastAssumptions(detailLoan).length > 0 ? <small>{loanForecastAssumptions(detailLoan).join(" ")}</small> : undefined} payoff={payoffMonth} onDelete={onDeleteDebt?()=>onDeleteDebt(detailLoan):undefined} name={detailLoan.name} balance={detailLoan.remainingAmount} starting={detailLoan.originalAmount} apr={detailLoan.apr} minimum={regularLoanPayment(detailLoan, items)} dueDate={nextDueDate(detailLoan.dueDate??'')} readOnly={readOnly} onPayment={() => { setError(''); setPaymentDraft({loan:detailLoan, amount:suggestedRegular, extra:suggestedExtra, date:householdDate()}); onDialog(true); }} onBalance={() => { setDraft({...detailLoan, monthlyPayment:regularLoanPayment(detailLoan, items)}); setSourceLoan(detailLoan); onDetailTab?.("Info"); }}/>} transactions={<><FloatingAddButton label="Add loan transaction" disabled={readOnly || detailLoan.remainingAmount <= 0} onClick={() => { setError(''); setPaymentDraft({loan:detailLoan, amount:suggestedRegular, extra:suggestedExtra, date:householdDate()}); onDialog(true); }}/><LoanActivityPanel expanded allHistory loan={detailLoan}/></>} info={<div className="loan-detail-info"><fieldset disabled={readOnly}>{editor}</fieldset></div>}/>}
+    {detailLoan && <DebtDetail readOnly={readOnly} onEdit={() => { setDraft({...detailLoan, monthlyPayment:regularLoanPayment(detailLoan, items)}); setSourceLoan(detailLoan); setError(''); setFieldErrors({}); requestLoanExit("Info"); }} name={detailLoan.name} tab={detailTab} onTab={tab => { if (tab === "Info" && detailTab !== "Info") { setDraft({...detailLoan, monthlyPayment:regularLoanPayment(detailLoan, items)}); setSourceLoan(detailLoan); setError(''); setFieldErrors({}); } requestLoanExit(tab); }} onBack={() => requestLoanExit("close")} overview={<DebtOverview completedOn={detailLoan.remainingAmount <= .005 ? [...detailLoan.history].filter(entry => entry.amount <= .005).sort((a,b)=>b.date.localeCompare(a.date))[0]?.date : undefined} history={loanForecastAssumptions(detailLoan).length > 0 ? <small>{loanForecastAssumptions(detailLoan).join(" ")}</small> : undefined} payoff={payoffMonth} name={detailLoan.name} balance={detailLoan.remainingAmount} starting={detailLoan.originalAmount} apr={detailLoan.apr} minimum={regularLoanPayment(detailLoan, items)} dueDate={nextDueDate(detailLoan.dueDate??'')} readOnly={readOnly} onPayment={() => { setError(''); setPaymentDraft({loan:detailLoan, amount:suggestedRegular, extra:suggestedExtra, date:householdDate()}); onDialog(true); }} onBalance={() => { setDraft({...detailLoan, monthlyPayment:regularLoanPayment(detailLoan, items)}); setSourceLoan(detailLoan); onDetailTab?.("Info"); }}/>} transactions={<><FloatingAddButton label="Add loan transaction" disabled={readOnly || detailLoan.remainingAmount <= 0} onClick={() => { setError(''); setPaymentDraft({loan:detailLoan, amount:suggestedRegular, extra:suggestedExtra, date:householdDate()}); onDialog(true); }}/><LoanActivityPanel expanded allHistory loan={detailLoan}/></>} info={<div className="loan-detail-info"><fieldset disabled={readOnly}>{editor}</fieldset></div>}/>}
 
     {pendingLoanExit && <UnsavedChangesDialog subject="loan" onSave={() => loanForm.current?.requestSubmit()} onDiscard={() => { setDraft(baselineDraft); finishLoanExit(pendingLoanExit); }} onCancel={() => setPendingLoanExit(null)}/>}
-    {draft && <div hidden={!advanced}><ExperienceOverlay title="Advanced" onBack={() => setAdvanced(false)}><fieldset className="advanced-info-content" disabled={readOnly}>{detailLoan && <LoanDetailsFields mode="advanced" draft={draft} onChange={next=>{setDraft(next);onDraftChange?.(next);}} errors={fieldErrors}/>}<DateCalendar label="Balance date" value={draft.asOf} max={householdDate()} onChange={date => setDraft({...draft, asOf:date})}/></fieldset></ExperienceOverlay></div>}
+
     {paymentDraft && <div className="modal-backdrop"><section className="modal loan-modal" role="dialog" aria-modal="true" aria-labelledby="loan-payment-title"><form ref={paymentForm} onSubmit={event => {
       event.preventDefault();
       if (readOnly) return;

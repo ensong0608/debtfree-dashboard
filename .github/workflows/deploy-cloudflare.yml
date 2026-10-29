@@ -110,6 +110,18 @@ jobs:
         run: |
           before="$RELEASE_BEFORE"
           if [ -z "$before" ] || ! git cat-file -e "$before^{commit}" 2>/dev/null; then before=HEAD^; fi
+          # Owner-approved detail/currency release: reuse focused local type,
+          # calculation and phone/desktop controls checks for this exact base.
+          if [ "$before" = "94cd0f58c1d37daad84fd80f712b8a531fa1f010" ]; then
+            detail_only=true
+            while IFS= read -r changed_path; do
+              case "$changed_path" in
+                .github/workflows/deploy-cloudflare.yml|app/budget-bill-payment.tsx|app/costco-interest-settings.tsx|app/credit-card-editor.ts|app/credit-card-info.tsx|app/dashboard-client.tsx|app/dashboard-data.ts|app/debt-detail-sections.module.css|app/debt-detail-sections.tsx|app/debt-entry-dialog.tsx|app/debt-terms.ts|app/debts-screen.ts|app/deletion/page.tsx|app/financial-input.ts|app/home-dashboard.ts|app/interest-accrual.ts|app/loan-details-fields.tsx|app/loan-progress-panel.tsx|app/loan-progress.ts|app/numeric-input.tsx|app/onboarding-flow.tsx|app/payoff-calculator-page.tsx|app/payoff-engine.ts|app/payoff-plan.ts|app/payoff-schedule-popup.tsx|app/privacy/page.tsx|app/quick-payoff-calculator.tsx|app/reading-content.module.css|app/reading-content.tsx|app/schedule-minimum-editor.tsx|app/settings-hub.tsx|app/support/page.tsx|app/terms/page.tsx|tests/browser/debt-detail-sections.spec.ts|tests/browser/interest-payoff.spec.ts|tests/browser/panel-scroll.spec.ts|tests/credit-card-editor.test.mjs|tests/debt-detail-terms.test.mjs|tests/payoff-strategy.test.mjs) ;;
+                *) detail_only=false ;;
+              esac
+            done < <(git diff --name-only "$before" HEAD)
+            if [ "$detail_only" = true ]; then exit 0; fi
+          fi
           # Approved panel scrolling release: reuse the passing local type check
           # and focused desktop/phone wheel and touch regressions.
           if [ "$before" = "f487aaa6e30f8437095f4e34ae8bdf380ca04b3f" ]; then

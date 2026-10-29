@@ -3,11 +3,11 @@ import { validOptionalInstitution } from './institutions.ts';
 import type { DebtAccount, DebtAuditCreator } from './dashboard-data.ts';
 import type { EntryState } from './debt-transactions.ts';
 import { transactionAdjustedAccounts } from './progress-balances.ts';
-import { createBalanceAdjustment, setDebtArchived } from './debts-screen.ts';
+import { createBalanceAdjustment } from './debts-screen.ts';
 import { householdDate, reconcileInterest, interestSettingsError, datedInterestSettings, recordActualInterest } from './interest-accrual.ts';
 import {startingBalanceEdit} from './debt-starting-balance.ts';
 
-const editableKeys = ['institutionKey', 'displayGroup', 'name', 'apr', 'interestFee', 'minimum', 'minimumMode', 'creditLimit', 'dueDate', 'promoEndDate', 'postPromoApr', 'postPromoMinimum'] as const;
+const editableKeys = ['institutionKey', 'displayGroup', 'name', 'apr', 'interestFee', 'minimum', 'minimumMode', 'creditLimit', 'dueDate', 'promoEndDate', 'postPromoApr', 'postPromoMinimum','customNote','customNoteEnabled','creditLimitEnabled','promoEnabled','promoApr'] as const;
 export type CreditCardDraft = Pick<DebtAccount, typeof editableKeys[number] | 'interestAutomation'> & {balance: number; baselineBalance?: number; displayPosition?: number; actualInterest?: {amount: number; date: string}};
 export type CardEditBaseline = {account: DebtAccount; balance: number; startingBalance?: number};
 
@@ -34,6 +34,9 @@ export function saveCreditCardDetails(state: EntryState, id: string, draft: Cred
     if (value === (key === "balance" ? baseline.balance : baseline.account[key])) continue;
     if (!Number.isFinite(value) || value < 0 || !Number.isSafeInteger(Math.round(value * 100)) || Math.abs(value * 100 - Math.round(value * 100)) > 0.000001) throw new Error('Use non-negative amounts with up to two decimal places.');
   }
+  if(draft.promoEnabled && !/^\d{4}-\d{2}-\d{2}$/.test(draft.promoEndDate))throw new Error('Choose a promo end date.');
+  if(draft.promoApr!==undefined&&(!Number.isFinite(draft.promoApr)||draft.promoApr<0||draft.promoApr>100))throw new Error('Enter a promo APR from 0 to 100%.');
+  if(draft.customNote!==undefined&&draft.customNote.length>1000)throw new Error('Keep the note within 1,000 characters.');
   const balanceChanged = draft.balance !== baseline.balance;
   const interestChanged = draft.interestAutomation !== undefined && JSON.stringify(draft.interestAutomation) !== JSON.stringify(baseline.account.interestAutomation);
   if (interestChanged) {
@@ -46,13 +49,6 @@ export function saveCreditCardDetails(state: EntryState, id: string, draft: Cred
   if (balanceChanged && current.balance !== baseline.balance) throw new Error('The balance changed. Reopen the card before editing its balance.');
   if (balanceChanged && draft.actualInterest) throw new Error('Save the balance and actual interest separately.');
   const next = balanceChanged ? reconcileBalance(state, account, draft.balance, creator) : draft.actualInterest ? {...state, transactions: recordActualInterest(account, state.transactions, draft.actualInterest.amount, draft.actualInterest.date)} : state;
-  const changes = Object.fromEntries(editableKeys.map(key => [key, key === 'name' ? draft.name.trim() : key === 'displayGroup' ? draft.displayGroup ?? baseline.account.displayGroup : draft[key]]));
+  const changes = Object.fromEntries(editableKeys.filter(key=>draft[key]!==undefined).map(key => [key, key === 'name' ? draft.name.trim() : key === 'displayGroup' ? draft.displayGroup ?? baseline.account.displayGroup : draft[key]]));
   return {...next, accounts: next.accounts.map(item => item.id === id ? {...item, ...(draft.minimumMode === "manual" && (draft.minimum !== account.minimum || account.minimumMode !== "manual") ? minimumCycleEdit(account,draft.minimum) : {}), ...changes, ...(interestChanged ? {interestAutomation:datedInterestSettings(account.interestAutomation,draft.interestAutomation!)} : {}), ...(startingBalance !== undefined ? {baselineBalance:startingBalance} : {})} : item)};
-}
-
-export function markCreditCardPaidOff(state: EntryState, id: string, creator?: DebtAuditCreator): EntryState {
-  const account = state.accounts.find(item => item.id === id);
-  if (!account || account.type !== 'Credit card' || account.archivedAt) throw new Error('This card is no longer active.');
-  const next = reconcileBalance(state, account, 0, creator);
-  return {...next, accounts: next.accounts.map(item => item.id === id ? setDebtArchived(item, true, new Date().toISOString(), creator) : item)};
 }

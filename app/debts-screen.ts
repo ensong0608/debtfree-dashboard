@@ -1,3 +1,4 @@
+import {regularApr,promoEnabled} from './debt-terms.ts';
 import {transactionAdjustedAccounts} from "./progress-balances.ts";
 import {effectiveForecastApr} from "./payoff-engine.ts";
 import { householdDate } from "./household-date.ts";
@@ -48,12 +49,12 @@ export function openingBalanceForCurrentBalance(openingBalance: number, currentB
 }
 
 export function promoNotice(account: DebtAccount, today = new Date()): PromoNotice {
-  if (!account.promoEndDate) return null;
+  if (!promoEnabled(account)||!account.promoEndDate) return null;
   const currentDay = householdDate(today);
   const formatted = new Date(`${account.promoEndDate}T12:00:00`).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
-  if (account.postPromoApr <= 0) return { label: `Promo ends ${formatted}; add the post-promo APR`, tone: "danger" };
-  if (account.promoEndDate < currentDay) return { label: `Promo ended ${formatted}; now ${account.postPromoApr.toFixed(2)}% APR`, tone: "warning" };
-  return { label: `Promo ends ${formatted}; then ${account.postPromoApr.toFixed(2)}% APR`, tone: "neutral" };
+  if (account.promoApr===undefined && account.postPromoApr <= 0) return { label: `Promo ends ${formatted}; add the post-promo APR`, tone: "danger" };
+  if (account.promoEndDate < currentDay) return { label: `Promo ended ${formatted}; now ${regularApr(account).toFixed(2)}% APR`, tone: "warning" };
+  return { label: `Promo ends ${formatted}; then ${regularApr(account).toFixed(2)}% APR`, tone: "neutral" };
 }
 
 function cents(value: number) {

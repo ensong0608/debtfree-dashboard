@@ -1,3 +1,4 @@
+import {promoEnabled} from './debt-terms.ts';
 import type { DebtAccount, PayoffStrategy } from "./dashboard-data.ts";
 import { payoffPriority } from "./debts-screen.ts";
 import { calculatePlan, effectiveForecastApr, forecastMonthKey, round, type LinkedCardExpenses, type PayoffPlan, type PlanMonth, type PlanContext } from "./payoff-engine.ts";
@@ -162,7 +163,7 @@ export function buildPayoffScheduleRows(
 export function payoffCalculationWarnings(accounts: DebtAccount[], plan: PayoffPlan, calculationDate: Date = new Date()) {
   const warnings: string[] = [];
   const missingMinimums = accounts.filter((account) => !account.archivedAt && account.balance > 0 && account.minimumMode === "manual" && account.minimum <= 0).map((account) => account.name);
-  const missingPostPromo = accounts.filter((account) => !account.archivedAt && account.balance > 0 && account.promoEndDate && account.postPromoApr <= 0).map((account) => account.name);
+  const missingPostPromo = accounts.filter((account) => !account.archivedAt && account.balance > 0 && promoEnabled(account) && account.promoEndDate && account.promoApr===undefined && account.postPromoApr <= 0).map((account) => account.name);
   if (missingMinimums.length) warnings.push(`Missing minimum payment: ${missingMinimums.join(", ")}.`);
   if (missingPostPromo.length) warnings.push(`Your payoff projection may be inaccurate because the APR after the promotional period is missing. Add it for: ${missingPostPromo.join(", ")}.`);
   if (plan.promoMinimumFallbackIds.length) {
@@ -170,7 +171,7 @@ export function payoffCalculationWarnings(accounts: DebtAccount[], plan: PayoffP
     warnings.push(`Post-promotion minimum not entered; automatic estimates or the saved manual amount continue for ${names.join(", ")}.`);
   }
   if (plan.stalled) warnings.push("The current payment assumptions do not produce a complete payoff date.");
-  accounts.filter((account) => !account.archivedAt && account.balance > 0 && account.promoEndDate && account.postPromoApr > 0).forEach((account) => {
+  accounts.filter((account) => !account.archivedAt && account.balance > 0 && promoEnabled(account) && account.promoEndDate && (account.promoApr!==undefined||account.postPromoApr > 0)).forEach((account) => {
     const promoMonth = account.promoEndDate.slice(0, 7);
     const lastPromoMonth = plan.months.findLast((entry) => forecastMonthKey(entry.month, calculationDate) <= promoMonth);
     const remaining = lastPromoMonth?.balances[account.id] ?? account.balance;

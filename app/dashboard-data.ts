@@ -3,7 +3,7 @@ import { householdMonthOffset } from "./household-date.ts";
 import { validDisplayName, type DebtGroup } from "./debt-groups.ts";
 import { validatePaymentLinks } from "./payment-overlap.ts";
 import type { LoanTracker } from "./loan-progress.ts";
-import { validDate, closingDate, type InterestAutomation, type InterestEstimate } from "./interest-accrual.ts";
+import { validDate, type InterestAutomation, type InterestEstimate } from "./interest-accrual.ts";
 export const DASHBOARD_BACKUP_FORMAT = "debtfree-dashboard-backup" as const;
 export const LEGACY_DASHBOARD_DATA_VERSION = 1 as const;
 export const PLANNING_DASHBOARD_DATA_VERSION = 2 as const;
@@ -52,6 +52,11 @@ export type DebtAccount = OwnershipMetadata & {
   baselineBalance?: number;
   apr: number;
   interestFee: number;
+  customNote?: string;
+  customNoteEnabled?: boolean;
+  creditLimitEnabled?: boolean;
+  promoEnabled?: boolean;
+  promoApr?: number;
   interestAutomation?: InterestAutomation;
   minimum: number;
   minimumCycles?: {date:string;amount:number}[];
@@ -625,7 +630,7 @@ function requiredNumber(value: unknown, path: string, issues: string[], integer 
     return;
   }
   if (/\.(balance|balanceBefore|balanceAfter|baselineBalance|amount|minimum|interestFee|creditLimit|postPromoMinimum|monthlyTakeHome)$/.test(path) && Math.abs(value * 100 - Math.round(value * 100)) > 0.000001) issues.push(`${path} must have at most two decimal places.`);
-  if (/\.(apr|postPromoApr)$/.test(path) && value > 100) issues.push(`${path} must be at most 100.`);
+  if (/\.(apr|postPromoApr|promoApr)$/.test(path) && value > 100) issues.push(`${path} must be at most 100.`);
   if (value < 0) issues.push(`${path} must be zero or greater.`);
   if (!Number.isSafeInteger(Math.round(value * 100))) issues.push(`${path} exceeds the supported numeric range.`);
   if (integer && !Number.isInteger(value)) issues.push(`${path} must be a whole number.`);
@@ -683,6 +688,10 @@ function validateAccount(value: unknown, path: string, issues: string[]) {
   if (item.baselineBalance !== undefined) requiredNumber(item.baselineBalance, `${path}.baselineBalance`, issues);
   requiredNumber(item.apr, `${path}.apr`, issues);
   requiredNumber(item.interestFee, `${path}.interestFee`, issues);
+  for(const key of ['customNoteEnabled','creditLimitEnabled','promoEnabled'])if(hasOwn(item,key))requiredBoolean(item[key],path+'.'+key,issues);
+  if(hasOwn(item,'customNote')){requiredString(item.customNote,path+'.customNote',issues,true);if(typeof item.customNote==='string'&&item.customNote.length>1000)issues.push(path+'.customNote is too long.');}
+  if(hasOwn(item,'promoApr')){requiredNumber(item.promoApr,path+'.promoApr',issues);if(typeof item.promoApr==='number'&&item.promoApr>100)issues.push(path+'.promoApr must be at most 100.');}
+
   if (hasOwn(item, "interestAutomation")) {
     const config = requiredRecord(item.interestAutomation, path + ".interestAutomation", issues);
     if (config) {
@@ -698,7 +707,7 @@ function validateAccount(value: unknown, path: string, issues: string[]) {
         });
       }
       if (config.closingDay !== undefined && (typeof config.closingDay !== "number" || !Number.isInteger(config.closingDay) || config.closingDay < 1 || config.closingDay > 31)) issues.push(path + ".interestAutomation.closingDay must be 1–31.");
-      if (typeof config.coveredThrough !== "string" || !validDate(config.coveredThrough) || config.coveredThrough !== closingDate(String(config.coveredThrough).slice(0, 7), typeof config.closingDay === "number" ? config.closingDay : 2)) issues.push(path + ".interestAutomation.coveredThrough must be a valid closing date and configuration.");
+      if (typeof config.coveredThrough !== "string" || !validDate(config.coveredThrough)) issues.push(path + ".interestAutomation.coveredThrough must be a valid closing date.");
       if (typeof config.estimatedApr !== "number" || !Number.isFinite(config.estimatedApr) || config.estimatedApr < 0 || config.estimatedApr > 100) issues.push(path + ".interestAutomation.estimatedApr must be from 0 to 100.");
     }
   }
@@ -1029,6 +1038,8 @@ function validateMonthlyPlan(value: unknown, path: string, issues: string[]) {
       requiredNumber(loan.originalAmount, p + ".originalAmount", issues);
       if (typeof loan.originalAmount === "number" && loan.originalAmount <= 0) issues.push(p + ".originalAmount must be positive.");
       requiredNumber(loan.remainingAmount, p + ".remainingAmount", issues);
+      if(loan.customNote!==undefined){requiredString(loan.customNote,p+'.customNote',issues,true);if(typeof loan.customNote==='string'&&loan.customNote.length>1000)issues.push(p+'.customNote is too long.');}
+      if(loan.customNoteEnabled!==undefined)requiredBoolean(loan.customNoteEnabled,p+'.customNoteEnabled',issues);
       for (const key of ["apr", "escrow", "principalAndInterest", "monthlyPayment", "principalBalance"]) if (loan[key] !== undefined) requiredNumber(loan[key], p + "." + key, issues);
       if (loan.dueDate !== undefined && (typeof loan.dueDate !== "string" || !validDate(loan.dueDate))) issues.push(p + ".dueDate must be a valid date.");
       if (typeof loan.asOf !== "string" || !validDate(loan.asOf)) issues.push(p + ".asOf must be a valid date.");

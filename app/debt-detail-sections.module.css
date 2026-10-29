@@ -1,0 +1,33 @@
+.section{display:block;width:100%;margin:0 0 18px;padding:0 18px;border:0;border-radius:16px;background:var(--theme-surface);color:var(--theme-text);text-align:left;box-shadow:none}
+.heading{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:20px 0 14px;font-size:calc(16px * var(--theme-text-scale,1));font-weight:650}
+.heading>span{font-size:24px;font-weight:400;color:var(--theme-muted)}
+.summary{display:block;padding-bottom:8px}
+.summaryRow{display:flex;justify-content:space-between;align-items:baseline;gap:20px;padding:13px 0;border-top:1px solid var(--theme-border);font-size:calc(14px * var(--theme-text-scale,1));font-weight:400}
+.summaryRow>span{color:var(--theme-muted)}
+.summaryRow>strong{text-align:right;font-weight:500;overflow-wrap:anywhere;min-width:0}
+.fields{display:flex;flex-direction:column;gap:0;padding:0 20px 20px}
+.fields>label,.fields>div:not(:global(.costco-interest-settings)){display:flex;align-items:center;justify-content:space-between;gap:16px;min-width:0;padding:16px 0;border-bottom:1px solid var(--theme-border)}
+.fields input:not([type=checkbox]),.fields textarea{border:0;background:transparent;box-shadow:none;text-align:right;min-width:0;max-width:100%;padding:8px 0;color:var(--theme-text);font:inherit}
+.fields label>.field-input,.fields label>:global(.numeric-control){max-width:58%;min-width:0}
+.fields :global(.numeric-control){min-width:0;flex:1}
+.fields :global(.numeric-control)>input{width:100%;text-align:right;font-weight:550}
+.fields :global(.field-input){display:flex;align-items:center;gap:4px;min-width:0;max-width:58%;border:0;background:none;box-shadow:none;padding:0}
+.fields textarea{width:100%;text-align:left;min-height:90px;padding:12px;background:var(--theme-surface);border-radius:10px;resize:vertical}
+.fields small{font-size:calc(12px * var(--theme-text-scale,1));line-height:1.5;color:var(--theme-muted)}
+.fields fieldset{border:0;padding:0;margin:0;min-width:0}
+.switchRow{display:flex!important;align-items:center!important;justify-content:space-between!important;gap:16px;padding:16px 0;border-bottom:1px solid var(--theme-border)}
+.toggle{appearance:none!important;position:relative;flex:none;width:42px!important;min-width:42px!important;height:24px!important;min-height:24px!important;border:0!important;border-radius:99px!important;background:var(--theme-track)!important;box-shadow:none!important;padding:0!important;cursor:pointer;transition:background .15s}
+.toggle::before{content:'';position:absolute;top:2px;left:2px;width:20px;height:20px;border-radius:50%;background:#fff;box-shadow:0 1px 4px #0003;transition:transform .15s}
+.toggle:checked{background:var(--theme-accent-fill)!important}
+.toggle:checked::before{transform:translateX(18px)}
+.toggle:focus-visible{outline:2px solid var(--theme-accent);outline-offset:3px}
+.toggle:disabled{opacity:.5;cursor:default}
+.footer{position:sticky;bottom:0;display:flex;justify-content:flex-end;padding:12px 20px;background:var(--theme-background);border-top:1px solid var(--theme-border)}
+.delete{display:block;width:auto;min-height:44px;margin:20px auto 0;padding:8px 12px;border:0;background:transparent;box-shadow:none;color:var(--theme-danger);font-size:calc(13px * var(--theme-text-scale,1));font-weight:400}
+.stack{display:flex;flex-direction:column;min-width:0;border:0;padding:0;margin:0}
+.fields :global(.costco-interest-settings)>label{display:flex;justify-content:space-between;align-items:center;gap:16px;padding:16px 0;border-bottom:1px solid var(--theme-border)}
+.fields :global(.costco-interest-settings)>label>:global(.numeric-control){max-width:45%}
+.fields :global(.date-calendar-field){display:flex;align-items:center;justify-content:space-between;gap:12px;padding:16px 0;border-bottom:1px solid var(--theme-border)}
+.fields :global(.date-calendar-field)>legend{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%)}
+.fields :global(.date-field-label){display:inline;font-size:inherit}
+.fields :global(.date-field-trigger){width:auto;padding:4px 0;min-width:0;border:0;box-shadow:none;background:none}

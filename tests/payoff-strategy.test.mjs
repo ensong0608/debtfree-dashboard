@@ -32,3 +32,15 @@ test('missing auto terms preserve the row without inventing a payoff date and le
  assert.deepEqual(rows.map(r=>r.id),['account:active','loan:car']);assert.ok(rows[1].payoffMonth);assert.equal(rows[1].apr,6);assert.equal(rows[1].rateEstimated,true);assert.equal(rows[1].estimated,true);assert.equal(schedule.issues.length,0);
  assert.deepEqual({accounts,invalid},before);
 });
+
+
+test('avalanche priority is not completion order: minimums can pay a smaller 0% card off first',()=>{
+ const accounts=[{...account('usb',2259.42,0),name:'USBConnect',minimumMode:'manual',minimum:350}];
+ const auto={...car,name:'Honda HR-V',remainingAmount:20222.13,originalAmount:25000,apr:5.85,monthlyPayment:450};
+ const schedule=buildActivePayoffCommitment(accounts,[auto],[],fixedStrategySettings({...settings,payoffExtraPayment:100,payoffPlanStrategy:'avalanche'}),date).schedule;
+ const rows=buildPayoffStrategyRows(accounts,[auto],schedule,'avalanche',date);
+ assert.deepEqual(rows.map(row=>row.id),['loan:car','account:usb']);
+ assert.ok(schedule.payoffMonths['account:usb']<schedule.payoffMonths['loan:car']);
+ assert.equal(rows[0].payoffMonth,schedule.payoffMonths['loan:car']);
+ assert.equal(rows[1].payoffMonth,schedule.payoffMonths['account:usb']);
+});
