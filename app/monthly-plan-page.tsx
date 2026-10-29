@@ -1,5 +1,6 @@
 "use client";
 
+import BrighterLandscape from "./brighter-landscape";
 import { useState, type CSSProperties } from "react";
 import { createHouseholdMoneyFormatter } from "./household-currency";
 import { useHouseholdCurrency } from "./household-currency-context";
@@ -92,7 +93,8 @@ export default function MonthlyPlanPage(props: Props) {
       </section>
     </header>
 
-    {hasMonth && <section className={styles.summary} aria-label="Monthly budget summary">
+    {hasMonth && <section className={`${styles.summary} brighter-budget-summary`} aria-label="Monthly budget summary">
+      <BrighterLandscape className="brighter-card-art"/><span className="brighter-encouragement">A little plan. A little more peace.</span>
       <div className={styles.summaryTop}>
         <div><span>Income</span><strong><span className="money-value">{currency.format(income)}</span></strong></div>
         <button type="button" className={styles.editButton} disabled={props.readOnly} aria-expanded={incomeEditorOpen} onClick={() => setIncomeEditorOpen(open => !open)}>{incomeEditorOpen ? "Done" : "Edit"}</button>

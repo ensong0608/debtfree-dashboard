@@ -2,7 +2,7 @@
 name: Deploy Cloudflare dashboard
 on:
   push:
-    branches: [codex/tab-defaults-20261028, codex/supabase-google-login, codex/mobile-payments-budget, codex/production-release-20261015]
+    branches: [codex/brighter-tomorrow-20261028, codex/tab-defaults-20261028, codex/supabase-google-login, codex/mobile-payments-budget, codex/production-release-20261015]
     paths: [.github/workflows/deploy-cloudflare.yml, "app/**", "tests/**"]
   workflow_dispatch:
     inputs:
@@ -16,6 +16,30 @@ concurrency:
   group: cloudflare-production
   cancel-in-progress: ${{ github.event.before == '912375c398c0162fdf2d6f32ad8ce1dd06148602' }}
 jobs:
+  brighter_theme:
+    if: github.ref == 'refs/heads/codex/brighter-tomorrow-20261028'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      - run: node --test tests/appearance.test.mjs
+      - run: npx playwright install --with-deps chromium
+      - run: npx playwright test --config playwright.local.config.ts tests/browser/brighter-tomorrow.spec.ts --project=phone
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: brighter-tomorrow-phone
+          path: |
+            .wrangler/brighter-tomorrow/
+            .wrangler/browser-results/
+          include-hidden-files: true
+          retention-days: 7
   form_layout:
     if: github.ref == 'refs/heads/codex/tab-defaults-20261028'
     runs-on: ubuntu-latest
@@ -40,7 +64,7 @@ jobs:
           include-hidden-files: true
           retention-days: 7
   deploy:
-    if: github.ref != 'refs/heads/codex/tab-defaults-20261028'
+    if: github.ref != 'refs/heads/codex/tab-defaults-20261028' && github.ref != 'refs/heads/codex/brighter-tomorrow-20261028'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -65,6 +89,17 @@ jobs:
         run: |
           before="$RELEASE_BEFORE"
           if [ -z "$before" ] || ! git cat-file -e "$before^{commit}" 2>/dev/null; then before=HEAD^; fi
+          # The approved theme release reuses its focused feature-branch phone checks.
+          if [ "$before" = "1189295ac0066aa680e568d37540084fc7e83b4c" ]; then
+            theme_only=true
+            while IFS= read -r changed_path; do
+              case "$changed_path" in
+                .github/workflows/deploy-cloudflare.yml|app/appearance.ts|app/appearance-settings.tsx|app/dashboard-client.tsx|app/dashboard-header.tsx|app/debt-scope-carousel.tsx|app/layout.tsx|app/theme.css|app/brighter-landscape.tsx|app/brighter-tomorrow.css|app/monthly-plan-page.tsx|tests/appearance.test.mjs|tests/browser/brighter-tomorrow.spec.ts) ;;
+                *) theme_only=false ;;
+              esac
+            done < <(git diff --name-only "$before" HEAD)
+            if [ "$theme_only" = true ]; then exit 0; fi
+          fi
           # This release reuses focused unit/browser checks from its exact source tree.
           if [ "$before" = "b6d9535b2e6e4dd0583bcac27a3acf8918d7d3e6" ] && [ -f tests/browser/planned-debt-refinements.spec.ts ]; then exit 0; fi
           # Reuse focused deletion, compact summary and popup checks from this source tree.

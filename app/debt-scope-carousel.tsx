@@ -1,4 +1,5 @@
 "use client";
+import BrighterLandscape from "./brighter-landscape";
 import { useEffect, useRef, type KeyboardEvent, type ReactNode } from "react";
 import type { ProgressCarouselScope } from "./progress-view";
 import styles from "./debt-scope-carousel.module.css";
@@ -41,7 +42,8 @@ export default function DebtScopeCarousel({ slides, value, onChange, label = "De
   if (!slides.length) return null;
   return <section className={styles.carousel} aria-label={label} aria-roledescription="carousel">
     <div className={styles.viewport} ref={viewport} onScroll={scroll} onScrollEnd={settled} onKeyDown={key} tabIndex={0} aria-label={`${slides[activeIndex].label}, ${activeIndex + 1} of ${slides.length}. Use left and right arrow keys to change category.`}>
-      {slides.map((slide, index) => <div key={slide.scope} className={styles.slide} aria-roledescription="slide" aria-label={`${slide.label}, ${index + 1} of ${slides.length}`} aria-hidden={index !== activeIndex} inert={index !== activeIndex}>
+      {slides.map((slide, index) => <div key={slide.scope} className={`${styles.slide} brighter-progress-slide`} aria-roledescription="slide" aria-label={`${slide.label}, ${index + 1} of ${slides.length}`} aria-hidden={index !== activeIndex} inert={index !== activeIndex}>
+        <BrighterLandscape className="brighter-card-art"/><span className="brighter-encouragement">{slide.scope === "accounts" ? "Every step counts." : slide.scope === "home" ? "Building a brighter tomorrow." : "One payment at a time."}</span>
         <h2 className={styles.heading}>{slide.label}</h2>{slide.content}
       </div>)}
     </div>
