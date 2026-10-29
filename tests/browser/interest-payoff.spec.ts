@@ -31,7 +31,7 @@ test('phone Advanced records dated actual interest once and preserves the manual
  await expect(advanced.getByRole('group',{name:'Statement closing date',exact:true})).toBeVisible();
  await advanced.getByText('Estimate assumptions',{exact:true}).click();
  await expect(advanced.getByText(/Missing opening history/)).toBeVisible();
- await advanced.getByRole('button',{name:'Back from Advanced',exact:true}).click();
+ await advanced.getByRole('button',{name:'Close Advanced',exact:true}).click();
  await detail.getByRole('button',{name:'Save',exact:true}).click();
  await expect.poll(async()=> (await saved()).transactions.filter((t:{actualInterestCycle?:string;deletedAt?:string})=>t.actualInterestCycle==='2026-10'&&!t.deletedAt).length).toBe(1);
  const data=await saved();
