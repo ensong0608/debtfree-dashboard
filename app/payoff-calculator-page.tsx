@@ -10,7 +10,7 @@ import { calculatePayoffCalculator, calculateMinimumPayoffPlan } from "./payoff-
 import { confirmedPaymentTotal } from "./payments";
 import { parseMoneyInput } from "./payments";
 import { exportPayoffCsv, exportPayoffExcel, exportPayoffPdf, type PayoffReportData } from "./payoff-export";
-import { forecastMinimum, forecastMonthlyRate, forecastMonthKey, payoffOutcome, round } from "./payoff-engine";
+import { forecastMinimum, forecastMonthKey, payoffOutcome, round } from "./payoff-engine";
 
 
 const label = (strategy: PayoffStrategy) => strategy === "avalanche" ? "Avalanche" : strategy === "snowball" ? "Snowball" : "Custom";
@@ -39,7 +39,7 @@ export default function PayoffCalculatorPage({ accounts, amount, strategy, custo
   const plan = useMemo(() => scenarioResult?.plan ?? { monthly: amount, months: [], totalInterest: 0, stalled: true, peakMonthly: amount, nonAmortizingAccountIds: [], promoMinimumFallbackIds: [] } as ReturnType<typeof calculatePayoffCalculator>, [scenarioResult, amount]);
   const outcome = payoffOutcome(plan);
   const minimumPaid = (month: typeof plan.months[number]) => minimumsIncluded ? round(active.reduce((sum,a) => sum + Math.min(month.payments[a.id] ?? 0, month.minimums[a.id] ?? 0), 0)) : 0;
-  const firstMinimums = !minimumsIncluded ? 0 : plan.months[0] ? minimumPaid(plan.months[0]) : round(active.reduce((sum,a)=>sum+forecastMinimum(a,a.balance*(1+forecastMonthlyRate(a,1,calculationDate)),1,calculationDate),0));
+  const firstMinimums = !minimumsIncluded ? 0 : plan.months[0] ? minimumPaid(plan.months[0]) : round(active.reduce((sum,a)=>sum+forecastMinimum(a,a.balance,1,calculationDate),0));
   const monthLabel = (month: number) => new Date(forecastMonthKey(month, calculationDate) + "-01T12:00:00").toLocaleDateString("en-US", { month: "long", year: "numeric" });
   const allocationAccounts = accounts.filter(a => !a.archivedAt && (a.balance > 0 || confirmedPaymentTotal(transactions, adjustments, forecastMonthKey(1, calculationDate), a.id) > 0));
   const remainingPayments = round(allocationAccounts.reduce((sum, a) => sum + Math.max(0, round((plan.months[0]?.payments[a.id] ?? 0) - confirmedPaymentTotal(transactions, adjustments, forecastMonthKey(1, calculationDate), a.id))), 0));
@@ -76,7 +76,7 @@ export default function PayoffCalculatorPage({ accounts, amount, strategy, custo
       {allocationView === "recorded" && <dl className="recorded-summary"><div><dt><InfoTooltip label="Recorded">{"Confirmed payments recorded for the selected month. This is actual recorded activity, not a forecast."}</InfoTooltip></dt><dd>{money.format(recordedPayments)}</dd></div><div><dt><InfoTooltip label="Remaining planned">{"The sum of each account’s planned payment minus its recorded payments for this month, with each result floored at zero."}</InfoTooltip></dt><dd>{minimumResult?.error ? "—" : money.format(remainingPayments)}</dd></div></dl>}
       <div className="allocation-cards" id="allocation-panel" role="tabpanel" aria-labelledby={allocationView==="planned"?"planned-tab":"recorded-tab"}>{allocationAccounts.map(account => {
         const payment = minimumResult?.plan?.months[0]?.payments[account.id];
-        const projectedMinimum = minimumResult?.plan?.months[0]?.minimums[account.id] ?? forecastMinimum(account, account.balance * (1 + forecastMonthlyRate(account, 1, calculationDate)), 1, calculationDate);
+        const projectedMinimum = minimumResult?.plan?.months[0]?.minimums[account.id] ?? forecastMinimum(account, account.balance, 1, calculationDate);
         const savedMinimum = account.minimumMode === "auto" ? round(projectedMinimum) : account.minimum;
         const allocatedMinimum = Math.min(payment ?? 0, projectedMinimum);
         return <article className={`allocation-card ${payment !== undefined && payment > allocatedMinimum ? "allocation-priority" : ""}`} key={account.id} aria-label={`Payment plan for ${account.name}`}>

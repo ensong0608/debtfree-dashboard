@@ -5,7 +5,7 @@ import { createDashboardBackup, createDashboardPayload, createEmptyPlannedPayoff
 import { createBalanceAdjustment, createDebtPayment } from '../app/debts-screen.ts';
 import { transactionAdjustedAccounts } from '../app/progress-balances.ts';
 import { confirmedPaymentTotal } from '../app/payments.ts';
-const costco = { id:'costco',name:'Costco',type:'Credit card',balance:10075.60,apr:COSTCO_ESTIMATED_APR,interestFee:0,minimum:294.01,minimumMode:'manual',payoffMode:'priority',creditLimit:35500,dueDate:'2026-10-28',promoEndDate:'',postPromoApr:0,postPromoMinimum:0,createdAt:'2026-10-03',interestAutomation:{enabled:true,coveredThrough:'2026-10-02',estimatedApr:COSTCO_ESTIMATED_APR}};
+const costco = { id:'costco',name:'Costco',type:'Credit card',balance:10075.60,apr:COSTCO_ESTIMATED_APR,interestFee:0,minimum:294.01,minimumMode:'manual',payoffMode:'priority',creditLimit:35500,dueDate:'2026-10-28',promoEndDate:'',postPromoApr:0,postPromoMinimum:0,createdAt:'2026-10-02',interestAutomation:{enabled:true,coveredThrough:'2026-10-02',estimatedApr:COSTCO_ESTIMATED_APR}};
 const balance=(account,entries)=>transactionAdjustedAccounts([account],entries)[0].balance;
 const accrue=(entries=[],today='2026-11-02')=>accrueCostcoInterest([costco],entries,today,'2026-11-03T20:00:00.000Z');
 const backup=(account,entries)=>createDashboardBackup(createDashboardPayload(null,{accounts:[structuredClone(account)],monthlyBudgets:{},payees:[],transactions:entries,snapshots:[],extra:200,strategy:'avalanche',planning:createEmptyPlannedPayoff(),balanceAdjustments:[]}));
@@ -87,11 +87,12 @@ test('actual statement interest replaces estimates once and preserves the audit 
  assert.equal(balance(costco,actual),10255.60); assert.ok(actual[0].deletedAt);
  assert.equal(actual[0].replacedByTransactionId,actual[1].id);
  assert.equal(accrueCostcoInterest([costco],actual,'2026-11-30'),actual);
- assert.throws(()=>recordActualInterest(costco,actual,180,'2026-11-02'),/already exists/);
- const beforeCatchup=recordActualInterest(costco,[],180,'2026-11-02');
+ assert.throws(()=>recordActualInterest(costco,actual,180,'2026-11-02','2026-11-03T20:00:00Z'),/already exists/);
+ const beforeCatchup=recordActualInterest(costco,[],180,'2026-11-02','2026-11-03T20:00:00Z');
  assert.equal(accrueCostcoInterest([costco],beforeCatchup,'2026-11-30'),beforeCatchup);
  assert.equal(balance(costco,beforeCatchup),10255.60);
  const reconciled=reconcileInterest(costco,estimated,'2026-11-03','2026-11-03T20:00:00Z');
- assert.throws(()=>recordActualInterest(reconciled.account,reconciled.transactions,180,'2026-11-02'),/lender balance/);
+ const included=recordActualInterest(reconciled.account,reconciled.transactions,180,'2026-11-02','2026-11-03T20:00:00Z');
+ assert.ok(included.find(t=>t.actualInterestCycle)?.actualInterestIncludedAt);
  assert.equal(parseDashboardJson(serializeDashboardBackup(backup(costco,actual))).payload.transactions.length,2);
 });

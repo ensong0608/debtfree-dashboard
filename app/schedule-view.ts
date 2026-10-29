@@ -1,11 +1,11 @@
 import type {DebtAccount, MonthlyPlanSettings, PayoffSnapshot, RemovedProgressAccount} from './dashboard-data.ts';
 import type {LoanTracker} from './loan-progress.ts';
-import {forecastMinimum, forecastMonthlyRate, round} from './payoff-engine.ts';
+import {forecastMinimum, round} from './payoff-engine.ts';
 export const SCHEDULE_TYPES = ['Credit card','Mortgage','Auto loan','Personal loan','Student loan','Medical debt','Other'] as const;
 export function scheduleTypeLabel(type:string) {return type;}
 export function loanScheduleType(loan:LoanTracker) {return loan.kind==='house'?'Mortgage':'Auto loan';}
 export function scheduleMinimums(accounts:DebtAccount[],date=new Date()) {
- return round(accounts.filter(a=>!a.archivedAt&&a.balance>0).reduce((sum,a)=>sum+forecastMinimum(a,round(a.balance*(1+forecastMonthlyRate(a,1,date))),1,date),0));
+ return round(accounts.filter(a=>!a.archivedAt&&a.balance>0).reduce((sum,a)=>sum+forecastMinimum(a,a.balance,1,date),0));
 }
 export function scheduleView(accounts:DebtAccount[], loans:LoanTracker[], snapshots:PayoffSnapshot[], removed:RemovedProgressAccount[], settings:MonthlyPlanSettings) {
  const excluded=new Set(settings.payoffExcludedTypes??[]);

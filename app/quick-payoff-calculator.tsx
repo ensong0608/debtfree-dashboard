@@ -5,7 +5,7 @@ import InfoTooltip from "./info-tooltip";
 import { useId, useMemo, useState } from 'react';
 import type { DebtAccount } from './dashboard-data';
 import { calculateMinimumPayoffPlan } from './payoff-calculator';
-import { forecastMinimum, forecastMonthlyRate, forecastMonthKey, round } from './payoff-engine';
+import { forecastMinimum, forecastMonthKey, round } from './payoff-engine';
 import { payoffPriority } from './debts-screen';
 import { useHouseholdMoney } from './household-currency-context';
 import { effectiveForecastApr } from './payoff-engine';
@@ -21,7 +21,7 @@ export default function QuickPayoffCalculator({ accounts, onClose }: { accounts:
   const active = useMemo(() => accounts.filter(account => !account.archivedAt && account.balance > 0), [accounts]);
   const extra = parseFinancialInput(extraText).value;
   const valid = Number.isFinite(extra) && extra >= 0 && Number.isSafeInteger(Math.round(extra * 100));
-  const minimums = round(active.reduce((sum, account) => sum + forecastMinimum(account, account.balance * (1 + forecastMonthlyRate(account, 1, date)), 1, date), 0));
+  const minimums = round(active.reduce((sum, account) => sum + forecastMinimum(account, account.balance, 1, date), 0));
   const total = round(minimums + (valid ? extra : 0));
   const result = useMemo(() => valid ? calculateMinimumPayoffPlan(active, total, strategy, [], date) : { error: 'Enter a valid extra payment.', plan: null }, [active, total, strategy, date, valid]);
   const plan = result.plan;
@@ -37,7 +37,7 @@ export default function QuickPayoffCalculator({ accounts, onClose }: { accounts:
       <p id={`${inputId}-minimums`}>Minimums {money.format(minimums)} included. Total: {money.format(total)}.</p>
       <div className={styles.strategies} role="group" aria-label="Quick payoff strategy">{(['avalanche', 'snowball'] as const).map(value => <button key={value} type="button" aria-pressed={strategy === value} onClick={() => setStrategy(value)}>{value === 'avalanche' ? 'Avalanche' : 'Snowball'}</button>)}</div>
       {error ? <p role="status">{error}</p> : plan && <div aria-live="polite">
-        <dl className={styles.metrics}><div><dt><InfoTooltip label="Estimated debt-free">{"The projected final payoff month using current balances, estimated or saved minimums, your extra payment and the selected strategy. House and car trackers stay separate."}</InfoTooltip></dt><dd>{monthLabel(plan.months.length)}</dd></div><div><dt><InfoTooltip label="Monthly total">{"First-month minimum payments plus the extra amount you entered. The total is held steady as paid-off debts free up money for the remaining debts."}</InfoTooltip></dt><dd>{money.format(total)}</dd></div><div><dt><InfoTooltip label="Estimated interest">{"Interest summed across the projected schedule, using saved APRs, any interest calibration and promotional changes. This does not record a charge."}</InfoTooltip></dt><dd>{money.format(plan.totalInterest)}</dd></div><div><dt><InfoTooltip label="Total paid">{"The sum of all projected payments, including principal and estimated interest. The final payment can be smaller than the monthly total."}</InfoTooltip></dt><dd>{money.format(round(plan.months.reduce((sum, month) => sum + month.paid, 0)))}</dd></div></dl>
+        <dl className={styles.metrics}><div><dt><InfoTooltip label="Estimated debt-free">{"The projected final payoff month using current balances, estimated or saved minimums, your extra payment and the selected strategy. House and car trackers stay separate."}</InfoTooltip></dt><dd>{monthLabel(plan.months.length)}</dd></div><div><dt><InfoTooltip label="Monthly total">{"First-month minimum payments plus the extra amount you entered. The total is held steady as paid-off debts free up money for the remaining debts."}</InfoTooltip></dt><dd>{money.format(total)}</dd></div><div><dt><InfoTooltip label="Estimated interest">{"Interest summed across the projected schedule, using APRs and promotional changes. This does not record a charge."}</InfoTooltip></dt><dd>{money.format(plan.totalInterest)}</dd></div><div><dt><InfoTooltip label="Total paid">{"The sum of all projected payments, including principal and estimated interest. The final payment can be smaller than the monthly total."}</InfoTooltip></dt><dd>{money.format(round(plan.months.reduce((sum, month) => sum + month.paid, 0)))}</dd></div></dl>
         <ol className={styles.order} aria-label="Quick payoff order">{ordered.map(account => {
           const month = plan.months.find(month => (month.balances[account.id] ?? account.balance) <= 0.005);
           const apr = effectiveForecastApr(account, 1, date);

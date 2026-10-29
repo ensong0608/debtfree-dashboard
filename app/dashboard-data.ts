@@ -132,6 +132,7 @@ export type LedgerTransaction = OwnershipMetadata & {
   paymentKind?: PaymentKind;
   replacesTransactionId?: string;
   interestEstimate?: InterestEstimate;
+  actualInterestIncludedAt?: string;
   replacedByTransactionId?: string;
   [key: string]: unknown;
 };
@@ -287,6 +288,7 @@ export type MonthlyPlanSettings = {
   debtGroups?: DebtGroup[];
   payoffPlanAmount?: number;
   payoffExtraPayment?: number;
+  payoffAutoMinimumCommitments?: Record<string, number>;
   payoffExcludedTypes?: string[];
   payoffPlanStrategy?: PayoffStrategy;
   payoffPlanOrder?: string[];
@@ -685,6 +687,16 @@ function validateAccount(value: unknown, path: string, issues: string[]) {
     const config = requiredRecord(item.interestAutomation, path + ".interestAutomation", issues);
     if (config) {
       requiredBoolean(config.enabled, path + ".interestAutomation.enabled", issues);
+      if (config.rateHistory !== undefined) {
+        const seen = new Set<string>();
+        requiredArray(config.rateHistory, path + '.interestAutomation.rateHistory', issues)?.forEach((raw, i) => {
+          const rate = requiredRecord(raw, path + '.interestAutomation.rateHistory[' + i + ']', issues);
+          if (!rate) return;
+          if (typeof rate.effectiveDate !== 'string' || !validDate(rate.effectiveDate) || seen.has(String(rate.effectiveDate))) issues.push(path + '.interestAutomation.rateHistory has an invalid or duplicate date.');
+          seen.add(String(rate.effectiveDate));
+          if (typeof rate.apr !== 'number' || !Number.isFinite(rate.apr) || rate.apr < 0 || rate.apr > 100) issues.push(path + '.interestAutomation.rateHistory APR must be 0–100.');
+        });
+      }
       if (config.closingDay !== undefined && (typeof config.closingDay !== "number" || !Number.isInteger(config.closingDay) || config.closingDay < 1 || config.closingDay > 31)) issues.push(path + ".interestAutomation.closingDay must be 1–31.");
       if (typeof config.coveredThrough !== "string" || !validDate(config.coveredThrough) || config.coveredThrough !== closingDate(String(config.coveredThrough).slice(0, 7), typeof config.closingDay === "number" ? config.closingDay : 2)) issues.push(path + ".interestAutomation.coveredThrough must be a valid closing date and configuration.");
       if (typeof config.estimatedApr !== "number" || !Number.isFinite(config.estimatedApr) || config.estimatedApr < 0 || config.enabled === true && config.estimatedApr === 0 || config.estimatedApr > 100) issues.push(path + ".interestAutomation.estimatedApr must be greater than 0 and at most 100.");
@@ -774,6 +786,10 @@ function validateTransaction(value: unknown, path: string, issues: string[]) {
       if (item.type !== "fee" || item.date !== estimate.cycle || typeof estimate.cycle !== "string" || item.id !== "interest:" + item.accountId + ":" + estimate.cycle.slice(0, 7)) issues.push(path + ".interestEstimate requires a unique monthly interest fee.");
       if (hasOwn(estimate, "reconciledAt")) requiredString(estimate.reconciledAt, path + ".interestEstimate.reconciledAt", issues);
     }
+  }
+  if (item.actualInterestIncludedAt !== undefined) {
+    requiredString(item.actualInterestIncludedAt, path + '.actualInterestIncludedAt', issues);
+    if (item.type !== 'fee' || typeof item.actualInterestCycle !== 'string' || item.actualInterestCycle !== String(item.date).slice(0,7)) issues.push(path + '.actualInterestIncludedAt requires dated actual interest.');
   }
   requiredString(item.category, `${path}.category`, issues);
   requiredString(item.memo, `${path}.memo`, issues, true);
@@ -959,6 +975,10 @@ function validateMonthlyPlan(value: unknown, path: string, issues: string[]) {
     });
   }
   if (Object.prototype.hasOwnProperty.call(plan, 'currency') && !['USD', 'PHP', 'EUR', 'GBP', 'CAD', 'AUD'].includes(plan.currency as string)) issues.push(path + '.currency must be a supported household currency.');
+  if (plan.payoffAutoMinimumCommitments !== undefined) {
+    const commitments = requiredRecord(plan.payoffAutoMinimumCommitments, path + '.payoffAutoMinimumCommitments', issues);
+    if (commitments) for (const [id, amount] of Object.entries(commitments)) requiredNumber(amount, path + '.payoffAutoMinimumCommitments.' + id, issues);
+  }
   if (plan.payoffExtraPayment !== undefined) requiredNumber(plan.payoffExtraPayment, path + ".payoffExtraPayment", issues);
   if (plan.payoffExcludedTypes !== undefined) requiredArray(plan.payoffExcludedTypes, path + ".payoffExcludedTypes", issues)?.forEach((value,i)=>enumValue(value,new Set(["Credit card","Mortgage","Auto loan","Personal loan","Student loan","Medical debt","Other"]),path+".payoffExcludedTypes["+i+"]",issues));
   if (plan.payoffPlanAmount !== undefined) requiredNumber(plan.payoffPlanAmount, path + ".payoffPlanAmount", issues);

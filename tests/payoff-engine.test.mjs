@@ -73,7 +73,8 @@ test("preserves snowball ordering, higher-APR tie-breaking, and stable exact tie
     account("lowApr", { balance: 1000, apr: 10, interestFee: 10 }),
   ], 100, "snowball");
 
-  assert.deepEqual(ordered.months[0].payments, { highApr: 150, lowApr: 50 });
+  // After APR-based interest the low-APR card has the smaller balance.
+  assert.deepEqual(ordered.months[0].payments, { highApr: 50, lowApr: 150 });
 
   const exactTie = plan([
     account("first", { balance: 500, apr: 20, interestFee: 5 }),
@@ -165,16 +166,12 @@ test("rounds every projected month and cumulative interest to cents", () => {
   assert.equal(round(10.004), 10);
 });
 
-test("preserves actual-interest-fee calibration against the opening balance", () => {
-  const calibrated = account("single", { balance: 1200, apr: 24, interestFee: 12, minimum: 100 });
-  const result = plan([calibrated]);
-  const aprOnly = plan([account("single", { balance: 1200, apr: 24, interestFee: 0, minimum: 100 })]);
-
-  assert.equal(monthlyInterest(calibrated), 12);
-  assert.equal(result.months[0].interest, 12);
-  assert.equal(result.months[1].interest, 11.12);
-  assert.equal(result.months[0].aprs.single, 24);
-  assert.equal(aprOnly.months[0].interest, 24);
+test("saved undated interest never overrides forecast APR, even after a balance change", () => {
+  const saved = account("single", { balance: 1200, apr: 24, interestFee: 12, minimum: 100 });
+  assert.equal(monthlyInterest(saved, CALCULATION_DATE), 24);
+  assert.deepEqual(plan([saved]), plan([{...saved, interestFee:0}]));
+  assert.equal(monthlyInterest({...saved,balance:600}, CALCULATION_DATE),12);
+  assert.equal(saved.interestFee,12);
 });
 
 test("preserves explicit promotional APR expiration at the month boundary", () => {
@@ -291,102 +288,18 @@ test("matches the anonymized representative projection with monthly cent roundin
     { "account-card-1": 180 },
   );
 
-  assert.deepEqual({
-    months: result.months.length,
-    totalInterest: result.totalInterest,
-    monthly: result.monthly,
-    peakMonthly: result.peakMonthly,
-    stalled: result.stalled,
-    nonAmortizingAccountIds: result.nonAmortizingAccountIds,
-    promoMinimumFallbackIds: result.promoMinimumFallbackIds,
-    firstThree: result.months.slice(0, 3).map((month) => ({
-      month: month.month,
-      interest: month.interest,
-      paid: month.paid,
-      remaining: month.remaining,
-      requiredMonthly: month.requiredMonthly,
-      minimumIncrease: month.minimumIncrease,
-      payments: month.payments,
-      balances: month.balances,
-    })),
-    lastTwo: result.months.slice(-2).map((month) => ({
-      month: month.month,
-      interest: month.interest,
-      paid: month.paid,
-      remaining: month.remaining,
-      requiredMonthly: month.requiredMonthly,
-      payments: month.payments,
-      balances: month.balances,
-      paidOff: month.paidOff,
-    })),
-    milestones: result.months
-      .filter((month) => month.paidOff.length)
-      .map((month) => ({ month: month.month, paidOff: month.paidOff })),
-  }, {
-    months: 77,
-    totalInterest: 2210.18,
-    monthly: 494.75,
-    peakMonthly: 674.75,
-    stalled: false,
-    nonAmortizingAccountIds: [],
-    promoMinimumFallbackIds: [],
-    firstThree: [
-      {
-        month: 1,
-        interest: 88.9,
-        paid: 674.75,
-        remaining: 8964.9,
-        requiredMonthly: 674.75,
-        minimumIncrease: 180,
-        payments: { "account-card-1": 560, "account-loan-1": 114.75 },
-        balances: { "account-card-1": 2232.9, "account-loan-1": 6732 },
-      },
-      {
-        month: 2,
-        interest: 84.68,
-        paid: 494.75,
-        remaining: 8674.83,
-        requiredMonthly: 494.75,
-        minimumIncrease: 0,
-        payments: { "account-card-1": 380, "account-loan-1": 114.75 },
-        balances: { "account-card-1": 2011.3, "account-loan-1": 6663.53 },
-      },
-      {
-        month: 3,
-        interest: 80.4,
-        paid: 494.75,
-        remaining: 8380.48,
-        requiredMonthly: 494.75,
-        minimumIncrease: 0,
-        payments: { "account-card-1": 380, "account-loan-1": 114.75 },
-        balances: { "account-card-1": 1785.89, "account-loan-1": 6594.59 },
-      },
-    ],
-    lastTwo: [
-      {
-        month: 76,
-        interest: 1.07,
-        paid: 234.75,
-        remaining: 42.32,
-        requiredMonthly: 494.75,
-        payments: { "account-card-1": 120, "account-loan-1": 114.75 },
-        balances: { "account-card-1": 0, "account-loan-1": 42.32 },
-        paidOff: [],
-      },
-      {
-        month: 77,
-        interest: 0.29,
-        paid: 162.61,
-        remaining: 0,
-        requiredMonthly: 494.75,
-        payments: { "account-card-1": 120, "account-loan-1": 42.61 },
-        balances: { "account-card-1": 0, "account-loan-1": 0 },
-        paidOff: ["Sample Personal Loan"],
-      },
-    ],
-    milestones: [
-      { month: 11, paidOff: ["Sample Rewards Card"] },
-      { month: 77, paidOff: ["Sample Personal Loan"] },
-    ],
-  });
+  // The legacy auto-mode installment uses its fixed scheduled payment; only cards
+  // receive the generic minimum estimate. Saved fee calibration is no longer used.
+  assert.equal(result.monthly,590);
+  assert.equal(result.months[0].interest,92.68);
+  assert.equal(result.months[0].minimums['account-loan-1'],210);
+  assert.equal(result.months.length,37);
+  assert.equal(result.totalInterest,1190.35);
+  assert.equal(result.months.at(-1).remaining,0);
+  let before=fixture.accounts.reduce((sum,a)=>sum+a.balance,0);
+  for (const month of result.months) {
+    const planned=120+(month.month===1?180:0);
+    assert.equal(round(before+month.interest+planned-month.paid),month.remaining);
+    before=month.remaining;
+  }
 });

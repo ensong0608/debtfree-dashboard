@@ -37,22 +37,22 @@ export type PayoffPlan = {
 
 export const round = (value: number) => Math.round((value + Number.EPSILON) * 100) / 100;
 
-export function estimatedMinimum(balance: number, apr: number) {
+/** Generic credit-card estimate. balance excludes this cycle's new interest. */
+export function estimatedMinimum(balance: number, apr: number, monthlyInterest = round(balance * apr / 1200)) {
   if (balance <= 0) return 0;
-  const monthlyInterest = balance * apr / 1200;
   return Math.min(round(balance + monthlyInterest), Math.max(25, round(balance * 0.01 + monthlyInterest)));
 }
 
-export function effectiveMinimum(account: DebtAccount) {
-  return account.balance <= 0 ? 0 : account.minimumMode === "auto" ? estimatedMinimum(account.balance, account.apr) : account.minimum;
+export function effectiveMinimum(account: DebtAccount, calculationDate = new Date()) {
+  return account.balance <= 0 ? 0 : account.minimumMode === "auto" && account.type === "Credit card" ? estimatedMinimum(account.balance, forecastApr(account, 1, calculationDate)) : account.minimum;
 }
 
 export function projectedMonthlyRate(account: DebtAccount) {
-  return account.interestFee > 0 && account.balance > 0 ? account.interestFee / account.balance : account.apr / 1200;
+  return account.apr / 1200;
 }
 
-export function monthlyInterest(account: DebtAccount) {
-  return round(account.balance * projectedMonthlyRate(account));
+export function monthlyInterest(account: DebtAccount, calculationDate = new Date()) {
+  return round(account.balance * forecastMonthlyRate(account, 1, calculationDate));
 }
 
 export function forecastMonthKey(month: number, calculationDate: Date = new Date()) {
@@ -76,13 +76,16 @@ export function forecastApr(account: DebtAccount, month: number, calculationDate
   return hasPromoTerms(account) && !promoIsActive(account, month, calculationDate) ? account.postPromoApr : account.apr;
 }
 
-export function forecastMinimum(account: DebtAccount, balance: number, month: number, calculationDate: Date = new Date()) {
-  if (balance <= 0) return 0;
-  const currentMinimum = effectiveMinimum(account);
-  const amount = hasPromoTerms(account) && !promoIsActive(account, month, calculationDate) && account.postPromoMinimum > 0
+/** balance is BEFORE new interest; callers may supply that cycle's already computed charge. */
+export function forecastMinimum(account: DebtAccount, balance: number, month: number, calculationDate: Date = new Date(), interest = round(balance * forecastMonthlyRate(account, month, calculationDate))) {
+  if (balance + interest <= 0) return 0;
+  const established = month === 1 ? account.minimumCycles?.find(cycle => cycle.date.slice(0, 7) === forecastMonthKey(month, calculationDate))?.amount : undefined;
+  const amount = established ?? (hasPromoTerms(account) && !promoIsActive(account, month, calculationDate) && account.postPromoMinimum > 0
     ? account.postPromoMinimum
-    : currentMinimum;
-  return Math.min(balance, amount);
+    : account.minimumMode === "auto" && account.type === "Credit card"
+      ? estimatedMinimum(balance, forecastApr(account, month, calculationDate), interest)
+      : account.minimum);
+  return Math.min(round(balance + interest), amount);
 }
 
 export function forecastMonthlyRate(account: DebtAccount, month: number, calculationDate: Date = new Date()) {
@@ -117,7 +120,7 @@ export function calculatePlan(
   const reserveMinimums = context.reserveMinimums !== false;
   const active = accounts.filter((account) => !account.archivedAt && (account.balance > 0 || (linkedCardExpenses[account.id] ?? 0) > 0 || (linkedCardPurchases[account.id] ?? 0) > 0));
   const balances = new Map(active.map((account) => [account.id, round(account.balance)]));
-  const monthly = round(context.monthlyCommitment ?? active.reduce((sum, account) => sum + effectiveMinimum(account) + (linkedCardExpenses[account.id] ?? 0), 0) + extra);
+  const monthly = round(context.monthlyCommitment ?? active.reduce((sum, account) => sum + effectiveMinimum(account, calculationDate) + (linkedCardExpenses[account.id] ?? 0), 0) + extra);
   const paidThisMonth = Object.values(context.paid ?? {}).reduce((sum, value) => sum + value, 0);
   const oneTimePurchaseTotal = active.reduce((sum, account) => sum + (linkedCardPurchases[account.id] ?? 0), 0);
   const cardChargeForMonth = (accountId: string, month: number) => (
@@ -163,7 +166,10 @@ export function calculatePlan(
     active.forEach((account) => {
       const balance = balances.get(account.id) ?? 0;
       if (balance <= 0) return;
-      const minimum = reserveMinimums ? round(Math.max(0, (month === 1 ? context.minimumTargets?.[account.id] ?? forecastMinimum(account, balance, month, calculationDate) : forecastMinimum(account, balance, month, calculationDate)) - (month === 1 ? context.minimumPaid?.[account.id] ?? 0 : 0))) : 0;
+      const established = month === 1 ? context.minimumTargets?.[account.id] ?? account.minimumCycles?.find(cycle => cycle.date.slice(0,7) === forecastMonthKey(1,calculationDate))?.amount : undefined;
+      const target = established ?? forecastMinimum(account, before.get(account.id) ?? 0, month, calculationDate, interestByAccount[account.id] ?? 0);
+      // Subtract paid amounts from the original obligation before capping the actual payment to debt owed.
+      const minimum = reserveMinimums ? round(Math.max(0, target - (month === 1 ? context.minimumPaid?.[account.id] ?? 0 : 0))) : 0;
       minimums[account.id] = minimum;
       requiredMinimumTotal += (context.paymentCap === undefined ? minimum : Math.min(minimum, balance)) + cardChargeForMonth(account.id, month);
     });

@@ -2,7 +2,7 @@
 name: Deploy Cloudflare dashboard
 on:
   push:
-    branches: [codex/separate-brighter-theme-20261028, codex/tab-defaults-20261028, codex/supabase-google-login, codex/mobile-payments-budget, codex/production-release-20261015]
+    branches: [codex/interest-payoff-20261029, codex/separate-brighter-theme-20261028, codex/tab-defaults-20261028, codex/supabase-google-login, codex/mobile-payments-budget, codex/production-release-20261015]
     paths: [.github/workflows/deploy-cloudflare.yml, "app/**", "tests/**"]
   workflow_dispatch:
     inputs:
@@ -16,6 +16,27 @@ concurrency:
   group: cloudflare-production
   cancel-in-progress: ${{ github.event.before == '912375c398c0162fdf2d6f32ad8ce1dd06148602' }}
 jobs:
+  interest_payoff_review:
+    if: github.ref == 'refs/heads/codex/interest-payoff-20261029'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - name: Verify changed interest controls on phone
+        run: npx playwright test --config playwright.local.config.ts tests/browser/interest-payoff.spec.ts --project=phone
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: interest-payoff-phone-failure
+          path: .wrangler/browser-results/
+          include-hidden-files: true
+          retention-days: 7
   brighter_theme:
     if: github.ref == 'refs/heads/codex/separate-brighter-theme-20261028'
     runs-on: ubuntu-latest
@@ -64,7 +85,7 @@ jobs:
           include-hidden-files: true
           retention-days: 7
   deploy:
-    if: github.ref != 'refs/heads/codex/tab-defaults-20261028' && github.ref != 'refs/heads/codex/separate-brighter-theme-20261028'
+    if: github.ref != 'refs/heads/codex/interest-payoff-20261029' && github.ref != 'refs/heads/codex/tab-defaults-20261028' && github.ref != 'refs/heads/codex/separate-brighter-theme-20261028'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -89,6 +110,18 @@ jobs:
         run: |
           before="$RELEASE_BEFORE"
           if [ -z "$before" ] || ! git cat-file -e "$before^{commit}" 2>/dev/null; then before=HEAD^; fi
+          # Approved interest/payoff release: reuse focused financial/type checks and
+          # the feature-branch phone check; preserve every production safeguard below.
+          if [ "$before" = "d9eabfd7c325b5b4e5205b8065fd7dadf7f2f752" ]; then
+            interest_payoff_only=true
+            while IFS= read -r changed_path; do
+              case "$changed_path" in
+                .github/workflows/deploy-cloudflare.yml|app/costco-interest-settings.tsx|app/credit-card-editor.ts|app/credit-card-info.tsx|app/dashboard-client.tsx|app/dashboard-data.ts|app/debt-insights-page.tsx|app/debts-screen.ts|app/interest-accrual.ts|app/minimum-cycle.ts|app/payment-overlap.ts|app/payoff-calculator-page.tsx|app/payoff-commitment.ts|app/payoff-engine.ts|app/payoff-plan.ts|app/payoff-schedule.ts|app/payoff-strategy.ts|app/quick-payoff-calculator.tsx|app/schedule-view.ts|tests/debt-transactions.test.mjs|tests/interest-accrual.test.mjs|tests/payoff-engine.test.mjs|tests/payoff-plan.test.mjs|tests/interest-payoff-regressions.test.mjs|tests/browser/interest-payoff.spec.ts) ;;
+                *) interest_payoff_only=false ;;
+              esac
+            done < <(git diff --name-only "$before" HEAD)
+            if [ "$interest_payoff_only" = true ]; then exit 0; fi
+          fi
           # The Settings release reuses its focused feature-branch phone/API checks.
           if [ "$before" = "660b3dd32d8687808d6737c62080d4cdc4f7369e" ]; then
             settings_only=true

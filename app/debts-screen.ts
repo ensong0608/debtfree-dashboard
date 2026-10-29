@@ -1,3 +1,4 @@
+import {effectiveForecastApr} from "./payoff-engine.ts";
 import { householdDate } from "./household-date.ts";
 import type { BalanceAdjustment, DebtAccount, DebtAuditCreator, LedgerTransaction, PaymentKind, PayoffStrategy } from "./dashboard-data.ts";
 
@@ -35,8 +36,8 @@ export function payoffPriority(
     .sort((a, b) => strategy === "custom"
       ? (a.customOrder ?? Number.MAX_SAFE_INTEGER) - (b.customOrder ?? Number.MAX_SAFE_INTEGER)
       : strategy === "avalanche"
-        ? (effectiveAprs[b.id] ?? b.apr) - (effectiveAprs[a.id] ?? a.apr) || a.balance - b.balance || a.name.localeCompare(b.name)
-        : a.balance - b.balance || (effectiveAprs[b.id] ?? b.apr) - (effectiveAprs[a.id] ?? a.apr) || a.name.localeCompare(b.name));
+        ? (effectiveAprs[b.id] ?? effectiveForecastApr(b,1)) - (effectiveAprs[a.id] ?? effectiveForecastApr(a,1)) || a.balance - b.balance || a.name.localeCompare(b.name)
+        : a.balance - b.balance || (effectiveAprs[b.id] ?? effectiveForecastApr(b,1)) - (effectiveAprs[a.id] ?? effectiveForecastApr(a,1)) || a.name.localeCompare(b.name));
 }
 
 export function openingBalanceForCurrentBalance(openingBalance: number, currentBalance: number, nextCurrentBalance: number) {
@@ -187,7 +188,7 @@ export function createBalanceAdjustment(input: BalanceAdjustmentInput) {
   const offset = cents((input.storedAccount.balanceOffset ?? 0) + balanceAfter - balanceBefore);
   const account = {
     ...input.storedAccount,
-    reconciliation: { adjustmentId, accountId: input.storedAccount.id, balance: balanceAfter, date: input.date, createdAt, offset, ...(input.transactions ? { coveredTransactionIds: input.transactions.filter(t => t.accountId === input.storedAccount.id).map(t => t.id) } : {}), ...(input.storedAccount.reconciliation ? { previousAdjustmentId: input.storedAccount.reconciliation.adjustmentId } : {}) },
+    reconciliation: { adjustmentId, accountId: input.storedAccount.id, balance: balanceAfter, date: input.date, createdAt, offset, ...(input.transactions ? { coveredTransactionIds: input.transactions.filter(t => t.accountId === input.storedAccount.id && t.date <= input.date).map(t => t.id) } : {}), ...(input.storedAccount.reconciliation ? { previousAdjustmentId: input.storedAccount.reconciliation.adjustmentId } : {}) },
     baselineBalance: input.storedAccount.baselineBalance ?? input.storedAccount.balance,
     balanceOffset: cents((input.storedAccount.balanceOffset ?? 0) + balanceAfter - balanceBefore),
   };

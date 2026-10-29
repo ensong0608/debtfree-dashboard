@@ -18,7 +18,7 @@ import LegacyHouseholdMembers from "./legacy-household-members";
 import SettingsHub from "./settings-hub";
 import ActionConfirmation from "./action-confirmation";
 import CardProgressChart from "./card-progress-chart";
-import {scheduleView} from "./schedule-view";
+import {scheduleView, scheduleExtra, scheduleMinimums} from "./schedule-view";
 import DashboardHeader from "./dashboard-header";
 import { fixedStrategySettings, buildPayoffStrategyRows } from "./payoff-strategy";
 import {regularLoanPayment} from "./loan-progress";
@@ -29,7 +29,7 @@ import {saveCreditCardDetails, markCreditCardPaidOff, type CardEditBaseline} fro
 import HomeDashboardPage from "./home-dashboard-page";
 import { associateDuePayment, buildDueReminders, type DueReminder } from "./due-reminders";
 import PayoffSchedulePopup from "./payoff-schedule-popup";
-import { buildActivePayoffCommitment, capturePayoffCommitment } from "./payoff-commitment";
+import { buildActivePayoffCommitment, capturePayoffCommitment, captureAutoMinimumCommitments } from "./payoff-commitment";
 import { DebtSummary, DebtTypeFilters, UnifiedDebtList, DebtDetail, DebtOverview, ExperienceOverlay, type DebtSelection, type DebtDetailTab, type DebtCategory } from "./debt-experience";
 import mobileStyles from "./mobile-layout.module.css";
 import { householdMonthOffset } from "./household-date";
@@ -83,8 +83,9 @@ import {
   monthlyInterest,
   round,
   type LinkedCardExpenses,
+  forecastMonthKey,
 } from "./payoff-engine";
-import {captureMinimumCycles, minimumCycleEdit} from "./minimum-cycle";
+import {captureMinimumCycles, currentMinimumCycle, minimumCycleEdit} from "./minimum-cycle";
 import OnboardingFlow from "./onboarding-flow";
 import HomeDueReminders, { type ReminderPaymentActions } from "./home-due-reminders";
 import segmentedStyles from "./segmented-control.module.css";
@@ -98,7 +99,7 @@ import { changeDebtEntry, undoDebtEntry, type EntryCommand, type EntryState } fr
 import { confirmAdjustmentPayment, paymentActivity } from "./payments";
 
 import CostcoInterestSettings from "./costco-interest-settings";
-import { accrueCostcoInterest, householdDate, reconcileInterest, recordActualInterest, interestSettingsError } from "./interest-accrual";
+import { accrueCostcoInterest, householdDate, reconcileInterest, recordActualInterest, interestSettingsError, datedInterestSettings } from "./interest-accrual";
 import { arrangeDebt, groupedDisplayDebts, canArchiveDebt, createBalanceAdjustment, createDebtPayment, replaceDebtPayment, setDebtArchived } from "./debts-screen";
 import { createPayoffSnapshot, transactionAdjustedAccounts } from "./progress-balances";
 import ActualProgressPage, { type ProgressTab } from "./actual-progress-page";
@@ -307,7 +308,7 @@ export default function DashboardClient({ user, householdId, lifecycleEnabled = 
     const grouped = migrateLegacyGroups(payload.accounts, payload.monthlyPlan?.debtGroups);
     setAccounts(grouped.accounts);
     setMonthlyBudgets(payload.monthlyBudgets);
-    setMonthlyPlan({ ...(payload.monthlyPlan ?? { detailedSpendingTracking: false, months: {} }), debtGroups: !payload.accounts.length && payload.monthlyPlan?.removedProgressAccounts?.length && !payload.monthlyPlan.debtGroups ? migrateLegacyGroups(payload.monthlyPlan.removedProgressAccounts).groups : grouped.groups, ...(payload.monthlyPlan?.removedProgressAccounts ? { removedProgressAccounts: migrateLegacyGroups(payload.monthlyPlan.removedProgressAccounts, payload.monthlyPlan.debtGroups).accounts } : {}), ...(startingBalance !== undefined && startingBalance >= 0 ? { progressStartingBalance: startingBalance } : {}), monthlyCommitment: initialCommitment(transactionAdjustedAccounts(payload.accounts, payload.transactions), payload.extra, payload.monthlyBudgets[currentMonthKey()] ?? [], payload.monthlyPlan) });
+    setMonthlyPlan(captureAutoMinimumCommitments({ ...(payload.monthlyPlan ?? { detailedSpendingTracking: false, months: {} }), debtGroups: !payload.accounts.length && payload.monthlyPlan?.removedProgressAccounts?.length && !payload.monthlyPlan.debtGroups ? migrateLegacyGroups(payload.monthlyPlan.removedProgressAccounts).groups : grouped.groups, ...(payload.monthlyPlan?.removedProgressAccounts ? { removedProgressAccounts: migrateLegacyGroups(payload.monthlyPlan.removedProgressAccounts, payload.monthlyPlan.debtGroups).accounts } : {}), ...(startingBalance !== undefined && startingBalance >= 0 ? { progressStartingBalance: startingBalance } : {}), monthlyCommitment: initialCommitment(transactionAdjustedAccounts(payload.accounts, payload.transactions), payload.extra, payload.monthlyBudgets[currentMonthKey()] ?? [], payload.monthlyPlan) }, transactionAdjustedAccounts(payload.accounts,payload.transactions), new Date(forecastMonthKey(2)+'-01T12:00:00Z')));
     setPayees(payload.payees);
     setTransactions(payload.transactions);
     setSnapshots(payload.snapshots);
@@ -466,7 +467,7 @@ export default function DashboardClient({ user, householdId, lifecycleEnabled = 
   const effectiveExtra = Math.max(0, round(commitment - minimums - Object.values(linkedCardExpenses).reduce((sum, n) => sum + n, 0)));
   const currentPaymentContext = useMemo(() => ({
     ...paymentContext(monthlyReports, currentMonthKey(), commitment),
-    minimumTargets: Object.fromEntries(accounts.map(account => [account.id, account.minimum > 0 ? effectiveMinimum(account) : estimatedMinimum(account.balance, account.apr)])),
+    minimumTargets: Object.fromEntries(accounts.map(account => [account.id, currentMinimumCycle(account)?.amount ?? effectiveMinimum(account)])),
   }), [monthlyReports, commitment, accounts]);
   const plan = useMemo(() => calculatePlan(payoffAccounts, effectiveExtra, strategy, linkedCardExpenses, linkedCardPurchases, new Date(), actualizedLinkedCardSpending, currentPaymentContext), [actualizedLinkedCardSpending, currentPaymentContext, effectiveExtra, linkedCardExpenses, linkedCardPurchases, payoffAccounts, strategy]);
   const monthlyTargets = useMemo(() => {
@@ -584,7 +585,7 @@ export default function DashboardClient({ user, householdId, lifecycleEnabled = 
       }
       return placed.map((account) => account.id !== editingId ? account : {
       ...account,
-      ...minimumCycleEdit(account,resolvedMinimumMode === "auto" ? estimatedMinimum(draft.balance,draft.apr) : draft.minimum),
+      ...(resolvedMinimumMode === "manual" && (draft.minimum !== account.minimum || account.minimumMode !== "manual") ? minimumCycleEdit(account,draft.minimum) : {}),
       ...(startingBalance!==undefined ? {baselineBalance:startingBalance} : {}),
       name: draft.name.trim(),
       displayGroup: draft.displayGroup,
@@ -592,7 +593,7 @@ export default function DashboardClient({ user, householdId, lifecycleEnabled = 
       institutionKey: draft.institutionKey,
       apr: draft.apr,
       interestFee: draft.interestFee,
-      ...(draft.interestAutomation ? { interestAutomation: draft.interestAutomation } : {}),
+      ...(draft.interestAutomation ? { interestAutomation: datedInterestSettings(account.interestAutomation,draft.interestAutomation) } : {}),
       minimum: resolvedMinimumMode === "auto" ? estimatedMinimum(draft.balance, draft.apr) : draft.minimum,
       minimumMode: resolvedMinimumMode,
       payoffMode: draft.payoffMode,
@@ -1015,8 +1016,8 @@ export default function DashboardClient({ user, householdId, lifecycleEnabled = 
     if (!loaded || isViewer || (!deviceOnly && cloudStatus !== 'synced') || deviceSaveStatus !== 'synced') return;
     const timer = window.setTimeout(() => {
       const now = new Date();
-      setAccounts(current=>captureMinimumCycles(current,householdDate(now)));
-      setMonthlyPlan(current => recordDueBudgetItems(current, monthlyBudgets[householdDate(now).slice(0, 7)] ?? [], transactions, loans, now));
+      setAccounts(current=>captureMinimumCycles(current,householdDate(now),transactions));
+      setMonthlyPlan(current => recordDueBudgetItems(captureAutoMinimumCommitments(current,calculatedAccounts,new Date(forecastMonthKey(2,now)+'-01T12:00:00Z')), monthlyBudgets[householdDate(now).slice(0, 7)] ?? [], transactions, loans, now));
       const capturedAccounts = buildActualProgress(accounts, transactions, balanceAdjustments, snapshots, now, monthlyPlan.progressStartingBalance, monthlyPlan.removedProgressAccounts).groups.flatMap(group => group.accounts);
       setSnapshots(current => captureAutomaticSnapshot(current, capturedAccounts, loans, now));
     }, 0);
@@ -1038,7 +1039,7 @@ export default function DashboardClient({ user, householdId, lifecycleEnabled = 
     const timer = window.setTimeout(() => setMonthlyPlan(current => capturePayoffCommitment(current, month, householdDate().slice(0, 7), activePayoff.budgetCommitment)), 0);
     return () => clearTimeout(timer);
   }, [loaded, isViewer, forecastDate, accounts.length, loans.length, monthlyPlan.months, monthlyBudgets, activePayoff.budgetCommitment]);
-  const setScheduleChoices=(patch:Partial<MonthlyPlanSettings>)=>{if(!isViewer)setMonthlyPlan(current=>({...current,payoffExtraPayment:current.payoffExtraPayment??extraPayment,...patch}));};
+  const setScheduleChoices=(patch:Partial<MonthlyPlanSettings>)=>{if(!isViewer)setMonthlyPlan(current=>({...current,payoffExtraPayment:current.payoffExtraPayment??scheduleExtra(current,includedCalculatedAccounts),...patch,...(patch.payoffExtraPayment !== undefined ? {payoffAutoMinimumCommitments:{...current.payoffAutoMinimumCommitments,...Object.fromEntries(includedCalculatedAccounts.filter(a=>a.type==='Credit card'&&a.minimumMode==='auto'&&!a.archivedAt).map(a=>[a.id,scheduleMinimums([a],new Date(forecastMonthKey(2)+'-01T12:00:00Z'))]))}} : {})}));};
   const minimumItems=[...includedCalculatedAccounts.filter(a=>!a.archivedAt&&a.balance>0).map(a=>({id:'account:'+a.id,name:a.name,amount:effectiveMinimum(a)})),...visiblePlan.loans.filter(l=>l.remainingAmount>0).map(l=>({id:'loan:'+l.id,name:l.name,amount:regularLoanPayment(l,planningCashflowItems)}))];
   const minimumExpected=JSON.stringify({items:minimumItems,accounts:includedCalculatedAccounts.map(a=>[a.id,a.minimum,a.minimumMode]),loans:visiblePlan.loans.map(l=>[l.id,l.monthlyPayment,l.escrow,l.principalAndInterest])});
   const saveScheduleMinimums=(values:Record<string,number>,expected:string):string|null=>{
@@ -1051,7 +1052,7 @@ export default function DashboardClient({ user, householdId, lifecycleEnabled = 
         if(key.startsWith('account:'))next=updatePayoffMinimum(next,key.slice(8),value);
         else nextLoans=nextLoans.map(loan=>{if(loan.id!==key.slice(5))return loan;const escrow=loan.kind==='house'?loan.escrow:0;if(escrow!==undefined&&value<=escrow)throw new Error("Payment must exceed escrow.");return {...loan,monthlyPayment:value,...(loan.principalAndInterest!==undefined&&escrow!==undefined?{principalAndInterest:round(value-escrow)}:{})};});
       }
-      setAccounts(next);setMonthlyPlan(current=>({...current,payoffExtraPayment:current.payoffExtraPayment??extraPayment,loanTrackers:[...(current.loanTrackers??[]).filter(loan=>loan.removedAt),...nextLoans]}));return null;
+      setAccounts(next);setMonthlyPlan(current=>({...current,payoffExtraPayment:current.payoffExtraPayment??scheduleExtra(current,includedCalculatedAccounts),loanTrackers:[...(current.loanTrackers??[]).filter(loan=>loan.removedAt),...nextLoans]}));return null;
     }catch(error){return error instanceof Error?error.message:"Could not save minimums.";}
   };
   const selectedAccount = selectedDebt?.kind === "account" ? calculatedAccounts.find(account => account.id === selectedDebt.id) : undefined;
@@ -1076,7 +1077,7 @@ export default function DashboardClient({ user, householdId, lifecycleEnabled = 
       const stored=next.accounts.find(account=>account.id===selectedAccount.id)!;
       const posted=transactionAdjustedAccounts(next.accounts,next.transactions).find(account=>account.id===selectedAccount.id)!;
       cardEditBaseline.current={account:stored,balance:posted.balance,startingBalance:displayedStartingBalance(stored,snapshots)};
-      const savedDraft={...draft,interestAutomation:stored.interestAutomation,balance:posted.balance,baselineBalance:displayedStartingBalance(stored,snapshots)};setDraft(savedDraft);setAccountDraftBaseline(savedDraft);setCardEditError("");return true;
+      const savedDraft={...draft,actualInterest:undefined,interestAutomation:stored.interestAutomation,balance:posted.balance,baselineBalance:displayedStartingBalance(stored,snapshots)};setDraft(savedDraft);setAccountDraftBaseline(savedDraft);setCardEditError("");return true;
     }catch(error){setCardEditError(error instanceof Error?error.message:"Could not save this card.");return false;}
   };
   const accountDraftDirty = JSON.stringify(draft) !== JSON.stringify(accountDraftBaseline);
@@ -1544,12 +1545,12 @@ function AccountModal({ inline = false, dirty, readOnly = false, onArchive, onMa
         {!editing && <Field required label="Current balance" prefix={symbol} value={draft.balance} placeholder="0" autoFocus={autoFocusField === "balance"} onChange={(balance) => onChange({ ...draft, balance })}/>}
         {editing && <Field required label="Starting balance" prefix={symbol} step=".01" showZero value={draft.baselineBalance} placeholder="Not set" onChange={(baselineBalance)=>onChange({...draft,baselineBalance})}/>}
         <Field required={draft.type === "Auto loan"} label={draft.type === "Auto loan" ? "APR*" : "APR"} suffix="%" value={draft.apr} placeholder="0.00" step=".01" onChange={(apr) => onChange({ ...draft, apr })}/>
-        <div className="minimum-editor"><div><button type="button" className={draft.minimumMode === "auto" ? "mode active" : "mode"} onClick={() => onChange({ ...draft, minimumMode: draft.minimumMode === "auto" ? "manual" : "auto" })}>{draft.minimumMode === "auto" ? "Auto estimate" : "Use auto estimate"}</button></div><Field required label={draft.minimumMode === "auto" ? "Estimated minimum *" : "Minimum payment *"} prefix={symbol} value={draft.minimumMode === "auto" ? autoMinimum : draft.minimum} placeholder="0" disabled={draft.minimumMode === "auto"} onChange={(minimum) => onChange({ ...draft, minimum })}/><small>{draft.minimumMode === "auto" ? "Estimated from balance and APR. Enter a statement amount to replace it." : "Required statement amount. If left blank, the estimate is used."}</small></div>
+        <div className="minimum-editor"><div><button type="button" className={draft.minimumMode === "auto" ? "mode active" : "mode"} onClick={() => onChange({ ...draft, minimumMode: draft.minimumMode === "auto" ? "manual" : "auto" })}>{draft.minimumMode === "auto" ? "Auto estimate" : "Use auto estimate"}</button></div><Field required label={draft.minimumMode === "auto" ? "Estimated minimum *" : "Minimum payment *"} prefix={symbol} value={draft.minimumMode === "auto" ? autoMinimum : draft.minimum} placeholder="0" disabled={draft.minimumMode === "auto"} onChange={(minimum) => onChange({ ...draft, minimum })}/><small>{draft.minimumMode === "auto" ? "Estimated from balance and APR. Enter a statement amount to replace it." : "Your fixed payment amount."}</small></div>
         <DateCalendar label="Due date" recurring value={draft.dueDate} onChange={date => onChange({ ...draft, dueDate: date })}/>
       </div></div>
       {(invalidInterestDate || invalidAmount) && <p className="form-error form-validation" role="alert">{invalidInterestDate || "Check the amounts, including Advanced fields."}</p>}<footer className="form-action-footer"><div>{(!editing || dirty) && <button className="primary" type="button" disabled={readOnly || !draft.name.trim() || Boolean(invalidInterestDate || invalidAmount)} onClick={onSave}>Save</button>}<button className="secondary" type="button" onClick={() => setAdvanced(true)}>Advanced</button></div></footer></fieldset>}
       <div hidden={!advanced}>{<ExperienceOverlay title="Advanced" onBack={() => setAdvanced(false)}><fieldset className="advanced-info-content" disabled={readOnly}>        <div className="form-grid">
-        <div><Field label="Actual interest fee" disabled={draft.interestAutomation?.enabled} prefix={symbol} value={draft.interestFee} placeholder="Optional" step=".01" onChange={(interestFee) => onChange({ ...draft, interestFee })}/><small className="field-help">Leave blank to estimate from balance x APR / 12.</small></div>
+        {draft.interestFee > 0 && <p>Saved undated interest: {symbol}{draft.interestFee.toFixed(2)}. Reference only; forecasts use APR.</p>}
 
         {isCreditCard && <CostcoInterestSettings apr={draft.apr} value={draft.interestAutomation} onChange={interestAutomation => onChange({ ...draft, interestAutomation })}/>}
         {editing && isCreditCard && <fieldset className="wide"><legend>Record actual interest — optional</legend><label>Amount<NumericInput aria-label="Actual interest amount" value={draft.actualInterest?.amount} emptyValue={0} onValueChange={(amount, text) => onChange({ ...draft, actualInterest: text.trim() === "" ? undefined : { amount, date: draft.actualInterest?.date ?? householdDate() } })}/></label>{draft.actualInterest && <DateCalendar label="Statement closing date" value={draft.actualInterest.date} max={householdDate()} onChange={date => onChange({ ...draft, actualInterest: { amount: draft.actualInterest!.amount, date: date } })}/>}</fieldset>}
@@ -1561,7 +1562,7 @@ function AccountModal({ inline = false, dirty, readOnly = false, onArchive, onMa
             <Field label="APR after promotion" suffix="%" value={draft.postPromoApr} placeholder="0.00" step=".01" onChange={(postPromoApr) => onChange({ ...draft, postPromoApr })}/>
             <Field label="Actual minimum after promotion" prefix={symbol} value={draft.postPromoMinimum} placeholder="Keep current" step=".01" onChange={(postPromoMinimum) => onChange({ ...draft, postPromoMinimum })}/>
           </div>
-          <small className="promo-help">If the future minimum is unknown, DebtFree keeps today&apos;s minimum instead of inventing a higher payment. Update it when the issuer confirms the amount.</small>
+          <small className="promo-help">Automatic estimates update each cycle. Manual payments stay fixed unless a post-promo amount is entered.</small>
         </div>}
         <Field label="Credit limit" prefix={symbol} value={draft.creditLimit} placeholder="Optional" onChange={(creditLimit) => onChange({ ...draft, creditLimit })}/>
 

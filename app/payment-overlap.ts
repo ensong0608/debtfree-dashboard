@@ -2,7 +2,7 @@ import type { BalanceAdjustment, LedgerTransaction } from './dashboard-data.ts';
 import { round } from './payoff-engine.ts';
 export type PaymentLink = { type: 'adjustment' | 'transaction'; id: string };
 export function postedMovement(transaction: LedgerTransaction) {
-  return transaction.deletedAt || transaction.includedIn ? 0 : round(transaction.amount * (transaction.type === 'payment' ? -1 : 1));
+  return transaction.deletedAt || transaction.replacedByTransactionId || transaction.includedIn || transaction.id.startsWith("settlement:") || transaction.actualInterestIncludedAt ? 0 : round(transaction.amount * (transaction.type === 'payment' ? -1 : 1));
 }
 export function paymentOverlaps(transactions: LedgerTransaction[], adjustments: BalanceAdjustment[], accountId: string, amount: number, date: string) {
   if (!(amount > 0) || !/^\d{4}-\d{2}-\d{2}$/.test(date)) return [];

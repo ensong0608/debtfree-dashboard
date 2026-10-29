@@ -1,6 +1,6 @@
 import type { CashflowItem, DebtAccount, PayoffStrategy } from './dashboard-data.ts';
 import { calculateMinimumPayoffPlan } from './payoff-calculator.ts';
-import { forecastMonthKey, forecastMinimum, forecastMonthlyRate, round, PAYOFF_PLAN_MONTH_LIMIT } from './payoff-engine.ts';
+import { forecastMonthKey, forecastMinimum, round, PAYOFF_PLAN_MONTH_LIMIT } from './payoff-engine.ts';
 import { forecastLoanApr, forecastLoanPrincipal, regularLoanPayment, type LoanTracker } from './loan-progress.ts';
 
 export type ScheduleMonth = { month: string; paid: number; interest: number; remaining: number; paidOff: string[] };
@@ -62,7 +62,7 @@ export function buildConfiguredPayoffSchedule(accounts:DebtAccount[],loans:LoanT
   return [{id:'loan:'+l.id,name:l.name,type:'Other' as const,balance,apr,interestFee:0,minimum:round(payment-escrow),minimumMode:'manual' as const,payoffMode:'priority' as const,creditLimit:0,dueDate:'',promoEndDate:'',postPromoApr:0,postPromoMinimum:0,createdAt:date.toISOString(),escrow}];
  });
  const inputs=[...cardInputs,...loanInputs];
- const minimums=round(inputs.reduce((sum,a)=>sum+forecastMinimum(a,round(a.balance*(1+forecastMonthlyRate(a,1,date))),1,date),0));
+ const minimums=round(inputs.reduce((sum,a)=>sum+forecastMinimum(a,a.balance,1,date),0));
  const result=calculateMinimumPayoffPlan(inputs,round(minimums+extra),strategy,[],date);
  if(result.error)issues.push(result.error);if(result.plan?.stalled)issues.push('Increase extra payment to reach a payoff date.');
  const payoffMonths:Record<string,string>={};
@@ -76,6 +76,6 @@ export function buildConfiguredPayoffSchedule(accounts:DebtAccount[],loans:LoanT
  if(!rows.length&&unforecastedBalance>0) rows.push({month:forecastMonthKey(1,date),paid:0,interest:0,remaining:unforecastedBalance,paidOff:[]});
  const complete=!issues.length&&(rows.at(-1)?.remaining??0)===0;
  const firstPayments:Record<string,number>={...result.plan?.months[0]?.payments};
- for(const loan of loanInputs) firstPayments[loan.id]=round((firstPayments[loan.id]??forecastMinimum(loan,round(loan.balance*(1+forecastMonthlyRate(loan,1,date))),1,date))+loan.escrow);
+ for(const loan of loanInputs) firstPayments[loan.id]=round((firstPayments[loan.id]??forecastMinimum(loan,loan.balance,1,date))+loan.escrow);
  return {rows,issues,complete,payoffMonths,firstPayments,debtFreeMonth:complete?rows.at(-1)?.month??null:null,monthly:round(minimums+extra+unforecastedPayment+loanInputs.reduce((n,l)=>n+l.escrow,0)),totalInterest:round(rows.reduce((n,r)=>n+r.interest,0))};
 }

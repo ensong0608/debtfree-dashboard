@@ -4,11 +4,11 @@ import type { DebtAccount, DebtAuditCreator } from './dashboard-data.ts';
 import type { EntryState } from './debt-transactions.ts';
 import { transactionAdjustedAccounts } from './progress-balances.ts';
 import { createBalanceAdjustment, setDebtArchived } from './debts-screen.ts';
-import { householdDate, reconcileInterest, interestSettingsError } from './interest-accrual.ts';
+import { householdDate, reconcileInterest, interestSettingsError, datedInterestSettings, recordActualInterest } from './interest-accrual.ts';
 import {startingBalanceEdit} from './debt-starting-balance.ts';
 
 const editableKeys = ['institutionKey', 'displayGroup', 'name', 'apr', 'interestFee', 'minimum', 'minimumMode', 'creditLimit', 'dueDate', 'promoEndDate', 'postPromoApr', 'postPromoMinimum'] as const;
-export type CreditCardDraft = Pick<DebtAccount, typeof editableKeys[number] | 'interestAutomation'> & {balance: number; baselineBalance?: number; displayPosition?: number};
+export type CreditCardDraft = Pick<DebtAccount, typeof editableKeys[number] | 'interestAutomation'> & {balance: number; baselineBalance?: number; displayPosition?: number; actualInterest?: {amount: number; date: string}};
 export type CardEditBaseline = {account: DebtAccount; balance: number; startingBalance?: number};
 
 function reconcileBalance(state: EntryState, account: DebtAccount, balance: number, creator?: DebtAuditCreator): EntryState {
@@ -44,9 +44,10 @@ export function saveCreditCardDetails(state: EntryState, id: string, draft: Cred
   }
   const current = transactionAdjustedAccounts(state.accounts, state.transactions).find(item => item.id === id)!;
   if (balanceChanged && current.balance !== baseline.balance) throw new Error('The balance changed. Reopen the card before editing its balance.');
-  const next = balanceChanged ? reconcileBalance(state, account, draft.balance, creator) : state;
+  if (balanceChanged && draft.actualInterest) throw new Error('Save the balance and actual interest separately.');
+  const next = balanceChanged ? reconcileBalance(state, account, draft.balance, creator) : draft.actualInterest ? {...state, transactions: recordActualInterest(account, state.transactions, draft.actualInterest.amount, draft.actualInterest.date)} : state;
   const changes = Object.fromEntries(editableKeys.map(key => [key, key === 'name' ? draft.name.trim() : key === 'displayGroup' ? draft.displayGroup ?? baseline.account.displayGroup : draft[key]]));
-  return {...next, accounts: next.accounts.map(item => item.id === id ? {...item, ...minimumCycleEdit(account,draft.minimum), ...changes, ...(interestChanged ? {interestAutomation:draft.interestAutomation} : {}), ...(startingBalance !== undefined ? {baselineBalance:startingBalance} : {})} : item)};
+  return {...next, accounts: next.accounts.map(item => item.id === id ? {...item, ...(draft.minimumMode === "manual" && (draft.minimum !== account.minimum || account.minimumMode !== "manual") ? minimumCycleEdit(account,draft.minimum) : {}), ...changes, ...(interestChanged ? {interestAutomation:datedInterestSettings(account.interestAutomation,draft.interestAutomation!)} : {}), ...(startingBalance !== undefined ? {baselineBalance:startingBalance} : {})} : item)};
 }
 
 export function markCreditCardPaidOff(state: EntryState, id: string, creator?: DebtAuditCreator): EntryState {
