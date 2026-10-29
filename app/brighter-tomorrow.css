@@ -1,28 +1,30 @@
-/* Theme paint only: no layout, sizing, navigation or financial behavior changes. */
-:root {
+.brighter-header-art,.brighter-card-art,.brighter-encouragement,.brighter-home-subtitle{display:none}
+:root[data-theme=tomorrow] .brighter-header-art,:root[data-theme=tomorrow] .brighter-card-art,:root[data-theme=tomorrow] .brighter-encouragement,:root[data-theme=tomorrow] .brighter-home-subtitle{display:block}
+:root[data-theme=tomorrow] .standard-home-subtitle{display:none}
+:root[data-theme=tomorrow]{
   --theme-scenery-back:#d3eadd;--theme-scenery-front:#c2dfcf;
   --theme-scenery-leaf:#9bc8b2;--theme-scenery-sun:#ffe0a0;
   --theme-scenery-path:#fff0cf;--theme-peach:#fff0e6;
 }
-.shared-dashboard-header{position:relative;isolation:isolate}
-.brighter-header-art{position:absolute;right:48px;top:0;width:150px;height:100%;max-height:100px;pointer-events:none;z-index:-1;opacity:.65}
-.shared-dashboard-title-row,.shared-dashboard-tab-row{position:relative}
-.brighter-progress-slide{position:relative;isolation:isolate;overflow:hidden}
-.brighter-card-art{position:absolute;right:0;bottom:0;width:145px;height:90px;pointer-events:none;z-index:-1;opacity:.5}
-.brighter-encouragement{position:absolute;right:12px;bottom:2px;max-width:calc(100% - 24px);color:var(--theme-muted);font-family:"Segoe Print","Bradley Hand",cursive;font-size:10px;line-height:12px;white-space:nowrap;pointer-events:none}
-/* These backgrounds leave the original content and hit targets in place. */
-[aria-label="Debt list"] [aria-label="Debt summary"],.utilization-hero,[aria-label="Monthly budget summary"]{
+:root[data-theme=tomorrow] .shared-dashboard-header{position:relative;isolation:isolate}
+:root[data-theme=tomorrow] .brighter-header-art{position:absolute;right:48px;top:0;width:150px;height:100%;max-height:100px;pointer-events:none;z-index:-1;opacity:.65}
+:root[data-theme=tomorrow] .shared-dashboard-title-row,:root[data-theme=tomorrow] .shared-dashboard-tab-row{position:relative}
+:root[data-theme=tomorrow] .brighter-progress-slide{position:relative;isolation:isolate;overflow:hidden}
+:root[data-theme=tomorrow] .brighter-card-art{position:absolute;right:0;bottom:0;width:145px;height:90px;pointer-events:none;z-index:-1;opacity:.5}
+:root[data-theme=tomorrow] .brighter-encouragement{position:absolute;right:12px;bottom:2px;max-width:calc(100% - 24px);color:var(--theme-muted);font-family:"Segoe Print","Bradley Hand",cursive;font-size:10px;line-height:12px;white-space:nowrap;pointer-events:none}
+:root[data-theme=tomorrow] [aria-label="Debt list"] [aria-label="Debt summary"],:root[data-theme=tomorrow] .utilization-hero,:root[data-theme=tomorrow] [aria-label="Monthly budget summary"]{
   background-image:radial-gradient(ellipse at 100% 100%,var(--theme-scenery-back),transparent 60%),linear-gradient(125deg,var(--theme-gradient-start),var(--theme-peach));
 }
-.home-welcome{background-image:radial-gradient(ellipse at 100% 0%,var(--theme-accent-soft),transparent 70%)}
-.app-sheet,.settings-panel,.appearance-board{background-color:var(--theme-surface)}
-:root[data-theme=dark] .brighter-header-art,:root[data-theme=dark] .brighter-card-art{opacity:.35}
-@media(max-width:360px){.brighter-header-art{width:110px;opacity:.4}.brighter-card-art{width:100px;opacity:.3}.brighter-encouragement{font-size:9px}}
-@media(forced-colors:active){.brighter-header-art,.brighter-card-art{display:none}}
+:root[data-theme=tomorrow] .home-welcome{background-image:radial-gradient(ellipse at 100% 0%,var(--theme-accent-soft),transparent 70%)}
+:root[data-theme=tomorrow] .app-sheet,:root[data-theme=tomorrow] .settings-panel,:root[data-theme=tomorrow] .appearance-board{background-color:var(--theme-surface)}
 
-.brighter-budget-summary{position:relative;isolation:isolate}
-.brighter-budget-summary>.brighter-card-art{width:160px;opacity:.25}
-.strategy-list-heading{position:relative}
-.strategy-list-heading::before{content:"Small payments create big freedom.";position:absolute;left:0;top:-17px;color:var(--theme-muted);font-size:10px;line-height:12px;font-family:"Segoe Print","Bradley Hand",cursive;pointer-events:none}
-.budget-net-change{position:relative}
-.budget-net-change::after{content:"Every step counts.";position:absolute;right:12px;bottom:2px;color:var(--theme-muted);font-size:10px;line-height:12px;font-family:"Segoe Print","Bradley Hand",cursive;pointer-events:none}
+@media(max-width:360px){:root[data-theme=tomorrow] .brighter-header-art{width:110px;opacity:.4}
+:root[data-theme=tomorrow] .brighter-card-art{width:100px;opacity:.3}
+:root[data-theme=tomorrow] .brighter-encouragement{font-size:9px}}
+@media(forced-colors:active){:root[data-theme=tomorrow] .brighter-header-art,:root[data-theme=tomorrow] .brighter-card-art{display:none}}
+:root[data-theme=tomorrow] .brighter-budget-summary{position:relative;isolation:isolate}
+:root[data-theme=tomorrow] .brighter-budget-summary>.brighter-card-art{width:160px;opacity:.25}
+:root[data-theme=tomorrow] .strategy-list-heading{position:relative}
+:root[data-theme=tomorrow] .strategy-list-heading::before{content:"Small payments create big freedom.";position:absolute;left:0;top:-17px;color:var(--theme-muted);font-size:10px;line-height:12px;font-family:"Segoe Print","Bradley Hand",cursive;pointer-events:none}
+:root[data-theme=tomorrow] .budget-net-change{position:relative}
+:root[data-theme=tomorrow] .budget-net-change::after{content:"Every step counts.";position:absolute;right:12px;bottom:2px;color:var(--theme-muted);font-size:10px;line-height:12px;font-family:"Segoe Print","Bradley Hand",cursive;pointer-events:none}

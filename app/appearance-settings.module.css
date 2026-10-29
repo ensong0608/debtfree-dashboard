@@ -42,3 +42,5 @@
 .settings :global(.appearance-text-size) select { width:100%; min-height:44px; padding:8px 12px; background:var(--theme-surface); color:var(--theme-text); border:1px solid var(--theme-control-border); border-radius:8px; font:inherit; }
 
 .sizeField { display:block!important; width:100%; min-width:0; }
+
+.tomorrowSwatch{background:#fffaf1}.tomorrowSwatch i:first-child{background:#d2eee5}.tomorrowSwatch i:nth-child(2){background:linear-gradient(135deg,#d2eee5,#ffebd6)}.tomorrowSwatch i:nth-child(n+3){background:#fffefa}.cardText strong{text-align:center}

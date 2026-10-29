@@ -5,21 +5,23 @@ export const FONTS = { default: 'Helvetica,"Helvetica Neue",Arial,sans-serif', s
 export const TEXT_SIZES = [9, 10, 11, 12, 13, 14, 15, 16] as const;
 export type TextSize = typeof TEXT_SIZES[number] | 'standard' | 'large' | 'larger';
 export function textSizePoints(size: TextSize) { return typeof size === 'number' ? size : size === 'large' ? 14 : size === 'larger' ? 15 : 12; }
-export type Theme = 'light' | 'dark';
+export type Theme = 'light' | 'dark' | 'tomorrow';
+export const THEME_LABELS = {light:'Light',dark:'Dark',tomorrow:'A Brighter Tomorrow'} as const;
 type Colors = { accent: string; background: string; surface: string; text: string };
-export type Appearance = Colors & { version: 2; theme: Theme; font: keyof typeof FONTS; size: TextSize; legacyColors?: Colors; primaryLight?: string; primaryDark?: string };
-export const PRIMARY_DEFAULTS = { light: '#d2eee5', dark: '#182b45' };
+export type Appearance = Colors & { version: 2; theme: Theme; font: keyof typeof FONTS; size: TextSize; legacyColors?: Colors; primaryLight?: string; primaryDark?: string; primaryTomorrow?: string };
+export const PRIMARY_DEFAULTS = { light: '#295e9b', dark: '#182b45', tomorrow: '#d2eee5' };
 export const PRIMARY_PRESETS = {
+  tomorrow: [{name:"Mint",color:"#d2eee5"},{name:"Lavender",color:"#e4dcf6"},{name:"Peach",color:"#f4d7c6"}],
   dark: [{ name: 'Midnight Navy', color: '#182b45' }, { name: 'Deep Indigo', color: '#292343' }, { name: 'Deep Teal', color: '#123639' }, { name: 'Graphite', color: '#252b35' }],
-  light: [{ name: 'Brighter Tomorrow', color: '#d2eee5' }, { name: 'Blue & Slate', color: '#295e9b' }, { name: 'Lavender', color: '#e4dcf6' }, { name: 'Mint', color: '#d2eee5' }, { name: 'Silver', color: '#e1e6ed' }],
+  light: [{ name: 'Blue & Slate', color: '#295e9b' }, { name: 'Lavender', color: '#e4dcf6' }, { name: 'Mint', color: '#d2eee5' }, { name: 'Silver', color: '#e1e6ed' }],
 } satisfies Record<Theme, { name: string; color: string }[]>;
-export function primaryColor(p: Appearance, theme = p.theme) { return (theme === 'dark' ? p.primaryDark : p.primaryLight) ?? (p.theme===theme && p.accent.toLowerCase()!==THEMES[theme].accent.toLowerCase() ? p.accent : PRIMARY_DEFAULTS[theme]); }
+export function primaryKey(theme: Theme) { return theme === 'dark' ? 'primaryDark' : theme === 'tomorrow' ? 'primaryTomorrow' : 'primaryLight'; }
+export function primaryColor(p: Appearance, theme = p.theme) { return p[primaryKey(theme)] ?? (p.theme===theme && p.accent.toLowerCase()!==THEMES[theme].accent.toLowerCase() ? p.accent : PRIMARY_DEFAULTS[theme]); }
 const PREVIOUS_LIGHT: Colors = { accent: '#0961d9', background: '#f3f7fd', surface: '#ffffff', text: '#101b31' };
-const BLUE_LIGHT: Colors = { accent: '#295e9b', background: '#e4ebf3', surface: '#f5f8fc', text: '#101b31' };
-const LIGHT: Colors = { accent: '#08766f', background: '#fffaf1', surface: '#fffefa', text: '#143b45' };
+const LIGHT: Colors = { accent: '#295e9b', background: '#e4ebf3', surface: '#f5f8fc', text: '#101b31' };
 const DARK: Colors = { accent: '#42cfff', background: '#080e16', surface: '#131e2b', text: '#edf3ff' };
 export const DEFAULT_APPEARANCE: Appearance = { version: 2, theme: 'light', font: 'default', size: 'standard', ...LIGHT };
-export const THEMES = { light: DEFAULT_APPEARANCE, dark: { ...DEFAULT_APPEARANCE, theme: 'dark', ...DARK } } satisfies Record<Theme, Appearance>;
+export const THEMES = { tomorrow: {...DEFAULT_APPEARANCE,theme:'tomorrow',accent:'#08766f',background:'#fffaf1',surface:'#fffefa',text:'#143b45'}, light: DEFAULT_APPEARANCE, dark: { ...DEFAULT_APPEARANCE, theme: 'dark', ...DARK } } satisfies Record<Theme, Appearance>;
 // Retained for the existing editor until Section 2 replaces its preset controls.
 export const PRESETS = {
   mint: { ...DEFAULT_APPEARANCE, accent: '#096b5d', background: '#f7f8fc' },
@@ -43,11 +45,11 @@ function lightSurfaces(c: Colors) { return [c.background, c.surface].every(bg =>
 export function appearanceError(value: unknown): string | null {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return 'Choose valid appearance settings.';
   const p = value as Record<string, unknown>;
-  if (p.version !== 2 || !['light', 'dark'].includes(p.theme as string) || typeof p.font !== 'string' || !Object.hasOwn(FONTS, p.font) || ![...TEXT_SIZES, 'standard', 'large', 'larger'].includes(p.size as never)) return 'Choose a supported theme, font and text size.';
+  if (p.version !== 2 || !['light', 'dark', 'tomorrow'].includes(p.theme as string) || typeof p.font !== 'string' || !Object.hasOwn(FONTS, p.font) || ![...TEXT_SIZES, 'standard', 'large', 'larger'].includes(p.size as never)) return 'Choose a supported theme, font and text size.';
   if (!validColors(p)) return 'Use six-digit hex colors, such as #0961d9.';
-  if (['primaryLight', 'primaryDark'].some(key => p[key] !== undefined && (typeof p[key] !== 'string' || !/^#[0-9a-f]{6}$/i.test(p[key] as string)))) return 'Use a six-digit primary color, such as #182b45.';
+  if (['primaryLight', 'primaryDark', 'primaryTomorrow'].some(key => p[key] !== undefined && (typeof p[key] !== 'string' || !/^#[0-9a-f]{6}$/i.test(p[key] as string)))) return 'Use a six-digit primary color, such as #182b45.';
   if (!readableColors(p)) return 'Text and accent need more contrast against background and surface.';
-  if ((p.theme === 'light' && !lightSurfaces(p)) || (p.theme === 'dark' && [p.background, p.surface].some(bg => contrast('#ffffff', bg) <= contrast('#000000', bg)))) return 'Choose surfaces that match the selected theme.';
+  if ((p.theme !== 'dark' && !lightSurfaces(p)) || (p.theme === 'dark' && [p.background, p.surface].some(bg => contrast('#ffffff', bg) <= contrast('#000000', bg)))) return 'Choose surfaces that match the selected theme.';
   if (p.legacyColors !== undefined && (!validColors(p.legacyColors) || !readableColors(p.legacyColors) || !lightSurfaces(p.legacyColors))) return 'Saved custom colors are invalid.';
   return null;
 }
@@ -71,18 +73,19 @@ export function parseAppearance(raw: string | null): Appearance {
     if (appearanceError(p)) return { ...DEFAULT_APPEARANCE };
     // Upgrade only the former built-in Light palette in memory. Keep custom
     // surfaces, typography, the selected theme and separately saved Dark color.
-    const formerLight = [PREVIOUS_LIGHT, BLUE_LIGHT].find(palette => (['background', 'surface', 'text'] as const).every(key => p[key].toLowerCase() === palette[key]));
-    if (p.theme === 'light' && formerLight) {
-      const accent = p.accent.toLowerCase() === formerLight.accent ? LIGHT.accent : p.accent;
-      Object.assign(p, LIGHT, { accent });
-      if (['#295e9b', '#cfe7fa'].includes(p.primaryLight?.toLowerCase())) p.primaryLight = PRIMARY_DEFAULTS.light;
+    if (p.theme === 'light' && colorKeys.every(key => p[key].toLowerCase() === PREVIOUS_LIGHT[key])) Object.assign(p, LIGHT);
+    // Repair only the accidentally applied built-in palette; keep Light selected,
+    // custom accents/headers, typography and the separately saved Dark color.
+    if (p.theme === 'light' && p.background.toLowerCase() === '#fffaf1' && p.surface.toLowerCase() === '#fffefa' && p.text.toLowerCase() === '#143b45') {
+      Object.assign(p, LIGHT, {accent:p.accent.toLowerCase()==='#08766f'?LIGHT.accent:p.accent});
+      if (p.primaryLight?.toLowerCase()==='#d2eee5') delete p.primaryLight;
     }
     if (p.primaryLight?.toLowerCase() === '#cfe7fa') p.primaryLight = PRIMARY_DEFAULTS.light;
-    return { version: 2, theme: p.theme, font: p.font, size: p.size, ...normalizeColors(p), ...(p.legacyColors ? { legacyColors: normalizeColors(p.legacyColors) } : {}), ...(p.primaryLight ? { primaryLight: p.primaryLight.toLowerCase() } : {}), ...(p.primaryDark ? { primaryDark: p.primaryDark.toLowerCase() } : {}) };
+    return { version: 2, theme: p.theme, font: p.font, size: p.size, ...normalizeColors(p), ...(p.legacyColors ? { legacyColors: normalizeColors(p.legacyColors) } : {}), ...(p.primaryLight ? { primaryLight: p.primaryLight.toLowerCase() } : {}), ...(p.primaryDark ? { primaryDark: p.primaryDark.toLowerCase() } : {}), ...(p.primaryTomorrow ? { primaryTomorrow: p.primaryTomorrow.toLowerCase() } : {}) };
   } catch { return { ...DEFAULT_APPEARANCE }; }
 }
 export function withTheme(p: Appearance, theme: Theme): Appearance {
-  return { ...THEMES[theme], font: p.font, size: p.size, ...(p.legacyColors ? { legacyColors: p.legacyColors } : {}), ...(p.primaryLight ? { primaryLight: p.primaryLight } : {}), ...(p.primaryDark ? { primaryDark: p.primaryDark } : {}) };
+  return { ...THEMES[theme], font: p.font, size: p.size, ...(p.legacyColors ? { legacyColors: p.legacyColors } : {}), ...(p.primaryLight ? { primaryLight: p.primaryLight } : {}), ...(p.primaryDark ? { primaryDark: p.primaryDark } : {}), ...(p.primaryTomorrow ? { primaryTomorrow: p.primaryTomorrow } : {}) };
 }
 type PreferenceStorage = Pick<Storage, 'getItem' | 'setItem' | 'removeItem'>;
 export function loadAppearance(storage: PreferenceStorage): Appearance { return parseAppearance(storage.getItem(APPEARANCE_KEY)); }
@@ -103,7 +106,7 @@ export function appearanceTokens(p: Appearance): Record<string, string> {
   const dark = p.theme === 'dark';
   const { surface, background, text } = p;
   const primary = primaryColor(p);
-  const customizedPrimary = p.theme === 'dark' ? p.primaryDark : p.primaryLight;
+  const customizedPrimary = p[primaryKey(p.theme)];
   let accent = p.accent;
   if (customizedPrimary) {
     accent = primary;
@@ -123,16 +126,13 @@ export function appearanceTokens(p: Appearance): Record<string, string> {
   const on = (bg: string) => contrast('#ffffff', bg) >= 4.5 ? '#ffffff' : '#000000';
   const gradientStart=mix(accent,surface,dark?.16:.14),gradientEnd=mix(accent,background,dark?.08:.06);
   const onGradient=[gradientStart,gradientEnd].every(bg=>contrast(text,bg)>=4.5)?text:on(gradientStart);
-  const headerRail = mix(primary, surface, .2);
-  const headerSelected = accent;
+  const headerRail = p.theme === 'tomorrow' ? mix(primary,surface,.2) : mix(primary, '#000000', .82);
+  const headerSelected = p.theme === 'tomorrow' ? accent : mix(primary, on(primary), .8);
   const t: Record<string, string> = {
-    '--theme-primary': primary, '--theme-on-primary': contrast(text, primary) >= 4.5 ? text : on(primary),
-    '--theme-scenery-back': mix(primary, surface, dark ? .25 : .32),
-    '--theme-scenery-front': mix(accent, surface, dark ? .22 : .24),
-    '--theme-scenery-leaf': mix(accent, surface, dark ? .3 : .4),
-    '--theme-scenery-sun': dark ? '#66563d' : '#ffe0a0',
-    '--theme-scenery-path': dark ? '#39352e' : '#fff0cf',
-    '--theme-peach': dark ? '#2c2529' : '#fff0e6',
+    '--theme-primary': primary, '--theme-on-primary': p.theme === 'tomorrow' && contrast(text,primary)>=4.5 ? text : on(primary),
+    '--theme-scenery-back': mix(primary,surface,.32), '--theme-scenery-front': mix(accent,surface,.24),
+    '--theme-scenery-leaf': mix(accent,surface,.4), '--theme-scenery-sun':'#ffe0a0',
+    '--theme-scenery-path':'#fff0cf', '--theme-peach':'#fff0e6',
     '--theme-header-rail': headerRail, '--theme-on-header-rail': on(headerRail),
     '--theme-header-selected': headerSelected, '--theme-on-header-selected': on(headerSelected),
     '--theme-background': background, '--theme-surface': surface, '--theme-raised': raised,
