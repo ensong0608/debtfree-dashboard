@@ -6,6 +6,7 @@ import { createCipheriv, randomBytes, publicEncrypt, constants, createHash } fro
 import { parseDashboardContract } from '../app/dashboard-data.ts';
 import { inspectReleaseResources } from './inspect-release-resources.mjs';
 import { fingerprintRows } from './production-preservation.mjs';
+import { restoreProductionRows } from './production-backup-restore.mjs';
 import { PREVIEW_ACCOUNT } from './provision-preview-isolation.mjs';
 
 // Read-only production export. No migrations, imports, financial writes or deploy.
@@ -30,22 +31,8 @@ try {
   // FKs are checked after all table definitions/inserts are loaded, because the
   // existing migration/export lists child tables before the parent table exists.
   stage = 'private SQLite restore';
-  const restore = execFileSync('python3',['-c',`
-import sqlite3,json,sys,pathlib
-sql=pathlib.Path(sys.argv[1]).read_text()
-db=sqlite3.connect(':memory:')
-db.executescript(sql)
-assert db.execute('PRAGMA integrity_check').fetchall()==[('ok',)]
-assert db.execute('PRAGMA foreign_key_check').fetchall()==[]
-db.row_factory=sqlite3.Row
-names=[r[0] for r in db.execute("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' AND name NOT LIKE '_cf_%' AND name != 'd1_migrations'")]
-assert {'households','household_members','household_state'}.issubset(set(names))
-assert set(names).issubset({'households','household_members','household_state','household_invitations','household_requests'})
-rows={name:[dict(r) for r in db.execute('SELECT * FROM '+name)] for name in names}
-print(json.dumps(rows))
-`,sqlPath],{stdio:['ignore','pipe','pipe'],encoding:'utf8',timeout:30000,maxBuffer:64*1024*1024});
+  const rows = restoreProductionRows(sqlPath);
   stage = 'stored contract and snapshot compatibility';
-  const rows = JSON.parse(restore);
   if (!rows.households.length || !rows.household_state.length) throw new Error('Production backup unexpectedly empty');
   const review=[];
   for(const state of rows.household_state) {
