@@ -31,3 +31,6 @@
 .fields :global(.date-calendar-field)>legend{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%)}
 .fields :global(.date-field-label){display:inline;font-size:inherit}
 .fields :global(.date-field-trigger){width:auto;padding:4px 0;min-width:0;border:0;box-shadow:none;background:none}
+.fields :global(.costco-interest-settings){display:block!important;gap:0!important;width:100%;padding:0!important;border:0!important;border-radius:0!important;background:transparent!important}
+.fields :global(.costco-interest-settings) :global(.numeric-control){margin:0}
+.fields :global(.costco-interest-settings) :global(.date-calendar-field){margin:0}

@@ -46,7 +46,9 @@ export function buildBudgetView(input: { items: CashflowItem[]; transactions: Le
   const ambiguousIds = new Set(purchases.filter(row => row.id.startsWith('settlement:') && row.date.slice(0, 7) === month && row.plannedItemId && purchases.some(other => !other.id.startsWith('settlement:') && other.plannedItemId === row.plannedItemId && other.date.slice(0, 7) === month)).map(row => row.plannedItemId));
   const allocations = items.map(item => {
     const matched = purchases.filter(row => row.plannedItemId === item.id && row.date.slice(0, 7) === month);
-    const recordedPaid = item.kind === 'income' || !matched.length || ambiguousIds.has(item.id) ? null : spentForPlannedItem(item.id, matched, month, true);
+    let recordedPaid = item.kind === 'income' || !matched.length || ambiguousIds.has(item.id) ? null : spentForPlannedItem(item.id, matched, month, true);
+    const loanPayments=loans.filter(loan=>linkedLoanPayment(loan,items)?.id===item.id).flatMap(loan=>loan.history).filter(entry=>entry.payment!==undefined&&entry.date.slice(0,7)===month);
+    if(loanPayments.length)recordedPaid=Math.max(recordedPaid??0,round(loanPayments.reduce((sum,entry)=>sum+(entry.payment??0),0)));
     return { item, planned: item.amount, linkedLoan: linkedIds.has(item.id), recordedPaid, coverage: ambiguousIds.has(item.id) ? 'overlap-unresolved' as const : matched.length ? 'recorded-only' as const : 'unrecorded' as const, householdSpending: item.kind !== 'income' && !linkedIds.has(item.id) };
   });
   const income = round(items.filter(item => item.kind === 'income').reduce((sum, item) => sum + item.amount, 0));

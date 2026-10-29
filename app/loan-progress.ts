@@ -22,7 +22,7 @@ export type LoanTracker = {
   principalAndInterest?: number;
   monthlyPayment?: number; // Total regular payment, including mortgage escrow.
   dueDate?: string;
-  history: { date: string; amount: number; balanceKind: 'principal' | 'payoff'; recordedAt: string; payment?: number; principal?: number; interest?: number; escrow?: number; extraPrincipal?: number; estimated?: boolean }[];
+  history: { date: string; amount: number; balanceKind: 'principal' | 'payoff'; recordedAt: string; payment?: number; principal?: number; interest?: number; escrow?: number; extraPrincipal?: number; estimated?: boolean; corrections?: {recordedAt:string;previous:Record<string,unknown>}[] }[];
 };
 
 /** Planning fallback only: never persists an assumed rate or reclassifies a balance. */
@@ -49,7 +49,7 @@ export function loanProgress(loan: LoanTracker) {
 // Copied monthly budgets get new IDs. Fall back only to an unambiguous exact name.
 export function linkedLoanPayment(loan: LoanTracker, items: CashflowItem[]) {
   const expenses = items.filter(item => item.kind !== 'income');
-  const byId = expenses.find(item => item.id === loan.budgetItemId);
+  const byId = expenses.find(item => (item.id === loan.budgetItemId || item.recurringSourceId === loan.budgetItemId));
   if (byId) return byId;
   const matches = expenses.filter(item => item.name === loan.budgetItemName);
   return matches.length === 1 ? matches[0] : null;

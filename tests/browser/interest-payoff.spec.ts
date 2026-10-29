@@ -29,8 +29,9 @@ test('Interest fee records dated actual interest once and preserves the manual p
  await advanced.getByRole('switch',{name:'Interest fee',exact:true}).check();
  await advanced.getByRole('textbox',{name:'Interest fee amount',exact:true}).fill('220.00');
  await expect(advanced.getByRole('group',{name:'Statement closing date',exact:true})).toBeVisible();
- await advanced.getByText('Estimate assumptions',{exact:true}).click();
- await expect(advanced.getByText(/Missing opening history/)).toBeVisible();
+ await advanced.getByRole('button',{name:'Explain Automatic interest estimates',exact:true}).click();
+ await expect(page.getByRole('dialog',{name:'Automatic interest estimates',exact:true})).toBeVisible();
+ await page.getByRole('button',{name:'Close explanation',exact:true}).click();
  await advanced.getByRole('textbox',{name:'Estimated APR',exact:true}).fill('0');
  await expect(advanced.getByRole('alert')).toHaveCount(0);
  await advanced.getByRole('button',{name:'Close Payment & Terms',exact:true}).click();
