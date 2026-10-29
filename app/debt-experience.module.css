@@ -156,7 +156,7 @@
 .overlay>:global(.debt-detail-segments){flex:none;margin:8px 16px;width:calc(100% - 32px)}
 
 /* Account details follow the approved sheet and flat inline summary. */
-.overlay:global(.app-sheet){display:flex;flex-direction:column;height:min(850px,calc(var(--dialog-viewport-height,100dvh) - 24px))!important;overflow:hidden}
+.overlay:global([role=dialog].app-sheet){display:flex;flex-direction:column;height:min(850px,calc(var(--dialog-viewport-height,100dvh) - 24px))!important;overflow:hidden}
 .overlay:global(.app-sheet)>.detailContent{flex:1;overflow:auto;min-height:0;padding:16px 16px 28px}
 .overlay:global(.app-sheet)>.cardActions{position:static;flex:none;max-width:none;padding:12px 16px;align-items:stretch}
 .overview :global(.debt-overview-balance-card){padding:0;border:0;background:transparent;box-shadow:none}
@@ -178,3 +178,7 @@
 .debtSummary{--theme-text-scale:1;font-size:14px}
 .debtCard strong:has(:global(.money-value)){font-size:17px!important;white-space:nowrap}
 .debtCard{min-width:0}.debtCard strong,.debtCard small{overflow-wrap:anywhere}
+
+/* Default overlays own one scrolling body; account details retain their pinned tabs/actions. */
+.overlayBody{flex:1 1 auto;min-height:0;min-width:0;overflow-y:auto;overflow-x:hidden;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;touch-action:pan-y;scroll-padding:16px 24px}
+.overlayBody>:global(.settings-panel){overflow:visible;flex:none}
