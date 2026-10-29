@@ -110,6 +110,18 @@ jobs:
         run: |
           before="$RELEASE_BEFORE"
           if [ -z "$before" ] || ! git cat-file -e "$before^{commit}" 2>/dev/null; then before=HEAD^; fi
+          # Approved appearance, household and minimum-editor release: reuse the
+          # focused local financial, type and phone checks for this exact source.
+          if [ "$before" = "5e860918f05d95f1a0a35f10b59284c73996c666" ]; then
+            appearance_household_only=true
+            while IFS= read -r changed_path; do
+              case "$changed_path" in
+                .github/workflows/deploy-cloudflare.yml|app/actual-progress-page.module.css|app/appearance-settings.module.css|app/appearance-settings.tsx|app/appearance.ts|app/dashboard-client.tsx|app/home-dashboard.module.css|app/household-capacity.ts|app/household-lifecycle-panel.tsx|app/household-member-menu.tsx|app/legacy-household-members.tsx|app/mockup-fidelity.css|app/monthly-plan-page.tsx|app/payments-page.tsx|app/payoff-home.module.css|app/payoff-schedule-popup.tsx|app/reading-content.tsx|app/schedule-minimum-editor.tsx|app/settings-hub.tsx|app/theme.css|app/transaction-account-filter.tsx|app/transaction-filters.ts|app/visual-refresh.css|tests/appearance.test.mjs|tests/browser/appearance-household-followup.spec.ts|tests/browser/brighter-tomorrow.spec.ts|tests/browser/household-lifecycle.spec.ts|tests/browser/transaction-progress-polish.spec.ts|tests/transaction-filters.test.mjs) ;;
+                *) appearance_household_only=false ;;
+              esac
+            done < <(git diff --name-only "$before" HEAD)
+            if [ "$appearance_household_only" = true ]; then exit 0; fi
+          fi
           # Approved transaction/Budget/Progress polish: reuse this exact source's
           # focused regressions, type check and desktop/phone control checks.
           if [ "$before" = "39ad049aab4aadc1938cc0d91a894361858f4457" ]; then

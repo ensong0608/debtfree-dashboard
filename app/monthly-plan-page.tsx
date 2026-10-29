@@ -148,7 +148,11 @@ export default function MonthlyPlanPage(props: Props) {
           {debtPayments > 0 && <details className={`${styles.category} ${styles.debtCategory}`} data-category-tone="card" style={{"--category-tone":"var(--budget-debt,var(--theme-danger))"} as CSSProperties}>
             <summary><span className={styles.categoryIcon}><OutlineIcon name="card" /></span><span className={styles.categoryName}><strong>Debt payments</strong></span><i className={styles.categoryTrack}><b style={{width:`${income>0?debtShare:0}%`}}/></i><strong className={styles.categoryAmount}><span className="money-value">{currency.format(debtPayments)}</span></strong><small className={styles.categoryShare}>{income > 0 ? (debtPayments / income * 100).toFixed(0) : 0}%</small><span className={styles.categoryChevron}><OutlineIcon name="chevron" /></span></summary>
             <div className={styles.categoryItems}>
-              <dl className={styles.debtBreakdown}><div><dt>Total</dt><dd><span className="money-value">{currency.format(debtPayments)}</span></dd></div></dl>
+              <dl className={styles.debtBreakdown}>
+                {props.commitment?.plannedDebtMinimums.map(row => <div key={row.id}><dt>{row.name} minimum</dt><dd><span className="money-value">{currency.format(row.amount)}</span></dd></div>)}
+                {props.commitment && <div><dt>Extra payments</dt><dd><span className="money-value">{currency.format(props.commitment.plannedDebtExtra)}</span></dd></div>}
+                <div><dt>Total</dt><dd><span className="money-value">{currency.format(debtPayments)}</span></dd></div>
+              </dl>
             </div>
           </details>}
           {!groupedSpending.length && debtPayments <= 0 && <p className={styles.empty}>No spending categories for this month yet.</p>}

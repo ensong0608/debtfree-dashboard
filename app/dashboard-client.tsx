@@ -82,6 +82,7 @@ import {
   calculatePlan,
   estimatedMinimum,
   effectiveMinimum,
+  forecastApr,
   monthlyInterest,
   round,
   type LinkedCardExpenses,
@@ -1025,9 +1026,9 @@ export default function DashboardClient({ user, householdId, lifecycleEnabled = 
     return () => clearTimeout(timer);
   }, [loaded, isViewer, forecastDate, accounts.length, loans.length, monthlyPlan.months, monthlyBudgets, activePayoff.budgetCommitment]);
   const setScheduleChoices=(patch:Partial<MonthlyPlanSettings>)=>{if(!isViewer)setMonthlyPlan(current=>({...current,payoffExtraPayment:current.payoffExtraPayment??scheduleExtra(current,includedCalculatedAccounts),...patch,...(patch.payoffExtraPayment !== undefined ? {payoffAutoMinimumCommitments:{...current.payoffAutoMinimumCommitments,...Object.fromEntries(includedCalculatedAccounts.filter(a=>a.type==='Credit card'&&a.minimumMode==='auto'&&!a.archivedAt).map(a=>[a.id,scheduleMinimums([a],new Date(forecastMonthKey(2)+'-01T12:00:00Z'))]))}} : {})}));};
-  const minimumItems=[...includedCalculatedAccounts.filter(a=>!a.archivedAt&&a.balance>0).map(a=>({id:'account:'+a.id,name:a.name,amount:effectiveMinimum(a)})),...visiblePlan.loans.filter(l=>l.remainingAmount>0).map(l=>({id:'loan:'+l.id,name:l.name,amount:regularLoanPayment(l,planningCashflowItems)}))];
+  const minimumItems=[...includedCalculatedAccounts.filter(a=>!a.archivedAt&&a.balance>0).map(a=>({id:'account:'+a.id,name:a.name,amount:effectiveMinimum(a),...(a.type==='Credit card'?{estimate:estimatedMinimum(a.balance,forecastApr(a,1,new Date(forecastDate+'T12:00:00Z')))}:{})})),...visiblePlan.loans.filter(l=>l.remainingAmount>0).map(l=>({id:'loan:'+l.id,name:l.name,amount:regularLoanPayment(l,planningCashflowItems)}))];
   const minimumExpected=JSON.stringify({items:minimumItems,accounts:includedCalculatedAccounts.map(a=>[a.id,a.minimum,a.minimumMode]),loans:visiblePlan.loans.map(l=>[l.id,l.monthlyPayment,l.escrow,l.principalAndInterest])});
-  const saveScheduleMinimums=(values:Record<string,number>,expected:string):string|null=>{
+  const saveScheduleMinimums=(values:Record<string,number>,expected:string,preserveCommitment=false):string|null=>{
     if(isViewer)return "Editing is unavailable.";
     if(expected!==minimumExpected)return "The plan changed. Close and reopen minimums.";
     try{
@@ -1037,7 +1038,14 @@ export default function DashboardClient({ user, householdId, lifecycleEnabled = 
         if(key.startsWith('account:'))next=updatePayoffMinimum(next,key.slice(8),value);
         else nextLoans=nextLoans.map(loan=>{if(loan.id!==key.slice(5))return loan;const escrow=loan.kind==='house'?loan.escrow:0;if(escrow!==undefined&&value<=escrow)throw new Error("Payment must exceed escrow.");return {...loan,monthlyPayment:value,...(loan.principalAndInterest!==undefined&&escrow!==undefined?{principalAndInterest:round(value-escrow)}:{})};});
       }
-      setAccounts(next);setMonthlyPlan(current=>({...current,payoffExtraPayment:current.payoffExtraPayment??scheduleExtra(current,includedCalculatedAccounts),loanTrackers:[...(current.loanTrackers??[]).filter(loan=>loan.removedAt),...nextLoans]}));return null;
+      let extraAfter: number | undefined;
+      if(preserveCommitment){
+        const projected=payoffAccounts.map(account=>values['account:'+account.id]===undefined?account:{...account,minimum:values['account:'+account.id],minimumMode:'manual' as const});
+        const noExtra=buildActivePayoffCommitment(projected,nextLoans,planningCashflowItems,{...strategySettings,payoffExtraPayment:0},new Date(forecastDate+'T12:00:00Z'));
+        extraAfter=round(activePayoff.budgetCommitment-noExtra.budgetCommitment);
+        if(extraAfter<0)throw new Error('Estimated minimums exceed your monthly total. Adjust the amounts first.');
+      }
+      setAccounts(next);setMonthlyPlan(current=>({...current,payoffExtraPayment:extraAfter??current.payoffExtraPayment??scheduleExtra(current,includedCalculatedAccounts),loanTrackers:[...(current.loanTrackers??[]).filter(loan=>loan.removedAt),...nextLoans]}));return null;
     }catch(error){return error instanceof Error?error.message:"Could not save minimums.";}
   };
   const selectedAccount = selectedDebt?.kind === "account" ? calculatedAccounts.find(account => account.id === selectedDebt.id) : undefined;

@@ -6,10 +6,10 @@ export const TEXT_SIZES = [9, 10, 11, 12, 13, 14, 15, 16] as const;
 export type TextSize = typeof TEXT_SIZES[number] | 'standard' | 'large' | 'larger';
 export function textSizePoints(size: TextSize) { return typeof size === 'number' ? size : size === 'large' ? 14 : size === 'larger' ? 15 : 12; }
 export type Theme = 'light' | 'dark' | 'tomorrow';
-export const THEME_LABELS = {light:'Light',dark:'Dark',tomorrow:'A Brighter Tomorrow'} as const;
+export const THEME_LABELS = {light:'Light',dark:'Dark',tomorrow:'Sunshine'} as const;
 type Colors = { accent: string; background: string; surface: string; text: string };
-export type Appearance = Colors & { version: 2; theme: Theme; font: keyof typeof FONTS; size: TextSize; legacyColors?: Colors; primaryLight?: string; primaryDark?: string; primaryTomorrow?: string };
-export const PRIMARY_DEFAULTS = { light: '#295e9b', dark: '#182b45', tomorrow: '#d2eee5' };
+export type Appearance = Colors & { version: 2; theme: Theme; font: keyof typeof FONTS; size: TextSize; legacyColors?: Colors; primaryLight?: string; primaryDark?: string; primaryTomorrow?: string; darkCarousel?: string };
+export const PRIMARY_DEFAULTS = { light: '#295e9b', dark: '#1c1c1c', tomorrow: '#d2eee5' };
 export const PRIMARY_PRESETS = {
   tomorrow: [{name:"Mint",color:"#d2eee5"},{name:"Lavender",color:"#e4dcf6"},{name:"Peach",color:"#f4d7c6"}],
   dark: [{ name: 'Midnight Navy', color: '#182b45' }, { name: 'Deep Indigo', color: '#292343' }, { name: 'Deep Teal', color: '#123639' }, { name: 'Graphite', color: '#252b35' }],
@@ -19,7 +19,9 @@ export function primaryKey(theme: Theme) { return theme === 'dark' ? 'primaryDar
 export function primaryColor(p: Appearance, theme = p.theme) { return p[primaryKey(theme)] ?? (p.theme===theme && p.accent.toLowerCase()!==THEMES[theme].accent.toLowerCase() ? p.accent : PRIMARY_DEFAULTS[theme]); }
 const PREVIOUS_LIGHT: Colors = { accent: '#0961d9', background: '#f3f7fd', surface: '#ffffff', text: '#101b31' };
 const LIGHT: Colors = { accent: '#295e9b', background: '#e4ebf3', surface: '#f5f8fc', text: '#101b31' };
-const DARK: Colors = { accent: '#42cfff', background: '#080e16', surface: '#131e2b', text: '#edf3ff' };
+const OLD_DARK: Colors = { accent: '#42cfff', background: '#080e16', surface: '#131e2b', text: '#edf3ff' };
+const DARK: Colors = { accent: '#42cfff', background: '#000000', surface: '#222222', text: '#edf3ff' };
+export const DARK_CAROUSEL_DEFAULT = '#edab1d';
 export const DEFAULT_APPEARANCE: Appearance = { version: 2, theme: 'light', font: 'default', size: 'standard', ...LIGHT };
 export const THEMES = { tomorrow: {...DEFAULT_APPEARANCE,theme:'tomorrow',accent:'#08766f',background:'#fffaf1',surface:'#fffefa',text:'#143b45'}, light: DEFAULT_APPEARANCE, dark: { ...DEFAULT_APPEARANCE, theme: 'dark', ...DARK } } satisfies Record<Theme, Appearance>;
 // Retained for the existing editor until Section 2 replaces its preset controls.
@@ -47,7 +49,7 @@ export function appearanceError(value: unknown): string | null {
   const p = value as Record<string, unknown>;
   if (p.version !== 2 || !['light', 'dark', 'tomorrow'].includes(p.theme as string) || typeof p.font !== 'string' || !Object.hasOwn(FONTS, p.font) || ![...TEXT_SIZES, 'standard', 'large', 'larger'].includes(p.size as never)) return 'Choose a supported theme, font and text size.';
   if (!validColors(p)) return 'Use six-digit hex colors, such as #0961d9.';
-  if (['primaryLight', 'primaryDark', 'primaryTomorrow'].some(key => p[key] !== undefined && (typeof p[key] !== 'string' || !/^#[0-9a-f]{6}$/i.test(p[key] as string)))) return 'Use a six-digit primary color, such as #182b45.';
+  if (['primaryLight', 'primaryDark', 'primaryTomorrow', 'darkCarousel'].some(key => p[key] !== undefined && (typeof p[key] !== 'string' || !/^#[0-9a-f]{6}$/i.test(p[key] as string)))) return 'Use a six-digit primary color, such as #182b45.';
   if (!readableColors(p)) return 'Text and accent need more contrast against background and surface.';
   if ((p.theme !== 'dark' && !lightSurfaces(p)) || (p.theme === 'dark' && [p.background, p.surface].some(bg => contrast('#ffffff', bg) <= contrast('#000000', bg)))) return 'Choose surfaces that match the selected theme.';
   if (p.legacyColors !== undefined && (!validColors(p.legacyColors) || !readableColors(p.legacyColors) || !lightSurfaces(p.legacyColors))) return 'Saved custom colors are invalid.';
@@ -80,12 +82,14 @@ export function parseAppearance(raw: string | null): Appearance {
       Object.assign(p, LIGHT, {accent:p.accent.toLowerCase()==='#08766f'?LIGHT.accent:p.accent});
       if (p.primaryLight?.toLowerCase()==='#d2eee5') delete p.primaryLight;
     }
+    // Upgrade only the former built-in dark surfaces; keep customized palettes and stored colors.
+    if (p.theme === 'dark' && p.background.toLowerCase() === OLD_DARK.background && p.surface.toLowerCase() === OLD_DARK.surface && p.text.toLowerCase() === OLD_DARK.text && !appearanceError({...p,background:DARK.background,surface:DARK.surface})) Object.assign(p, {background:DARK.background,surface:DARK.surface});
     if (p.primaryLight?.toLowerCase() === '#cfe7fa') p.primaryLight = PRIMARY_DEFAULTS.light;
-    return { version: 2, theme: p.theme, font: p.font, size: p.size, ...normalizeColors(p), ...(p.legacyColors ? { legacyColors: normalizeColors(p.legacyColors) } : {}), ...(p.primaryLight ? { primaryLight: p.primaryLight.toLowerCase() } : {}), ...(p.primaryDark ? { primaryDark: p.primaryDark.toLowerCase() } : {}), ...(p.primaryTomorrow ? { primaryTomorrow: p.primaryTomorrow.toLowerCase() } : {}) };
+    return { version: 2, theme: p.theme, font: p.font, size: p.size, ...normalizeColors(p), ...(p.legacyColors ? { legacyColors: normalizeColors(p.legacyColors) } : {}), ...(p.primaryLight ? { primaryLight: p.primaryLight.toLowerCase() } : {}), ...(p.primaryDark ? { primaryDark: p.primaryDark.toLowerCase() } : {}), ...(p.primaryTomorrow ? { primaryTomorrow: p.primaryTomorrow.toLowerCase() } : {}), ...(p.darkCarousel ? { darkCarousel: p.darkCarousel.toLowerCase() } : {}) };
   } catch { return { ...DEFAULT_APPEARANCE }; }
 }
 export function withTheme(p: Appearance, theme: Theme): Appearance {
-  return { ...THEMES[theme], font: p.font, size: p.size, ...(p.legacyColors ? { legacyColors: p.legacyColors } : {}), ...(p.primaryLight ? { primaryLight: p.primaryLight } : {}), ...(p.primaryDark ? { primaryDark: p.primaryDark } : {}), ...(p.primaryTomorrow ? { primaryTomorrow: p.primaryTomorrow } : {}) };
+  return { ...THEMES[theme], font: p.font, size: p.size, ...(p.legacyColors ? { legacyColors: p.legacyColors } : {}), ...(p.primaryLight ? { primaryLight: p.primaryLight } : {}), ...(p.primaryDark ? { primaryDark: p.primaryDark } : {}), ...(p.primaryTomorrow ? { primaryTomorrow: p.primaryTomorrow } : {}), ...(p.darkCarousel ? { darkCarousel: p.darkCarousel } : {}) };
 }
 type PreferenceStorage = Pick<Storage, 'getItem' | 'setItem' | 'removeItem'>;
 export function loadAppearance(storage: PreferenceStorage): Appearance { return parseAppearance(storage.getItem(APPEARANCE_KEY)); }
@@ -105,7 +109,9 @@ function mix(a: string, b: string, amount: number) {
 export function appearanceTokens(p: Appearance): Record<string, string> {
   const dark = p.theme === 'dark';
   const { surface, background, text } = p;
-  const primary = primaryColor(p);
+  const storedPrimary = primaryColor(p);
+  let primary = storedPrimary;
+  if (dark) for(let amount=1;contrast('#ffffff',primary)<4.5&&amount>0;amount-=.02) primary=mix(storedPrimary,'#000000',Math.max(0,amount));
   const customizedPrimary = p[primaryKey(p.theme)];
   let accent = p.accent;
   if (customizedPrimary) {
@@ -127,20 +133,25 @@ export function appearanceTokens(p: Appearance): Record<string, string> {
   const gradientStart=mix(accent,surface,dark?.16:.14),gradientEnd=mix(accent,background,dark?.08:.06);
   const onGradient=[gradientStart,gradientEnd].every(bg=>contrast(text,bg)>=4.5)?text:on(gradientStart);
   const headerRail = p.theme === 'tomorrow' ? mix(primary,surface,.2) : mix(primary, '#000000', .82);
-  const headerSelected = p.theme === 'tomorrow' ? accent : mix(primary, on(primary), .8);
+  let headerSelected = p.theme === 'tomorrow' ? accent : mix(primary, on(primary), .8);
+  if(dark) for(let amount=1;contrast('#ffffff',headerSelected)<4.5&&amount>0;amount-=.02) headerSelected=mix(primary,'#000000',Math.max(0,amount));
+  const carousel = p.darkCarousel ?? DARK_CAROUSEL_DEFAULT;
+  const onCarousel = on(carousel);
+  const carouselTone = (color:string) => contrast(color,carousel)>=4.5?color:onCarousel;
   const t: Record<string, string> = {
-    '--theme-primary': primary, '--theme-on-primary': p.theme === 'tomorrow' && contrast(text,primary)>=4.5 ? text : on(primary),
+    '--theme-primary': primary, '--theme-on-primary': dark ? '#ffffff' : p.theme === 'tomorrow' && contrast(text,primary)>=4.5 ? text : on(primary),
     '--theme-scenery-back': mix(primary,surface,.32), '--theme-scenery-front': mix(accent,surface,.24),
     '--theme-scenery-leaf': mix(accent,surface,.4), '--theme-scenery-sun':'#ffe0a0',
     '--theme-scenery-path':'#fff0cf', '--theme-peach':'#fff0e6',
     '--theme-header-rail': headerRail, '--theme-on-header-rail': on(headerRail),
-    '--theme-header-selected': headerSelected, '--theme-on-header-selected': on(headerSelected),
+    '--theme-header-selected': headerSelected, '--theme-on-header-selected': dark ? '#ffffff' : on(headerSelected),
+    '--theme-carousel': carousel, '--theme-on-carousel': onCarousel, '--theme-carousel-success': carouselTone('#145637'), '--theme-carousel-danger': carouselTone('#8c1936'),
     '--theme-background': background, '--theme-surface': surface, '--theme-raised': raised,
     '--theme-text': text, '--theme-muted': readable(mutedCandidate), '--theme-border': mix(text, surface, .24),
     '--theme-control-border': readable(mix(text, surface, .6), [surface, background, raised], 3),
     '--theme-accent': readable(accent, [surface, background, raised, accentSoft]), '--theme-accent-fill': accent,
     '--theme-on-accent': dark && accent === DARK.accent ? '#080E16' : on(accent), '--theme-accent-soft': accentSoft,
-    '--theme-strong-surface': dark ? '#19263c' : '#182c4a', '--theme-on-strong': '#edf3ff',
+    '--theme-strong-surface': dark ? '#262626' : '#182c4a', '--theme-on-strong': '#edf3ff',
     '--theme-track': mix(text, surface, .16), '--theme-overlay': '#030a16b3',
     '--theme-focus': readable(accent), '--theme-shadow': dark ? '#00000040' : '#17243a12',
     '--theme-chart-1': readable(dark ? '#42cfff' : accent, undefined, 3),

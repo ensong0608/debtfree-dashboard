@@ -81,3 +81,6 @@
 @media(max-width:520px){.forecastSummary>span{padding:6px 8px}.scheduleTable tbody th,.scheduleTable td{border-top:1px solid var(--theme-border);border-bottom:1px solid var(--theme-border)}.scheduleTable tbody th{border-left:1px solid var(--theme-border)}.scheduleTable td:last-child{border-right:1px solid var(--theme-border)}}
 
 .scheduleDialog:global(.strategy-inline){background:transparent;box-shadow:none;border:0;border-radius:0}
+.minimumEstimate{display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px;margin:0 0 16px}
+.minimumEstimate button{min-height:44px;padding:8px 12px}
+.minimumEstimate small{color:var(--theme-muted);font-size:calc(12px * var(--theme-text-scale,1));line-height:1.4}

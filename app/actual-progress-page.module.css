@@ -231,3 +231,4 @@
 .milestoneSteps li>span{display:grid;place-items:center;width:44px;height:44px;border-radius:50%;background:var(--theme-raised);font-size:calc(12px * var(--theme-text-scale,1));font-weight:700}
 .milestoneSteps li[data-achieved=true]>span{background:var(--theme-success-soft);color:var(--theme-success)}
 .milestoneSteps svg{width:22px;height:22px}.milestoneSteps small{font-size:calc(12px * var(--theme-text-scale,1))}
+:global(html[data-theme=dark]) .integratedSummary{--theme-gradient-start:var(--theme-carousel);--theme-gradient-end:var(--theme-carousel);--theme-on-gradient:var(--theme-on-carousel);--theme-success:var(--theme-carousel-success);--theme-danger:var(--theme-carousel-danger);--theme-summary-ring:var(--theme-carousel-success);--debt-ring-track:color-mix(in srgb,var(--theme-on-carousel) 25%,transparent)}
