@@ -1,0 +1,39 @@
+import {test,expect,type Page} from '@playwright/test';
+import {createDemoFixture} from '../../mobile/demo-fixture';
+import {DASHBOARD_STORAGE_KEY} from '../../app/data-repository';
+function fixture(){
+ const data=createDemoFixture();const p=data.payload;const createdAt='2026-10-01T12:00:00Z';
+ p.accounts=[{...p.accounts[0],id:'paid-card',name:'Finished card',balance:1000,baselineBalance:1000},{...p.accounts[1],balance:500,baselineBalance:500}];
+ p.transactions=[{...p.transactions[0],id:'payoff',accountId:'paid-card',amount:1000,date:'2026-10-20'},{...p.transactions[0],id:'deleted',accountId:'paid-card',amount:25,date:'2026-10-19',deletedAt:createdAt}];
+ p.monthlyBudgets={'2026-09':[{id:'fitness',name:'Gym',kind:'expense',category:'Health',amount:50,paymentMethod:'debit',creditAccountId:'',createdAt}], '2026-10':[{id:'fitness-oct',recurringSourceId:'fitness',name:'Fitness',kind:'expense',category:'Health',amount:50,paymentMethod:'debit',creditAccountId:'',createdAt},{id:'home-bill',name:'Mortgage',kind:'expense',category:'Housing',amount:500,paymentMethod:'debit',creditAccountId:'',createdAt}]};
+ p.monthlyPlan!.months={'2026-10':{safetyBuffer:0,debtPaymentTarget:100,settlements:[{id:'budget-paid',kind:'spending',targetId:'fitness-oct',name:'Gym',amount:50,date:'2026-10-15',source:'debit',createdAt}]}};
+ p.monthlyPlan!.payoffPlanAmount=100;
+ p.monthlyPlan!.loanTrackers=[{id:'home',name:'Mortgage',kind:'house',originalAmount:2000,remainingAmount:1500,balanceKind:'principal',asOf:'2026-10-20',budgetItemId:'home-bill',budgetItemName:'Mortgage',monthlyPayment:500,apr:0,history:[{date:'2026-10-20',amount:1500,balanceKind:'principal',recordedAt:createdAt,payment:500,principal:500,interest:0,escrow:0}]},{id:'car',name:'Finished car',kind:'car',originalAmount:1000,remainingAmount:0,balanceKind:'principal',asOf:'2026-10-20',budgetItemId:'',budgetItemName:'',monthlyPayment:100,apr:0,history:[{date:'2026-10-20',amount:0,balanceKind:'principal',recordedAt:createdAt,payment:1000,principal:1000,interest:0,escrow:0}]}];
+ return data;
+}
+async function seed(page:Page,baseURL:unknown){expect(['localhost','127.0.0.1']).toContain(new URL(String(baseURL)).hostname);await page.clock.setFixedTime(new Date('2026-10-29T20:00Z'));await page.addInitScript(({key,data})=>{if(!localStorage.getItem(key))localStorage.setItem(key,JSON.stringify(data));},{key:DASHBOARD_STORAGE_KEY,data:fixture()});await page.goto('/');await expect(page.locator('.home-welcome')).toBeVisible({timeout:30000});}
+const nav=(page:Page,name:string)=>page.getByRole('navigation',{name:'Primary navigation'}).getByRole('button',{name,exact:true});
+test('whole filter surfaces, every account history and linked Budget names stay consistent',async({page},info)=>{
+ await seed(page,info.project.use.baseURL);await nav(page,'Transactions').click();
+ const account=page.getByRole('combobox',{name:'Account',exact:true});
+ for(const name of ['Mortgage','Finished car · Paid off','Finished card · Paid off','Fitness'])await expect(account.locator('option').filter({hasText:name})).toHaveCount(1);
+ for(const name of ['Period','Account','Sort transactions','Transaction category']){
+  const select=page.getByRole('combobox',{name,exact:true});
+  const hit=await select.evaluate(el=>{const label=el.closest('label')!,r=label.getBoundingClientRect();return [5,r.width/2,r.width-5].every(x=>document.elementFromPoint(r.left+x,r.top+r.height/2)===el);});expect(hit,name+' full hit area').toBe(true);
+ }
+ await expect(page.getByText(/Recently deleted|Deleted transactions/)).toHaveCount(0);
+ await account.selectOption('loan:home');await expect(page.locator('[data-paid-record="loan:home:0"]')).toBeVisible();await expect(page.locator('[data-activity-id]')).toHaveCount(0);await expect(page.getByRole('button',{name:'Explain Payments recorded',exact:true})).toContainText('$500.00');
+ await account.selectOption('paid-card');await expect(page.locator('[data-activity-id="transaction:payoff"]')).toBeVisible();await expect(page.locator('[data-paid-record]')).toHaveCount(0);
+ await account.selectOption('budget:fitness');const paid=page.locator('[data-paid-record="settlement:budget-paid"]');await expect(paid).toContainText('Fitness');await expect(paid.locator('.paid-status svg')).toHaveCount(1);await paid.locator('button').click();const dialog=page.getByRole('dialog',{name:'Edit paid record',exact:true});await expect(dialog).toContainText('Fitness');expect(Number(await dialog.getByRole('textbox',{name:'Paid record amount',exact:true}).evaluate(el=>getComputedStyle(el).fontWeight))).toBeGreaterThanOrEqual(700);await expect(dialog.getByRole('textbox',{name:'Paid record name'})).toHaveCount(0);await dialog.getByRole('button',{name:'Back',exact:true}).click();
+ await nav(page,'Budget').click();const health=page.locator('details').filter({has:page.locator('summary').filter({hasText:'Health'})});await health.locator('summary').click();const entry=health.getByRole('button').filter({has:page.getByText('Fitness',{exact:true})});await expect(entry.locator('.paid-status svg')).toHaveCount(1);await entry.click();const edit=page.getByRole('dialog').filter({has:page.getByRole('textbox',{name:'Name',exact:true})});await edit.getByRole('textbox',{name:'Name',exact:true}).fill('Workout');await edit.getByRole('button',{name:'Save',exact:true}).click();
+ const debt=page.locator('details').filter({has:page.locator('summary').filter({hasText:'Debt payments'})});await debt.locator('summary').click();await expect(debt.locator('dt')).toHaveText('Total');await expect(debt.locator('dd')).toHaveCount(1);
+ await nav(page,'Transactions').click();await page.getByRole('combobox',{name:'Account',exact:true}).selectOption('all');await expect(page.locator('[data-paid-record="settlement:budget-paid"]')).toContainText('Workout');
+ for(const el of await page.locator('.money-value').all())if(await el.isVisible())expect(Number(await el.evaluate(e=>getComputedStyle(e).fontWeight))).toBeGreaterThanOrEqual(700);
+ await page.screenshot({path:'.wrangler/transaction-polish-'+info.project.name+'.png'});
+ const saved=await page.evaluate(key=>JSON.parse(localStorage.getItem(key)!).payload,DASHBOARD_STORAGE_KEY);expect(saved.transactions.find((row:any)=>row.id==='deleted').deletedAt).toBeTruthy();expect(saved.monthlyPlan.loanTrackers[0].remainingAmount).toBe(1500);expect(saved.transactions).toHaveLength(2);
+});
+test('Progress celebrates paid-off accounts without actions and gives milestones visual progress',async({page},info)=>{
+ await seed(page,info.project.use.baseURL);await nav(page,'Progress').click();const wins=page.getByRole('region',{name:'One less debt. Well done.',exact:true});await expect(wins).toContainText('Finished card');await expect(wins).toContainText('Paid off');await expect(wins.getByRole('button')).toHaveCount(0);await expect(wins.locator('svg')).toHaveCount(2);await wins.screenshot({path:'.wrangler/progress-victories-'+info.project.name+'.png'});
+ await page.getByRole('button',{name:'Milestones',exact:true}).click();await expect(page.getByRole('img',{name:/of 7 milestones achieved/})).toBeVisible();await expect(page.getByRole('list',{name:'Paydown milestones',exact:true}).getByRole('listitem')).toHaveCount(4);await page.getByRole('region',{name:'Your progress, celebrated',exact:true}).screenshot({path:'.wrangler/progress-milestones-'+info.project.name+'.png'});expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1)).toBe(true);
+ const saved=await page.evaluate(key=>JSON.parse(localStorage.getItem(key)!).payload,DASHBOARD_STORAGE_KEY);expect(saved.monthlyPlan.progressStartingBalance).toBe(1500);expect(saved.accounts).toHaveLength(2);expect(saved.transactions).toHaveLength(2);
+});

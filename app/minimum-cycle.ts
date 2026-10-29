@@ -15,7 +15,7 @@ export function captureMinimumCycles(accounts:DebtAccount[],today=householdDate(
  const next=accounts.map(account=>{
   if(account.archivedAt||account.balance<=0)return account;
   const cycle=currentMinimumCycle(current.get(account.id)!,today);
-  if(!cycle||account.minimumCycles?.some(saved=>saved.date===cycle.date))return account;
+  if(!cycle||cycle.amount<=0||account.minimumCycles?.some(saved=>saved.date===cycle.date))return account;
   changed=true;return {...account,minimumCycles:[...(account.minimumCycles??[]),cycle]};
  });
  return changed?next:accounts;

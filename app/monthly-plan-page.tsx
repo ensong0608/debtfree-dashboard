@@ -1,5 +1,6 @@
 "use client";
 
+import PaidStatus from "./paid-status";
 import BrighterLandscape from "./brighter-landscape";
 import { useState, type CSSProperties } from "react";
 import { createHouseholdMoneyFormatter } from "./household-currency";
@@ -137,7 +138,7 @@ export default function MonthlyPlanPage(props: Props) {
                 {categoryItems.map(item => {
                   const recordedPaid = props.view.allocations.find(row => row.item.id === item.id)?.recordedPaid ?? 0;
                   return <button type="button" key={item.id} className={styles.entry} disabled={props.readOnly} onClick={() => props.onEdit(item)}>
-                    <span className={styles.entryText}><strong>{item.name}</strong><small>{item.paymentMethod === "credit" ? accountNames.get(item.creditAccountId) ?? "Credit card" : item.category}{item.dueDay ? ` · Due day ${item.dueDay}` : ""}</small>{recordedPaid > 0 && <small>{recordedPaid >= item.amount ? "Paid" : "Part paid"} <span className="money-value">{currency.format(recordedPaid)}</span></small>}</span>
+                    <span className={styles.entryText}><strong>{item.name}</strong><small>{item.paymentMethod === "credit" ? accountNames.get(item.creditAccountId) ?? "Credit card" : item.category}{item.dueDay ? ` · Due day ${item.dueDay}` : ""}</small>{recordedPaid > 0 && <small>{recordedPaid >= item.amount ? <PaidStatus/> : "Part paid"} <span className="money-value">{currency.format(recordedPaid)}</span></small>}</span>
                     <b><span className="money-value">{currency.format(item.amount)}</span></b><OutlineIcon name="chevron" />
                   </button>;
                 })}
@@ -147,12 +148,7 @@ export default function MonthlyPlanPage(props: Props) {
           {debtPayments > 0 && <details className={`${styles.category} ${styles.debtCategory}`} data-category-tone="card" style={{"--category-tone":"var(--budget-debt,var(--theme-danger))"} as CSSProperties}>
             <summary><span className={styles.categoryIcon}><OutlineIcon name="card" /></span><span className={styles.categoryName}><strong>Debt payments</strong></span><i className={styles.categoryTrack}><b style={{width:`${income>0?debtShare:0}%`}}/></i><strong className={styles.categoryAmount}><span className="money-value">{currency.format(debtPayments)}</span></strong><small className={styles.categoryShare}>{income > 0 ? (debtPayments / income * 100).toFixed(0) : 0}%</small><span className={styles.categoryChevron}><OutlineIcon name="chevron" /></span></summary>
             <div className={styles.categoryItems}>
-              {props.commitment ? <dl className={styles.debtBreakdown}>
-                {props.commitment.plannedDebtMinimums.map(row => <div key={row.id}><dt>{row.name} minimum</dt><dd><span className="money-value">{currency.format(row.amount)}</span></dd></div>)}
-                <div><dt>Minimums</dt><dd><span className="money-value">{currency.format(props.commitment.plannedDebtMinimums.reduce((sum,row)=>sum+row.amount,0))}</span></dd></div>
-                <div><dt>Extra payments</dt><dd><span className="money-value">{currency.format(props.commitment.plannedDebtExtra)}</span></dd></div>
-                <div><dt>Planned debt payments</dt><dd><span className="money-value">{currency.format(debtPayments)}</span></dd></div>
-              </dl> : <p className={styles.debtDetail}>Planned debt payments for this month.</p>}
+              <dl className={styles.debtBreakdown}><div><dt>Total</dt><dd><span className="money-value">{currency.format(debtPayments)}</span></dd></div></dl>
             </div>
           </details>}
           {!groupedSpending.length && debtPayments <= 0 && <p className={styles.empty}>No spending categories for this month yet.</p>}

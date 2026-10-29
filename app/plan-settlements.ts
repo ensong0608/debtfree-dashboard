@@ -12,6 +12,6 @@ export function editPlanSettlement(settings: MonthlyPlanSettings, entry: PlanSet
   const months={...settings.months};
   months[origin[0]]={...origin[1],settlements:origin[1].settlements?.filter(row=>row.id!==entry.id),...(original.automatic?{skippedRecurringPayments:[...new Set([...(origin[1].skippedRecurringPayments??[]),original.targetId])]}:{})};
   const plan=months[destination]??{safetyBuffer:0};
-  months[destination]={...plan,settlements:[...(plan.settlements??[]),{...original,name:entry.name,amount:entry.amount,date:entry.date}]};
+  months[destination]={...plan,settlements:[...(plan.settlements??[]),{...original,amount:entry.amount,date:entry.date}]};
   return {...settings,months};
 }

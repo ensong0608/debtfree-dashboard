@@ -1,5 +1,7 @@
 "use client";
 import segmentedStyles from "./segmented-control.module.css";
+import PaidStatus from './paid-status';
+import OutlineIcon from './outline-icon';
 import { useState, type CSSProperties, type ReactNode } from "react";
 import { createHouseholdMoneyFormatter } from "./household-currency";
 import { useHouseholdCurrency } from "./household-currency-context";
@@ -94,7 +96,12 @@ export default function ActualProgressPage({ accounts, loans, removedAccounts = 
     if (autos.length) categories.push(loanCategory("Auto", autos));
     return categories;
   })();
-  const paidOffAccounts = accountData.groups.flatMap(group => group.accounts).filter(account => !account.removedFromDebts && (account.baselineBalance ?? 0) > 0 && account.balance <= 0).length;
+  const paidOffDebts = [
+    ...accountData.groups.flatMap(group => group.accounts).filter(account => !account.removedFromDebts && (account.baselineBalance ?? 0) > 0 && account.balance <= .005).map(account=>({id:account.id,name:account.name})),
+    ...loans.filter(loan=>view.loanIds.includes(loan.id)&&loan.originalAmount>0&&loan.remainingAmount<=.005).map(loan=>({id:loan.id,name:loan.name})),
+  ];
+  const paidOffAccounts = paidOffDebts.length;
+  const achievedMilestones=view.milestones.filter(item=>item.status==='achieved');
   const activityMonth = accountData.monthEntries.length ? activityMonthLabel(currentMonth) : null;
   const monthlyMovement = accountData.monthEntries.length ? accountData.monthlyChange : null;
 
@@ -125,6 +132,11 @@ export default function ActualProgressPage({ accounts, loans, removedAccounts = 
           </div>
         </section>}
 
+        {paidOffDebts.length>0 && <section className={`${styles.card} ${styles.victories}`} aria-labelledby="paid-off-debts-title">
+          <header className={styles.victoryHeader}><span className={styles.victoryMark} aria-hidden="true"><OutlineIcon name="check"/></span><div><h2 id="paid-off-debts-title">One less debt. Well done.</h2><p>{paidOffDebts.length} {paidOffDebts.length===1?'account':'accounts'} paid off</p></div></header>
+          <ul className={styles.victoryList}>{paidOffDebts.map(account=><li key={account.id}><strong>{account.name}</strong><PaidStatus label="Paid off"/></li>)}</ul>
+        </section>}
+
         {currentScope === "accounts" && <section className={`${styles.card} ${styles.compactAccountRows}`} aria-label="Account balance changes">
           {accountData.groups.flatMap(group=>group.accounts).filter(account=>!account.removedFromDebts && accounts.some(a=>a.id===account.id && !a.archivedAt) && account.balance>0).map(account=><article key={account.id}><span><strong>{account.name}</strong>{account.removedFromDebts && <small>Removed debt · retained balance</small>}</span><b>{account.baselineBalance === undefined ? 'Unavailable' : `${money.format(Math.abs(account.baselineBalance-account.balance))} ${account.baselineBalance>=account.balance?'lower':'higher'}`}</b></article>)}
         </section>}
@@ -134,6 +146,10 @@ export default function ActualProgressPage({ accounts, loans, removedAccounts = 
 
       {tab === "milestones" && <div className={styles.stack}>
         <div className={styles.integratedSummary}><DebtScopeCarousel slides={scopeSlides} value={currentScope} onChange={setScope} label="Progress scope" /></div>
+        <section className={`${styles.card} ${styles.achievementCard}`} aria-labelledby="achievement-title">
+          <header className={styles.victoryHeader}><div className={styles.achievementRing} style={{'--achievement-angle':`${achievedMilestones.length/view.milestones.length*360}deg`} as CSSProperties} role="img" aria-label={`${achievedMilestones.length} of ${view.milestones.length} milestones achieved`}><span>{achievedMilestones.length}/{view.milestones.length}</span></div><div><h2 id="achievement-title">Your progress, celebrated</h2><p>{achievedMilestones.length?'Every milestone is a step forward.':'Your next win starts with a payment.'}</p></div></header>
+          <ol className={styles.milestoneSteps} aria-label="Paydown milestones">{(['quarter','half','three-quarter','debt-free'] as const).map((id,index)=>{const item=view.milestones.find(item=>item.id===id)!;return <li key={id} data-achieved={item.status==='achieved'}><span aria-hidden="true">{item.status==='achieved'?<OutlineIcon name="check"/>:<OutlineIcon name="percent"/>}</span><small>{(index+1)*25}%<span className="sr-only"> {item.status==='achieved'?'achieved':item.status==='projected'?'projected':'pending'}</span></small></li>;})}</ol>
+        </section>
         {([['Achieved', view.milestones.filter(item => item.status === 'achieved')], ['Coming next', view.milestones.filter(item => item.status !== 'achieved')]] as const).map(([heading, items]) => <section className={styles.card} key={heading}><header className={styles.cardHeader}><h2>{heading}</h2></header>{items.length ? <ol className={styles.milestoneList}>{items.map(item => <MilestoneItem key={item.id} item={item}/>)}</ol> : <p className={styles.emptyChart}>{heading === 'Achieved' ? 'No achieved milestones recorded yet.' : 'No upcoming milestones.'}</p>}</section>)}
         <section className={styles.card} aria-labelledby="milestone-progress-ring-title"><header className={styles.cardHeader}><div><h2 id="milestone-progress-ring-title">Milestone progress</h2></div></header><div className={styles.ringGrid}>{categoryData.map(category => <ProgressRing key={category.label} label={category.label} starting={category.starting} current={category.current} reduction={category.reduction} money={money} />)}</div></section>
       </div>}
