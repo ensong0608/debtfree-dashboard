@@ -7,6 +7,7 @@ import { previewDashboardImport, type DashboardImportPreview, type ImportMode } 
 type PendingImport = DashboardImportPreview & { file: File };
 
 export default function DataSafetyPanel(props: {
+  showReset?: boolean;
   deviceOnly: boolean;
   isViewer: boolean;
   transferMessage: string;
@@ -102,7 +103,7 @@ export default function DataSafetyPanel(props: {
       </fieldset>
       <div className="import-preview-actions"><button className="secondary" type="button" disabled={working} onClick={() => setPendingImport(null)}>Cancel</button><button className="primary" type="button" disabled={working} onClick={() => void confirmImport()}>{working ? "Importing..." : importMode === "replace" ? "Replace and import" : "Merge and import"}</button></div>
     </div>}
-    {!props.isViewer && <div className="reset-data-row"><div><strong>Reset dashboard data</strong><p>Remove debts, plans, transactions, snapshots, and settings while keeping your account access.</p></div><button className="danger" type="button" onClick={() => setResetOpen(true)}>Reset data</button></div>}
+    {props.showReset !== false && !props.isViewer && <div className="reset-data-row"><div><strong>Reset dashboard data</strong><p>Remove debts, plans, transactions, snapshots, and settings while keeping your account access.</p></div><button className="danger" type="button" onClick={() => setResetOpen(true)}>Reset data</button></div>}
     {resetOpen && <div className="reset-confirmation" role="dialog" aria-modal="true" aria-labelledby="reset-data-title">
       <h3 id="reset-data-title">Reset the complete dashboard?</h3>
       <p>A recovery checkpoint is kept. Export first if you may need this information later.</p>

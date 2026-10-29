@@ -14,6 +14,7 @@ import { captureAutomaticSnapshot, recordDueBudgetItems } from "./automatic-acti
 import { migrateLegacyGroups, neutralGroups, type DebtGroup } from "./debt-groups";
 import HouseholdLifecyclePanel from "./household-lifecycle-panel";
 import AppearanceSettings from "./appearance-settings";
+import LegacyHouseholdMembers from "./legacy-household-members";
 import SettingsHub from "./settings-hub";
 import ActionConfirmation from "./action-confirmation";
 import CardProgressChart from "./card-progress-chart";
@@ -118,7 +119,7 @@ import {
 } from "./onboarding-plan";
 import { scanReceipt, type ReceiptScanResult } from "./receipt-ocr";
 
-type PageId = "payments" | "more" | "home" | "accounts" | "history" | "calculator" | "plan" | "monthly" | "snapshots" | "utilization" | "stats" | "profile" | "settings" | "debt-tools";
+type PageId = "payments" | "more" | "home" | "accounts" | "history" | "calculator" | "plan" | "monthly" | "snapshots" | "utilization" | "stats" | "settings" | "debt-tools";
 
 type AccountDraft = { displayPosition?: number; newCategory?: DebtGroup; actualInterest?: { amount: number; date: string } } & Pick<DebtAccount, "baselineBalance" | "institutionKey" | "displayGroup" | "interestAutomation" | "name" | "type" | "balance" | "apr" | "interestFee" | "minimum" | "minimumMode" | "payoffMode" | "creditLimit" | "dueDate" | "promoEndDate" | "postPromoApr" | "postPromoMinimum">;
 type CashflowDraft = Pick<CashflowItem, "name" | "kind" | "category" | "amount" | "paymentMethod" | "creditAccountId" | "recurring" | "dueDay">;
@@ -183,7 +184,6 @@ const NAV_ITEMS: { id: PageId; label: string; icon: string }[] = [
 const MORE_NAV_ITEMS: { id: PageId; label: string; icon: string }[] = [
   { id: "plan", label: "Payoff Strategy", icon: "calendar" },
   { id: "snapshots", label: "Progress", icon: "trend" },
-  { id: "profile", label: "Account", icon: "account" },
 ];
 const ADVANCED_NAV_ITEMS: { id: PageId; label: string; icon: string }[] = [
   { id: "utilization", label: "Credit Utilization", icon: "card" },
@@ -229,7 +229,7 @@ export default function DashboardClient({ user, householdId, lifecycleEnabled = 
     if(next==='snapshots')setProgressTab('overview');
     setCurrentPage(next);
   },[]);
-  const [accountReturnPage, setAccountReturnPage] = useState<PageId>("home");
+  useEffect(()=>{const timer=window.setTimeout(()=>{const kind=new URLSearchParams(window.location.search).get('reminder');if(!kind)return;if(kind==='due'){setPage('monthly');setBudgetTab('Next Due');}else if(kind==='budget')setPage('monthly');else if(kind==='transactions')setPage('payments');const url=new URL(window.location.href);url.searchParams.delete('reminder');window.history.replaceState(window.history.state,'',url.pathname+url.search+url.hash);},0);return()=>window.clearTimeout(timer);},[setPage]);
   const [accounts, setAccounts] = useState<DebtAccount[]>([]);
   const [monthlyBudgets, setMonthlyBudgets] = useState<Record<string, CashflowItem[]>>({});
   const [monthlyPlan, setMonthlyPlan] = useState<MonthlyPlanSettings>({ debtGroups: neutralGroups, detailedSpendingTracking: false, months: {} });
@@ -283,7 +283,6 @@ export default function DashboardClient({ user, householdId, lifecycleEnabled = 
   const [settingsReturnPage, setSettingsReturnPage] = useState<PageId>("accounts");
   const toggleSettings = () => {if(page === "settings")setPage(settingsReturnPage);else{setSettingsReturnPage(page);setBudgetAddOpen(false);setPage("settings");}};
   const primaryPage = (mobileView ? MOBILE_NAV_ITEMS : NAV_ITEMS).some(item => item.id === page) ? page : page === "settings" ? settingsReturnPage : "home";
-  const toggleAccount = () => { if (page === "profile") setPage(accountReturnPage); else { setAccountReturnPage(page); setPage("profile"); } };
   const deviceOnly = Boolean(managedHousehold) || user.email === "Local device storage only";
   const [online, setOnline] = useState(true);
   useEffect(() => {
@@ -486,9 +485,6 @@ export default function DashboardClient({ user, householdId, lifecycleEnabled = 
     return () => clearTimeout(timer);
   }, [accounts.length, commitment, isViewer, loaded, monthlyPlan.months, monthlyTargets]);
   const paymentAccount = paymentRequest ? calculatedAccounts.find((account) => account.id === paymentRequest.accountId) ?? null : null;
-  const balanceAccount = balanceAccountId ? calculatedAccounts.find((account) => account.id === balanceAccountId) ?? null : null;
-  const auditTransaction = auditTransactionId ? transactions.find((transaction) => transaction.id === auditTransactionId) ?? null : null;
-  const auditAccountWithoutOriginal = auditTransaction ? transactionAdjustedAccounts(accounts, transactions.filter((transaction) => transaction.id !== auditTransaction.id), detailedSpendingTracking).find((account) => account.id === auditTransaction.accountId) ?? null : null;
   const inviteMember = async (email: string, role: Exclude<HouseholdRole, "owner">) => {
     const response = await fetch("/api/household/members", { method: "POST", headers: { ...sessionHeaders, "content-type": "application/json" }, body: JSON.stringify({ email, role }) });
     const data = await response.json() as { members?: HouseholdMember[]; error?: string };
@@ -501,6 +497,10 @@ export default function DashboardClient({ user, householdId, lifecycleEnabled = 
     if (!response.ok) throw new Error(data.error ?? "The admin could not be removed");
     if (data.members) setHouseholdMembers(data.members);
   };
+  const balanceAccount = balanceAccountId ? calculatedAccounts.find((account) => account.id === balanceAccountId) ?? null : null;
+  const auditTransaction = auditTransactionId ? transactions.find((transaction) => transaction.id === auditTransactionId) ?? null : null;
+  const auditAccountWithoutOriginal = auditTransaction ? transactionAdjustedAccounts(accounts, transactions.filter((transaction) => transaction.id !== auditTransaction.id), detailedSpendingTracking).find((account) => account.id === auditTransaction.accountId) ?? null : null;
+
 
   const openNew = () => { const group=(monthlyPlan.debtGroups ?? neutralGroups)[0].id; const next = { ...EMPTY_DRAFT, displayGroup: group, displayPosition: (groupedDisplayDebts(accounts).find(item=>item.group===group)?.accounts.length ?? 0)+1 }; setEditingId(null); setAccountAutoFocus("name"); setDraft(next); setAccountDraftBaseline(next); setModalExitPrompt(false); setModalOpen(true); };
   const openNewCashflow = (kind: CashflowKind, category?: string) => {
@@ -1132,7 +1132,7 @@ export default function DashboardClient({ user, householdId, lifecycleEnabled = 
 
     <main className="main-area">
       <div ref={contentRef} className="page-body shared-dashboard-page" role="region" aria-label="Dashboard content" tabIndex={0}>
-        <DashboardHeader home={page === "home"} title={page === "accounts" ? "Debt" : page === "snapshots" ? ({overview:"Progress", utilization:"Credit utilization", milestones:"Milestones"})[progressTab] : page === "monthly" ? ({Overview:"Planned budget", "Next Due":"Upcoming", Schedule:"Payoff strategy"})[budgetTab] : page === "profile" ? "Account" : ALL_NAV_ITEMS.find(item => item.id === page)?.label ?? "DebtFree"} accountOpen={page === "profile"} onAccount={toggleAccount} status={deviceOnly ? deviceSaveStatus === "synced" ? "Saved on device" : "Saving on device" : cloudStatus === "synced" && deviceSaveStatus === "synced" ? "Saved" : cloudStatus === "conflict" ? "Save conflict" : cloudStatus === "error" || cloudStatus === "too-large" ? "Save failed" : cloudStatus === "unauthorized" ? "Sign in required" : "Saving"}
+        <DashboardHeader home={page === "home"} title={page === "accounts" ? "Debt" : page === "snapshots" ? ({overview:"Progress", utilization:"Credit utilization", milestones:"Milestones"})[progressTab] : page === "monthly" ? ({Overview:"Planned budget", "Next Due":"Upcoming", Schedule:"Payoff strategy"})[budgetTab] : ALL_NAV_ITEMS.find(item => item.id === page)?.label ?? "DebtFree"} status={deviceOnly ? deviceSaveStatus === "synced" ? "Saved on device" : "Saving on device" : cloudStatus === "synced" && deviceSaveStatus === "synced" ? "Saved" : cloudStatus === "conflict" ? "Save conflict" : cloudStatus === "error" || cloudStatus === "too-large" ? "Save failed" : cloudStatus === "unauthorized" ? "Sign in required" : "Saving"}
           onSettings={toggleSettings} settingsOpen={page === "settings"}
           tabs={page === "accounts" ? <DebtTypeFilters accounts={payoffAccounts} loans={loans} category={debtCategory} onCategory={setDebtCategory}/> : page === "snapshots" ? <nav className={segmentedStyles.root} aria-label="Progress sections">{([['overview','Overview'],['utilization','Utilization'],['milestones','Milestones']] as const).map(([value,label])=><button type="button" key={value} aria-current={progressTab === value ? "page" : undefined} onClick={()=>setProgressTab(value)}>{label}</button>)}</nav> : page === "monthly" ? <nav className={segmentedStyles.root} aria-label="Budget sections">{(["Overview","Next Due","Schedule"] as const).map(tab=><button key={tab} type="button" aria-pressed={budgetTab===tab} onClick={()=>setBudgetTab(tab)}>{tab === "Overview" ? "Planned" : tab === "Schedule" ? "Strategy" : "Upcoming"}</button>)}</nav> : undefined}/>
         {page === "home" && <div className="home-welcome"><h1>Hi, {user.displayName.trim().split(/\s+/)[0] || "there"}</h1><p><span className="standard-home-subtitle">Your debt-free journey</span><span className="brighter-home-subtitle">You’re one step closer to a debt-free you.</span></p></div>}
@@ -1150,36 +1150,35 @@ export default function DashboardClient({ user, householdId, lifecycleEnabled = 
         {isViewer && householdRole === "viewer" && <section className="viewer-notice" role="status"><strong>Viewer access</strong><span>You can review this household dashboard, but only the owner and admins can make changes.</span></section>}
         {page === "more" && <div className="screen more-screen"><h1 className="sr-only">More</h1>
           <section className="toolkit-hero"><span className="tool-icon"><OutlineIcon name="grid"/></span><div><h2>Your debt toolkit</h2><p>Plan smarter. Track every milestone.</p></div><span className="toolkit-art" aria-hidden="true"><i/><i/><i/></span></section>
-          <h2 className="tool-section-label">Payoff tools</h2><section className="more-links" aria-label="More tools">{MORE_NAV_ITEMS.filter(item => item.id !== "profile" && (!mobileView || item.id !== "calculator")).map(item => <button key={item.id} type="button" aria-label={item.label} onClick={() => {setBudgetAddOpen(false);setPage(item.id);}}><span className={`tool-icon ${item.id === "plan" ? "orange" : ""}`}><OutlineIcon name={item.id === "calculator" ? "calculator" : item.id === "plan" ? "calendar" : "chart"}/></span><span className="tool-copy"><strong>{item.label}</strong><small>{item.id === "calculator" ? "Try a what-if payoff scenario." : item.id === "plan" ? "Monthly commitment & minimums." : "Actual debt reduction & saved snapshots."}</small></span><span aria-hidden="true">›</span></button>)}</section>
-          <h2 className="tool-section-label">Account</h2><section className="more-links"><button type="button" aria-label="Account & backups" onClick={() => setPage("profile")}><span className="tool-icon neutral"><OutlineIcon name="account"/></span><span className="tool-copy"><strong>Account &amp; backups</strong><small>Household access, data & backups.</small></span><span aria-hidden="true">›</span></button></section>
+          <h2 className="tool-section-label">Payoff tools</h2><section className="more-links" aria-label="More tools">{MORE_NAV_ITEMS.filter(item => (!mobileView || item.id !== "calculator")).map(item => <button key={item.id} type="button" aria-label={item.label} onClick={() => {setBudgetAddOpen(false);setPage(item.id);}}><span className={`tool-icon ${item.id === "plan" ? "orange" : ""}`}><OutlineIcon name={item.id === "calculator" ? "calculator" : item.id === "plan" ? "calendar" : "chart"}/></span><span className="tool-copy"><strong>{item.label}</strong><small>{item.id === "calculator" ? "Try a what-if payoff scenario." : item.id === "plan" ? "Monthly commitment & minimums." : "Actual debt reduction & saved snapshots."}</small></span><span aria-hidden="true">›</span></button>)}</section>
+          <h2 className="tool-section-label">Settings</h2><section className="more-links"><button type="button" aria-label="Settings" onClick={toggleSettings}><span className="tool-icon neutral"><OutlineIcon name="account"/></span><span className="tool-copy"><strong>Settings</strong><small>Household access, data & backups.</small></span><span aria-hidden="true">›</span></button></section>
           <details className="more-advanced" open><summary>Advanced tools</summary><div className="more-links">{ADVANCED_NAV_ITEMS.filter(item => item.id !== "history" || detailedSpendingTracking).map(item => <button key={item.id} type="button" aria-label={item.label} onClick={() => {setBudgetAddOpen(false);setPage(item.id);}}><span className={`tool-icon ${item.id === "utilization" ? "orange" : ""}`}><OutlineIcon name={item.id === "utilization" ? "card" : item.id === "history" ? "list" : "pie"}/></span><span className="tool-copy"><strong>{item.label}</strong><small>{item.id === "utilization" ? "Understand balances vs card limits." : item.id === "history" ? "Review detailed spending records." : "Interest costs and debt insights."}</small></span><span aria-hidden="true">›</span></button>)}</div></details>
         </div>}
         {showEntryUndo && undoEntry && <div className="entry-undo" role="status"><span>{visibleDebtActionMessage}</span><button type="button" className="secondary" disabled={isViewer} onClick={() => { if (JSON.stringify({accounts,transactions,adjustments:balanceAdjustments}) !== undoEntry.after) {setDebtActionMessage("Newer changes exist. Use transaction history to correct this entry.");setUndoEntry(null);return;} const undone=undoDebtEntry(undoEntry.before,{accounts,transactions,adjustments:balanceAdjustments});setAccounts(undone.accounts);setTransactions(undone.transactions);setBalanceAdjustments(undone.adjustments);setUndoEntry(null);setDebtActionMessage("Entry undone."); }}>Undo</button></div>}
         {page === "payments" && <PaymentsPage onBalanceInfo={id=>{openDebt({kind:"account",id});setDetailTab("Info");}} budgetSettings={monthlyPlan} loans={monthlyPlan.loanTrackers??[]} onLoan={id=>openDebt({kind:"loan",id})} onUndoBudgetPaid={undoBudgetPaid} onEditBudgetPaid={entry=>{if(!isViewer)setMonthlyPlan(current=>editPlanSettlement(current,entry));}} mobile={mobileView} readOnly={isViewer} accounts={calculatedAccounts} transactions={transactions} adjustments={balanceAdjustments} message={showEntryUndo ? "" : visibleDebtActionMessage} onConfirm={confirmBalancePayment} onUndoConfirmation={undoBalancePayment} storedAccounts={accounts} onChange={changeTransactionEntry} onDialog={setDebtEntryOpen}/>}
         <fieldset className="viewer-readonly-surface" disabled={isViewer && !["home", "accounts", "snapshots", "monthly", "profile", "settings"].includes(page)}>
 
-        {page === "home" && <HomeDashboardPage reminderPaymentActions={reminderActions} dueReminders={dueReminders} onOpenReminder={reminder => { if (reminder.kind === "spending") { setSelectedMonth(automaticDate.slice(0, 7)); setBudgetTab("Overview"); setPage("monthly"); } else openDebt({ kind: reminder.kind, id: reminder.targetId }); }} onViewTransactions={()=>setPage("payments")} onViewDue={()=>{setBudgetAddOpen(false);setPage("monthly");setBudgetTab("Next Due");}} strategyRows={strategyRows} strategy={monthlyPlan.payoffPlanStrategy === "snowball" ? "snowball" : "avalanche"} name={user.displayName} accounts={payoffAccounts} loans={progressViews.presentationLoans} items={planningCashflowItems} progressViews={progressViews} schedule={payoffSchedule} householdPayment={activePayoff.householdPayment} scopeLabel={activePayoff.scopeLabel} progress={householdProgress} transactions={transactions} adjustments={balanceAdjustments} onSchedule={() => setScheduleOpen(true)} onAccount={toggleAccount} onViewProgress={() => setPage("snapshots")} onViewDebts={() => setPage("accounts")}/> }
+        {page === "home" && <HomeDashboardPage reminderPaymentActions={reminderActions} dueReminders={dueReminders} onOpenReminder={reminder => { if (reminder.kind === "spending") { setSelectedMonth(automaticDate.slice(0, 7)); setBudgetTab("Overview"); setPage("monthly"); } else openDebt({ kind: reminder.kind, id: reminder.targetId }); }} onViewTransactions={()=>setPage("payments")} onViewDue={()=>{setBudgetAddOpen(false);setPage("monthly");setBudgetTab("Next Due");}} strategyRows={strategyRows} strategy={monthlyPlan.payoffPlanStrategy === "snowball" ? "snowball" : "avalanche"} name={user.displayName} accounts={payoffAccounts} loans={progressViews.presentationLoans} items={planningCashflowItems} progressViews={progressViews} schedule={payoffSchedule} householdPayment={activePayoff.householdPayment} scopeLabel={activePayoff.scopeLabel} progress={householdProgress} transactions={transactions} adjustments={balanceAdjustments} onSchedule={() => setScheduleOpen(true)} onAccount={toggleSettings} onViewProgress={() => setPage("snapshots")} onViewDebts={() => setPage("accounts")}/> }
         {page === "monthly" && <div className="budget-workspace">
         {budgetTab === "Next Due" && <section className="next-due-page" aria-label="Upcoming"><HomeDueReminders {...reminderActions} reminders={allDueReminders} fullPage/>{!allDueReminders.length && <p className="simple-empty">No upcoming bills.</p>}</section>}
         {budgetTab === "Schedule" && <PayoffSchedulePopup inline onReviewTerms={issue => { const loan=loans.find(item=>issue.startsWith(item.name+": "));setScheduleOpen(false);if(loan){setSelectedDebt({kind:"loan",id:loan.id});setDetailTab("Info");}else setPage("accounts"); }} schedule={payoffSchedule} amount={extraPayment} date={new Date()} readOnly={isViewer} onAmount={payoffExtraPayment=>setScheduleChoices({payoffExtraPayment})} strategy={monthlyPlan.payoffPlanStrategy==='snowball'?'snowball':'avalanche'} onStrategy={payoffPlanStrategy=>setScheduleChoices({payoffPlanStrategy})} rows={strategyRows} minimums={minimumItems} minimumExpected={minimumExpected} onMinimums={saveScheduleMinimums} onClose={()=>setScheduleOpen(false)}/>}
         {budgetTab === "Overview" && <MonthlyPlanPage readOnly={isViewer} view={budgetView} payoffAmount={budgetPayoffAmount} commitment={selectedMonth === currentMonthKey() ? activePayoff : undefined} month={selectedMonth} hasMonth={Object.prototype.hasOwnProperty.call(monthlyBudgets, selectedMonth)} previousHasItems={(monthlyBudgets[shiftMonth(selectedMonth, -1)] ?? []).some((item) => item.recurring ?? item.kind !== "purchase")} items={cashflowItems} accounts={calculatedAccounts} transactions={transactions} settings={selectedPlanSettings} trackingEnabled={detailedSpendingTracking} plannedMinimums={selectedPlanSettings.minimums ?? (selectedMonth === currentMonthKey() ? monthlyTargets.minimums : {})} plannedPayments={selectedMonth === currentMonthKey() ? monthlyTargets.payments : selectedPlanSettings.payments ?? {}} onMonth={setSelectedMonth} onCopyPrevious={copyPreviousBudget} onStartBlank={startBlankBudget} onAdd={openNewCashflow} onEdit={openEditCashflow} onSettings={updateSelectedPlanSettings} onTracking={setDetailedSpendingTracking}/>}</div>}
         {(page === "accounts" || page === "debt-tools") && <UnifiedDebtList payoffMonths={payoffSchedule.payoffMonths} category={debtCategory} onCategory={setDebtCategory} hideFilters summary={<DebtSummary progressViews={progressViews} category={debtCategory} preferenceScope={householdId + ":" + user.email} accounts={calculatedAccounts} loans={loans} items={planningCashflowItems}/>} preferenceScope={householdId + ":" + user.email} accounts={payoffAccounts} loans={loans} items={planningCashflowItems} groups={monthlyPlan.debtGroups ?? neutralGroups} onSelect={openDebt}/>}
 
-        {page === "settings" && <SettingsHub name={user.displayName} roleLabel={deviceOnly ? 'Saved on this device' : householdRole === 'owner' ? 'Household owner' : householdRole === 'admin' ? 'Household admin' : 'Household viewer'} memberCount={householdMembers.length || (deviceOnly ? 1 : 0)} onAccount={toggleAccount} onExport={exportDashboardBackup}
+        {page === "settings" && <SettingsHub name={user.displayName} roleLabel={deviceOnly ? 'Saved on this device' : householdRole === 'owner' ? 'Household owner' : householdRole === 'admin' ? 'Household admin' : 'Household viewer'} memberCount={householdMembers.length || (deviceOnly ? 1 : 0)} email={user.email} householdId={householdId} deviceOnly={deviceOnly} readOnly={isViewer} onReset={resetDashboardData} transferMessage={transferMessage} onExport={exportDashboardBackup}
           appearance={<AppearanceSettings/>}
           currency={<HouseholdCurrencySettings readOnly={isViewer} onChange={currency => { if (!isViewer) setMonthlyPlan(current=>({...current,currency})); }}/>}
-          household={!deviceOnly && lifecycleEnabled ? <HouseholdLifecyclePanel identity={user.email} householdId={householdId} householdName={householdName} role={householdRole} members={householdMembers}/> : <div className="settings-local-household"><span className="settings-profile-avatar">{user.displayName[0]?.toUpperCase()}</span><h2>{managedHousehold?.name ?? householdName}</h2><p>{deviceOnly ? 'Saved in this browser on this device.' : 'Household access'}</p><button className="secondary" type="button" onClick={toggleAccount}>Manage account &amp; access</button></div>}
-          data={<DataSafetyPanel deviceOnly={deviceOnly} isViewer={isViewer} transferMessage={transferMessage} onExport={exportDashboardBackup} onImport={importDashboardBackup} onReset={resetDashboardData} onRecover={async()=>{if(isViewer)return;try{const checkpoint=await repository.loadCheckpoint();if(!checkpoint){setTransferMessage('No recovery checkpoint is available.');return;}if(!confirm('Restore the saved recovery checkpoint? Current data will be saved as the automatic backup.'))return;await repository.saveHousehold(checkpoint);applyDashboardPayload(checkpoint);}catch(error){setTransferMessage(dashboardDataErrorMessage(error));}}}/>}
+          household={!deviceOnly && lifecycleEnabled ? <HouseholdLifecyclePanel identity={user.email} householdId={householdId} householdName={householdName} role={householdRole} members={householdMembers}/> : deviceOnly ? <p className="settings-local-household">Sign in to share a household.</p> : <LegacyHouseholdMembers members={householdMembers} owner={householdRole==='owner'} onInvite={inviteMember} onRemove={removeAdmin}/>}
+          data={<DataSafetyPanel showReset={false} deviceOnly={deviceOnly} isViewer={isViewer} transferMessage={transferMessage} onExport={exportDashboardBackup} onImport={importDashboardBackup} onReset={resetDashboardData} onRecover={async()=>{if(isViewer)return;try{const checkpoint=await repository.loadCheckpoint();if(!checkpoint){setTransferMessage('No recovery checkpoint is available.');return;}if(!confirm('Restore the saved recovery checkpoint? Current data will be saved as the automatic backup.'))return;await repository.saveHousehold(checkpoint);applyDashboardPayload(checkpoint);}catch(error){setTransferMessage(dashboardDataErrorMessage(error));}}}/>}
           archives={<section className="settings-archive-list">{calculatedAccounts.filter(account=>account.archivedAt && account.balance<=.005).map(account=><article key={account.id}><div><strong>{account.name}</strong><small>Paid off</small></div><button className="secondary" type="button" disabled={isViewer} aria-label={'Restore '+account.name} onClick={()=>restoreAccount(account.id)}>Restore</button></article>)}{(monthlyPlan.loanTrackers??[]).filter(loan=>loan.remainingAmount<=.005&&!loan.paidOffRestoredAt).map(loan=><article key={'loan:'+loan.id}><div><strong>{loan.name}</strong><small>Paid off</small></div><button className="secondary" type="button" disabled={isViewer} aria-label={'Restore '+loan.name} onClick={()=>{if(isViewer)return;setMonthlyPlan(current=>({...current,loanTrackers:(current.loanTrackers??[]).map(item=>item.id===loan.id?{...item,removedAt:undefined,paidOffRestoredAt:new Date().toISOString()}:item)}));}}>Restore</button></article>)}{!calculatedAccounts.some(account=>account.archivedAt&&account.balance<=.005)&&!(monthlyPlan.loanTrackers??[]).some(loan=>loan.remainingAmount<=.005&&!loan.paidOffRestoredAt)&&<p>No archived debts.</p>}</section>}
 
 
-          tools={[...MORE_NAV_ITEMS,...ADVANCED_NAV_ITEMS].map(item=>({label:item.id==='plan'?'Payoff Strategy':item.label,onClick:()=>{if(item.id==='plan')setScheduleOpen(true);else if(item.id==='profile')toggleAccount();else setPage(item.id);}}))}
         />}
         {page === "history" && detailedSpendingTracking && <TransactionsPage accounts={calculatedAccounts} payees={payees} transactions={transactions} onQuickAdd={openNewTransaction} onEdit={openEditTransaction} onAudit={setAuditTransactionId} onDelete={softDeleteTransaction} onRestore={restoreTransaction} onBatchAdd={addBatchTransactions} onManagePayees={() => setPayeeModalOpen(true)}/>}
 
 
         {page === "snapshots" && <ActualProgressPage nextPayoffs={nextPayoffs} tab={progressTab} onTab={setProgressTab} utilization={<UtilizationPage accounts={calculatedAccounts} onEditAccount={account => { openDebt({kind:"account",id:account.id}); setDetailTab("Info"); }}/>} groups={monthlyPlan.debtGroups ?? neutralGroups} readOnly={isViewer} accounts={accounts} removedAccounts={monthlyPlan.removedProgressAccounts??[]} transactions={transactions} adjustments={balanceAdjustments} snapshots={snapshots} loans={progressViews.presentationLoans} progressViews={progressViews} onLoanSnapshot={()=>{if(isViewer)return;setMonthlyPlan(current=>({...current,loanTrackers:(current.loanTrackers??[]).map(loan=>({...loan,history:[...loan.history,{date:loan.asOf,amount:loan.remainingAmount,balanceKind:loan.balanceKind,recordedAt:new Date().toISOString()}]}))}));} } onCapture={captureSnapshot} onUpdateNote={updateSnapshotNote} onDelete={removeSnapshot} onActivity={() => setPage("accounts")} onAccounts={() => setPage("accounts")}/>}
-        {page === "profile" && <ProfilePage connected={Boolean(managedHousehold)} syntheticDemo={syntheticDemo} lifecycleEnabled={lifecycleEnabled} householdId={householdId} readOnly={isViewer} user={user} householdName={managedHousehold?.name ?? householdName} role={managedHousehold?.role ?? householdRole} members={householdMembers} cloudStatus={cloudStatus} deviceOnly={deviceOnly} transferMessage={transferMessage} onExportBackup={exportDashboardBackup} onImportBackup={importDashboardBackup} onReset={resetDashboardData} onRecover={async () => { if (isViewer) return; try { const checkpoint = await repository.loadCheckpoint(); if (!checkpoint) { setTransferMessage("No recovery checkpoint is available."); return; } if (!confirm("Restore the saved recovery checkpoint? Current data will be saved as the automatic backup.")) return; await repository.saveHousehold(checkpoint); applyDashboardPayload(checkpoint); } catch (error) { setTransferMessage(dashboardDataErrorMessage(error)); } }} onInvite={inviteMember} onRemove={removeAdmin}/>}
+
 
         {page === "utilization" && <UtilizationPage accounts={calculatedAccounts} onEditAccount={account => { openDebt({kind:"account",id:account.id}); setDetailTab("Info"); }}/>}
         {page === "stats" && <DebtInsightsPage accounts={calculatedAccounts} onPlan={()=>setScheduleOpen(true)} onProgress={()=>setPage("snapshots")}/>}
@@ -1360,72 +1359,6 @@ function PayeeRow({ payee, onRename, onDelete }: { payee: Payee; onRename: (id: 
   const [editing, setEditing] = useState(false);
   const [name, setName] = useState(payee.name);
   return <div className="payee-row"><div><span>{payee.name.slice(0, 2).toUpperCase()}</span>{editing ? <input autoFocus value={name} onChange={(event) => setName(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter" && name.trim()) { onRename(payee.id, name); setEditing(false); } }}/>: <strong>{payee.name}</strong>}</div><div>{editing ? <button type="button" onClick={() => { if (name.trim()) onRename(payee.id, name); setEditing(false); }}>Save</button> : <button type="button" onClick={() => setEditing(true)}>Rename</button>}<button type="button" onClick={() => onDelete(payee.id)}>Remove</button></div></div>;
-}
-function ProfilePage({ connected = false, syntheticDemo, lifecycleEnabled, householdId, readOnly, user, householdName, role, members, cloudStatus, deviceOnly, transferMessage, onExportBackup, onImportBackup, onReset, onRecover, onInvite, onRemove }: { connected?: boolean; syntheticDemo: boolean; lifecycleEnabled: boolean; householdId?: string; readOnly: boolean; user: DashboardUser; householdName: string; role: HouseholdRole; members: HouseholdMember[]; cloudStatus: CloudStatus; deviceOnly: boolean; transferMessage: string; onExportBackup: () => Promise<void>; onImportBackup: (file: File, mode: ImportMode) => Promise<void>; onReset: () => Promise<void>; onRecover: () => Promise<void>; onInvite: (email: string, role: Exclude<HouseholdRole, "owner">) => Promise<void>; onRemove: (email: string) => Promise<void> }) {
-  const [email, setEmail] = useState("");
-  const [accessRole, setAccessRole] = useState<Exclude<HouseholdRole, "owner">>("admin");
-  const [message, setMessage] = useState("");
-  const [working, setWorking] = useState(false);
-  const invite = async () => {
-    setWorking(true);
-    setMessage("");
-    try {
-      await onInvite(email, accessRole);
-      setEmail("");
-      setMessage((accessRole === "admin" ? "Admin" : "Viewer") + " access saved for that email.");
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : "The household member could not be added");
-    } finally {
-      setWorking(false);
-    }
-  };
-  const remove = async (memberEmail: string) => {
-    if (!confirm("Remove " + memberEmail + " from this household?")) return;
-    setWorking(true);
-    try { await onRemove(memberEmail); setMessage("Household member removed."); }
-    catch (error) { setMessage(error instanceof Error ? error.message : "The household member could not be removed"); }
-    finally { setWorking(false); }
-  };
-  const copyLink = async () => {
-    try { await navigator.clipboard.writeText(window.location.origin); setMessage("Dashboard link copied."); }
-    catch { setMessage("Copy this address from your browser."); }
-  };
-  const roleLabel = role === "owner" ? "Household owner" : role === "admin" ? "Household admin" : "Household viewer";
-  return <div className="screen profile-screen">
-    <div className="screen-title">
-      <div>
-        <span className="eyebrow">{connected ? "Test household" : deviceOnly ? "Device storage" : "Household access"}</span>
-        <h1>My account</h1>
-        <p>{connected ? "Your separate connected test household." : deviceOnly ? "This dashboard keeps your financial data in this browser on this device." : "Your verified personal email controls access to this shared household dashboard."}</p>
-      </div>
-      {!syntheticDemo && !connected && <button className="secondary" type="button" onClick={copyLink}>Copy dashboard link</button>}
-    </div>
-    <section className={deviceOnly ? "profile-grid device-only-profile" : "profile-grid"}>
-      <article className="profile-card">
-        <div className="profile-avatar">{user.displayName.slice(0,2).toUpperCase()}</div>
-        <div>
-          <span>{connected ? roleLabel : deviceOnly ? "Local dashboard" : roleLabel}</span>
-          <strong>{user.displayName}</strong>
-          <small>{user.email}</small>
-        </div>
-        <div className="account-cloud-state">
-          <i className={cloudStatus}/>
-          <span>{connected ? "Connected test household" : deviceOnly ? "Saved in this browser on this device" : role === "viewer" ? "Read-only household access" : cloudStatus === "synced" ? "Household cloud sync is active" : cloudStatus === "error" || cloudStatus === "conflict" || cloudStatus === "too-large" ? "Cloud changes need attention" : "Syncing household changes"}</span>
-        </div>
-        {!deviceOnly && <form action="/auth/logout" method="post"><button type="submit" className="secondary account-link">Sign out</button></form>}
-        {deviceOnly && message && <p className="share-message">{message}</p>}
-      </article>
-      {!deviceOnly && lifecycleEnabled && <HouseholdLifecyclePanel identity={user.email} householdId={householdId} role={role} members={members}/>}
-      {!deviceOnly && !lifecycleEnabled && <article className="roles-card household-card">
-        <div className="card-head"><div><span>{householdName}</span><strong>Household members</strong></div></div>
-        {role === "owner" && <div className="invite-admin"><label><span>Member email and access</span><div><input type="email" value={email} placeholder="member@example.com" onChange={(event) => setEmail(event.target.value)}/><TitleSelect aria-label="Household access role" value={accessRole} onChange={(event) => setAccessRole(event.target.value as Exclude<HouseholdRole, "owner">)}><option value="admin">Admin</option><option value="viewer">Viewer</option></TitleSelect><button className="primary" type="button" disabled={readOnly || working || !email.trim()} onClick={invite}>Add member</button></div><small>Admins can edit the shared dashboard. Viewers can only review it. Each member signs in with Google using their authorized email.</small></label></div>}
-        {message && <p className="share-message">{message}</p>}
-        <div className="member-list">{members.map((member) => <div className="member-row" key={member.email}><div><strong>{member.display_name || member.email}</strong><small>{member.display_name ? member.email : member.status === "invited" ? "Waiting for first sign-in" : "Household member"}</small></div><span className={member.status}>{member.role}</span>{role === "owner" && member.role !== "owner" ? <details className="member-overflow"><summary aria-label={`Actions for ${member.display_name || member.email}`}>•••</summary><button className="danger" type="button" disabled={readOnly || working} onClick={() => remove(member.email)}>Remove member</button></details> : <i/>}</div>)}</div>
-      </article>}
-      {deviceOnly && !connected && <DataSafetyPanel deviceOnly={deviceOnly} isViewer={readOnly} transferMessage={transferMessage} onExport={onExportBackup} onImport={onImportBackup} onReset={onReset} onRecover={onRecover}/>}
-      {!deviceOnly && <DataSafetyPanel deviceOnly={deviceOnly} isViewer={readOnly} transferMessage={transferMessage} onExport={onExportBackup} onImport={onImportBackup} onReset={onReset} onRecover={onRecover}/>}
-    </section>
-  </div>;
 }
 function UtilizationPage({ accounts, onEditAccount }: { accounts: DebtAccount[]; onEditAccount: (account: DebtAccount) => void }) {
   const householdCurrency = useHouseholdCurrency();
