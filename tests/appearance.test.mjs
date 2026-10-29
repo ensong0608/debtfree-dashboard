@@ -60,7 +60,7 @@ test('separate primary colors survive theme changes, saving and normalization wi
   saveAppearance(storage,{...dark,primaryDark:'#292343'});
   assert.equal(primaryColor(withTheme(loadAppearance(storage),'light')),'#aaccee');
   assert.equal(values.get('financial-sentinel'),'unchanged');
-  assert.equal(primaryColor(THEMES.dark),'#182b45');
+  assert.equal(primaryColor(THEMES.dark),'#1c1c1c');
   assert.ok(appearanceError({...dark,primaryLight:'url(bad)'}));
 });
 
@@ -110,5 +110,15 @@ test('three themes stay distinct and repair the mistakenly modified Light palett
  assert.equal(custom.background,THEMES.light.background);
  const independent={...THEMES.tomorrow,primaryTomorrow:'#e4dcf6',primaryLight:'#295e9b',primaryDark:'#123639'};
  for(const theme of ['light','dark','tomorrow']){const next=parseAppearance(JSON.stringify(withTheme(independent,theme)));assert.equal(next.theme,theme);assert.equal(next.primaryTomorrow,'#e4dcf6');assert.equal(next.primaryLight,'#295e9b');assert.equal(next.primaryDark,'#123639');}
- for(const [theme,bg,accent,primary] of [['light','#e4ebf3','#295e9b','#295e9b'],['dark','#080e16','#42cfff','#182b45'],['tomorrow','#fffaf1','#08766f','#d2eee5']]){const tokens=appearanceTokens(THEMES[theme]);assert.equal(tokens['--theme-background'],bg);assert.equal(tokens['--theme-accent'],accent);assert.equal(tokens['--theme-primary'],primary);}
+ for(const [theme,bg,accent,primary] of [['light','#e4ebf3','#295e9b','#295e9b'],['dark','#000000','#42cfff','#1c1c1c'],['tomorrow','#fffaf1','#08766f','#d2eee5']]){const tokens=appearanceTokens(THEMES[theme]);assert.equal(tokens['--theme-background'],bg);assert.equal(tokens['--theme-accent'],accent);assert.equal(tokens['--theme-primary'],primary);}
+});
+
+
+test('dark surfaces and carousel upgrade old defaults without rewriting preferences or losing custom colors',()=>{
+ const original={...THEMES.dark,background:'#080e16',surface:'#131e2b',primaryLight:'#295e9b',primaryDark:'#292343',darkCarousel:'#123456',font:'serif',size:15};
+ const raw=JSON.stringify(original);const storage={getItem:()=>raw,setItem:()=>assert.fail('load must not rewrite')};
+ const saved=loadAppearance(storage);assert.equal(saved.background,'#000000');assert.equal(saved.surface,'#222222');assert.equal(saved.primaryDark,'#292343');assert.equal(saved.darkCarousel,'#123456');assert.equal(saved.font,'serif');
+ const custom={...original,background:'#101010',surface:'#282828'};assert.equal(parseAppearance(JSON.stringify(custom)).surface,'#282828');
+ const across=withTheme(withTheme(saved,'light'),'dark');assert.equal(across.darkCarousel,'#123456');
+ for(const color of ['#edab1d','#123456','#ffffff','#000000']){const tokens=appearanceTokens({...THEMES.dark,darkCarousel:color,primaryDark:'#ffff00'});assert.equal(tokens['--theme-carousel'],color);assert.ok(contrast(tokens['--theme-on-carousel'],color)>=4.5);assert.equal(tokens['--theme-on-primary'],'#ffffff');assert.ok(contrast(tokens['--theme-on-primary'],tokens['--theme-primary'])>=4.5);}
 });

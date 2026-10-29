@@ -44,3 +44,17 @@
 .sizeField { display:block!important; width:100%; min-width:0; }
 
 .tomorrowSwatch{background:#fffaf1}.tomorrowSwatch i:first-child{background:#d2eee5}.tomorrowSwatch i:nth-child(2){background:linear-gradient(135deg,#d2eee5,#ffebd6)}.tomorrowSwatch i:nth-child(n+3){background:#fffefa}.cardText strong{text-align:center}
+
+.settings{gap:16px;padding-bottom:12px}
+.themes{grid-template-columns:repeat(3,minmax(0,1fr))!important;gap:8px}
+.themeCard{min-height:96px;gap:6px;padding:8px;border-radius:10px}
+.swatch{width:48px;height:56px;padding:5px;gap:3px;border-radius:6px}
+.swatch i:first-child{height:6px}.swatch i:nth-child(2){height:16px}.swatch i:nth-child(n+3){height:5px}
+.darkSwatch{background:#000}.darkSwatch i:first-child{background:#1c1c1c}.darkSwatch i:nth-child(2){background:#edab1d}.darkSwatch i:nth-child(n+3){background:#222}
+.cardText{gap:4px}.cardText strong{font-size:12px}.cardText :global(.appearance-radio){width:16px;height:16px;font-size:11px}
+.carouselColor label{display:flex;align-items:center;gap:10px;min-height:44px;color:var(--theme-text);font-size:14px}
+.carouselColor input{width:44px;height:36px;padding:2px;border:1px solid var(--theme-border);border-radius:7px;background:var(--theme-surface)}
+.preview>div{padding:10px!important}.preview :global(.appearance-summary-preview)>strong{font-size:20px}
+.carouselColor{display:block!important;text-align:left!important}
+.carouselColor label{display:flex!important;width:100%!important;min-width:0!important;justify-content:flex-start!important}
+.carouselColor input{flex:0 0 44px!important;width:44px!important;min-width:44px!important}

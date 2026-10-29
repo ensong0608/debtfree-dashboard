@@ -115,3 +115,4 @@ html .numeric-control[data-currency] input[data-financial-input],.summary-fit-am
 :is(.debt-action-modal,.advanced-info-content) .field-input:focus-within{outline:3px solid var(--theme-focus);outline-offset:2px;box-shadow:none}
 :is(.debt-action-modal,.advanced-info-content) .field-input>input:focus-visible{outline:0}
 .loan-modal :is(.loan-currency-input,.loan-percentage-input)>input:focus-visible{outline:0}
+:root[data-theme=dark] .shared-dashboard-header h1,:root[data-theme=dark] .shared-dashboard-header button,:root[data-theme=dark] .shared-dashboard-header svg{color:#fff}

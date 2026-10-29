@@ -17,9 +17,9 @@ test('budget record names follow stable recurring identity, retaining names only
 test('account choices cover loans, paid-off debts, removed debt history and every budget record',()=>{
  const accounts=[{id:'card',name:'Card',balance:500},{id:'paid-card',name:'Old card',balance:0,baselineBalance:100}];
  const options=transactionAccountOptions(accounts,[{accountId:'removed'}],[loan,{...loan,id:'car',name:'Car',kind:'car',remainingAmount:0}],[paid,{...paid,id:'unlinked',targetId:'deleted',name:'Old bill'}],budgets);
- assert.deepEqual(options.map(option=>option.id),['card','paid-card','removed','loan:home','loan:car','budget:deleted']);
- assert.match(options.find(option=>option.id==='paid-card').name,/Paid off/);
- assert.match(options.find(option=>option.id==='loan:car').name,/Paid off/);
+ assert.deepEqual(options.map(option=>option.id),['card','removed','loan:home','budget:deleted','paid-card','loan:car']);
+ assert.equal(options.find(option=>option.id==='paid-card').paidOff,true);
+ assert.equal(options.find(option=>option.id==='loan:car').paidOff,true);
  assert.equal(settlementFilter(paid,budgets,[loan]),'loan:home');
  assert.equal(settlementFilter(paid,budgets,[]),'budget:bill');
  assert.equal(settlementFilter({...paid,kind:'minimum',targetId:'card'},budgets,[]),'card');

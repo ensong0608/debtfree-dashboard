@@ -19,7 +19,7 @@ export default function PayoffSchedule({ schedule, rows, amount, readOnly = fals
   schedule: Schedule; rows: PayoffStrategyRow[]; amount: number; date: Date; readOnly?: boolean;
   onAmount: (amount: number) => void; onClose: () => void;
   strategy: "avalanche"|"snowball"; onStrategy:(value:"avalanche"|"snowball")=>void;
-  minimums:ScheduleMinimum[]; minimumExpected:string; onMinimums:(values:Record<string,number>,expected:string)=>string|null;
+  minimums:ScheduleMinimum[]; minimumExpected:string; onMinimums:(values:Record<string,number>,expected:string,preserveCommitment?:boolean)=>string|null;
 }) {
   const currency = useHouseholdCurrency();
   const [draft, setDraft] = useState(String(amount));

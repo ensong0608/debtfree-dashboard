@@ -71,3 +71,6 @@
 .compactCopy .progressValue,.compactCopy>strong,.compactCopy>strong[data-large-value=true]{font-size:clamp(18px,5.5vw,24px)!important;font-weight:700}.compactCopy .progressValue{color:var(--theme-success)}.compactCopy>strong{color:var(--theme-danger)}.compactRing>span{font-size:22px!important}.compactRing{background:conic-gradient(var(--theme-summary-ring) var(--home-ring,0deg),var(--debt-ring-track) 0)}
 
 .compactCopy .paidLabel{color:var(--theme-on-gradient)}.compactCopy .progressValue{color:var(--theme-success)}
+:global(html[data-theme=dark]) .home{background:var(--theme-background)}
+:global(html[data-theme=dark]) .debtSummary{--theme-gradient-start:var(--theme-carousel);--theme-gradient-end:var(--theme-carousel);--theme-on-gradient:var(--theme-on-carousel);--theme-success:var(--theme-carousel-success);--theme-danger:var(--theme-carousel-danger);--theme-summary-ring:var(--theme-carousel-success);--debt-ring-track:color-mix(in srgb,var(--theme-on-carousel) 25%,transparent)}
+:global(html[data-theme=dark]) .compactRing>span{color:var(--theme-on-carousel)}

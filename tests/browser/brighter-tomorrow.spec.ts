@@ -25,7 +25,7 @@ for(const theme of ['light','dark','tomorrow'] as const)test(`separate ${theme} 
  }
  await page.getByRole('button',{name:'Open Settings',exact:true}).click();await page.getByRole('button',{name:/Accent color/}).click();
  const themes=page.getByRole('group',{name:'Choose theme'});await expect(themes.getByRole('button')).toHaveCount(3);
- for(const [id,label] of [['tomorrow','A Brighter Tomorrow'],['light','Light'],['dark','Dark'],['tomorrow','A Brighter Tomorrow']]){await themes.getByRole('button',{name:label,exact:true}).click();await expect(page.locator('html')).toHaveAttribute('data-theme',id);}
+ for(const [id,label] of [['tomorrow','Sunshine'],['light','Light'],['dark','Dark'],['tomorrow','Sunshine']]){await themes.getByRole('button',{name:label,exact:true}).click();await expect(page.locator('html')).toHaveAttribute('data-theme',id);}
  await page.locator('.appearance-accents button').filter({hasText:'Purple'}).click();
  const beforeReload=await page.locator('.brighter-header-art path').nth(1).evaluate(el=>getComputedStyle(el).fill);
  await page.getByRole('button',{name:'Close Appearance',exact:true}).click();await page.getByRole('button',{name:'Close Settings',exact:true}).click();

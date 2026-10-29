@@ -1,5 +1,6 @@
 "use client";
 import PaidStatus from './paid-status';
+import TransactionAccountFilter from './transaction-account-filter';
 import {settlementName,settlementFilter,transactionAccountOptions} from './transaction-filters';
 import LoanHistoryEditor from './loan-history-editor';
 import TitleSelect from './title-select';
@@ -139,7 +140,7 @@ export default function PaymentsPage({ readOnly, accounts, transactions, adjustm
     {message && <p className="debt-action-message" role="status">{message}</p>}
     <div className={`payments-filters${mobile ? " " + styles.filters : ""}`}>
       {periodControl}
-      {!accountScope && <label className="budget-board-filter"><span><OutlineIcon name="list"/><span className="sr-only">Account</span></span><TitleSelect aria-label="Account" value={accountId} onChange={e => setAccountId(e.target.value)}><option value="all">All accounts</option>{accountOptions.map(option => <option key={option.id} value={option.id}>{option.name}</option>)}</TitleSelect><OutlineIcon name="chevron"/></label>}
+      {!accountScope && <TransactionAccountFilter value={accountId} options={accountOptions} onChange={setAccountId}/>}
     </div>
     <section className="budget-board-summary" aria-label={summaryLabel}>
       {([{key:'payments',label:'Payments',icon:'arrow-down',value:currency.format(paymentTotal),compact:compact(paymentTotal)},{key:'interest',label:'Interest & fees',icon:'arrow-up',value:currency.format(interestTotal),compact:compact(interestTotal)},{key:'adjustments',label:'Adjustments',icon:'sort',value:(adjustmentTotal<0?'−':adjustmentTotal>0?'+':'')+currency.format(Math.abs(adjustmentTotal)),compact:(adjustmentTotal<0?'−':adjustmentTotal>0?'+':'')+compact(Math.abs(adjustmentTotal))}] as const).map(card=><button type="button" className={`budget-summary-tile ${card.key}`} key={card.key} aria-label={`Explain ${explanations[card.key].title}`} onClick={()=>{setExplanation(card.key);onDialog(true);}}><i><OutlineIcon name={card.icon}/></i><span><small>{card.label}</small><strong><SummaryFitAmount full={card.value} compact={card.compact}/></strong></span></button>)}

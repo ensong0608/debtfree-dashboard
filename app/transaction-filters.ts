@@ -23,10 +23,10 @@ export function settlementFilter(entry:PlanSettlement,budgets:Record<string,Cash
   return loan?`loan:${loan.id}`:`budget:${identity}`;
 }
 export function transactionAccountOptions(accounts:DebtAccount[],activity:{accountId:string}[],loans:LoanTracker[],settlements:PlanSettlement[],budgets:Record<string,CashflowItem[]>) {
-  const options=new Map<string,string>();
-  for(const account of accounts)options.set(account.id,account.name+(account.balance<=.005&&(account.baselineBalance??0)>0?' · Paid off':''));
-  for(const row of activity)if(!options.has(row.accountId))options.set(row.accountId,`Removed debt (${row.accountId})`);
-  for(const loan of loans)options.set(`loan:${loan.id}`,loan.name+(loan.remainingAmount<=.005&&loan.originalAmount>0?' · Paid off':''));
-  for(const entry of settlements){const key=settlementFilter(entry,budgets,loans);if(!options.has(key))options.set(key,settlementName(entry,budgets,accounts));}
-  return [...options].map(([id,name])=>({id,name}));
+  const options=new Map<string,{name:string;paidOff:boolean}>();
+  for(const account of accounts)options.set(account.id,{name:account.name,paidOff:account.balance<=.005});
+  for(const row of activity)if(!options.has(row.accountId))options.set(row.accountId,{name:`Removed debt (${row.accountId})`,paidOff:false});
+  for(const loan of loans)options.set(`loan:${loan.id}`,{name:loan.name,paidOff:loan.remainingAmount<=.005&&loan.originalAmount>0});
+  for(const entry of settlements){const key=settlementFilter(entry,budgets,loans);if(!options.has(key))options.set(key,{name:settlementName(entry,budgets,accounts),paidOff:false});}
+  return [...options].map(([id,option])=>({id,...option})).sort((a,b)=>Number(a.paidOff)-Number(b.paidOff));
 }

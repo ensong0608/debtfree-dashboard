@@ -31,21 +31,28 @@ test('owner can create and revoke an invitation with accessible mobile controls'
     else await route.fulfill({json:data});
   });
   await mount(page,owner);
-  await expect(page.getByRole('button',{name:'Create invitation'})).toBeVisible();
+  await page.getByText('Invite member',{exact:true}).click();await expect(page.getByRole('button',{name:'Create invitation'})).toBeVisible();
   await page.getByLabel('Partner email').fill('new@example.test'); await page.getByLabel('Invitation access',{exact:true}).selectOption('viewer'); await page.getByRole('button',{name:'Create invitation'}).click();
   await expect(page.getByRole('button',{name:'Revoke'})).toBeVisible(); expect(writes[0]).toEqual({action:'invite',email:'new@example.test',role:'viewer'});
   await page.getByRole('button',{name:'Revoke'}).click(); await expect(page.getByRole('button',{name:'Revoke'})).toHaveCount(0);
   expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
 });
 
-test('viewer can request and cancel deletion without owner controls', async ({page}) => {
-  let data={...base}; const writes: Record<string,string>[]=[];
-  await page.route('**/api/household/lifecycle',async route=>{ if(route.request().method()==='POST') { const body=route.request().postDataJSON(); writes.push(body); data={...data,requests:body.action==='request_deletion' ? [{id:'synthetic-request',kind:'delete_account'}] : []} as typeof data; await route.fulfill({json:{ok:true}}); } else await route.fulfill({json:data}); });
-  await mount(page,{...owner,role:'viewer'});
-  await expect(page.getByRole('button',{name:'Create invitation'})).toHaveCount(0); await expect(page.getByRole('button',{name:'Leave household'})).toBeEnabled();
-  await page.getByText('Account deletion',{exact:true}).click(); page.once('dialog',dialog=>dialog.accept('DELETE')); await page.getByRole('button',{name:'Request deletion',exact:true}).click(); await expect(page.getByText('Request reference: synthetic-request')).toBeVisible(); await page.getByRole('button',{name:'Cancel deletion request'}).click(); await expect(page.getByRole('button',{name:'Request deletion',exact:true})).toBeVisible();
-  expect(writes[1]).toEqual({action:'cancel_deletion',id:'synthetic-request'});
-  await expect(page.getByRole('status')).toHaveText('Deletion request cancelled. Nothing has been deleted.');
+test('household controls hide account deletion and close member menu when tapped outside', async ({page}) => {
+  await page.route('**/api/household/lifecycle',route=>route.fulfill({json:base}));
+  await mount(page,owner);
+  await expect(page.getByText('Account deletion',{exact:true})).toHaveCount(0);
+  const menu=page.getByLabel('Actions for Partner');await menu.click();
+  await expect(page.getByRole('button',{name:'Make viewer'})).toBeVisible();
+  await page.getByText('My household',{exact:true}).click();
+  await expect(page.getByRole('button',{name:'Make viewer'})).toBeHidden();
+  await menu.click();await page.keyboard.press('Escape');await expect(page.getByRole('button',{name:'Make viewer'})).toBeHidden();
+});
+test('invite is shown below three members and hidden at three', async ({page}) => {
+  await page.route('**/api/household/lifecycle',route=>route.fulfill({json:base}));
+  await mount(page,{...owner,members:[...owner.members,{email:'third@example.test',display_name:'Third',role:'viewer',status:'active'}]});
+  await expect(page.getByText('Invite member',{exact:true})).toHaveCount(0);
+  await expect(page.getByText('Partner',{exact:true})).toBeVisible();
 });
 
 test('setup displays only intended invitations and closed-registration state',async ({page})=>{

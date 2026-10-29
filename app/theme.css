@@ -65,8 +65,8 @@
 }
 :root[data-theme="dark"] {
   color-scheme: dark;
-  --theme-background: #080e16;
-  --theme-surface: #131e2b;
+  --theme-background: #000000;
+  --theme-surface: #222222;
   --theme-raised: #1b2532;
   --theme-text: #edf3ff;
   --theme-muted: #b9c0cc;
