@@ -34,6 +34,7 @@ export default function DebtEntryDialog({ state, command, readOnly, onSave, onCl
   const [confirmExit, setConfirmExit] = useState(false);
   const reducing = ["payment", "credit", "correction-down"].includes(category);
   const categoryLabels: Record<string,string> = {payment:"Payment",credit:"Refund/Credit",purchase:"Purchase",interest:"Interest",fee:"Annual fee"};
+  if(adjustment){categoryLabels['correction-down']='Balance decrease';categoryLabels['correction-up']='Balance increase';}
   const draft = signedEntryDraft(original, {...fields, title: original?.title || categoryLabels[category] || "Balance update", amount: (reducing ? "-" : "") + fields.amount.replace(/^[+−-]/, "")});
   draft.kind = adjustment || category.startsWith("correction-") && !transaction ? "adjustment" : reducing ? "payment" : category as EntryKind;
   if (adjustment) {
@@ -56,7 +57,6 @@ export default function DebtEntryDialog({ state, command, readOnly, onSave, onCl
   const hasUnsavedChanges = command.action === "save" && (JSON.stringify(fields) !== JSON.stringify(initialFields) || category !== initialCategory || JSON.stringify(overlapChoice) !== JSON.stringify(initialOverlapChoice));
   const requestClose = () => { if (hasUnsavedChanges) setConfirmExit(true); else onClose(); };
   const saveEntry = () => {
-    if (adjustment && command.action === "save") { setSaveError("Update the balance in the debt Detail tab."); return; }
     if (readOnly) return;
     if (error) { setSaveError(error); setConfirmExit(false); return; }
     if (matches.length && !overlapChoice) { setReviewOverlap(true); return; }
@@ -73,7 +73,7 @@ export default function DebtEntryDialog({ state, command, readOnly, onSave, onCl
     <form onSubmit={e => { e.preventDefault(); saveEntry(); }}><div className="debt-action-form compose-fields">
     {command.action === "save" ? <>
       <label className="compose-field"><span>Transaction category</span><TitleSelect aria-label="Transaction category" value={category} disabled={Boolean(transaction?.interestEstimate || transaction?.actualInterestCycle)} onChange={event=>{setCategory(event.target.value);setSaveError("");setOverlapChoice(null);setReviewOverlap(false);}}>{Object.entries(categoryLabels).map(([value,label])=><option key={value} value={value}>{label}</option>)}</TitleSelect></label>
-      <div className="compose-row"><label className="compose-field"><span>Debt account</span><TitleSelect aria-label="Debt account" value={fields.accountId} disabled={Boolean(accountScope || transaction?.interestEstimate)} onChange={e => change("accountId", e.target.value)}>{availableAccounts.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}</TitleSelect></label><DateCalendar label="Transaction date" value={fields.date} disabled={Boolean((accountScope && !flexibleScope) || transaction?.interestEstimate)} onChange={date => change("date", date)}/></div>
+      <div className="compose-row"><label className="compose-field"><span>Debt account</span><TitleSelect aria-label="Debt account" value={fields.accountId} disabled={Boolean(accountScope || transaction?.interestEstimate)} onChange={e => change("accountId", e.target.value)}>{availableAccounts.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}</TitleSelect></label><DateCalendar label="Transaction date" value={fields.date} disabled={Boolean((!original && accountScope && !flexibleScope) || transaction?.interestEstimate)} onChange={date => change("date", date)}/></div>
       <label className={"compose-field signed-money " + (reducing ? "is-payment" : "is-increase")}><span>Amount</span><div className="signed-money-input"><NumericInput aria-label="Transaction amount" min={0} text={fields.amount.replace(/^[+−-]/, "")} value={parseFinancialInput(fields.amount, {min: -Number.MAX_SAFE_INTEGER / 100}).value} placeholder="0.00" aria-describedby="entry-validation" onValueChange={(_, text) => change("amount", text)}/></div></label>
       <details className="compose-notes" open={Boolean(fields.note) || undefined}><summary>Add a note <span>optional</span></summary><label className="compose-field"><span className="sr-only">Notes</span><textarea aria-label="Transaction notes" rows={2} placeholder="Anything else to remember" value={fields.note} onChange={e => change("note", e.target.value)}/></label></details>
     </> : <div className="compose-entry-summary"><strong>{fields.title}</strong><p>{money.format(draft.amount)} · {state.accounts.find(a => a.id === original?.accountId)?.name ?? "Removed debt"} · {fields.date}</p></div>}

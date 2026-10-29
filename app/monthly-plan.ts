@@ -47,7 +47,7 @@ export function calculateMonthlyPlan(items: CashflowItem[], transactions: Ledger
 }
 
 export function copyRecurringPlannedItems(items: CashflowItem[], createdAt: string, makeId: (item: CashflowItem, index: number) => string) {
-  return items.filter(isRecurringPlannedItem).map((item, index) => ({ ...item, id: makeId(item, index), createdAt }));
+  return items.filter(isRecurringPlannedItem).map((item, index) => ({ ...item, recurringSourceId:item.recurringSourceId??item.id, id: makeId(item, index), createdAt }));
 }
 
 export function spentForPlannedItem(itemId: string, transactions: LedgerTransaction[], month: string, trackingEnabled: boolean) {

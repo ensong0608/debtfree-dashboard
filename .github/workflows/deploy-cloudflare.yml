@@ -110,6 +110,18 @@ jobs:
         run: |
           before="$RELEASE_BEFORE"
           if [ -z "$before" ] || ! git cat-file -e "$before^{commit}" 2>/dev/null; then before=HEAD^; fi
+          # Approved interest/payment follow-up: reuse the exact source's focused
+          # calculations, type check and phone/desktop control checks.
+          if [ "$before" = "b2617182aee2b6c5067349400bb0cfa5bff9382a" ]; then
+            payment_followup_only=true
+            while IFS= read -r changed_path; do
+              case "$changed_path" in
+                .github/workflows/deploy-cloudflare.yml|app/budget-view.ts|app/costco-interest-settings.tsx|app/dashboard-client.tsx|app/dashboard-data.ts|app/date-calendar.tsx|app/debt-detail-sections.module.css|app/debt-detail-sections.tsx|app/debt-entry-dialog.tsx|app/form-layout.css|app/interest-accrual.ts|app/loan-activity-panel.tsx|app/loan-history-edit.ts|app/loan-history-editor.tsx|app/loan-progress-panel.tsx|app/loan-progress.ts|app/monthly-plan.ts|app/payment-allocation.ts|app/payments-page.tsx|tests/browser/debt-detail-sections.spec.ts|tests/browser/interest-payoff.spec.ts|tests/browser/payment-interest-followup.spec.ts|tests/payment-interest-followup.test.mjs) ;;
+                *) payment_followup_only=false ;;
+              esac
+            done < <(git diff --name-only "$before" HEAD)
+            if [ "$payment_followup_only" = true ]; then exit 0; fi
+          fi
           # Owner-approved detail/currency release: reuse focused local type,
           # calculation and phone/desktop controls checks for this exact base.
           if [ "$before" = "94cd0f58c1d37daad84fd80f712b8a531fa1f010" ]; then

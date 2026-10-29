@@ -92,6 +92,7 @@ export type DebtArchiveEvent = {
 
 export type CashflowItem = OwnershipMetadata & {
   id: string;
+  recurringSourceId?: string;
   name: string;
   kind: CashflowKind;
   category: string;
@@ -695,6 +696,7 @@ function validateAccount(value: unknown, path: string, issues: string[]) {
   if (hasOwn(item, "interestAutomation")) {
     const config = requiredRecord(item.interestAutomation, path + ".interestAutomation", issues);
     if (config) {
+      if(config.customClosingDay!==undefined)requiredBoolean(config.customClosingDay,path+'.interestAutomation.customClosingDay',issues);
       requiredBoolean(config.enabled, path + ".interestAutomation.enabled", issues);
       if (config.rateHistory !== undefined) {
         const seen = new Set<string>();
@@ -750,6 +752,7 @@ function validateAccount(value: unknown, path: string, issues: string[]) {
 function validateCashflow(value: unknown, path: string, issues: string[]) {
   const item = requiredRecord(value, path, issues);
   if (!item) return;
+  if(item.recurringSourceId!==undefined)requiredString(item.recurringSourceId,path+'.recurringSourceId',issues);
   requiredString(item.id, `${path}.id`, issues);
   requiredString(item.name, `${path}.name`, issues);
   enumValue(item.kind, cashflowKinds, `${path}.kind`, issues);
@@ -1047,6 +1050,7 @@ function validateMonthlyPlan(value: unknown, path: string, issues: string[]) {
         const entry = requiredRecord(raw, p + ".history[" + index + "]", issues);
         if (!entry) return;
         requiredNumber(entry.amount, p + ".history.amount", issues);
+        if(entry.corrections!==undefined)requiredArray(entry.corrections,p+'.history.corrections',issues)?.forEach(raw=>{const correction=requiredRecord(raw,p+'.history.correction',issues);if(correction){requiredString(correction.recordedAt,p+'.history.correction.recordedAt',issues);requiredRecord(correction.previous,p+'.history.correction.previous',issues);}});
         if (entry.estimated !== undefined) requiredBoolean(entry.estimated, p + ".history.estimated", issues);
         for (const key of ["payment", "principal", "interest", "escrow", "extraPrincipal"]) if (entry[key] !== undefined) requiredNumber(entry[key], p + ".history." + key, issues);
         enumValue(entry.balanceKind, new Set(["principal", "payoff"]), p + ".history.balanceKind", issues);

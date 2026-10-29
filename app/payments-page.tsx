@@ -1,4 +1,5 @@
 "use client";
+import LoanHistoryEditor from './loan-history-editor';
 import TitleSelect from './title-select';
 import { householdMonthOffset } from "./household-date";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
@@ -38,7 +39,9 @@ function SummaryExplanation({ kind, value, onClose }: { kind: keyof typeof expla
   return <ExplanationDialog title={explanations[kind].title} onClose={onClose}><strong className="money-value">{value}</strong><p>{explanations[kind].body}</p></ExplanationDialog>;
 }
 
-export default function PaymentsPage({ readOnly, accounts, transactions, adjustments, message, storedAccounts, onChange, onDialog, mobile = false, accountScope, cardDetail = false, reportingMonth, onReportingMonth, budgetSettings, loans = [], onLoan, onUndoBudgetPaid, onEditBudgetPaid, onBalanceInfo }: {
+export default function PaymentsPage({ readOnly, accounts, transactions, adjustments, message, storedAccounts, onChange, onDialog, mobile = false, accountScope, cardDetail = false, reportingMonth, onReportingMonth, budgetSettings, loans = [], onLoan, onUndoBudgetPaid, onEditBudgetPaid, onBalanceInfo, onLoansChange, budgetItems=[] }: {
+  onLoansChange?: (loan:LoanTracker,expected:string)=>string|null;
+  budgetItems?: import('./dashboard-data').CashflowItem[];
   onEditBudgetPaid?: (entry: PlanSettlement) => void;
   onBalanceInfo?: (accountId: string) => void;
   loans?: LoanTracker[]; onLoan?: (id: string) => void; onUndoBudgetPaid?: (id: string) => void;
@@ -47,6 +50,8 @@ export default function PaymentsPage({ readOnly, accounts, transactions, adjustm
   accountScope?: string; cardDetail?: boolean; mobile?: boolean; readOnly: boolean; accounts: DebtAccount[]; transactions: LedgerTransaction[]; adjustments: BalanceAdjustment[]; message: string;
   onConfirm: (id: string) => void; onUndoConfirmation: (id: string) => void; storedAccounts: DebtAccount[]; onChange: (command: EntryCommand, expected: string) => string | null; onDialog: (open: boolean) => void;
 }) {
+  const [editingLoan,setEditingLoan]=useState<{id:string;index:number}|null>(null);
+  const historyLoan=loans.find(loan=>loan.id===editingLoan?.id);
   const [editingPaid,setEditingPaid]=useState<string|null>(null);
   const paidEntry=Object.values(budgetSettings?.months??{}).flatMap(plan=>plan.settlements??[]).find(entry=>entry.id===editingPaid);
   const closePaid=()=>{setEditingPaid(null);onDialog(false);};
@@ -113,7 +118,7 @@ export default function PaymentsPage({ readOnly, accounts, transactions, adjustm
         ...budgetLoanActivity(loans, month, period).map(row => ({id: row.id, title: row.name, date: row.date, amount: row.payment ?? 0, loanId: row.loanId, settlementId: undefined as string | undefined, automatic: false}))
       ].filter(row => (!search.trim() || `${row.title} ${row.date}`.toLowerCase().includes(search.trim().toLowerCase())) && !['interest','adjustments'].includes(kindFilter) && (accountScope ?? accountId) === 'all').sort((a,b)=>b.date.localeCompare(a.date)).map(row => ({id:row.id,date:row.date,amount:row.amount,node:<article className="budget-record-card budget-paid-record" key={row.id} data-paid-record={row.id}>
         <time className="budget-record-date" dateTime={row.date}>{dateLabel(row.date)}</time>
-        <button type="button" className="budget-record-main" disabled={row.settlementId ? !onEditBudgetPaid : !row.loanId} onClick={()=>{if(row.settlementId){setEditingPaid(row.settlementId);onDialog(true);}else if(row.loanId)onLoan?.(row.loanId);}}>
+        <button type="button" className="budget-record-main" disabled={row.settlementId ? !onEditBudgetPaid : !row.loanId} onClick={()=>{if(row.settlementId){setEditingPaid(row.settlementId);onDialog(true);}else if(row.loanId){setEditingLoan({id:row.loanId,index:Number(row.id.split(':').at(-1))});onDialog(true);}}}>
           {row.loanId ? <InstitutionIcon debtType={loans.find(loan=>loan.id===row.loanId)?.kind??'Debt account'} accountName={row.title}/> : <span className="budget-paid-icon"><OutlineIcon name="receipt"/></span>}
           <span className="budget-record-name"><strong>{row.title}</strong><span>{row.loanId?'Loan payment':'Budget paid record'}</span></span><span className="budget-record-amount"><strong className="decreases"><span className="money-value">{currency.format(row.amount)}</span></strong><small>Paid</small></span><OutlineIcon name="chevron"/>
         </button>
@@ -123,7 +128,7 @@ export default function PaymentsPage({ readOnly, accounts, transactions, adjustm
         const account = accounts.find(item => item.id === row.accountId);
         const title = row.kind === 'payment' ? 'Payment recorded' : row.kind === 'adjustment' ? 'Balance update' : row.title;
         const name = names.get(row.accountId) ?? 'Removed debt';
-        return {id:row.id,date:row.date,amount:row.amount,node:<TransactionCard key={row.id} id={row.id} kind={row.kind} date={row.date} title={title} account={account} accountName={name} amount={row.amount} difference={row.difference} readOnly={readOnly} editLabel={`Edit ${row.title} for ${name}`} onEdit={() => row.kind === 'adjustment' && onBalanceInfo ? onBalanceInfo(row.accountId) : open({ action: 'save', id: row.id })}
+        return {id:row.id,date:row.date,amount:row.amount,node:<TransactionCard key={row.id} id={row.id} kind={row.kind} date={row.date} title={title} account={account} accountName={name} amount={row.amount} difference={row.difference} readOnly={readOnly} editLabel={`Edit ${row.title} for ${name}`} onEdit={() => open({ action: 'save', id: row.id })}
           description={row.title !== title && !/^(payment|balance (update|adjustment|increased|decreased))$/i.test(row.title) ? row.title : undefined}
           footer={!mobile ? <button type="button" className="budget-record-delete" disabled={readOnly} aria-label={`Delete transaction for ${name}`} onClick={() => open({ action: 'delete', id: row.id })}>×</button> : undefined}/>};
       });
@@ -131,6 +136,7 @@ export default function PaymentsPage({ readOnly, accounts, transactions, adjustm
   feed.sort((a,b)=>sortOrder === "amount" ? b.amount-a.amount || b.date.localeCompare(a.date) : (sortOrder === "oldest" ? a.date.localeCompare(b.date) : b.date.localeCompare(a.date)) || a.id.localeCompare(b.id));
   const dates=[...new Set(feed.map(row=>row.date))];
   return <div className={`screen payments-screen transactions-screen budget-transactions-board${mobile ? " " + styles.mobile : ""}`}>
+    {historyLoan&&editingLoan&&onLoansChange&&<LoanHistoryEditor loan={historyLoan} index={editingLoan.index} items={budgetItems} readOnly={readOnly} onSave={onLoansChange} onClose={()=>{setEditingLoan(null);onDialog(false);}}/>}
     <h1 className="sr-only">Transactions</h1>
     {message && <p className="debt-action-message" role="status">{message}</p>}
     <div className={`payments-filters${mobile ? " " + styles.filters : ""}`}>

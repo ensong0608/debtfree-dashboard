@@ -9,7 +9,7 @@ import { postedMovement } from "./payment-overlap.ts";
 // Statement interest bases are average balances, not today's APR buckets.
 // Preserve their proportions only as an explicitly approximate blended rate.
 export const COSTCO_ESTIMATED_APR = (3040 * 18.99 + 7438.18 * 22.99) / (3040 + 7438.18);
-export type InterestAutomation = { enabled: boolean; coveredThrough: string; estimatedApr: number; closingDay?: number; rateHistory?: { effectiveDate: string; apr: number }[] };
+export type InterestAutomation = { enabled: boolean; coveredThrough: string; estimatedApr: number; closingDay?: number; customClosingDay?: boolean; rateHistory?: { effectiveDate: string; apr: number }[] };
 export type InterestEstimate = { cycle: string; periodStart: string; days: number; estimatedApr: number; reconciledAt?: string; method?: 'dated-balances' };
 
 /** Preserve the old rate for elapsed days. New settings take effect on the household day. */
@@ -68,6 +68,7 @@ export function closingDate(month: string, day = 2) {
   const last = new Date(Date.UTC(year, m, 0)).getUTCDate();
   return `${month}-${String(Math.min(day, last)).padStart(2, "0")}`;
 }
+export function interestClosingDay(config:InterestAutomation){return config.customClosingDay===false?31:config.closingDay??2;}
 function nextClose(date: string, day = 2) {
   const sameMonth=closingDate(date.slice(0,7),day);
   if(sameMonth>date)return sameMonth;
@@ -84,14 +85,14 @@ export function coveredClose(date: string, day = 2) {
 export const coveredCostcoClose = (date: string) => coveredClose(date, 2);
 /** Editing metadata must never silently move the user's reconciliation boundary. */
 export function interestSettingsError(config: InterestAutomation, today = householdDate()) {
-  const day = config.closingDay ?? 2;
+  const day = interestClosingDay(config);
   if (!Number.isInteger(day) || day < 1 || day > 31) return 'Enter a statement closing day from 1 to 31.';
   if (!validDate(config.coveredThrough) || config.coveredThrough > today) return 'Choose an included-through date no later than today.';
   if (!Number.isFinite(config.estimatedApr) || config.estimatedApr < 0 || config.estimatedApr > 100) return 'Enter an estimated APR from 0 to 100%.';
   return '';
 }
 export function validInterestConfig(config: InterestAutomation) {
-  const day = config.closingDay ?? 2;
+  const day = interestClosingDay(config);
   return Number.isInteger(day) && day >= 1 && day <= 31 && validDate(config.coveredThrough) && Number.isFinite(config.estimatedApr) && config.estimatedApr >= 0 && config.estimatedApr <= 100;
 }
 
@@ -104,7 +105,7 @@ export function accrueCostcoInterest(accounts: DebtAccount[], transactions: Ledg
     const config = account.interestAutomation;
     if (!config?.enabled || account.archivedAt || !validInterestConfig(config) || account.type !== "Credit card") continue;
     let start = config.coveredThrough;
-    for (let cycle = nextClose(start, config.closingDay); cycle <= today; start = cycle, cycle = nextClose(cycle, config.closingDay)) {
+    for (let cycle = nextClose(start, interestClosingDay(config)); cycle <= today; start = cycle, cycle = nextClose(cycle, interestClosingDay(config))) {
       const id = "interest:" + account.id + ":" + cycle.slice(0, 7);
       if (ids.has(id) || result.some(t => t.accountId === account.id && !t.deletedAt && !t.replacedByTransactionId && !t.interestEstimate && t.type === "fee" && (t.actualInterestCycle === cycle.slice(0, 7) || t.category === "Interest" && t.date.slice(0, 7) === cycle.slice(0, 7)))) continue;
       const estimate = estimateCycleInterest(account, result, start, cycle);
@@ -132,7 +133,7 @@ export function reconcileInterest(account: DebtAccount, transactions: LedgerTran
   if (!validDate(date) || date > householdDate(new Date(now))) throw new Error("Use today's date or an earlier valid balance date.");
   if (date < account.interestAutomation.coveredThrough || transactions.some(t => t.accountId === account.id && t.interestEstimate && t.date > date)) throw new Error("Use a balance date on or after the latest interest entry. Older balances cannot replace today's balance.");
   return {
-    account: { ...account, interestAutomation: { ...account.interestAutomation, coveredThrough: coveredClose(date, account.interestAutomation.closingDay) } },
+    account: { ...account, interestAutomation: { ...account.interestAutomation, coveredThrough: coveredClose(date, interestClosingDay(account.interestAutomation)) } },
     transactions: transactions.map(t => t.accountId === account.id && t.interestEstimate && t.date <= date && !t.interestEstimate.reconciledAt
       ? { ...t, updatedAt: now, interestEstimate: { ...t.interestEstimate, reconciledAt: now } } : t),
   };
@@ -142,7 +143,6 @@ export function reconcileInterest(account: DebtAccount, transactions: LedgerTran
  * Tombstones reserve the automatic ID; replacements retain their audit links. */
 export function recordActualInterest(account: DebtAccount, transactions: LedgerTransaction[], amount: number, cycle: string, now = new Date().toISOString(), id = crypto.randomUUID()) {
   if (!validDate(cycle) || cycle > householdDate(new Date(now)) || !Number.isFinite(amount) || amount < 0 || Math.round(amount * 100) !== amount * 100 && Math.abs(Math.round(amount * 100) - amount * 100) > 1e-7) throw new Error("Enter a valid interest amount and date.");
-  if (account.interestAutomation && cycle !== closingDate(cycle.slice(0,7), account.interestAutomation.closingDay)) throw new Error("Choose the statement closing date.");
   if (transactions.some(t => t.accountId === account.id && !t.deletedAt && !t.replacedByTransactionId && t.actualInterestCycle === cycle.slice(0, 7))) throw new Error("Actual interest already exists for this cycle. Edit it in Transactions.");
   const estimates = transactions.filter(t => t.accountId === account.id && t.interestEstimate?.cycle.slice(0, 7) === cycle.slice(0, 7) && !t.deletedAt);
   const included = estimates.some(t => t.interestEstimate?.reconciledAt) || Boolean(account.reconciliation && cycle <= account.reconciliation.date) || Boolean(account.interestAutomation && cycle <= account.interestAutomation.coveredThrough);

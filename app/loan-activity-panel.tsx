@@ -6,7 +6,7 @@ import type { LoanTracker } from "./loan-progress";
 import { recentDebtMonths } from "./debt-activity";
 import { activityMonthLabel } from "./debt-activity-panel";
 
-export default function LoanActivityPanel({loan,expanded=false,allHistory=false}:{loan:LoanTracker;expanded?:boolean;allHistory?:boolean}) {
+export default function LoanActivityPanel({loan,expanded=false,allHistory=false,onEdit}:{onEdit?:(index:number)=>void;loan:LoanTracker;expanded?:boolean;allHistory?:boolean}) {
   const householdCurrency = useHouseholdCurrency();
   const money = createHouseholdMoneyFormatter(householdCurrency, {style:"currency",});
  const history=[...loan.history].sort((a,b)=>a.date.localeCompare(b.date)||a.recordedAt.localeCompare(b.recordedAt));
@@ -14,7 +14,7 @@ export default function LoanActivityPanel({loan,expanded=false,allHistory=false}
  if(!months.length)return expanded?<div className="debt-history compact-activity"><p>No activity yet.</p></div>:null;
  if (allHistory) return <div className="budget-transactions-board payment-activity" aria-label={`Transactions for ${loan.name}`}>{months.flatMap(({entries}) => entries.map(({entry,prior}) => {
    const movement = prior ? entry.amount - prior.amount : 0;
-   return <TransactionCard key={entry.recordedAt + ':' + entry.date} id={'loan:' + loan.id + ':' + entry.recordedAt} kind={entry.payment !== undefined ? 'payment' : 'adjustment'} date={entry.date} title={entry.payment !== undefined ? 'Payment recorded' : 'Balance update'} account={{institutionKey:loan.institutionKey,type:loan.kind}} accountName={loan.name} amount={entry.payment ?? (prior ? Math.abs(movement) : entry.amount)} difference={entry.payment !== undefined ? -entry.payment : movement} amountHint={entry.payment !== undefined ? 'Paid' : prior ? 'Balance change' : 'First recorded balance'} description={`${entry.estimated ? 'Estimated balance' : 'Balance'}: ${prior ? money.format(prior.amount) + ' → ' : ''}${money.format(entry.amount)}`}/>;
+   return <TransactionCard key={entry.recordedAt + ':' + entry.date} id={'loan:' + loan.id + ':' + entry.recordedAt} kind={entry.payment !== undefined ? 'payment' : 'adjustment'} date={entry.date} title={entry.payment !== undefined ? 'Payment recorded' : 'Balance update'} account={{institutionKey:loan.institutionKey,type:loan.kind}} accountName={loan.name} amount={entry.payment ?? (prior ? Math.abs(movement) : entry.amount)} difference={entry.payment !== undefined ? -entry.payment : movement} amountHint={entry.payment !== undefined ? 'Paid' : prior ? 'Balance change' : 'First recorded balance'} onEdit={onEdit?()=>onEdit(loan.history.indexOf(entry)):undefined} description={`${entry.estimated ? 'Estimated balance' : 'Balance'}: ${prior ? money.format(prior.amount) + ' → ' : ''}${money.format(entry.amount)}`}/>;
  }))}</div>;
  const content=<>{months.map(({month,entries})=>{
  const payments=entries.filter(row=>row.entry.payment!==undefined);
