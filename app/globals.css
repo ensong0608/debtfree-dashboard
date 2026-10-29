@@ -2361,7 +2361,7 @@ button:focus-visible,summary:focus-visible,input:focus-visible,select:focus-visi
 .shared-header-action svg{width:24px;height:24px}
 .shared-header-back{font-size:28px}
 .shared-header-action:disabled{opacity:.45}
-.home-welcome{width:min(100%,760px);padding:16px 16px 12px;margin:0 auto}
+.home-welcome{width:min(100%,760px);padding:4px 16px 4px;margin:0 auto}
 .home-welcome h1{font-size:calc(22px * var(--theme-text-scale,1));font-weight:400;margin:0}
 .home-welcome p{font-size:calc(13px * var(--theme-text-scale,1));color:var(--theme-muted);margin:4px 0 0}
 .compact-segments.compact-segments{position:relative;isolation:isolate;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:2px;min-height:44px;padding:0;margin:0;border:0;border-radius:0;background:transparent;color:var(--theme-on-header-rail,#000);box-shadow:none}

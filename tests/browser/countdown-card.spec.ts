@@ -11,6 +11,12 @@ for(const theme of ['light','dark','tomorrow'] as const)test(`${theme} countdown
  await page.goto('/');
  const card=page.getByRole('button',{name:'Debt-free countdown. Open payoff schedule',exact:true});
  await expect(card).toBeVisible();await expect(card).toContainText('Cards & Loans · includes auto');
+ const welcome=await page.locator('.home-welcome').boundingBox(), header=await page.locator('.shared-dashboard-header').boundingBox();
+ const countdown=await card.boundingBox(), carousel=await page.getByRole('region',{name:'Debt summary',exact:true}).boundingBox();
+ expect(welcome!.y-header!.y-header!.height).toBeLessThanOrEqual(4);
+ expect(countdown!.y-welcome!.y-welcome!.height).toBeLessThanOrEqual(8);
+ expect(carousel!.y-countdown!.y-countdown!.height).toBeGreaterThanOrEqual(12);
+ expect(carousel!.y-countdown!.y-countdown!.height).toBeLessThanOrEqual(18);
  const date=card.locator('time');await expect(date).toHaveCount(1);
  const month=await date.getAttribute('datetime');expect(month).toMatch(/^\d{4}-\d{2}$/);
  const months=(Number(month!.slice(0,4))-2026)*12+Number(month!.slice(5,7))-10;
