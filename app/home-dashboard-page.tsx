@@ -1,5 +1,6 @@
 "use client";
 
+import DebtFreeCountdown from "./debt-free-countdown";
 import PayoffStrategyList from "./payoff-strategy-list";
 import type { PayoffStrategyRow } from "./payoff-strategy";
 import { useState } from "react";
@@ -19,7 +20,7 @@ import HomeDueReminders, { type ReminderPaymentActions } from './home-due-remind
 import type { DueReminder } from './due-reminders';
 
 
-export default function HomeDashboardPage({ accounts, loans, items, progress, progressViews, transactions, adjustments, onSchedule, onViewProgress, onViewTransactions, onViewDue, strategyRows, strategy, dueReminders, onOpenReminder, reminderPaymentActions }: {
+export default function HomeDashboardPage({ accounts, loans, items, schedule, progress, progressViews, transactions, adjustments, onSchedule, onViewProgress, onViewTransactions, onViewDue, strategyRows, strategy, dueReminders, onOpenReminder, reminderPaymentActions }: {
   reminderPaymentActions: Omit<ReminderPaymentActions, 'transactions' | 'adjustments' | 'loans' | 'items' | 'onOpen'>;
   dueReminders: DueReminder[]; onOpenReminder: (reminder: DueReminder) => void;
   strategyRows: PayoffStrategyRow[]; strategy: "avalanche" | "snowball";
@@ -62,6 +63,12 @@ export default function HomeDashboardPage({ accounts, loans, items, progress, pr
   })) : null;
   const activeScope = progressSlides?.some(slide => slide.scope === scope) ? scope : progressSlides?.[0]?.scope ?? "accounts";
 
+  const forecastBalance = strategyRows.reduce((sum, row) => sum + row.balance, 0);
+  const forecastScopes = progressViews ? [progressViews.accounts.summary, progressViews.auto.summary] : [];
+  const comparable = forecastScopes.length > 0 && forecastScopes.every(view => view.starting !== null || view.current === 0);
+  const forecastStarting = forecastScopes.reduce((sum, view) => sum + (view.starting ?? 0), 0);
+  const countdownPercent = comparable && forecastStarting > 0 ? (forecastStarting - forecastBalance) / forecastStarting * 100 : null;
+
   return <div className={styles.home}>
     <section className={styles.debtSummary} aria-label="Debt summary">
 
@@ -70,6 +77,8 @@ export default function HomeDashboardPage({ accounts, loans, items, progress, pr
         <div className={styles.compactCopy}><strong><span className="money-value">{money.format(current)}</span> <small>left</small></strong><span>{progressPercent === null ? "Starting comparison unavailable" : `${money.format(Math.abs(reduction))} ${reduction >= 0 ? "reduced" : "increased"}`}</span><button type="button" className={styles.textLink} onClick={onViewProgress} aria-label="View detailed progress">View progress <OutlineIcon name="chevron"/></button></div>
       </div>}
     </section>
+
+    <DebtFreeCountdown schedule={schedule} balance={forecastBalance} percent={countdownPercent} onOpen={onSchedule}/>
 
     <HomeDueReminders onSeeAll={onViewDue} reminders={dueReminders} transactions={transactions} adjustments={adjustments} loans={loans} items={items} onOpen={onOpenReminder} {...reminderPaymentActions}/>
 

@@ -1,0 +1,30 @@
+name: Countdown card phone review
+on:
+  push:
+    branches: [codex/countdown-card-20261028]
+permissions:
+  contents: read
+jobs:
+  countdown:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npx eslint app/debt-free-countdown.tsx app/home-dashboard-page.tsx tests/browser/countdown-card.spec.ts
+      - run: npx playwright install --with-deps chromium
+      - run: npx playwright test --config playwright.local.config.ts tests/browser/countdown-card.spec.ts --project=phone
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: countdown-card-phone
+          path: |
+            .wrangler/countdown-card/
+            .wrangler/browser-results/
+          include-hidden-files: true
+          retention-days: 7
