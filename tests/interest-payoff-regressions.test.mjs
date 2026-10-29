@@ -54,6 +54,8 @@ test('dated actual replaces estimate; confirmed balances and later activity surv
  // These later-dated rows already exist when an earlier lender balance is confirmed.
  const confirmed=createBalanceAdjustment({storedAccount:check.account,currentBalance:balance(card,later),nextBalance:8500,date:'2026-05-01',createdAt:'2026-05-04T20:00:00Z',transactions:later});
  assert.equal(balance(confirmed.account,later),8200);
+ assert.equal(confirmed.adjustment.difference,322.47);
+ assert.equal(confirmed.account.balanceOffset,322.47);
  const included=recordActualInterest(confirmed.account,later,180,'2026-04-30','2026-05-04T20:00:00Z','included-actual');
  assert.equal(balance(confirmed.account,included),8200);
  assert.ok(included.find(t=>t.id==='included-actual').actualInterestIncludedAt);

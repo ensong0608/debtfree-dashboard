@@ -1,3 +1,4 @@
+import {transactionAdjustedAccounts} from "./progress-balances.ts";
 import {effectiveForecastApr} from "./payoff-engine.ts";
 import { householdDate } from "./household-date.ts";
 import type { BalanceAdjustment, DebtAccount, DebtAuditCreator, LedgerTransaction, PaymentKind, PayoffStrategy } from "./dashboard-data.ts";
@@ -179,7 +180,8 @@ export function createBalanceAdjustment(input: BalanceAdjustmentInput) {
   }
   if (!Number.isFinite(input.currentBalance) || input.currentBalance < 0) throw new DebtBalanceError("Enter a valid current balance.");
   if (cents(input.nextBalance) !== input.nextBalance || !Number.isSafeInteger(Math.round(input.nextBalance * 100))) throw new DebtBalanceError("Enter a balance with at most two decimal places.");
-  const balanceBefore = cents(input.currentBalance);
+  // The adjustment describes the lender date, not the later activity already recorded.
+  const balanceBefore = cents(input.transactions ? transactionAdjustedAccounts([input.storedAccount], input.transactions.filter(t => t.date <= input.date))[0].balance : input.currentBalance);
   const balanceAfter = cents(input.nextBalance);
   if (!/^\d{4}-\d{2}-\d{2}$/.test(input.date) || new Date(input.date + "T12:00:00Z").toISOString().slice(0, 10) !== input.date) throw new DebtBalanceError("Enter a valid balance effective date.");
   if (input.storedAccount.reconciliation && input.date < input.storedAccount.reconciliation.date) throw new DebtBalanceError("Use a date on or after the latest lender balance.");
