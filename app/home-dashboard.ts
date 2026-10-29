@@ -1,3 +1,4 @@
+import {regularApr,promoEnabled} from './debt-terms.ts';
 import { householdDate, householdMonthOffset } from "./household-date.ts";
 import { recurringDueDate } from "./recurring-due-date.ts";
 import type { DebtAccount, LedgerTransaction, PayoffSnapshot, PayoffStrategy, PlannedPayoffData } from "./dashboard-data.ts";
@@ -149,14 +150,14 @@ function upcomingActions(accounts: DebtAccount[], snapshots: PayoffSnapshot[], c
   }));
 
   accounts
-    .filter((account) => account.balance > 0 && account.promoEndDate && account.promoEndDate >= localDateKey(calculationDate))
+    .filter((account) => account.balance > 0 && promoEnabled(account) && account.promoEndDate && account.promoEndDate >= localDateKey(calculationDate))
     .sort((a, b) => a.promoEndDate.localeCompare(b.promoEndDate))
     .slice(0, 2)
     .forEach((account) => actions.push({
       id: `promo-${account.id}`,
       kind: "promo",
       title: `${account.name} promotional rate expires`,
-      detail: account.postPromoApr > 0 ? `APR changes to ${account.postPromoApr.toFixed(2)}%` : "Add the post-promotional APR for an accurate projection",
+      detail: account.promoApr!==undefined||account.postPromoApr > 0 ? `APR changes to ${regularApr(account).toFixed(2)}%` : "Add the post-promotional APR for an accurate projection",
       date: account.promoEndDate,
       destination: "debt",
       accountId: account.id,
@@ -171,7 +172,7 @@ function upcomingActions(accounts: DebtAccount[], snapshots: PayoffSnapshot[], c
     destination: "debt",
     accountId: missingDueDates[0].id,
   });
-  const missingPromoApr = accounts.filter((account) => account.balance > 0 && account.promoEndDate && account.postPromoApr <= 0);
+  const missingPromoApr = accounts.filter((account) => account.balance > 0 && promoEnabled(account) && account.promoEndDate && account.promoApr===undefined && account.postPromoApr <= 0);
   if (missingPromoApr.length) actions.push({
     id: "missing-promo-apr",
     kind: "warning",

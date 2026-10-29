@@ -7,6 +7,8 @@ export type LoanTracker = {
   institutionKey?: InstitutionKey;
   id: string;
   name: string;
+  customNote?: string;
+  customNoteEnabled?: boolean;
   kind: 'house' | 'car';
   originalAmount: number;
   remainingAmount: number;

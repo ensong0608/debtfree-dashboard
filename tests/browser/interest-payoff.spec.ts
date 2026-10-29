@@ -4,7 +4,7 @@ import {DASHBOARD_STORAGE_KEY} from '../../app/data-repository';
 import {accrueCostcoInterest} from '../../app/interest-accrual';
 import {APPEARANCE_KEY,THEMES} from '../../app/appearance';
 
-test('phone Advanced records dated actual interest once and preserves the manual payment and saved fee',async({page},info)=>{
+test('Interest fee records dated actual interest once and preserves the manual payment and saved fee',async({page},info)=>{
  expect(['localhost','127.0.0.1']).toContain(new URL(String(info.project.use.baseURL)).hostname);
  await page.clock.setFixedTime(new Date('2026-10-29T20:00:00Z'));
  const fixture=createDemoFixture();
@@ -24,17 +24,16 @@ test('phone Advanced records dated actual interest once and preserves the manual
  await page.getByRole('button',{name:'Open Interest test',exact:true}).click();
  const detail=page.getByRole('dialog',{name:'Interest test',exact:true});
  await detail.getByRole('tab',{name:'Detail',exact:true}).click();
- await detail.getByRole('button',{name:'Advanced',exact:true}).click();
- const advanced=page.getByRole('dialog',{name:'Advanced',exact:true});
- await expect(advanced.getByText(/Saved undated interest/)).toContainText('Reference only; forecasts use APR.');
- await expect(advanced.getByRole('textbox',{name:/^Actual interest fee/})).toHaveCount(0);
- await advanced.getByRole('textbox',{name:'Actual interest amount',exact:true}).fill('220');
+ await detail.getByRole('button',{name:/^Payment & Terms/}).click();
+ const advanced=page.getByRole('dialog',{name:'Payment & Terms',exact:true});
+ await advanced.getByRole('switch',{name:'Interest fee',exact:true}).check();
+ await advanced.getByRole('textbox',{name:'Interest fee amount',exact:true}).fill('220.00');
  await expect(advanced.getByRole('group',{name:'Statement closing date',exact:true})).toBeVisible();
  await advanced.getByText('Estimate assumptions',{exact:true}).click();
  await expect(advanced.getByText(/Missing opening history/)).toBeVisible();
  await advanced.getByRole('textbox',{name:'Estimated APR',exact:true}).fill('0');
  await expect(advanced.getByRole('alert')).toHaveCount(0);
- await advanced.getByRole('button',{name:'Close Advanced',exact:true}).click();
+ await advanced.getByRole('button',{name:'Close Payment & Terms',exact:true}).click();
  await detail.getByRole('button',{name:'Save',exact:true}).click();
  await expect.poll(async()=> (await saved()).transactions.filter((t:{actualInterestCycle?:string;deletedAt?:string})=>t.actualInterestCycle==='2026-10'&&!t.deletedAt).length).toBe(1);
  const data=await saved();
@@ -44,7 +43,9 @@ test('phone Advanced records dated actual interest once and preserves the manual
  expect(data.accounts[0].interestAutomation.estimatedApr).toBe(0);
  expect(data.transactions.find((t:{interestEstimate?:unknown})=>t.interestEstimate).deletedAt).toBeTruthy();
  // A later metadata save cannot post the just-entered actual interest again.
- await detail.getByRole('textbox',{name:'Account',exact:true}).fill('Interest renamed');
+ await detail.getByRole('button',{name:/^Debt details/}).click();
+ await page.getByRole('textbox',{name:'Account name',exact:true}).fill('Interest renamed');
+ await page.getByRole('button',{name:'Close Debt details',exact:true}).click();
  await detail.getByRole('button',{name:'Save',exact:true}).click();
  await expect.poll(async()=> (await saved()).accounts[0].name).toBe('Interest renamed');
  expect((await saved()).transactions.filter((t:{actualInterestCycle?:string})=>t.actualInterestCycle).length).toBe(1);

@@ -1,3 +1,4 @@
+import {regularApr,promotionalApr,promoEnabled} from './debt-terms.ts';
 import { householdDate, householdMonthOffset } from "./household-date.ts";
 import type { DebtAccount, PayoffStrategy } from "./dashboard-data";
 
@@ -48,7 +49,7 @@ export function effectiveMinimum(account: DebtAccount, calculationDate = new Dat
 }
 
 export function projectedMonthlyRate(account: DebtAccount) {
-  return account.apr / 1200;
+  return regularApr(account) / 1200;
 }
 
 export function monthlyInterest(account: DebtAccount, calculationDate = new Date()) {
@@ -60,7 +61,7 @@ export function forecastMonthKey(month: number, calculationDate: Date = new Date
 }
 
 export function hasPromoTerms(account: DebtAccount) {
-  return account.type === "Credit card" && Boolean(account.promoEndDate) && account.postPromoApr > 0;
+  return account.type === "Credit card" && promoEnabled(account) && Boolean(account.promoEndDate) && (account.promoApr !== undefined || account.postPromoApr > 0);
 }
 
 export function promoIsActive(account: DebtAccount, month: number, calculationDate: Date = new Date()) {
@@ -73,7 +74,7 @@ export function promoIsActive(account: DebtAccount, month: number, calculationDa
 }
 
 export function forecastApr(account: DebtAccount, month: number, calculationDate: Date = new Date()) {
-  return hasPromoTerms(account) && !promoIsActive(account, month, calculationDate) ? account.postPromoApr : account.apr;
+  return hasPromoTerms(account) && promoIsActive(account,month,calculationDate) ? promotionalApr(account) : regularApr(account);
 }
 
 /** balance is BEFORE new interest; callers may supply that cycle's already computed charge. */
@@ -89,8 +90,7 @@ export function forecastMinimum(account: DebtAccount, balance: number, month: nu
 }
 
 export function forecastMonthlyRate(account: DebtAccount, month: number, calculationDate: Date = new Date()) {
-  if (hasPromoTerms(account) && !promoIsActive(account, month, calculationDate)) return account.postPromoApr / 1200;
-  return projectedMonthlyRate(account);
+  return forecastApr(account,month,calculationDate)/1200;
 }
 
 export function effectiveForecastApr(account: DebtAccount, month: number, calculationDate: Date = new Date()) {
@@ -131,7 +131,7 @@ export function calculatePlan(
   const months: PlanMonth[] = [];
   let totalInterest = 0;
   let peakMonthly = monthly;
-  const promoMinimumFallbackIds = active.filter((account) => hasPromoTerms(account) && account.postPromoMinimum <= 0).map((account) => account.id);
+  const promoMinimumFallbackIds = active.filter((account) => hasPromoTerms(account) && account.promoApr === undefined && account.postPromoMinimum <= 0).map((account) => account.id);
   const emptyResult = { months, totalInterest, monthly, peakMonthly, stalled: false, nonAmortizingAccountIds: [] as string[], promoMinimumFallbackIds };
   if (!active.length) return emptyResult;
   if (monthly <= 0 && oneTimePurchaseTotal <= 0 && (!reserveMinimums || context.paymentCap === undefined)) return { ...emptyResult, stalled: true, nonAmortizingAccountIds: active.map((account) => account.id) };

@@ -20,3 +20,16 @@ export function financialPaste(text: string) {
   const raw = text.trim().replace(/^[\s$€£¥₱]+/, '').replace(/−/g, '-');
   return /^[+-]?\d{1,3}(?:,\d{3})+(?:\.\d*)?$/.test(raw) ? raw.replace(/,/g, '') : raw;
 }
+
+
+/** Digit entry is integer cents. Explicit decimals remain supported for replacement/accessibility. */
+export function currencyDigits(text: string, symbol = '$') {
+  if(!text.trim())return '';
+  const formatted=text.includes(symbol) || text.includes(',');
+  const raw=text.replaceAll(symbol,'').replaceAll(',','').trim();
+  if(!formatted && raw.includes('.'))return raw;
+  const units=formatted?raw.replace('.',''):raw;
+  if(!/^\d+$/.test(units))return raw;
+  const digits=units.replace(/^0+(?=\d)/,'').padStart(3,'0');
+  return digits.slice(0,-2)+'.'+digits.slice(-2);
+}
