@@ -11,7 +11,7 @@ export default function AppearanceProvider() {
     const apply = (value: Appearance) => {
       root.dataset.theme = value.theme;
       root.dataset.textSize = String(textSizePoints(value.size));
-      root.style.colorScheme = value.theme;
+      root.style.colorScheme = value.theme === 'dark' ? 'dark' : 'light';
       for (const [key, color] of Object.entries(appearanceTokens(value))) root.style.setProperty(key, color);
     };
     const change = (event: Event) => {

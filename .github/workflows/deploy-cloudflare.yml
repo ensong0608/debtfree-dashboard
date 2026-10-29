@@ -2,7 +2,7 @@
 name: Deploy Cloudflare dashboard
 on:
   push:
-    branches: [codex/brighter-tomorrow-20261028, codex/tab-defaults-20261028, codex/supabase-google-login, codex/mobile-payments-budget, codex/production-release-20261015]
+    branches: [codex/separate-brighter-theme-20261028, codex/tab-defaults-20261028, codex/supabase-google-login, codex/mobile-payments-budget, codex/production-release-20261015]
     paths: [.github/workflows/deploy-cloudflare.yml, "app/**", "tests/**"]
   workflow_dispatch:
     inputs:
@@ -17,7 +17,7 @@ concurrency:
   cancel-in-progress: ${{ github.event.before == '912375c398c0162fdf2d6f32ad8ce1dd06148602' }}
 jobs:
   brighter_theme:
-    if: github.ref == 'refs/heads/codex/brighter-tomorrow-20261028'
+    if: github.ref == 'refs/heads/codex/separate-brighter-theme-20261028'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -64,7 +64,7 @@ jobs:
           include-hidden-files: true
           retention-days: 7
   deploy:
-    if: github.ref != 'refs/heads/codex/tab-defaults-20261028' && github.ref != 'refs/heads/codex/brighter-tomorrow-20261028'
+    if: github.ref != 'refs/heads/codex/tab-defaults-20261028' && github.ref != 'refs/heads/codex/separate-brighter-theme-20261028'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -90,11 +90,11 @@ jobs:
           before="$RELEASE_BEFORE"
           if [ -z "$before" ] || ! git cat-file -e "$before^{commit}" 2>/dev/null; then before=HEAD^; fi
           # The approved theme release reuses its focused feature-branch phone checks.
-          if [ "$before" = "1189295ac0066aa680e568d37540084fc7e83b4c" ]; then
+          if [ "$before" = "cb244946495c0c8ff3418a16235e065c904fbfca" ]; then
             theme_only=true
             while IFS= read -r changed_path; do
               case "$changed_path" in
-                .github/workflows/deploy-cloudflare.yml|app/appearance.ts|app/appearance-settings.tsx|app/dashboard-client.tsx|app/dashboard-header.tsx|app/debt-scope-carousel.tsx|app/layout.tsx|app/theme.css|app/brighter-landscape.tsx|app/brighter-tomorrow.css|app/monthly-plan-page.tsx|tests/appearance.test.mjs|tests/browser/brighter-tomorrow.spec.ts) ;;
+                .github/workflows/deploy-cloudflare.yml|app/appearance.ts|app/appearance-provider.tsx|app/appearance-settings.module.css|app/appearance-settings.tsx|app/dashboard-client.tsx|app/dashboard-header.tsx|app/debt-scope-carousel.tsx|app/layout.tsx|app/theme.css|app/brighter-landscape.tsx|app/brighter-tomorrow.css|app/monthly-plan-page.tsx|tests/appearance.test.mjs|tests/browser/brighter-tomorrow.spec.ts) ;;
                 *) theme_only=false ;;
               esac
             done < <(git diff --name-only "$before" HEAD)
