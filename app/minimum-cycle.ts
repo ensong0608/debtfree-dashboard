@@ -1,18 +1,20 @@
-import type {DebtAccount} from './dashboard-data.ts';
+import type {DebtAccount, LedgerTransaction} from './dashboard-data.ts';
+import {transactionAdjustedAccounts} from './progress-balances.ts';
 import {householdDate} from './household-date.ts';
 import {recurringDueDate} from './recurring-due-date.ts';
 import {effectiveMinimum,estimatedMinimum} from './payoff-engine.ts';
 export function currentMinimumCycle(account:DebtAccount,today=householdDate()) {
  const date=recurringDueDate(account.dueDate,today.slice(0,7));
  if(!date)return null;
- return account.minimumCycles?.find(cycle=>cycle.date===date) ?? {date,amount:account.minimumPriorCycle?.month===date.slice(0,7)&&account.minimumPriorCycle.amount>0?account.minimumPriorCycle.amount:account.minimum>0?effectiveMinimum(account):estimatedMinimum(account.balance,account.apr)};
+ return account.minimumCycles?.find(cycle=>cycle.date===date) ?? {date,amount:account.minimumPriorCycle?.month===date.slice(0,7)&&account.minimumPriorCycle.amount>0?account.minimumPriorCycle.amount:account.minimum>0?effectiveMinimum(account,new Date(today+'T12:00:00Z')):estimatedMinimum(account.balance,account.apr)};
 }
 /** Capture actual observed cycles; never invent missed months or payments. */
-export function captureMinimumCycles(accounts:DebtAccount[],today=householdDate()) {
+export function captureMinimumCycles(accounts:DebtAccount[],today=householdDate(),transactions:LedgerTransaction[] = []) {
+ const current = new Map(transactionAdjustedAccounts(accounts,transactions).map(account=>[account.id,account]));
  let changed=false;
  const next=accounts.map(account=>{
   if(account.archivedAt||account.balance<=0)return account;
-  const cycle=currentMinimumCycle(account,today);
+  const cycle=currentMinimumCycle(current.get(account.id)!,today);
   if(!cycle||account.minimumCycles?.some(saved=>saved.date===cycle.date))return account;
   changed=true;return {...account,minimumCycles:[...(account.minimumCycles??[]),cycle]};
  });

@@ -167,7 +167,7 @@ export function payoffCalculationWarnings(accounts: DebtAccount[], plan: PayoffP
   if (missingPostPromo.length) warnings.push(`Your payoff projection may be inaccurate because the APR after the promotional period is missing. Add it for: ${missingPostPromo.join(", ")}.`);
   if (plan.promoMinimumFallbackIds.length) {
     const names = accounts.filter((account) => plan.promoMinimumFallbackIds.includes(account.id)).map((account) => account.name);
-    warnings.push(`Post-promotion minimum not entered; the current minimum continues for ${names.join(", ")}.`);
+    warnings.push(`Post-promotion minimum not entered; automatic estimates or the saved manual amount continue for ${names.join(", ")}.`);
   }
   if (plan.stalled) warnings.push("The current payment assumptions do not produce a complete payoff date.");
   accounts.filter((account) => !account.archivedAt && account.balance > 0 && account.promoEndDate && account.postPromoApr > 0).forEach((account) => {

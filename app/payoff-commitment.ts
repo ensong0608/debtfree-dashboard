@@ -4,15 +4,25 @@ import { effectiveMinimum, forecastMonthKey, round } from './payoff-engine.ts';
 import { buildConfiguredPayoffSchedule } from './payoff-schedule.ts';
 import { loanScheduleType, scheduleExtra, scheduleMinimums, scheduleTypeLabel } from './schedule-view.ts';
 
+/** Internal allocation baseline, never a lender minimum or a historical payment. */
+export function captureAutoMinimumCommitments(settings: MonthlyPlanSettings, accounts: DebtAccount[], date = new Date()): MonthlyPlanSettings {
+  const missing = accounts.filter(a => !a.archivedAt && a.type === 'Credit card' && a.minimumMode === 'auto' && settings.payoffAutoMinimumCommitments?.[a.id] === undefined);
+  if (!missing.length) return settings;
+  return { ...settings, payoffAutoMinimumCommitments: { ...settings.payoffAutoMinimumCommitments, ...Object.fromEntries(missing.map(a => [a.id, scheduleMinimums([a], date)])) } };
+}
+
 /** Exclusions change the forecast, not the household's minimum obligations. */
 export function buildActivePayoffCommitment(accounts: DebtAccount[], loans: LoanTracker[], items: CashflowItem[], settings: MonthlyPlanSettings, date = new Date()) {
   const excluded = new Set(settings.payoffExcludedTypes ?? []);
   const includedAccounts = accounts.filter(account => !excluded.has(account.type));
   const includedLoans = loans.filter(loan => !excluded.has(loanScheduleType(loan)));
-  const extra = scheduleExtra(settings, includedAccounts);
+  const forecastDate = new Date(forecastMonthKey(2, date) + '-01T12:00:00Z');
+  const freedMinimums = round(includedAccounts.filter(a => !a.archivedAt && a.type === 'Credit card' && a.minimumMode === 'auto').reduce((sum,a) => sum + Math.max(0, (settings.payoffAutoMinimumCommitments?.[a.id] ?? scheduleMinimums([a], forecastDate)) - scheduleMinimums([a], forecastDate)),0));
+  const savedExtra = scheduleExtra(settings, includedAccounts);
+  // Legacy total-payment settings already release their falling minimums into extra.
+  const extra = round(settings.payoffExtraPayment === undefined ? Math.max(savedExtra,freedMinimums) : savedExtra + freedMinimums);
   const hasIncludedDebt = includedAccounts.some(account => !account.archivedAt && account.balance > 0) || includedLoans.some(loan => loan.remainingAmount > 0);
   const schedule = buildConfiguredPayoffSchedule(includedAccounts, includedLoans, items, hasIncludedDebt ? extra : 0, settings.payoffPlanStrategy ?? 'avalanche', date);
-  const forecastDate = new Date(forecastMonthKey(2, date) + '-01T12:00:00Z');
   const activeAccounts = accounts.filter(account => !account.archivedAt && account.balance > 0);
   const activeLoans = loans.filter(loan => loan.remainingAmount > 0);
   const accountMinimums = Object.fromEntries(activeAccounts.map(account => [account.id, scheduleMinimums([account], forecastDate)]));

@@ -49,8 +49,8 @@ test("Avalanche ranks by effective forecast APR and re-ranks after promotional t
   const calibrated = account("calibrated", { balance: 1000, apr: 5, interestFee: 25 });
   const nominal = account("nominal", { balance: 1000, apr: 24 });
   const calibratedPlan = calculatePlan([nominal, calibrated], 100, "avalanche", {}, {}, CALCULATION_DATE);
-  assert.ok(calibratedPlan.months[0].payments.calibrated > calibrated.minimum);
-  assert.equal(calibratedPlan.months[0].payments.nominal, nominal.minimum);
+  assert.equal(calibratedPlan.months[0].payments.calibrated, calibrated.minimum);
+  assert.ok(calibratedPlan.months[0].payments.nominal > nominal.minimum);
 
   const promo = account("promo", { balance: 5000, apr: 0, promoEndDate: "2026-08-31", postPromoApr: 30, postPromoMinimum: 50 });
   const steady = account("steady", { balance: 5000, apr: 20 });

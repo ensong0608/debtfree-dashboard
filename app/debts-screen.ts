@@ -1,3 +1,5 @@
+import {transactionAdjustedAccounts} from "./progress-balances.ts";
+import {effectiveForecastApr} from "./payoff-engine.ts";
 import { householdDate } from "./household-date.ts";
 import type { BalanceAdjustment, DebtAccount, DebtAuditCreator, LedgerTransaction, PaymentKind, PayoffStrategy } from "./dashboard-data.ts";
 
@@ -35,8 +37,8 @@ export function payoffPriority(
     .sort((a, b) => strategy === "custom"
       ? (a.customOrder ?? Number.MAX_SAFE_INTEGER) - (b.customOrder ?? Number.MAX_SAFE_INTEGER)
       : strategy === "avalanche"
-        ? (effectiveAprs[b.id] ?? b.apr) - (effectiveAprs[a.id] ?? a.apr) || a.balance - b.balance || a.name.localeCompare(b.name)
-        : a.balance - b.balance || (effectiveAprs[b.id] ?? b.apr) - (effectiveAprs[a.id] ?? a.apr) || a.name.localeCompare(b.name));
+        ? (effectiveAprs[b.id] ?? effectiveForecastApr(b,1)) - (effectiveAprs[a.id] ?? effectiveForecastApr(a,1)) || a.balance - b.balance || a.name.localeCompare(b.name)
+        : a.balance - b.balance || (effectiveAprs[b.id] ?? effectiveForecastApr(b,1)) - (effectiveAprs[a.id] ?? effectiveForecastApr(a,1)) || a.name.localeCompare(b.name));
 }
 
 export function openingBalanceForCurrentBalance(openingBalance: number, currentBalance: number, nextCurrentBalance: number) {
@@ -178,7 +180,8 @@ export function createBalanceAdjustment(input: BalanceAdjustmentInput) {
   }
   if (!Number.isFinite(input.currentBalance) || input.currentBalance < 0) throw new DebtBalanceError("Enter a valid current balance.");
   if (cents(input.nextBalance) !== input.nextBalance || !Number.isSafeInteger(Math.round(input.nextBalance * 100))) throw new DebtBalanceError("Enter a balance with at most two decimal places.");
-  const balanceBefore = cents(input.currentBalance);
+  // The adjustment describes the lender date, not the later activity already recorded.
+  const balanceBefore = cents(input.transactions ? transactionAdjustedAccounts([input.storedAccount], input.transactions.filter(t => t.date <= input.date))[0].balance : input.currentBalance);
   const balanceAfter = cents(input.nextBalance);
   if (!/^\d{4}-\d{2}-\d{2}$/.test(input.date) || new Date(input.date + "T12:00:00Z").toISOString().slice(0, 10) !== input.date) throw new DebtBalanceError("Enter a valid balance effective date.");
   if (input.storedAccount.reconciliation && input.date < input.storedAccount.reconciliation.date) throw new DebtBalanceError("Use a date on or after the latest lender balance.");
@@ -187,7 +190,7 @@ export function createBalanceAdjustment(input: BalanceAdjustmentInput) {
   const offset = cents((input.storedAccount.balanceOffset ?? 0) + balanceAfter - balanceBefore);
   const account = {
     ...input.storedAccount,
-    reconciliation: { adjustmentId, accountId: input.storedAccount.id, balance: balanceAfter, date: input.date, createdAt, offset, ...(input.transactions ? { coveredTransactionIds: input.transactions.filter(t => t.accountId === input.storedAccount.id).map(t => t.id) } : {}), ...(input.storedAccount.reconciliation ? { previousAdjustmentId: input.storedAccount.reconciliation.adjustmentId } : {}) },
+    reconciliation: { adjustmentId, accountId: input.storedAccount.id, balance: balanceAfter, date: input.date, createdAt, offset, ...(input.transactions ? { coveredTransactionIds: input.transactions.filter(t => t.accountId === input.storedAccount.id && t.date <= input.date).map(t => t.id) } : {}), ...(input.storedAccount.reconciliation ? { previousAdjustmentId: input.storedAccount.reconciliation.adjustmentId } : {}) },
     baselineBalance: input.storedAccount.baselineBalance ?? input.storedAccount.balance,
     balanceOffset: cents((input.storedAccount.balanceOffset ?? 0) + balanceAfter - balanceBefore),
   };
