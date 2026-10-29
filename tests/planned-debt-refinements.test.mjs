@@ -38,7 +38,7 @@ test('editing a recurring paid record preserves identity, prevents regeneration 
  const changed=editPlanSettlement(auto,corrected);
  assert.deepEqual(auto.months['2026-10'].settlements,[original]);
  assert.equal(changed.months['2026-10'].settlements.length,0);
- assert.deepEqual(changed.months['2026-09'].settlements,[corrected]);
+ assert.deepEqual(changed.months['2026-09'].settlements,[{...corrected,name:original.name}]);
  const reopened=recordDueBudgetItems(changed,[item],[],[],date);
  assert.equal(reopened.months['2026-10'].settlements.length,0);
  const reports=buildBudgetActivity([],[],changed,'2026-09');assert.equal(reports.rows.length,0);assert.equal(reports.totals.netDebtChange,0);assert.equal(reports.settlements[0].amount,65);

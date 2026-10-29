@@ -1,4 +1,6 @@
 "use client";
+import PaidStatus from './paid-status';
+import {settlementName,settlementFilter,transactionAccountOptions} from './transaction-filters';
 import LoanHistoryEditor from './loan-history-editor';
 import TitleSelect from './title-select';
 import { householdMonthOffset } from "./household-date";
@@ -24,13 +26,8 @@ import { createHouseholdMoneyFormatter } from "./household-currency";
 function currentMonth() { return householdMonthOffset(0); }
 function dateLabel(value: string) { return new Date(value + "T12:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }); }
 
-/** Only limits recovery presentation; no tombstone or financial mutation. */
-export function isRecentlyDeleted(deletedAt: unknown, now = Date.now()) {
-  const timestamp = typeof deletedAt === "string" ? Date.parse(deletedAt) : NaN;
-  return !Number.isFinite(timestamp) || now - timestamp < 7 * 24 * 60 * 60 * 1000;
-}
 const explanations = {
-  payments: { title: "Payments recorded", body: "Recorded payments for the selected period and account. Refunds, credits and unidentified balance adjustments are excluded. House and auto loan payments are tracked separately." },
+  payments: { title: "Payments recorded", body: "Recorded payments for the selected period and account. Refunds, credits and unidentified balance adjustments are excluded. Includes recorded house and auto loan payments. Budget paid acknowledgements do not add another payment." },
   interest: { title: "Interest & fees", body: "Interest and fees recorded for the selected period and account, including recorded estimates. These increase the debt balance." },
   adjustments: { title: "Balance adjustments", body: "Other recorded balance movements: balance updates, purchases, refunds and credits. Positive amounts increase the balance; negative amounts decrease it. Net change equals balance adjustments plus interest and fees minus payments." },
   net: { title: "Net balance change", body: "The combined balance movement for the selected period and account. Payments and credits decrease it; purchases, interest, fees and balance adjustments can increase it. Already-included records add no extra movement." },
@@ -39,8 +36,9 @@ function SummaryExplanation({ kind, value, onClose }: { kind: keyof typeof expla
   return <ExplanationDialog title={explanations[kind].title} onClose={onClose}><strong className="money-value">{value}</strong><p>{explanations[kind].body}</p></ExplanationDialog>;
 }
 
-export default function PaymentsPage({ readOnly, accounts, transactions, adjustments, message, storedAccounts, onChange, onDialog, mobile = false, accountScope, cardDetail = false, reportingMonth, onReportingMonth, budgetSettings, loans = [], onLoan, onUndoBudgetPaid, onEditBudgetPaid, onBalanceInfo, onLoansChange, budgetItems=[] }: {
+export default function PaymentsPage({ readOnly, accounts, transactions, adjustments, message, storedAccounts, onChange, onDialog, mobile = false, accountScope, cardDetail = false, reportingMonth, onReportingMonth, budgetSettings, loans = [], onLoan, onUndoBudgetPaid, onEditBudgetPaid, onBalanceInfo, onLoansChange, budgetItems=[], budgetMonths={} }: {
   onLoansChange?: (loan:LoanTracker,expected:string)=>string|null;
+  budgetMonths?: Record<string,import('./dashboard-data').CashflowItem[]>;
   budgetItems?: import('./dashboard-data').CashflowItem[];
   onEditBudgetPaid?: (entry: PlanSettlement) => void;
   onBalanceInfo?: (accountId: string) => void;
@@ -53,7 +51,9 @@ export default function PaymentsPage({ readOnly, accounts, transactions, adjustm
   const [editingLoan,setEditingLoan]=useState<{id:string;index:number}|null>(null);
   const historyLoan=loans.find(loan=>loan.id===editingLoan?.id);
   const [editingPaid,setEditingPaid]=useState<string|null>(null);
-  const paidEntry=Object.values(budgetSettings?.months??{}).flatMap(plan=>plan.settlements??[]).find(entry=>entry.id===editingPaid);
+  const settlements=Object.values(budgetSettings?.months??{}).flatMap(plan=>plan.settlements??[]);
+  const originalPaidEntry=settlements.find(entry=>entry.id===editingPaid);
+  const paidEntry=originalPaidEntry?{...originalPaidEntry,name:settlementName(originalPaidEntry,budgetMonths,accounts)}:undefined;
   const closePaid=()=>{setEditingPaid(null);onDialog(false);};
   const [sortOrder,setSortOrder]=useState("recent");
   const unit=useHouseholdCurrency();
@@ -73,7 +73,7 @@ export default function PaymentsPage({ readOnly, accounts, transactions, adjustm
   const [accountId, setAccountId] = useState(accountScope ?? "all");
   const activity = useMemo(() => paymentActivity(transactions, adjustments), [transactions, adjustments]);
   const names = new Map(accounts.map(a => [a.id, a.name]));
-  const knownIds = [...new Set([...accounts.map(a => a.id), ...activity.map(a => a.accountId)])];
+  const accountOptions=transactionAccountOptions(accounts,activity,loans,settlements,budgetMonths);
   const [kindFilter, setKindFilter] = useState("all");
   const [search, setSearch] = useState("");
   const inPeriod = (date: string) => inBudgetPeriod(date, month, period);
@@ -86,18 +86,15 @@ export default function PaymentsPage({ readOnly, accounts, transactions, adjustm
   });
   if(sortOrder!=="recent") rows.sort((a,b)=>sortOrder==="oldest" ? a.date.localeCompare(b.date)||a.createdAt.localeCompare(b.createdAt) : b.amount-a.amount||b.date.localeCompare(a.date));
   const paymentRows = periodRows.filter(row => row.kind === "payment");
-  const paymentTotal = paymentRows.reduce((sum, row) => sum + row.amount, 0);
+  const selectedLoanPayments=budgetLoanActivity(loans,month,period).filter(row=>(accountScope??accountId)==='all'||`loan:${row.loanId}`===(accountScope??accountId));
+  const paymentTotal = paymentRows.reduce((sum, row) => sum + row.amount, 0)+selectedLoanPayments.reduce((sum,row)=>sum+(row.payment??0),0);
   const interestRows = periodRows.filter(row => row.kind === "interest" || row.kind === "fee");
   const interestTotal = interestRows.reduce((sum, row) => sum + row.difference, 0);
   const adjustmentTotal = periodRows.filter(row=>!["payment","interest","fee"].includes(row.kind)).reduce((sum,row)=>sum+row.difference,0);
   const netChange = periodRows.reduce((sum, row) => sum + row.difference, 0);
-  const years = [...new Set([month.slice(0, 4), currentMonth().slice(0, 4), ...transactions.map(row => row.date.slice(0, 4)), ...adjustments.map(row => row.date.slice(0, 4))])].sort().reverse();
+  const years = [...new Set([month.slice(0, 4), currentMonth().slice(0, 4), ...transactions.map(row => row.date.slice(0, 4)), ...adjustments.map(row => row.date.slice(0, 4)), ...settlements.map(row=>row.date.slice(0,4)), ...loans.flatMap(loan=>loan.history.map(row=>row.date.slice(0,4)))])].sort().reverse();
   const summaryLabel = period === "month" ? "Monthly transaction summary" : period === "year" ? "Yearly transaction summary" : "Lifetime transaction summary";
   const paymentsLabel = period === "month" ? "Payments this month" : period === "year" ? `Payments in ${month.slice(0, 4)}` : "Lifetime payments";
-  const deleted = [
-    ...transactions.filter(t => t.deletedAt && !t.replacedByTransactionId && (!mobile || isRecentlyDeleted(t.deletedAt))).map(t => ({ id: "transaction:" + t.id, accountId: t.accountId, amount: t.amount, date: t.date, kind: t.type })),
-    ...adjustments.filter(a => a.deletedAt && (!mobile || isRecentlyDeleted(a.deletedAt))).map(a => ({ id: "adjustment:" + a.id, accountId: a.accountId, amount: Math.abs(a.difference), date: a.date, kind: "adjustment" })),
-  ].filter(t => inPeriod(t.date) && ((accountScope ?? accountId) === "all" || t.accountId === (accountScope ?? accountId)));
   const periodControl = (
       <label className="transaction-period-control budget-board-filter"><span><OutlineIcon name="calendar"/><span className="sr-only">Period</span></span><TitleSelect aria-label="Period" value={period === "lifetime" ? "lifetime" : period === "year" ? `year:${month.slice(0, 4)}` : `month:${month}`} onChange={e => {
         const value = e.target.value;
@@ -113,14 +110,15 @@ export default function PaymentsPage({ readOnly, accounts, transactions, adjustm
         }))}</optgroup>
       </TitleSelect><OutlineIcon name="chevron"/></label>
   );
+  const loanRows=budgetLoanActivity(loans,month,period).filter(row=>(accountScope??accountId)==='all'||`loan:${row.loanId}`===(accountScope??accountId));
   const paidFeed = budgetSettings ? [
-        ...(budgetActivity?.settlements ?? []).map(row => ({id: row.id, title: row.payeeName, date: row.date, amount: row.amount, loanId: undefined as string | undefined, settlementId: row.id.slice('settlement:'.length), automatic: row.memo.includes('Automatically')})),
-        ...budgetLoanActivity(loans, month, period).map(row => ({id: row.id, title: row.name, date: row.date, amount: row.payment ?? 0, loanId: row.loanId, settlementId: undefined as string | undefined, automatic: false}))
-      ].filter(row => (!search.trim() || `${row.title} ${row.date}`.toLowerCase().includes(search.trim().toLowerCase())) && !['interest','adjustments'].includes(kindFilter) && (accountScope ?? accountId) === 'all').sort((a,b)=>b.date.localeCompare(a.date)).map(row => ({id:row.id,date:row.date,amount:row.amount,node:<article className="budget-record-card budget-paid-record" key={row.id} data-paid-record={row.id}>
+        ...(budgetActivity?.settlements ?? []).map(row => {const entry=settlements.find(entry=>'settlement:'+entry.id===row.id)!;return {id: row.id, filterId:settlementFilter(entry,budgetMonths,loans), title: settlementName(entry,budgetMonths,accounts), date: row.date, amount: row.amount, loanId: undefined as string | undefined, settlementId: row.id.slice('settlement:'.length), automatic: row.memo.includes('Automatically')};}),
+        ...loanRows.map(row => ({id: row.id, filterId:`loan:${row.loanId}`, title: row.name, date: row.date, amount: row.payment ?? 0, loanId: row.loanId, settlementId: undefined as string | undefined, automatic: false}))
+      ].filter(row => (!search.trim() || `${row.title} ${row.date}`.toLowerCase().includes(search.trim().toLowerCase())) && !['interest','adjustments'].includes(kindFilter) && ((accountScope ?? accountId) === 'all'||row.filterId===(accountScope??accountId))).sort((a,b)=>b.date.localeCompare(a.date)).map(row => ({id:row.id,date:row.date,amount:row.amount,node:<article className="budget-record-card budget-paid-record" key={row.id} data-paid-record={row.id}>
         <time className="budget-record-date" dateTime={row.date}>{dateLabel(row.date)}</time>
         <button type="button" className="budget-record-main" disabled={row.settlementId ? !onEditBudgetPaid : !row.loanId} onClick={()=>{if(row.settlementId){setEditingPaid(row.settlementId);onDialog(true);}else if(row.loanId){setEditingLoan({id:row.loanId,index:Number(row.id.split(':').at(-1))});onDialog(true);}}}>
           {row.loanId ? <InstitutionIcon debtType={loans.find(loan=>loan.id===row.loanId)?.kind??'Debt account'} accountName={row.title}/> : <span className="budget-paid-icon"><OutlineIcon name="receipt"/></span>}
-          <span className="budget-record-name"><strong>{row.title}</strong><span>{row.loanId?'Loan payment':'Budget paid record'}</span></span><span className="budget-record-amount"><strong className="decreases"><span className="money-value">{currency.format(row.amount)}</span></strong><small>Paid</small></span><OutlineIcon name="chevron"/>
+          <span className="budget-record-name"><strong>{row.title}</strong><span>{row.loanId?'Loan payment':'Budget paid record'}</span></span><span className="budget-record-amount"><strong className="decreases"><span className="money-value">{currency.format(row.amount)}</span></strong><small><PaidStatus/></small></span><OutlineIcon name="chevron"/>
         </button>
 
       </article>})) : [];
@@ -141,7 +139,7 @@ export default function PaymentsPage({ readOnly, accounts, transactions, adjustm
     {message && <p className="debt-action-message" role="status">{message}</p>}
     <div className={`payments-filters${mobile ? " " + styles.filters : ""}`}>
       {periodControl}
-      {!accountScope && <label className="budget-board-filter"><span><OutlineIcon name="list"/><span className="sr-only">Account</span></span><TitleSelect aria-label="Account" value={accountId} onChange={e => setAccountId(e.target.value)}><option value="all">All accounts</option>{knownIds.map(id => <option key={id} value={id}>{names.get(id) ?? "Removed debt (" + id + ")"}</option>)}</TitleSelect><OutlineIcon name="chevron"/></label>}
+      {!accountScope && <label className="budget-board-filter"><span><OutlineIcon name="list"/><span className="sr-only">Account</span></span><TitleSelect aria-label="Account" value={accountId} onChange={e => setAccountId(e.target.value)}><option value="all">All accounts</option>{accountOptions.map(option => <option key={option.id} value={option.id}>{option.name}</option>)}</TitleSelect><OutlineIcon name="chevron"/></label>}
     </div>
     <section className="budget-board-summary" aria-label={summaryLabel}>
       {([{key:'payments',label:'Payments',icon:'arrow-down',value:currency.format(paymentTotal),compact:compact(paymentTotal)},{key:'interest',label:'Interest & fees',icon:'arrow-up',value:currency.format(interestTotal),compact:compact(interestTotal)},{key:'adjustments',label:'Adjustments',icon:'sort',value:(adjustmentTotal<0?'−':adjustmentTotal>0?'+':'')+currency.format(Math.abs(adjustmentTotal)),compact:(adjustmentTotal<0?'−':adjustmentTotal>0?'+':'')+compact(Math.abs(adjustmentTotal))}] as const).map(card=><button type="button" className={`budget-summary-tile ${card.key}`} key={card.key} aria-label={`Explain ${explanations[card.key].title}`} onClick={()=>{setExplanation(card.key);onDialog(true);}}><i><OutlineIcon name={card.icon}/></i><span><small>{card.label}</small><strong><SummaryFitAmount full={card.value} compact={card.compact}/></strong></span></button>)}
@@ -151,8 +149,8 @@ export default function PaymentsPage({ readOnly, accounts, transactions, adjustm
     <label className="budget-board-filter transaction-category-filter"><span>Category</span><TitleSelect aria-label="Transaction category" value={kindFilter} onChange={event=>setKindFilter(event.target.value)}><option value="all">All</option><option value="payments">Payments</option><option value="interest">Interest &amp; fees</option><option value="adjustments">Adjustments</option></TitleSelect></label>
 
     <section className="payment-activity" aria-label="Transaction activity">{dates.map(date=><section className="transaction-date-group" data-activity-date={date} key={date}><h2>{dateLabel(date)}</h2>{feed.filter(row=>row.date===date).map(row=><div key={row.id}>{row.node}</div>)}</section>)}{!feed.length&&<p>No activity in this period.</p>}</section>
-    {!mobile && <details className="transaction-reporting"><summary>{paymentsLabel}</summary><section className="simple-total" aria-label="Confirmed payment total"><span>{paymentsLabel}</span><strong>{currency.format(paymentTotal)}</strong><p>Payments exclude refunds, credits, and unidentified reconciliation adjustments. Cards and other accounts only; house/car payments are separate. Payments recorded differ from net debt reduction because purchases, interest, credits, and lender adjustments also change balances. Budget checklists stay unchanged.</p></section></details>}
-    {deleted.length > 0 && <details className="deleted-payments"><summary>{mobile ? "Recently deleted" : "Deleted transactions"} ({deleted.length})</summary><p>Retained for recovery. Deleted entries do not affect balances or payment totals.</p>{deleted.map(t => <article key={t.id}><div><strong>{names.get(t.accountId) ?? "Removed debt"} · {currency.format(t.amount)}</strong><p>{t.kind} · {dateLabel(t.date)}</p></div><button type="button" className="secondary" disabled={readOnly} onClick={() => open({ action: "restore", id: t.id })} aria-label={"Restore " + (t.kind === "payment" ? "payment" : "transaction") + " of " + currency.format(t.amount) + " for " + (names.get(t.accountId) ?? "removed debt")}>Restore</button></article>)}</details>}
+    {!mobile && <details className="transaction-reporting"><summary>{paymentsLabel}</summary><section className="simple-total" aria-label="Confirmed payment total"><span>{paymentsLabel}</span><strong>{currency.format(paymentTotal)}</strong><p>Payments exclude refunds, credits, and unidentified reconciliation adjustments. Includes recorded house/car payments. Net balance change covers account ledger movements; loan payments retain their own principal, interest and escrow breakdown. Payments recorded differ from net debt reduction because purchases, interest, credits, and lender adjustments also change balances. Budget checklists stay unchanged.</p></section></details>}
+
     {explanation && <SummaryExplanation kind={explanation} value={currency.format(explanation==='payments'?paymentTotal:explanation==='interest'?interestTotal:explanation==='adjustments'?adjustmentTotal:netChange)} onClose={() => { setExplanation(null); onDialog(false); }}/>}
     {!pendingAction && <FloatingAddButton label="Add transaction" disabled={readOnly} onClick={() => open({action:"save"})}/>}
     {paidEntry && onEditBudgetPaid && <BudgetRecordEditor key={paidEntry.id} entry={paidEntry} readOnly={readOnly} onClose={closePaid} onSave={entry=>{onEditBudgetPaid(entry);closePaid();}} onUndo={()=>{onUndoBudgetPaid?.(paidEntry.id);closePaid();}}/>}

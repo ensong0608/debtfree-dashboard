@@ -4,7 +4,7 @@
 .summary{display:block;padding-bottom:8px}
 .summaryRow{display:flex;justify-content:space-between;align-items:baseline;gap:20px;padding:13px 0;border-top:1px solid var(--theme-border);font-size:calc(14px * var(--theme-text-scale,1));font-weight:400}
 .summaryRow>span{color:var(--theme-muted)}
-.summaryRow>strong{text-align:right;font-weight:500;overflow-wrap:anywhere;min-width:0}
+.summaryRow>strong{text-align:right;font-weight:700;overflow-wrap:anywhere;min-width:0}
 .fields{display:flex;flex-direction:column;gap:0;padding:0 20px 20px}
 .fields>label,.fields>div:not(:global(.costco-interest-settings)){display:flex;align-items:center;justify-content:space-between;gap:16px;min-width:0;padding:16px 0;border-bottom:1px solid var(--theme-border)}
 .fields input:not([type=checkbox]),.fields textarea{border:0;background:transparent;box-shadow:none;text-align:right;min-width:0;max-width:100%;padding:8px 0;color:var(--theme-text);font:inherit}

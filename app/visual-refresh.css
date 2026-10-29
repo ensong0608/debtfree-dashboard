@@ -66,7 +66,11 @@ button.primary:disabled{background:var(--theme-raised)!important;color:var(--the
 .shared-dashboard-page>.viewer-readonly-surface{width:100%;min-inline-size:0;padding:0!important;margin:0;border:0}
 .shared-dashboard-page .budget-workspace{padding-inline:0!important}
 
-.money-value{display:inline!important;font:inherit!important;color:inherit!important}
+.money-value{display:inline!important;font:inherit!important;font-weight:700!important;color:inherit!important}
+html .numeric-control[data-currency] input[data-financial-input],.summary-fit-amount,.summary-fit-amount span{font-weight:700!important}
+.paid-status{display:inline-flex;align-items:center;gap:3px;vertical-align:middle}
+.paid-status>span{display:inline-flex;color:var(--theme-success)}
+.paid-status svg{width:14px;height:14px;stroke-width:3}
 .app-shell[data-mobile-layout=true] .shared-dashboard-header .page-heading h1{font-size:calc(21px * var(--theme-text-scale,1));font-weight:700}
 .shared-header-action{min-width:44px;min-height:44px;border-radius:50%;background:var(--theme-accent-fill);color:var(--theme-on-accent)}
 
