@@ -19,6 +19,7 @@ test('phone Advanced records dated actual interest once and preserves the manual
  },{key:DASHBOARD_STORAGE_KEY,fixture,appearanceKey:APPEARANCE_KEY,appearance:THEMES.light});
  const saved=()=>page.evaluate(key=>JSON.parse(localStorage.getItem(key)!).payload,DASHBOARD_STORAGE_KEY);
  await page.goto('/');
+ await expect(page.locator('.home-welcome')).toBeVisible({timeout:30_000});
  await page.getByRole('navigation',{name:'Primary navigation'}).getByRole('button',{name:'Debt',exact:true}).click();
  await page.getByRole('button',{name:'Open Interest test',exact:true}).click();
  const detail=page.getByRole('dialog',{name:'Interest test',exact:true});
