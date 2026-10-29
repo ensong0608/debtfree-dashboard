@@ -48,7 +48,7 @@ test('Los Angeles date and month boundaries do not depend on the phone time zone
 test('invalid interest settings and duplicate monthly IDs cannot enter a backup or household write',()=>{
  const data=backup(costco,accrue());data.payload.transactions.push({...data.payload.transactions[0]});assert.throws(()=>parseDashboardJson(JSON.stringify(data)),/duplicates/);
  const bad=backup(costco,[]);bad.payload.accounts[0].interestAutomation.coveredThrough='2026-02-30';assert.throws(()=>parseDashboardJson(JSON.stringify(bad)),/closing date/);
- bad.payload.accounts[0].interestAutomation={enabled:true,coveredThrough:'2026-10-02',estimatedApr:-1};assert.throws(()=>parseDashboardJson(JSON.stringify(bad)),/greater than 0/);
+ bad.payload.accounts[0].interestAutomation={enabled:true,coveredThrough:'2026-10-02',estimatedApr:-1};assert.throws(()=>parseDashboardJson(JSON.stringify(bad)),/from 0 to 100/);
  const changed=backup(costco,accrue());changed.payload.transactions[0].type='payment';assert.throws(()=>parseDashboardJson(JSON.stringify(changed)),/monthly interest fee/);
 });
 

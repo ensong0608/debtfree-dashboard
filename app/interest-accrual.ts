@@ -50,7 +50,9 @@ export function estimateCycleInterest(account: DebtAccount, transactions: Ledger
     const date = new Date(Date.parse(start + 'T12:00:00Z') + day * 86400000).toISOString().slice(0,10);
     balance += changes.get(date) ?? 0; // Same-day net movement, then interest; no intraday ordering guesses.
     const baseApr = rates.findLast(rate => rate.effectiveDate <= date)?.apr ?? rates[0]?.apr ?? config.estimatedApr;
-    const apr = account.promoEndDate && account.postPromoApr > 0 && date > account.promoEndDate ? account.postPromoApr : baseApr;
+    const apr = account.promoEndDate && account.postPromoApr > 0
+      ? date > account.promoEndDate ? account.postPromoApr : account.apr === 0 ? 0 : baseApr
+      : baseApr;
     interest += Math.max(0, balance) / 100 * apr / 100 / 365;
     rateDays += apr;
   }
@@ -82,12 +84,12 @@ export function interestSettingsError(config: InterestAutomation, today = househ
   if (!Number.isInteger(day) || day < 1 || day > 31) return 'Enter a statement closing day from 1 to 31.';
   if (!validDate(config.coveredThrough) || config.coveredThrough > today) return 'Choose an included-through date no later than today.';
   if (config.coveredThrough !== closingDate(config.coveredThrough.slice(0, 7), day)) return 'Closing day changed. Choose the closing date already included in your balance.';
-  if (!Number.isFinite(config.estimatedApr) || config.estimatedApr < 0 || config.estimatedApr > 100 || config.enabled && config.estimatedApr === 0) return config.enabled ? 'Enter an estimated APR greater than 0 and up to 100%.' : 'Enter an estimated APR from 0 to 100%.';
+  if (!Number.isFinite(config.estimatedApr) || config.estimatedApr < 0 || config.estimatedApr > 100) return 'Enter an estimated APR from 0 to 100%.';
   return '';
 }
 export function validInterestConfig(config: InterestAutomation) {
   const day = config.closingDay ?? 2;
-  return Number.isInteger(day) && day >= 1 && day <= 31 && validDate(config.coveredThrough) && config.coveredThrough === closingDate(config.coveredThrough.slice(0, 7), day) && Number.isFinite(config.estimatedApr) && config.estimatedApr > 0 && config.estimatedApr <= 100;
+  return Number.isInteger(day) && day >= 1 && day <= 31 && validDate(config.coveredThrough) && config.coveredThrough === closingDate(config.coveredThrough.slice(0, 7), day) && Number.isFinite(config.estimatedApr) && config.estimatedApr >= 0 && config.estimatedApr <= 100;
 }
 
 /** Runs on opening/refresh. IDs reserve deleted and reconciled cycles;

@@ -69,6 +69,10 @@ test('rate edits keep elapsed-day APR and promotional end date is inclusive',()=
  assert.equal(estimate({...card,interestAutomation:config}).amount,147.95); // 15 days at 24%, then 15 at 12%.
  assert.equal(estimate({...card,promoEndDate:'2026-04-15',postPromoApr:12}).amount,147.95);
  assert.equal(forecastMonthlyRate({...card,promoEndDate:'2026-03-31',postPromoApr:30},1,date),0.025);
+ const zeroPromo={...card,apr:0,promoEndDate:'2026-04-15',postPromoApr:24};
+ assert.equal(estimate(zeroPromo).amount,98.63);
+ const zero={...card,apr:0,interestAutomation:{...card.interestAutomation,estimatedApr:0}};
+ assert.equal(accrueCostcoInterest([zero],[],'2026-04-30')[0].amount,0);
  assert.equal(accrueCostcoInterest([{...card,type:'Auto loan'}],[],'2026-04-30').length,0);
 });
 
