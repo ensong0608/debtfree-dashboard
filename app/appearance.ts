@@ -1,10 +1,14 @@
 // Keep the original key: loading never rewrites or deletes a saved preference.
 export const APPEARANCE_KEY = 'debtfree-device-appearance-v1';
 export const APPEARANCE_EVENT = 'debtfree-appearance-change';
-export const FONTS = { default: 'Helvetica,"Helvetica Neue",Arial,sans-serif', system: 'system-ui,sans-serif', serif: 'Georgia,"Times New Roman",serif' } as const;
-export const TEXT_SIZES = [9, 10, 11, 12, 13, 14, 15, 16] as const;
+export const FONTS = { default: 'Inter,system-ui,sans-serif', system: 'system-ui,sans-serif', serif: 'Georgia,"Times New Roman",serif' } as const;
+export const TEXT_SIZES = [10, 12, 14] as const;
+export const TEXT_SIZE_LABELS = {10: 'Small', 12: 'Medium', 14: 'Large'} as const;
 export type TextSize = typeof TEXT_SIZES[number] | 'standard' | 'large' | 'larger';
-export function textSizePoints(size: TextSize) { return typeof size === 'number' ? size : size === 'large' ? 14 : size === 'larger' ? 15 : 12; }
+export function textSizePoints(size: unknown): typeof TEXT_SIZES[number] {
+  const numeric = typeof size === 'number' && Number.isFinite(size) && size >= 9 && size <= 20 ? size : size === 'large' || size === 'larger' ? 14 : 12;
+  return TEXT_SIZES.reduce((best, next) => Math.abs(next - numeric) <= Math.abs(best - numeric) ? next : best, TEXT_SIZES[0]);
+}
 export type Theme = 'light' | 'dark' | 'tomorrow';
 export const THEME_LABELS = {light:'Light',dark:'Dark',tomorrow:'Sunshine'} as const;
 type Colors = { accent: string; background: string; surface: string; text: string };
@@ -23,7 +27,7 @@ const LIGHT: Colors = { accent: '#295e9b', background: '#e4ebf3', surface: '#f5f
 const OLD_DARK: Colors = { accent: '#42cfff', background: '#080e16', surface: '#131e2b', text: '#edf3ff' };
 const DARK: Colors = { accent: '#42cfff', background: '#000000', surface: '#121212', text: '#edf3ff' };
 export const DARK_CAROUSEL_DEFAULT = '#edab1d';
-export const DEFAULT_APPEARANCE: Appearance = { version: 2, theme: 'light', font: 'default', size: 'standard', ...LIGHT };
+export const DEFAULT_APPEARANCE: Appearance = { version: 2, theme: 'light', font: 'default', size: 12, ...LIGHT };
 export const THEMES = { tomorrow: {...DEFAULT_APPEARANCE,theme:'tomorrow',accent:'#08766f',background:'#fffaf1',surface:'#fffefa',text:'#143b45'}, light: DEFAULT_APPEARANCE, dark: { ...DEFAULT_APPEARANCE, theme: 'dark', ...DARK } } satisfies Record<Theme, Appearance>;
 // Retained for the existing editor until Section 2 replaces its preset controls.
 export const PRESETS = {
@@ -65,14 +69,14 @@ export function parseAppearance(raw: string | null): Appearance {
     if (p.version === 1) {
       // V1 was light-only. Keep usable typography even if its colors are corrupt.
       const font = typeof p.font === 'string' && Object.hasOwn(FONTS, p.font) ? p.font as Appearance['font'] : 'default';
-      const size = ['standard', 'large', 'larger'].includes(p.size) ? p.size as Appearance['size'] : 'standard';
+      const size = textSizePoints(p.size);
       if (validColors(p) && readableColors(p) && lightSurfaces(p)) {
         const colors = normalizeColors(p);
         return { ...DEFAULT_APPEARANCE, font, size, ...colors, legacyColors: colors };
       }
       return { ...DEFAULT_APPEARANCE, font, size };
     }
-    if (typeof p.size === 'number' && [17,18,19,20].includes(p.size)) p.size = 16;
+    p.size = textSizePoints(p.size);
     if (appearanceError(p)) return { ...DEFAULT_APPEARANCE };
     // Upgrade only the former built-in Light palette in memory. Keep custom
     // surfaces, typography, the selected theme and separately saved Dark color.
@@ -140,7 +144,10 @@ export function appearanceTokens(p: Appearance): Record<string, string> {
   const carousel = p[carouselKey(p.theme)] ?? (dark ? DARK_CAROUSEL_DEFAULT : gradientStart);
   const onCarousel = on(carousel);
   const carouselTone = (color:string) => contrast(color,carousel)>=4.5?color:onCarousel;
+  let wordmarkBlue = '#2684ff';
+  for (let amount=1;contrast(wordmarkBlue,primary)<4.5&&amount>=0;amount-=.02) wordmarkBlue=mix('#2684ff',on(primary),Math.max(0,amount));
   const t: Record<string, string> = {
+    '--theme-wordmark-blue': wordmarkBlue,
     '--theme-primary': primary, '--theme-on-primary': dark ? '#ffffff' : p.theme === 'tomorrow' && contrast(text,primary)>=4.5 ? text : on(primary),
     '--theme-scenery-back': mix(primary,surface,.32), '--theme-scenery-front': mix(accent,surface,.24),
     '--theme-scenery-leaf': mix(accent,surface,.4), '--theme-scenery-sun':'#ffe0a0',

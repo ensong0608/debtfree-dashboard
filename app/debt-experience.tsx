@@ -1,4 +1,5 @@
 'use client';
+import { forecastApr } from './payoff-engine';
 import TitleSelect from './title-select';
 import segmentedStyles from "./segmented-control.module.css";
 import { useId, useMemo, useState, useSyncExternalStore, type ReactNode } from 'react';
@@ -44,7 +45,7 @@ export function UnifiedDebtList({ accounts, loans, payoffMonths = {}, onSelect, 
   const category = controlledCategory ?? localCategory, setCategory = onCategory ?? setLocalCategory;
   const sort = localSort, search = localSearch;
   const rows = useMemo(() => [
-    ...accounts.filter(a => !a.archivedAt).map(a => { const baseline=a.baselineBalance; return { id: a.id, kind: 'account' as const, estimatedPayoff: false, institutionKey: a.institutionKey, name: a.name, type: a.type, balance: a.balance, apr: a.apr, dueDate: nextDueDate(a.dueDate), color: tone(a.type), baseline, progress: trackedPayoffProgress(a) }; }),
+    ...accounts.filter(a => !a.archivedAt).map(a => { const baseline=a.baselineBalance; return { id: a.id, kind: 'account' as const, estimatedPayoff: false, institutionKey: a.institutionKey, name: a.name, type: a.type, balance: a.balance, apr: forecastApr(a,1), dueDate: nextDueDate(a.dueDate), color: tone(a.type), baseline, progress: trackedPayoffProgress(a) }; }),
     ...loans.filter(loan=>loan.remainingAmount>.005||loan.paidOffRestoredAt).map(loan => ({ id: loan.id, kind: 'loan' as const, estimatedPayoff: loanForecastAssumptions(loan).length > 0, institutionKey: loan.institutionKey, name: loan.name, type: loan.kind === 'house' ? 'Mortgage' : 'Auto loan', balance: loan.remainingAmount, apr: loan.apr, dueDate: nextDueDate(loan.dueDate ?? ''), color: tone(loan.kind), baseline: loan.originalAmount > 0 ? loan.originalAmount : undefined, progress: loan.originalAmount > 0 ? Math.max(0,Math.min(100,(1-loan.remainingAmount/loan.originalAmount)*100)) : null })),
   ].filter(a => a.name.toLocaleLowerCase().includes(search.trim().toLocaleLowerCase()))
     .filter(a => category==='all' || debtListCategory(a.type)===category)

@@ -1,0 +1,50 @@
+/* Shared typography and fitting rules for supported device presets. */
+@font-face{font-family:Inter;src:url('/fonts/inter-400.woff') format('woff');font-weight:400;font-style:normal;font-display:swap}
+@font-face{font-family:Inter;src:url('/fonts/inter-500.woff') format('woff');font-weight:500;font-style:normal;font-display:swap}
+@font-face{font-family:Inter;src:url('/fonts/inter-600.woff') format('woff');font-weight:600;font-style:normal;font-display:swap}
+@font-face{font-family:Inter;src:url('/fonts/inter-700.woff') format('woff');font-weight:700;font-style:normal;font-display:swap}
+@font-face{font-family:Inter;src:url('/fonts/inter-800.woff') format('woff');font-weight:800;font-style:normal;font-display:swap}
+@font-face{font-family:Nunito;src:url('/fonts/nunito-800.woff') format('woff');font-weight:800;font-style:normal;font-display:swap}
+:root{--type-page:calc(22px * var(--theme-text-scale,1));--type-section:calc(18px * var(--theme-text-scale,1));--type-card:calc(15px * var(--theme-text-scale,1));--type-body:calc(14px * var(--theme-text-scale,1));--type-secondary:calc(12px * var(--theme-text-scale,1))}
+body,input,button,select,textarea{font-family:var(--theme-font,Inter,system-ui,sans-serif)}
+.shared-dashboard-header .shared-dashboard-title h1,.shared-dashboard-header .page-heading h1{font-size:var(--type-page);font-weight:800;line-height:1.25}
+.screen h2,.settings-group-block h2{font-weight:700;line-height:1.3}
+.money-value,.numeric-control input{font-variant-numeric:tabular-nums}
+.shared-dashboard-wordmark{font-family:Inter,system-ui,sans-serif;font-weight:800;letter-spacing:-1px;color:var(--theme-on-primary)}
+.shared-dashboard-header .shared-dashboard-wordmark b{color:var(--theme-wordmark-blue,#a8ceff)}
+.home-welcome h1{font-family:Nunito,Inter,system-ui,sans-serif;font-weight:800;line-height:1.3;white-space:normal;overflow-wrap:anywhere}
+.text-size-presets{display:grid!important;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.text-size-presets button{display:grid;gap:4px;min-height:60px;padding:10px 6px;background:var(--theme-surface);color:var(--theme-text);border:1px solid var(--theme-control-border);border-radius:10px;font-size:var(--type-body);font-weight:600}
+.text-size-presets button[aria-pressed=true]{border:2px solid var(--theme-accent);background:var(--theme-accent-soft)}.text-size-presets small{font-size:var(--type-secondary);color:var(--theme-muted)}
+.transaction-summary-scope{font-size:var(--type-secondary);line-height:1.5;color:var(--theme-muted);margin:4px 0 12px}
+.budget-transactions-board .payment-activity{display:grid;gap:12px}
+.budget-transactions-board .budget-record-date{display:block}
+.budget-transactions-board .budget-summary-tile small{font-size:var(--type-secondary);overflow-wrap:normal;word-break:normal;hyphens:none;min-height:0;line-height:1.4}
+.budget-transactions-board .budget-board-toolbar{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr) 48px}
+.budget-transactions-board .payments-filters{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.utilization-pie{width:92px;height:92px;flex:none;border-radius:50%;border:1px solid var(--theme-border)}
+.utilization-percent{display:block;font-size:calc(28px * var(--theme-text-scale,1));line-height:1.2;font-variant-numeric:tabular-nums}
+.utilization-hero .utilization-hero-total{display:flex!important;flex-wrap:wrap;gap:12px;margin-top:12px}
+.utilization-hero-total>div{min-width:0;flex:1 1 100px}.utilization-hero .utilization-hero-total strong{font-size:calc(16px * var(--theme-text-scale,1))!important}.utilization-hero-total small{white-space:normal!important}
+.utilization-over-limit{color:var(--theme-danger);font-weight:600}
+.access-denied-card a,.reading-content a{color:var(--theme-accent);text-decoration:underline;text-underline-offset:3px}
+button:focus-visible,a:focus-visible{outline:3px solid var(--theme-focus);outline-offset:3px}
+@media(max-width:820px){
+ .app-shell[data-mobile-layout=true] .sidebar nav{display:grid!important;grid-template-columns:repeat(5,minmax(0,1fr));flex-wrap:nowrap;gap:0}
+ .app-shell[data-mobile-layout=true] .sidebar .nav-item{width:100%;min-width:0;min-height:56px;padding:6px 1px!important}
+ .app-shell[data-mobile-layout=true] .sidebar .nav-item span{font-size:10px!important;white-space:nowrap;overflow-wrap:normal}
+}
+@media(max-width:359px){.app-shell[data-mobile-layout=true] .sidebar .nav-item span{display:none}.app-shell[data-mobile-layout=true] .sidebar .nav-item{min-height:52px}}
+@media(max-width:430px){.budget-transactions-board .payments-filters{grid-template-columns:minmax(0,1fr)}.budget-transactions-board .budget-board-summary{grid-template-columns:minmax(0,1fr)}.budget-transactions-board .budget-summary-tile{flex-direction:row;align-items:center;padding:10px 12px;gap:10px}.budget-transactions-board .budget-summary-tile>span{flex-direction:row;align-items:center;justify-content:space-between;gap:8px}.budget-transactions-board .budget-summary-tile strong{width:auto;flex:none}.budget-transactions-board .budget-summary-tile small{white-space:nowrap}.budget-transactions-board .budget-net-change{flex-wrap:wrap;row-gap:6px}.budget-transactions-board .budget-net-change>span{white-space:normal}.budget-transactions-board .budget-board-toolbar{grid-template-columns:minmax(0,1fr) 48px}.budget-transactions-board .budget-transaction-search{grid-column:1/-1}}
+
+.budget-transactions-board .transaction-account-trigger>span:first-child{white-space:normal;overflow:visible;text-overflow:clip;overflow-wrap:anywhere}
+:root[data-theme=dark] .shared-dashboard-wordmark{color:#fff}
+.shared-dashboard-header .shared-dashboard-wordmark{color:var(--theme-on-primary)}
+@media(max-width:359px){:root .budget-record-main{grid-template-columns:32px minmax(0,1fr) 12px;gap:8px}.budget-record-main>.budget-record-amount{grid-column:2;grid-row:2;justify-self:end}.budget-record-main>.institution-icon{grid-row:1 / 3}.budget-record-main>svg:last-child{grid-column:3;grid-row:1 / 3}}
+
+@media(max-width:430px){.budget-transactions-board .budget-summary-tile{min-height:52px}.budget-transactions-board .budget-summary-tile>span{flex:1;flex-direction:row;align-items:center;justify-content:space-between}.budget-transactions-board .budget-net-change{grid-template-columns:minmax(0,1fr) auto}.budget-transactions-board .budget-net-change>strong{justify-self:end}}
+
+.budget-transactions-board .budget-record-name>strong{font-size:var(--type-card);font-weight:700}
+.budget-transactions-board .budget-record-name>span{font-size:var(--type-body)}
+.budget-transactions-board .budget-record-amount>strong{font-size:calc(16px * var(--theme-text-scale,1))!important}
+.budget-transactions-board .budget-summary-tile strong{font-size:calc(18px * var(--theme-text-scale,1))!important}

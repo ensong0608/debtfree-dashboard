@@ -10,3 +10,9 @@
 @media(prefers-reduced-motion:reduce){.viewport{scroll-behavior:auto}}
 
 .controls button{border-radius:0!important;background:transparent!important}.heading{font-size:16px;font-weight:600;margin-bottom:8px!important}.slide{padding-top:12px;padding-bottom:16px}
+
+/* The shared summary frame is fixed; enlarged browser text may expand it. */
+.slide{height:172px;min-height:172px;padding:10px 14px;display:flex;flex-direction:column}
+.heading{min-height:24px;margin-bottom:4px!important;flex:none}
+.slide>:last-child{flex:1;min-height:0}
+@media(forced-colors:active){.slide{height:auto;min-height:172px}}

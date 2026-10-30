@@ -346,3 +346,11 @@
 :global(html[data-text-size="16"]) .monthlyHero { grid-template-columns: minmax(0, 1fr); gap: 18px; }
 :global(html[data-text-size="16"]) .monthlyGauge { width: min(100%, 260px); justify-self: center; }
 .victoryTrail{position:relative;display:flex;justify-content:space-around;margin:0 24px 20px;gap:8px}.victoryTrail:before{content:"";position:absolute;left:10%;right:10%;top:50%;height:2px;background:var(--theme-success-soft)}.victoryTrail span{position:relative;display:grid;place-items:center;width:28px;height:28px;border-radius:50%;background:var(--theme-success);color:var(--theme-surface)}.victoryTrail svg{width:17px;height:17px}
+
+.integratedSummary .compactSummary{padding:0;border:0;background:transparent;box-shadow:none}
+.compactSummaryMain{min-height:110px;height:100%;gap:10px}
+.compactProgressRing{flex:none;width:88px;height:88px}.compactProgressRing>span{width:70px;height:70px;font-size:20px}
+.compactProgressCopy{min-width:0}.compactProgressCopy>strong,.compactProgressCopy>strong[data-large-value=true]{font-size:24px!important;overflow-wrap:normal}
+.milestoneScope{display:flex;align-items:center;justify-content:space-between;gap:12px;font-size:calc(13px * var(--theme-text-scale,1));color:var(--theme-muted)}
+.milestoneScope select{max-width:65%;min-height:44px;border:1px solid var(--theme-control-border);border-radius:8px;background:var(--theme-surface);color:var(--theme-text);font:inherit}
+@media(max-width:359px){.compactProgressRing{width:72px;height:72px}.compactProgressRing>span{width:58px;height:58px;font-size:17px}.compactProgressCopy>strong,.compactProgressCopy>strong[data-large-value=true]{font-size:22px!important}}

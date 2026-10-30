@@ -6,5 +6,7 @@
 .article h2{font-size:calc(18px * var(--theme-text-scale,1));margin:24px 0 8px}
 .article p{font-size:calc(14px * var(--theme-text-scale,1));line-height:1.65;margin:0 0 18px}
 .article>span{color:var(--theme-muted);font-size:calc(12px * var(--theme-text-scale,1))}
-.article a,.link{color:var(--theme-primary);text-decoration:underline}
+.article a,.link{color:var(--theme-accent);text-decoration:underline}
 .link{display:inline;padding:0;min-height:0;border:0;background:none;font:inherit;text-align:inherit;cursor:pointer}
+
+.link{display:inline-flex;align-items:center;color:var(--theme-accent);text-decoration:underline;text-underline-offset:3px;min-height:44px}

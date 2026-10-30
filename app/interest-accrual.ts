@@ -1,4 +1,4 @@
-import {promoEnabled,promotionalApr} from './debt-terms.ts';
+import {effectiveAprOn} from './debt-terms.ts';
 import { householdDate } from "./household-date.ts";
 export { householdDate } from "./household-date.ts";
 import type { DebtAccount, LedgerTransaction } from "./dashboard-data.ts";
@@ -51,10 +51,7 @@ export function estimateCycleInterest(account: DebtAccount, transactions: Ledger
     const date = new Date(Date.parse(start + 'T12:00:00Z') + day * 86400000).toISOString().slice(0,10);
     balance += changes.get(date) ?? 0; // Same-day net movement, then interest; no intraday ordering guesses.
     const baseApr = rates.findLast(rate => rate.effectiveDate <= date)?.apr ?? rates[0]?.apr ?? config.estimatedApr;
-    const apr = promoEnabled(account) && account.promoEndDate
-      ? account.promoApr !== undefined ? date <= account.promoEndDate ? promotionalApr(account) : baseApr
-        : account.postPromoApr > 0 ? date > account.promoEndDate ? account.postPromoApr : account.apr === 0 ? 0 : baseApr : baseApr
-      : baseApr;
+    const apr = effectiveAprOn(account, date, baseApr);
     interest += Math.max(0, balance) / 100 * apr / 100 / 365;
     rateDays += apr;
   }

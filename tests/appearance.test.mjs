@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { APPEARANCE_KEY, DEFAULT_APPEARANCE, THEMES, PRESETS, PRIMARY_PRESETS, primaryColor, withTheme, appearanceError, appearanceFlags, appearanceTokens, contrast, parseAppearance, loadAppearance, saveAppearance, resetAppearance } from '../app/appearance.ts';
+import { APPEARANCE_KEY, DEFAULT_APPEARANCE, THEMES, PRESETS, PRIMARY_PRESETS, primaryColor, withTheme, appearanceError, appearanceFlags, appearanceTokens, contrast, parseAppearance, loadAppearance, saveAppearance, resetAppearance, textSizePoints } from '../app/appearance.ts';
 const legacy = { version: 1, font: 'serif', size: 'larger', accent: '#795325', background: '#faf6ef', surface: '#fffdfa', text: '#30251b' };
 
 test('new/reset/corrupt/unknown preferences use Light without rewriting storage', () => {
@@ -10,11 +10,11 @@ test('new/reset/corrupt/unknown preferences use Light without rewriting storage'
 });
 test('v1 custom colors migrate in memory with font/size and remain recoverable after theme changes', () => {
   const p = parseAppearance(JSON.stringify(legacy));
-  assert.equal(p.version, 2); assert.equal(p.theme, 'light'); assert.equal(p.font, 'serif'); assert.equal(p.size, 'larger');
+  assert.equal(p.version, 2); assert.equal(p.theme, 'light'); assert.equal(p.font, 'serif'); assert.equal(p.size, 14);
   for (const key of ['accent','background','surface','text']) assert.equal(p[key], legacy[key]);
   assert.deepEqual(withTheme(p, 'dark').legacyColors, p.legacyColors);
-  assert.equal(withTheme(p, 'dark').font, 'serif'); assert.equal(withTheme(p, 'light').size, 'larger');
-  assert.deepEqual(parseAppearance(JSON.stringify({ ...legacy, surface: '#000000' })), { ...DEFAULT_APPEARANCE, font: 'serif', size: 'larger' });
+  assert.equal(withTheme(p, 'dark').font, 'serif'); assert.equal(withTheme(p, 'light').size, 14);
+  assert.deepEqual(parseAppearance(JSON.stringify({ ...legacy, surface: '#000000' })), { ...DEFAULT_APPEARANCE, font: 'serif', size: 14 });
 });
 test('both palettes and supported customs validate theme identity and readable semantic pairs', () => {
   assert.equal(contrast('#000000', '#ffffff'), 21);
@@ -24,7 +24,7 @@ test('both palettes and supported customs validate theme identity and readable s
     const check=(fg,bg,min=4.5)=>assert.ok(contrast(t[`--theme-${fg}`],t[`--theme-${bg}`]) >= min, `${p.theme}: ${fg} / ${bg}`);
     for(const bg of ['background','surface','raised','accent-soft']) for(const fg of ['text','muted','accent']) check(fg,bg);
     for(const bg of ['art-sky','art-cloud','art-mountain-back','art-mountain-front','art-tree','art-water','art-sun']) check('text',bg);
-    check('on-accent','accent-fill'); check('on-strong','strong-surface'); check('on-gradient','gradient-start'); check('on-gradient','gradient-end');
+    check('wordmark-blue','primary'); check('on-accent','accent-fill'); check('on-strong','strong-surface'); check('on-gradient','gradient-start'); check('on-gradient','gradient-end');
     for(const state of ['success','warning','danger','info','violet']) { check(state,`${state}-soft`); check('muted',`${state}-soft`); check(state,'surface'); check(`on-${state}`,`${state}-fill`); }
     for(const series of ['chart-1','chart-2','chart-3']) check(series,'surface',3);
   }
@@ -80,7 +80,7 @@ test('previous built-in Light preferences receive Blue & Slate without rewriting
   for (const key of ['accent','background','surface','text']) assert.equal(upgraded[key], DEFAULT_APPEARANCE[key]);
   assert.equal(primaryColor(upgraded),'#295e9b');
   assert.equal(upgraded.primaryDark,previous.primaryDark);
-  assert.equal(upgraded.font,'serif'); assert.equal(upgraded.size,'large');
+  assert.equal(upgraded.font,'serif'); assert.equal(upgraded.size,14);
   const custom = {...PRESETS.sand, primaryLight:'#aaccee', primaryDark:'#123639'};
   assert.deepEqual(parseAppearance(JSON.stringify(custom)),custom);
   assert.deepEqual(parseAppearance(JSON.stringify({...THEMES.dark,primaryLight:'#aaccee'})),{...THEMES.dark,primaryLight:'#aaccee'});
@@ -89,12 +89,13 @@ test('previous built-in Light preferences receive Blue & Slate without rewriting
   assert.deepEqual(loadAppearance(storage),upgraded);
 });
 
-test('older oversized choices clamp to 16 without losing colors; 9–11 remain supported',()=>{
+test('saved numeric sizes migrate to nearest presets, ties upward, without losing colors',()=>{
  for(const size of [17,18,19,20]){
   const next=parseAppearance(JSON.stringify({...THEMES.dark,size,primaryDark:'#123639'}));
-  assert.equal(next.size,16);assert.equal(next.theme,'dark');assert.equal(next.primaryDark,'#123639');
+  assert.equal(next.size,14);assert.equal(next.theme,'dark');assert.equal(next.primaryDark,'#123639');
  }
- for(const size of [9,10,11])assert.equal(parseAppearance(JSON.stringify({...THEMES.dark,size})).size,size);
+ for(const [size,expected] of [[9,10],[10,10],[11,12],[12,12],[13,14],[14,14],[15,14],[16,14]])assert.equal(parseAppearance(JSON.stringify({...THEMES.dark,size})).size,expected);
+ for(const size of [null,undefined,'invalid',NaN,Infinity,-1,0,21])assert.equal(textSizePoints(size),12);
 });
 
 
@@ -104,7 +105,7 @@ test('three themes stay distinct and repair the mistakenly modified Light palett
  const restored=parseAppearance(JSON.stringify(erroneous));
  assert.equal(restored.theme,'light');
  for(const key of ['accent','background','surface','text'])assert.equal(restored[key],THEMES.light[key]);
- assert.equal(primaryColor(restored),'#295e9b');assert.equal(restored.primaryDark,'#123639');assert.equal(restored.font,'serif');assert.equal(restored.size,15);
+ assert.equal(primaryColor(restored),'#295e9b');assert.equal(restored.primaryDark,'#123639');assert.equal(restored.font,'serif');assert.equal(restored.size,14);
  const custom=parseAppearance(JSON.stringify({...erroneous,accent:'#7040b4',primaryLight:'#7040b4'}));
  assert.equal(custom.accent,'#7040b4');assert.equal(custom.primaryLight,'#7040b4');
  assert.equal(custom.background,THEMES.light.background);

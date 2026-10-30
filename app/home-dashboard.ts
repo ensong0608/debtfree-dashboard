@@ -1,3 +1,4 @@
+import { forecastApr } from './payoff-engine.ts';
 import {regularApr,promoEnabled} from './debt-terms.ts';
 import { householdDate, householdMonthOffset } from "./household-date.ts";
 import { recurringDueDate } from "./recurring-due-date.ts";
@@ -205,7 +206,7 @@ export function buildHomeDashboard(input: HomeDashboardInput): HomeDashboardMode
     accountId: account.id,
     name: account.name,
     balance: account.balance,
-    apr: firstMonth?.aprs[account.id] ?? account.apr,
+    apr: forecastApr(account, 1, calculationDate),
     payment: round(firstMonth?.payments[account.id] ?? effectiveMinimum(account)),
     projectedPayoffMonth: projectedPayoffMonth(input.plan, account.id, calculationDate),
   }));
@@ -219,7 +220,7 @@ export function buildHomeDashboard(input: HomeDashboardInput): HomeDashboardMode
       accountId: focus.id,
       name: focus.name,
       balance: focus.balance,
-      apr: firstMonth?.aprs[focus.id] ?? focus.apr,
+      apr: forecastApr(focus, 1, calculationDate),
       payment,
       projectedPayoffMonth: projectedPayoffMonth(input.plan, focus.id, calculationDate),
     },
