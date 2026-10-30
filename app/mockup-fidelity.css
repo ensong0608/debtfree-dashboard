@@ -122,6 +122,7 @@ html[data-theme=light] .debt-progress-ring>span{background:var(--theme-surface);
 .transaction-date-group{display:grid;gap:12px;margin:16px 0}.transaction-date-group>h2{font-size:14px;color:var(--theme-muted);margin:0}.transaction-date-group .budget-record-date{display:none}
 
 .budget-transactions-board .transaction-account-filter{position:relative}
+.transaction-account-filter>svg:last-of-type{position:absolute;right:10px;top:50%;width:14px;height:14px;color:var(--theme-muted);pointer-events:none;transform:translateY(-50%) rotate(90deg)}
 .transaction-account-trigger{position:absolute;inset:0;z-index:1;display:flex;align-items:center;gap:5px;width:100%;padding:4px 26px 4px 36px;border:0;background:transparent;color:var(--theme-text);text-align:left;font:inherit;cursor:pointer}
 .transaction-account-trigger>span:first-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .transaction-account-options{position:absolute;z-index:20;top:calc(100% + 5px);right:0;width:min(320px,calc(100vw - 36px));max-height:min(55vh,420px);overflow:auto;padding:5px;border:1px solid var(--theme-border);border-radius:10px;background:var(--theme-surface);box-shadow:0 8px 24px var(--theme-shadow)}
