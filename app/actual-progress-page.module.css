@@ -354,3 +354,6 @@
 .milestoneScope{display:flex;align-items:center;justify-content:space-between;gap:12px;font-size:calc(13px * var(--theme-text-scale,1));color:var(--theme-muted)}
 .milestoneScope select{max-width:65%;min-height:44px;border:1px solid var(--theme-control-border);border-radius:8px;background:var(--theme-surface);color:var(--theme-text);font:inherit}
 @media(max-width:359px){.compactProgressRing{width:72px;height:72px}.compactProgressRing>span{width:58px;height:58px;font-size:17px}.compactProgressCopy>strong,.compactProgressCopy>strong[data-large-value=true]{font-size:22px!important}}
+
+.compactProgressRing{width:104px;height:104px}.compactProgressRing>span{width:88px;height:88px;font-size:22px!important;letter-spacing:-.4px}
+@media(max-width:359px){.compactProgressRing{width:92px;height:92px}.compactProgressRing>span{width:78px;height:78px;font-size:21px!important}.compactSummaryMain{gap:8px}}
