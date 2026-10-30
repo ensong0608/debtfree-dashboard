@@ -1,5 +1,7 @@
 "use client";
 import segmentedStyles from "./segmented-control.module.css";
+import Milestones from "./milestones";
+import TitleSelect from "./title-select";
 import PaidStatus from './paid-status';
 import OutlineIcon from './outline-icon';
 import { useState, type CSSProperties, type ReactNode } from "react";
@@ -33,17 +35,6 @@ function ProgressRing({ label, starting, current, reduction, money }: { label: s
   </article>;
 }
 
-function MilestoneItem({ item }: { item: ProgressView["milestones"][number] }) {
-  const evidence = item.status === "projected" && item.projectedMonth ? `Projected ${monthText(item.projectedMonth)}`
-    : item.achievedOn ? `Recorded ${new Date(`${item.achievedOn}T12:00:00Z`).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" })}`
-      : item.firstObservedMonth ? `First observed ${monthText(item.firstObservedMonth)}`
-        : item.evidence === "live-balance" ? "Attained by current balance" : "Not recorded yet";
-  return <li className={`${styles.milestone} ${styles[item.status]}`}>
-    <span className={styles.milestoneMark} aria-hidden="true">{item.status === "achieved" ? "✓" : item.status === "projected" ? "◷" : "○"}</span>
-    <span className={styles.milestoneCopy}><strong>{item.label}</strong><small>{evidence}</small></span>
-    <b>{item.status === "achieved" ? "Achieved" : item.status === "projected" ? "Projected" : "Pending"}</b>
-  </li>;
-}
 
 export default function ActualProgressPage({ accounts, loans, transactions, adjustments, items, plannedAccountAmount, duePaymentAssociations, removedAccounts = [], progressViews, nextPayoffs, onAccounts, utilization, tab: controlledTab, onTab }: {
   tab?: ProgressTab; onTab?: (tab: ProgressTab) => void; groups?: DebtGroup[]; accounts: DebtAccount[]; transactions: LedgerTransaction[]; adjustments: BalanceAdjustment[]; snapshots?: PayoffSnapshot[]; loans: LoanTracker[]; removedAccounts?: RemovedProgressAccount[];
@@ -101,7 +92,6 @@ export default function ActualProgressPage({ accounts, loans, transactions, adju
     ...accountData.groups.flatMap(group => group.accounts).filter(account => !account.removedFromDebts && (account.baselineBalance ?? 0) > 0 && account.balance <= .005).map(account=>({id:account.id,name:account.name})),
     ...loans.filter(loan=>view.loanIds.includes(loan.id)&&loan.originalAmount>0&&loan.remainingAmount<=.005).map(loan=>({id:loan.id,name:loan.name})),
   ];
-  const achievedMilestones=view.milestones.filter(item=>item.status==='achieved');
   const report=monthlyProgressReport({scope:currentScope,today:householdDate(),accounts,loans,transactions,adjustments,items,plannedAccountAmount,duePaymentAssociations});
   const monthLabel=new Date(`${report.month}-01T12:00:00Z`).toLocaleDateString('en-US',{month:'long',timeZone:'UTC'});
   const status=monthlyProgressStatus(report.percentage);
@@ -148,15 +138,7 @@ export default function ActualProgressPage({ accounts, loans, transactions, adju
 
       {tab === "utilization" && <div className={styles.stack}>{utilization ?? <section className={styles.card}><p className={styles.emptyChart}>Utilization data is unavailable.</p></section>}</div>}
 
-      {tab === "milestones" && <div className={styles.stack}>
-        <div className={styles.integratedSummary}><DebtScopeCarousel slides={scopeSlides} value={currentScope} onChange={setScope} label="Progress scope" /></div>
-        <section className={`${styles.card} ${styles.achievementCard}`} aria-labelledby="achievement-title">
-          <header className={styles.victoryHeader}><div className={styles.achievementRing} style={{'--achievement-angle':`${achievedMilestones.length/view.milestones.length*360}deg`} as CSSProperties} role="img" aria-label={`${achievedMilestones.length} of ${view.milestones.length} milestones achieved`}><span>{achievedMilestones.length}/{view.milestones.length}</span></div><div><h2 id="achievement-title">Your progress, celebrated</h2><p>{achievedMilestones.length?'Every milestone is a step forward.':'Your next win starts with a payment.'}</p></div></header>
-          <ol className={styles.milestoneSteps} aria-label="Paydown milestones">{(['quarter','half','three-quarter','debt-free'] as const).map((id,index)=>{const item=view.milestones.find(item=>item.id===id)!;return <li key={id} data-achieved={item.status==='achieved'}><span aria-hidden="true">{item.status==='achieved'?<OutlineIcon name="check"/>:<OutlineIcon name="percent"/>}</span><small>{(index+1)*25}%<span className="sr-only"> {item.status==='achieved'?'achieved':item.status==='projected'?'projected':'pending'}</span></small></li>;})}</ol>
-        </section>
-        {([['Achieved', view.milestones.filter(item => item.status === 'achieved')], ['Coming next', view.milestones.filter(item => item.status !== 'achieved')]] as const).map(([heading, items]) => <section className={styles.card} key={heading}><header className={styles.cardHeader}><h2>{heading}</h2></header>{items.length ? <ol className={styles.milestoneList}>{items.map(item => <MilestoneItem key={item.id} item={item}/>)}</ol> : <p className={styles.emptyChart}>{heading === 'Achieved' ? 'No achieved milestones recorded yet.' : 'No upcoming milestones.'}</p>}</section>)}
-        <section className={styles.card} aria-labelledby="milestone-progress-ring-title"><header className={styles.cardHeader}><div><h2 id="milestone-progress-ring-title">Milestone progress</h2></div></header><div className={styles.ringGrid}>{categoryData.map(category => <ProgressRing key={category.label} label={category.label} starting={category.starting} current={category.current} reduction={category.reduction} money={money} />)}</div></section>
-      </div>}
+      {tab === "milestones" && <Milestones view={view} money={money} scopeControl={<label className={styles.milestoneScope}>Debt category<TitleSelect aria-label="Milestone category" value={currentScope} onChange={event=>setScope(event.target.value as ProgressCarouselScope)}>{scopeOptions.map(option=><option value={option.value} key={option.value}>{option.label}</option>)}</TitleSelect></label>}/>}
     </>}
   </div>;
 }

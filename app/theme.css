@@ -40,7 +40,7 @@
   --theme-gradient-end: #e1edfa;
   --theme-on-gradient: #101b31;
   --theme-summary-ring: #007458;
-  --theme-font: Helvetica,"Helvetica Neue",Arial,sans-serif;
+  --theme-font: Inter,system-ui,sans-serif;
   --theme-text-scale: 1;
   --theme-success-soft: #e1edef;
   --theme-success: #007458;
@@ -96,7 +96,7 @@
   --theme-gradient-start: #302276;
   --theme-gradient-end: #142d4b;
   --theme-on-gradient: #edf3ff;
-  --theme-font: Helvetica,"Helvetica Neue",Arial,sans-serif;
+  --theme-font: Inter,system-ui,sans-serif;
   --theme-text-scale: 1;
   --theme-success-soft: #182e37;
   --theme-success: #4ee3bb;

@@ -76,3 +76,14 @@
 :global(html[data-theme=dark]) .compactRing>span{color:var(--theme-on-carousel)}
 :global(html[data-theme=light][data-carousel-custom=true]) .debtSummary,:global(html[data-theme=tomorrow][data-carousel-custom=true]) .debtSummary{--theme-gradient-start:var(--theme-carousel);--theme-gradient-end:var(--theme-carousel);--theme-on-gradient:var(--theme-on-carousel);--theme-success:var(--theme-carousel-success);--theme-danger:var(--theme-carousel-danger);--theme-summary-ring:var(--theme-carousel-success);--debt-ring-track:color-mix(in srgb,var(--theme-on-carousel) 25%,transparent)}
 :global(html[data-carousel-custom=true]) .compactRing>span{color:var(--theme-on-carousel)}
+
+.reminderRow{grid-template-columns:36px minmax(0,1fr) auto;gap:10px;color:var(--theme-text)}
+.reminderAmount{justify-items:end;max-width:100%}.reminderAmount strong{font-weight:700}
+.payNow{display:inline-flex;align-items:center;justify-content:center;min-height:44px;min-width:76px;padding:6px 12px;border-radius:8px;background:var(--theme-accent-fill);color:var(--theme-on-accent);font-size:calc(12px * var(--theme-text-scale,1));font-weight:700;white-space:nowrap}
+.reminderToggle,.textLink,.compactCopy .textLink{min-height:44px;min-width:44px}
+.duePaymentDialog>footer{flex-wrap:wrap;gap:10px}.duePaymentDialog>footer button{min-height:44px}
+.greeting h1{font-family:Nunito,Inter,system-ui,sans-serif;font-weight:800;overflow-wrap:anywhere}
+.progressCompact{min-height:110px;gap:12px}.compactRing{width:88px;height:88px}.compactRing>span{width:70px;height:70px;font-size:20px}.compactCopy{min-width:0}.compactCopy>strong{font-size:24px}
+@media(max-width:359px){.reminderRow{grid-template-columns:32px minmax(0,1fr)}.reminderAmount{grid-column:2;grid-template-columns:1fr auto;align-items:center;text-align:left;justify-items:start;width:100%}.reminderAmount .payNow{justify-self:end}.compactRing{width:72px;height:72px}.compactRing>span{width:58px;height:58px;font-size:17px}.compactCopy>strong{font-size:22px}}
+
+.sectionHeader .textLink,.summaryHead button{min-height:44px;min-width:44px}

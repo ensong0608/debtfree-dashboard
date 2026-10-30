@@ -8,3 +8,13 @@ export function activeCreditLimit(account:{creditLimit:number;creditLimitEnabled
 export function debtDetailMetadata<T extends {customNote?:string;customNoteEnabled?:boolean;creditLimitEnabled?:boolean;promoEnabled?:boolean;promoApr?:number}>(value:T) {
  return Object.fromEntries(['customNote','customNoteEnabled','creditLimitEnabled','promoEnabled','promoApr'].filter(key=>value[key as keyof T]!==undefined).map(key=>[key,value[key as keyof T]])) as Pick<T,'customNote'|'customNoteEnabled'|'creditLimitEnabled'|'promoEnabled'|'promoApr'>;
 }
+
+/** Current and projected rates share an inclusive promotion end date.
+ * The persisted model has no promotion start date or balance-specific buckets.
+ * Dated interest estimates may supply their historically saved regular rate. */
+export function effectiveAprOn(account: DebtTerms, date: string, datedRegularApr = regularApr(account)) {
+  const applicable = (account.type === undefined || account.type === 'Credit card') && promoEnabled(account) && account.promoEndDate && (account.promoApr !== undefined || account.postPromoApr > 0);
+  if (!applicable) return datedRegularApr;
+  if (date <= account.promoEndDate) return promotionalApr(account);
+  return account.promoApr === undefined && account.postPromoApr > 0 ? account.postPromoApr : datedRegularApr;
+}

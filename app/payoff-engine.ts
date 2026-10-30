@@ -1,4 +1,4 @@
-import {regularApr,promotionalApr,promoEnabled} from './debt-terms.ts';
+import {effectiveAprOn,promoEnabled,regularApr} from './debt-terms.ts';
 import { householdDate, householdMonthOffset } from "./household-date.ts";
 import type { DebtAccount, PayoffStrategy } from "./dashboard-data";
 
@@ -74,7 +74,10 @@ export function promoIsActive(account: DebtAccount, month: number, calculationDa
 }
 
 export function forecastApr(account: DebtAccount, month: number, calculationDate: Date = new Date()) {
-  return hasPromoTerms(account) && promoIsActive(account,month,calculationDate) ? promotionalApr(account) : regularApr(account);
+  const monthKey = forecastMonthKey(month, calculationDate);
+  const [year, value] = monthKey.split('-').map(Number);
+  const day = Math.min(Number(householdDate(calculationDate).slice(8)), new Date(Date.UTC(year,value,0)).getUTCDate());
+  return effectiveAprOn(account, `${monthKey}-${String(day).padStart(2,'0')}`);
 }
 
 /** balance is BEFORE new interest; callers may supply that cycle's already computed charge. */

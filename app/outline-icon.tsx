@@ -1,6 +1,7 @@
-export type IconName = "bell" | "history" | "moon" | "palette" | "text" | "users" | "globe" | "upload" | "download" | "archive" | "help" | "arrow-down" | "arrow-up" | "insurance" | "card" | "list" | "chart" | "more" | "refresh" | "money" | "cart" | "calendar" | "home" | "car" | "receipt" | "chevron" | "settings" | "grid" | "calculator" | "pie" | "check" | "trend" | "percent" | "shield" | "plus" | "sort" | "menu" | "account" | "filter" | "search";
+export type IconName = "flag" | "bell" | "history" | "moon" | "palette" | "text" | "users" | "globe" | "upload" | "download" | "archive" | "help" | "arrow-down" | "arrow-up" | "insurance" | "card" | "list" | "chart" | "more" | "refresh" | "money" | "cart" | "calendar" | "home" | "car" | "receipt" | "chevron" | "settings" | "grid" | "calculator" | "pie" | "check" | "trend" | "percent" | "shield" | "plus" | "sort" | "menu" | "account" | "filter" | "search";
 export default function OutlineIcon({ name }: { name: IconName }) {
   const shapes = {
+    flag: <path d="M5 21V3m0 1c5-4 9 4 14 0v10c-5 4-9-4-14 0"/>,
     bell: <><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4"/></>,
     history:<><circle cx="12" cy="12" r="9"/><path d="M12 7v6l4 2"/></>,
     moon:<path d="M20 15A9 9 0 0 1 9 4a9 9 0 1 0 11 11Z"/>,
