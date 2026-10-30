@@ -6,9 +6,10 @@ import { useState, type CSSProperties, type ReactNode } from "react";
 import { createHouseholdMoneyFormatter } from "./household-currency";
 import { useHouseholdCurrency } from "./household-currency-context";
 import type { DebtGroup } from "./debt-groups";
-import type { BalanceAdjustment, DebtAccount, LedgerTransaction, PayoffSnapshot, RemovedProgressAccount } from "./dashboard-data";
+import type { BalanceAdjustment, DebtAccount, DuePaymentAssociation, LedgerTransaction, PayoffSnapshot, RemovedProgressAccount } from "./dashboard-data";
 import type { LoanTracker } from "./loan-progress";
 import { monthlyProgressReport } from "./monthly-progress-report";
+import { monthlyProgressStatus } from "./monthly-progress-status";
 import { householdDate } from "./household-date";
 import type { ProgressCarouselScope, ProgressViews, buildProgressView } from "./progress-view";
 import type { NextPayoffViews } from './next-payoff';
@@ -44,9 +45,9 @@ function MilestoneItem({ item }: { item: ProgressView["milestones"][number] }) {
   </li>;
 }
 
-export default function ActualProgressPage({ accounts, loans, transactions, adjustments, items, plannedAccountAmount, removedAccounts = [], progressViews, nextPayoffs, onAccounts, utilization, tab: controlledTab, onTab }: {
+export default function ActualProgressPage({ accounts, loans, transactions, adjustments, items, plannedAccountAmount, duePaymentAssociations, removedAccounts = [], progressViews, nextPayoffs, onAccounts, utilization, tab: controlledTab, onTab }: {
   tab?: ProgressTab; onTab?: (tab: ProgressTab) => void; groups?: DebtGroup[]; accounts: DebtAccount[]; transactions: LedgerTransaction[]; adjustments: BalanceAdjustment[]; snapshots?: PayoffSnapshot[]; loans: LoanTracker[]; removedAccounts?: RemovedProgressAccount[];
-  items: import("./dashboard-data").CashflowItem[]; plannedAccountAmount: number; progressViews: ProgressViews; nextPayoffs: NextPayoffViews; readOnly?: boolean; onLoanSnapshot?: () => void; onCapture?: (note: string) => void; onDelete?: (id: string) => void; onUpdateNote?: (id: string, note: string) => void; onAccounts: () => void; onActivity?: () => void; utilization?: ReactNode;
+  items: import("./dashboard-data").CashflowItem[]; plannedAccountAmount: number; duePaymentAssociations?: DuePaymentAssociation[]; progressViews: ProgressViews; nextPayoffs: NextPayoffViews; readOnly?: boolean; onLoanSnapshot?: () => void; onCapture?: (note: string) => void; onDelete?: (id: string) => void; onUpdateNote?: (id: string, note: string) => void; onAccounts: () => void; onActivity?: () => void; utilization?: ReactNode;
 }) {
   const householdCurrency = useHouseholdCurrency();
   const money = createHouseholdMoneyFormatter(householdCurrency, { style: "currency" });
@@ -101,9 +102,10 @@ export default function ActualProgressPage({ accounts, loans, transactions, adju
     ...loans.filter(loan=>view.loanIds.includes(loan.id)&&loan.originalAmount>0&&loan.remainingAmount<=.005).map(loan=>({id:loan.id,name:loan.name})),
   ];
   const achievedMilestones=view.milestones.filter(item=>item.status==='achieved');
-  const report=monthlyProgressReport({scope:currentScope,today:householdDate(),accounts,loans,transactions,adjustments,items,plannedAccountAmount});
+  const report=monthlyProgressReport({scope:currentScope,today:householdDate(),accounts,loans,transactions,adjustments,items,plannedAccountAmount,duePaymentAssociations});
   const monthLabel=new Date(`${report.month}-01T12:00:00Z`).toLocaleDateString('en-US',{month:'long',timeZone:'UTC'});
-  const fill=report.percentage===null?0:Math.min(100,Math.max(0,report.percentage));
+  const status=monthlyProgressStatus(report.percentage);
+  const gauge=Math.min(200,Math.max(0,report.percentage??0));
 
   return <div className={`screen snapshots-screen actual-progress-screen ${styles.screen}`}>
     {!accounts.length && !removedAccounts.length && !loans.length ? <section className="large-empty"><h2>Add a debt to start tracking progress</h2><button className="primary" onClick={onAccounts}>Add debt</button></section> : <>
@@ -114,9 +116,11 @@ export default function ActualProgressPage({ accounts, loans, transactions, adju
 
         <section className={`${styles.card} ${styles.monthlyReport}`} aria-labelledby="monthly-report-title">
           <header className={styles.monthlyReportHeader}><div><h2 id="monthly-report-title">{monthLabel} progress</h2><p>Payments toward your plan</p></div></header>
-          <div className={styles.monthlyOverview}><div className={styles.monthlyAmounts}><span>Recorded payments</span><strong className={styles.monthlyPaid}>{money.format(report.recorded)}</strong><span>{report.planned===null?'No planned amount':`${money.format(report.planned)} planned`}</span></div>
-          <div className={styles.monthlyRing} role="progressbar" aria-label="Recorded payments toward plan" aria-valuemin={0} aria-valuemax={100} aria-valuenow={report.percentage===null?undefined:fill} aria-valuetext={report.percentage===null?'No planned amount':`${Math.round(report.percentage)} percent of plan`} style={{background:`conic-gradient(var(--theme-success) ${fill}%, var(--theme-track) 0)`}}><span>{report.percentage===null?'—':`${Math.round(report.percentage)}%`}</span></div></div>
-          <p className={styles.monthlyRemaining}>{report.remaining===null?'No planned amount':report.remaining===0?'Plan reached':`${money.format(report.remaining)} remaining in your plan`}</p>
+          <div className={styles.monthlyHero}><div className={styles.monthlyMessage}><strong>{status.label}</strong><span>{report.remaining===null?'No planned amount':report.remaining>0?`${money.format(report.remaining)} remaining`:report.recorded>report.planned!?`${money.format(report.recorded-report.planned!)} above your plan`:'Your plan is complete'}</span></div>
+            <div className={styles.monthlyGauge} role="img" aria-label={report.percentage===null?'No planned amount':`${status.display} of plan, ${status.label}`}>
+              <svg viewBox="0 0 120 72" aria-hidden="true"><path d="M 10 60 A 50 50 0 0 1 110 60" pathLength="200" className={styles.gaugeTrack}/>{[[0,79,'start'],[81,18,'good'],[101,29,'perfect'],[132,48,'excellent'],[182,18,'outrageous']].map(([start,length,tone])=><path key={tone} d="M 10 60 A 50 50 0 0 1 110 60" pathLength="200" className={styles.gaugeSegment} data-tone={tone} strokeDasharray={`${length} 200`} strokeDashoffset={-Number(start)}/>)}{report.percentage!==null&&<line x1="60" y1="60" x2="17" y2="60" transform={`rotate(${gauge/200*180} 60 60)`} className={styles.gaugeNeedle}/>}<circle cx="60" cy="60" r="3" className={styles.gaugeHub}/></svg><b>{status.display}</b>
+            </div><svg className={styles.momentum} viewBox="0 0 300 80" preserveAspectRatio="none" aria-hidden="true"><path d="M0 80 Q190 78 300 4 L300 80 Z"/><path d="M50 80 Q205 76 300 34 L300 80 Z"/></svg></div>
+          <div className={styles.monthlyOverview}><div className={styles.monthlyAmounts}><span>Recorded payments</span><strong className={styles.monthlyPaid}>{money.format(report.recorded)}</strong><span>{report.planned===null?'No planned amount':`${money.format(report.planned)} planned`}</span></div></div>
           <div className={styles.monthlyMetrics}><div><span>Interest &amp; fees recorded</span><strong>{report.interest===null?'—':money.format(report.interest)}</strong>{report.hasEstimate&&<small>Includes estimates</small>}</div><div><span>Recorded balance change</span><strong>{report.netChange===null?'—':moneyFormat(report.netChange,money)}</strong></div></div>
           <div className={styles.monthlyAccounts}><h3>Payments by account</h3>{report.accountPayments.length?<ul>{report.accountPayments.map(account=><li key={account.id}><strong>{account.name}</strong><span>{account.paid>0?money.format(account.paid):'No payment recorded'}</span></li>)}</ul>:<p>No accounts in this category.</p>}</div>
         </section>
@@ -134,7 +138,8 @@ export default function ActualProgressPage({ accounts, loans, transactions, adju
         </section>
 
         {paidOffDebts.length>0 && <section className={`${styles.card} ${styles.victories}`} aria-labelledby="paid-off-debts-title">
-          <header className={styles.victoryHeader}><span className={styles.victoryMark} aria-hidden="true"><OutlineIcon name="check"/></span><div><h2 id="paid-off-debts-title">One less debt. Well done.</h2><p>{paidOffDebts.length} {paidOffDebts.length===1?'account':'accounts'} paid off</p></div></header>
+          <header className={styles.victoryHeader}><div><h2 id="paid-off-debts-title">Look how far you’ve come</h2><p>{paidOffDebts.length} {paidOffDebts.length===1?'account':'accounts'} paid off</p></div></header>
+          <div className={styles.victoryTrail} aria-hidden="true">{paidOffDebts.slice(0,4).map(account=><span key={account.id}><OutlineIcon name="check"/></span>)}</div>
           <ul className={styles.victoryList}>{paidOffDebts.map(account=><li key={account.id}><strong>{account.name}</strong><PaidStatus label="Paid off"/></li>)}</ul>
         </section>}
 

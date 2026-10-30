@@ -97,7 +97,7 @@ export default function PaymentsPage({ readOnly, accounts, transactions, adjustm
   const summaryLabel = period === "month" ? "Monthly transaction summary" : period === "year" ? "Yearly transaction summary" : "Lifetime transaction summary";
   const paymentsLabel = period === "month" ? "Payments this month" : period === "year" ? `Payments in ${month.slice(0, 4)}` : "Lifetime payments";
   const periodControl = (
-      <label className="transaction-period-control budget-board-filter"><span><OutlineIcon name="calendar"/><span className="sr-only">Period</span></span><TitleSelect aria-label="Period" value={period === "lifetime" ? "lifetime" : period === "year" ? `year:${month.slice(0, 4)}` : `month:${month}`} onChange={e => {
+      <label className="transaction-period-control budget-board-filter"><span><OutlineIcon name="calendar"/></span><TitleSelect aria-label="Period" value={period === "lifetime" ? "lifetime" : period === "year" ? `year:${month.slice(0, 4)}` : `month:${month}`} onChange={e => {
         const value = e.target.value;
         if (value === "lifetime") setPeriod("lifetime");
         else if (value.startsWith("year:")) { setPeriod("year"); setMonth(`${value.slice(5)}-${month.slice(5, 7)}`); }
@@ -147,9 +147,9 @@ export default function PaymentsPage({ readOnly, accounts, transactions, adjustm
       <button type="button" className="budget-net-change" aria-label="Explain Net balance change" onClick={()=>{setExplanation('net');onDialog(true);}}><span>Net balance change <OutlineIcon name="help"/></span><strong className={netChange>0?'increases':netChange<0?'decreases':''}><SummaryFitAmount full={(netChange<0?'−':netChange>0?'+':'')+currency.format(Math.abs(netChange))} compact={(netChange<0?'−':netChange>0?'+':'')+compact(Math.abs(netChange))}/></strong></button>
     </section>
     <div className="budget-board-toolbar">
-      <label className="budget-transaction-search"><OutlineIcon name="search"/><span className="sr-only">Search transactions</span><input aria-label="Search transactions" type="search" value={search} onChange={event=>setSearch(event.target.value)} placeholder="Search"/></label>
-      <label className="budget-board-filter transaction-category-filter"><span className="sr-only">Transaction type</span><TitleSelect aria-label="Transaction type" value={kindFilter} onChange={event=>setKindFilter(event.target.value)}><option value="all">Type</option><option value="payments">Payments</option><option value="interest">Interest &amp; fees</option><option value="adjustments">Adjustments</option></TitleSelect><OutlineIcon name="chevron"/></label>
-      <label className="budget-board-sort"><OutlineIcon name="sort"/><span className="sr-only">Sort transactions</span><TitleSelect aria-label="Sort transactions" value={sortOrder} onChange={event=>setSortOrder(event.target.value)}><option value="recent">Newest first</option><option value="oldest">Oldest first</option><option value="amount">Largest amount</option></TitleSelect></label>
+      <label className="budget-transaction-search"><OutlineIcon name="search"/><input aria-label="Search transactions" type="search" value={search} onChange={event=>setSearch(event.target.value)} placeholder="Search"/></label>
+      <label className="budget-board-filter transaction-category-filter"><TitleSelect aria-label="Transaction type" value={kindFilter} onChange={event=>setKindFilter(event.target.value)}><option value="all">Type</option><option value="payments">Payments</option><option value="interest">Interest &amp; fees</option><option value="adjustments">Adjustments</option></TitleSelect><OutlineIcon name="chevron"/></label>
+      <label className="budget-board-sort"><OutlineIcon name="sort"/><TitleSelect aria-label="Sort transactions" value={sortOrder} onChange={event=>setSortOrder(event.target.value)}><option value="recent">Newest first</option><option value="oldest">Oldest first</option><option value="amount">Largest amount</option></TitleSelect></label>
     </div>
 
     <section className="payment-activity" aria-label="Transaction activity">{dates.map(date=><section className="transaction-date-group" data-activity-date={date} key={date}><h2>{dateLabel(date)}</h2>{feed.filter(row=>row.date===date).map(row=><div key={row.id}>{row.node}</div>)}</section>)}{!feed.length&&<p>No activity in this period.</p>}</section>
