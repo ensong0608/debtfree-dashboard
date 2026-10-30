@@ -117,8 +117,16 @@ test('three themes stay distinct and repair the mistakenly modified Light palett
 test('dark surfaces and carousel upgrade old defaults without rewriting preferences or losing custom colors',()=>{
  const original={...THEMES.dark,background:'#080e16',surface:'#131e2b',primaryLight:'#295e9b',primaryDark:'#292343',darkCarousel:'#123456',font:'serif',size:15};
  const raw=JSON.stringify(original);const storage={getItem:()=>raw,setItem:()=>assert.fail('load must not rewrite')};
- const saved=loadAppearance(storage);assert.equal(saved.background,'#000000');assert.equal(saved.surface,'#222222');assert.equal(saved.primaryDark,'#292343');assert.equal(saved.darkCarousel,'#123456');assert.equal(saved.font,'serif');
+ const saved=loadAppearance(storage);assert.equal(saved.background,'#000000');assert.equal(saved.surface,'#121212');assert.equal(saved.primaryDark,'#292343');assert.equal(saved.darkCarousel,'#123456');assert.equal(saved.font,'serif');
  const custom={...original,background:'#101010',surface:'#282828'};assert.equal(parseAppearance(JSON.stringify(custom)).surface,'#282828');
  const across=withTheme(withTheme(saved,'light'),'dark');assert.equal(across.darkCarousel,'#123456');
  for(const color of ['#edab1d','#123456','#ffffff','#000000']){const tokens=appearanceTokens({...THEMES.dark,darkCarousel:color,primaryDark:'#ffff00'});assert.equal(tokens['--theme-carousel'],color);assert.ok(contrast(tokens['--theme-on-carousel'],color)>=4.5);assert.equal(tokens['--theme-on-primary'],'#ffffff');assert.ok(contrast(tokens['--theme-on-primary'],tokens['--theme-primary'])>=4.5);}
+});
+
+
+test('carousel choices persist independently per theme and the current dark default upgrades without touching storage',()=>{
+ const original={...THEMES.dark,surface:'#222222',darkCarousel:'#edab1d',lightCarousel:'#aabbcc',tomorrowCarousel:'#d2eee5',font:'serif'};const raw=JSON.stringify(original);const storage={getItem:()=>raw,setItem:()=>assert.fail('loading must not write')};
+ const upgraded=loadAppearance(storage);assert.equal(upgraded.surface,'#121212');assert.equal(upgraded.darkCarousel,'#edab1d');
+ for(const [theme,key,expected] of [['light','lightCarousel','#aabbcc'],['dark','darkCarousel','#edab1d'],['tomorrow','tomorrowCarousel','#d2eee5']]){const value=withTheme(upgraded,theme);assert.equal(value[key],expected);assert.equal(appearanceTokens(value)['--theme-carousel'],expected);}
+ const custom={...original,surface:'#303030'};assert.equal(parseAppearance(JSON.stringify(custom)).surface,'#303030');
 });

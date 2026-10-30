@@ -8,19 +8,20 @@ export function textSizePoints(size: TextSize) { return typeof size === 'number'
 export type Theme = 'light' | 'dark' | 'tomorrow';
 export const THEME_LABELS = {light:'Light',dark:'Dark',tomorrow:'Sunshine'} as const;
 type Colors = { accent: string; background: string; surface: string; text: string };
-export type Appearance = Colors & { version: 2; theme: Theme; font: keyof typeof FONTS; size: TextSize; legacyColors?: Colors; primaryLight?: string; primaryDark?: string; primaryTomorrow?: string; darkCarousel?: string };
+export type Appearance = Colors & { version: 2; theme: Theme; font: keyof typeof FONTS; size: TextSize; legacyColors?: Colors; primaryLight?: string; primaryDark?: string; primaryTomorrow?: string; darkCarousel?: string; lightCarousel?: string; tomorrowCarousel?: string };
 export const PRIMARY_DEFAULTS = { light: '#295e9b', dark: '#1c1c1c', tomorrow: '#d2eee5' };
 export const PRIMARY_PRESETS = {
   tomorrow: [{name:"Mint",color:"#d2eee5"},{name:"Lavender",color:"#e4dcf6"},{name:"Peach",color:"#f4d7c6"}],
   dark: [{ name: 'Midnight Navy', color: '#182b45' }, { name: 'Deep Indigo', color: '#292343' }, { name: 'Deep Teal', color: '#123639' }, { name: 'Graphite', color: '#252b35' }],
   light: [{ name: 'Blue & Slate', color: '#295e9b' }, { name: 'Lavender', color: '#e4dcf6' }, { name: 'Mint', color: '#d2eee5' }, { name: 'Silver', color: '#e1e6ed' }],
 } satisfies Record<Theme, { name: string; color: string }[]>;
+export function carouselKey(theme: Theme) { return theme === 'dark' ? 'darkCarousel' : theme === 'tomorrow' ? 'tomorrowCarousel' : 'lightCarousel'; }
 export function primaryKey(theme: Theme) { return theme === 'dark' ? 'primaryDark' : theme === 'tomorrow' ? 'primaryTomorrow' : 'primaryLight'; }
 export function primaryColor(p: Appearance, theme = p.theme) { return p[primaryKey(theme)] ?? (p.theme===theme && p.accent.toLowerCase()!==THEMES[theme].accent.toLowerCase() ? p.accent : PRIMARY_DEFAULTS[theme]); }
 const PREVIOUS_LIGHT: Colors = { accent: '#0961d9', background: '#f3f7fd', surface: '#ffffff', text: '#101b31' };
 const LIGHT: Colors = { accent: '#295e9b', background: '#e4ebf3', surface: '#f5f8fc', text: '#101b31' };
 const OLD_DARK: Colors = { accent: '#42cfff', background: '#080e16', surface: '#131e2b', text: '#edf3ff' };
-const DARK: Colors = { accent: '#42cfff', background: '#000000', surface: '#222222', text: '#edf3ff' };
+const DARK: Colors = { accent: '#42cfff', background: '#000000', surface: '#121212', text: '#edf3ff' };
 export const DARK_CAROUSEL_DEFAULT = '#edab1d';
 export const DEFAULT_APPEARANCE: Appearance = { version: 2, theme: 'light', font: 'default', size: 'standard', ...LIGHT };
 export const THEMES = { tomorrow: {...DEFAULT_APPEARANCE,theme:'tomorrow',accent:'#08766f',background:'#fffaf1',surface:'#fffefa',text:'#143b45'}, light: DEFAULT_APPEARANCE, dark: { ...DEFAULT_APPEARANCE, theme: 'dark', ...DARK } } satisfies Record<Theme, Appearance>;
@@ -49,7 +50,7 @@ export function appearanceError(value: unknown): string | null {
   const p = value as Record<string, unknown>;
   if (p.version !== 2 || !['light', 'dark', 'tomorrow'].includes(p.theme as string) || typeof p.font !== 'string' || !Object.hasOwn(FONTS, p.font) || ![...TEXT_SIZES, 'standard', 'large', 'larger'].includes(p.size as never)) return 'Choose a supported theme, font and text size.';
   if (!validColors(p)) return 'Use six-digit hex colors, such as #0961d9.';
-  if (['primaryLight', 'primaryDark', 'primaryTomorrow', 'darkCarousel'].some(key => p[key] !== undefined && (typeof p[key] !== 'string' || !/^#[0-9a-f]{6}$/i.test(p[key] as string)))) return 'Use a six-digit primary color, such as #182b45.';
+  if (['primaryLight', 'primaryDark', 'primaryTomorrow', 'darkCarousel', 'lightCarousel', 'tomorrowCarousel'].some(key => p[key] !== undefined && (typeof p[key] !== 'string' || !/^#[0-9a-f]{6}$/i.test(p[key] as string)))) return 'Use a six-digit primary color, such as #182b45.';
   if (!readableColors(p)) return 'Text and accent need more contrast against background and surface.';
   if ((p.theme !== 'dark' && !lightSurfaces(p)) || (p.theme === 'dark' && [p.background, p.surface].some(bg => contrast('#ffffff', bg) <= contrast('#000000', bg)))) return 'Choose surfaces that match the selected theme.';
   if (p.legacyColors !== undefined && (!validColors(p.legacyColors) || !readableColors(p.legacyColors) || !lightSurfaces(p.legacyColors))) return 'Saved custom colors are invalid.';
@@ -84,12 +85,13 @@ export function parseAppearance(raw: string | null): Appearance {
     }
     // Upgrade only the former built-in dark surfaces; keep customized palettes and stored colors.
     if (p.theme === 'dark' && p.background.toLowerCase() === OLD_DARK.background && p.surface.toLowerCase() === OLD_DARK.surface && p.text.toLowerCase() === OLD_DARK.text && !appearanceError({...p,background:DARK.background,surface:DARK.surface})) Object.assign(p, {background:DARK.background,surface:DARK.surface});
+    if (p.theme === 'dark' && p.background.toLowerCase() === '#000000' && p.surface.toLowerCase() === '#222222' && p.text.toLowerCase() === DARK.text && !appearanceError({...p,surface:DARK.surface})) p.surface = DARK.surface;
     if (p.primaryLight?.toLowerCase() === '#cfe7fa') p.primaryLight = PRIMARY_DEFAULTS.light;
-    return { version: 2, theme: p.theme, font: p.font, size: p.size, ...normalizeColors(p), ...(p.legacyColors ? { legacyColors: normalizeColors(p.legacyColors) } : {}), ...(p.primaryLight ? { primaryLight: p.primaryLight.toLowerCase() } : {}), ...(p.primaryDark ? { primaryDark: p.primaryDark.toLowerCase() } : {}), ...(p.primaryTomorrow ? { primaryTomorrow: p.primaryTomorrow.toLowerCase() } : {}), ...(p.darkCarousel ? { darkCarousel: p.darkCarousel.toLowerCase() } : {}) };
+    return { version: 2, theme: p.theme, font: p.font, size: p.size, ...normalizeColors(p), ...(p.legacyColors ? { legacyColors: normalizeColors(p.legacyColors) } : {}), ...(p.primaryLight ? { primaryLight: p.primaryLight.toLowerCase() } : {}), ...(p.primaryDark ? { primaryDark: p.primaryDark.toLowerCase() } : {}), ...(p.primaryTomorrow ? { primaryTomorrow: p.primaryTomorrow.toLowerCase() } : {}), ...(p.darkCarousel ? { darkCarousel: p.darkCarousel.toLowerCase() } : {}), ...(p.lightCarousel ? { lightCarousel: p.lightCarousel.toLowerCase() } : {}), ...(p.tomorrowCarousel ? { tomorrowCarousel: p.tomorrowCarousel.toLowerCase() } : {}) };
   } catch { return { ...DEFAULT_APPEARANCE }; }
 }
 export function withTheme(p: Appearance, theme: Theme): Appearance {
-  return { ...THEMES[theme], font: p.font, size: p.size, ...(p.legacyColors ? { legacyColors: p.legacyColors } : {}), ...(p.primaryLight ? { primaryLight: p.primaryLight } : {}), ...(p.primaryDark ? { primaryDark: p.primaryDark } : {}), ...(p.primaryTomorrow ? { primaryTomorrow: p.primaryTomorrow } : {}), ...(p.darkCarousel ? { darkCarousel: p.darkCarousel } : {}) };
+  return { ...THEMES[theme], font: p.font, size: p.size, ...(p.legacyColors ? { legacyColors: p.legacyColors } : {}), ...(p.primaryLight ? { primaryLight: p.primaryLight } : {}), ...(p.primaryDark ? { primaryDark: p.primaryDark } : {}), ...(p.primaryTomorrow ? { primaryTomorrow: p.primaryTomorrow } : {}), ...(p.darkCarousel ? { darkCarousel: p.darkCarousel } : {}), ...(p.lightCarousel ? { lightCarousel: p.lightCarousel } : {}), ...(p.tomorrowCarousel ? { tomorrowCarousel: p.tomorrowCarousel } : {}) };
 }
 type PreferenceStorage = Pick<Storage, 'getItem' | 'setItem' | 'removeItem'>;
 export function loadAppearance(storage: PreferenceStorage): Appearance { return parseAppearance(storage.getItem(APPEARANCE_KEY)); }
@@ -135,7 +137,7 @@ export function appearanceTokens(p: Appearance): Record<string, string> {
   const headerRail = p.theme === 'tomorrow' ? mix(primary,surface,.2) : mix(primary, '#000000', .82);
   let headerSelected = p.theme === 'tomorrow' ? accent : mix(primary, on(primary), .8);
   if(dark) for(let amount=1;contrast('#ffffff',headerSelected)<4.5&&amount>0;amount-=.02) headerSelected=mix(primary,'#000000',Math.max(0,amount));
-  const carousel = p.darkCarousel ?? DARK_CAROUSEL_DEFAULT;
+  const carousel = p[carouselKey(p.theme)] ?? (dark ? DARK_CAROUSEL_DEFAULT : gradientStart);
   const onCarousel = on(carousel);
   const carouselTone = (color:string) => contrast(color,carousel)>=4.5?color:onCarousel;
   const t: Record<string, string> = {

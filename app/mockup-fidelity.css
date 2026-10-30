@@ -148,3 +148,11 @@ html[data-theme=light] .debt-progress-ring>span{background:var(--theme-surface);
 :root[data-theme=dark] .shared-dashboard-header nav>button{color:#fff!important}
 :root[data-theme=dark] .shared-dashboard-header nav>button:is([aria-pressed=true],[aria-selected=true],[aria-current=page]){background:#414141!important;color:#fff!important}
 :root[data-theme=dark] .appearance-summary-preview{background:var(--theme-carousel)!important;color:var(--theme-on-carousel)!important}
+.budget-transactions-board .budget-board-toolbar{display:grid;grid-template-columns:minmax(80px,.82fr) minmax(112px,1.18fr) 44px;gap:8px;margin-bottom:8px}
+.budget-transactions-board .budget-board-toolbar .budget-transaction-search{gap:4px;padding:0 8px}
+.budget-transactions-board .budget-board-toolbar .transaction-category-filter{width:100%;min-width:0;margin:0}
+.budget-transactions-board .budget-board-toolbar .transaction-category-filter>select{padding-left:10px;padding-right:22px;text-overflow:ellipsis}
+.budget-board-toolbar .transaction-category-filter>span{font-size:calc(14px * var(--theme-text-scale,1))}
+.budget-board-toolbar .budget-board-sort{width:44px;min-width:44px;padding:0}
+.budget-board-toolbar .budget-board-sort>svg{width:20px;height:20px;pointer-events:none}
+.budget-board-toolbar .budget-board-sort:focus-within{outline:2px solid var(--theme-accent);outline-offset:2px}

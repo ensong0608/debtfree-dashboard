@@ -84,3 +84,4 @@
 .minimumEstimate{display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px;margin:0 0 16px}
 .minimumEstimate button{min-height:44px;padding:8px 12px}
 .minimumEstimate small{color:var(--theme-muted);font-size:calc(12px * var(--theme-text-scale,1));line-height:1.4}
+.monthlyProgressLink{display:block;width:fit-content;min-height:44px;margin:12px auto 0;padding:8px 0;border:0;background:transparent;color:var(--theme-accent);font-size:calc(14px * var(--theme-text-scale,1));font-weight:600;text-decoration:underline;text-underline-offset:3px;cursor:pointer}

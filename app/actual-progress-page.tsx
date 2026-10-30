@@ -8,7 +8,8 @@ import { useHouseholdCurrency } from "./household-currency-context";
 import type { DebtGroup } from "./debt-groups";
 import type { BalanceAdjustment, DebtAccount, LedgerTransaction, PayoffSnapshot, RemovedProgressAccount } from "./dashboard-data";
 import type { LoanTracker } from "./loan-progress";
-import { activityMonthLabel } from "./debt-activity-panel";
+import { monthlyProgressReport } from "./monthly-progress-report";
+import { householdDate } from "./household-date";
 import type { ProgressCarouselScope, ProgressViews, buildProgressView } from "./progress-view";
 import type { NextPayoffViews } from './next-payoff';
 import DebtScopeCarousel from "./debt-scope-carousel";
@@ -43,9 +44,9 @@ function MilestoneItem({ item }: { item: ProgressView["milestones"][number] }) {
   </li>;
 }
 
-export default function ActualProgressPage({ accounts, loans, removedAccounts = [], progressViews, nextPayoffs, onAccounts, utilization, tab: controlledTab, onTab }: {
+export default function ActualProgressPage({ accounts, loans, transactions, adjustments, items, plannedAccountAmount, removedAccounts = [], progressViews, nextPayoffs, onAccounts, utilization, tab: controlledTab, onTab }: {
   tab?: ProgressTab; onTab?: (tab: ProgressTab) => void; groups?: DebtGroup[]; accounts: DebtAccount[]; transactions: LedgerTransaction[]; adjustments: BalanceAdjustment[]; snapshots?: PayoffSnapshot[]; loans: LoanTracker[]; removedAccounts?: RemovedProgressAccount[];
-  progressViews: ProgressViews; nextPayoffs: NextPayoffViews; readOnly?: boolean; onLoanSnapshot?: () => void; onCapture?: (note: string) => void; onDelete?: (id: string) => void; onUpdateNote?: (id: string, note: string) => void; onAccounts: () => void; onActivity?: () => void; utilization?: ReactNode;
+  items: import("./dashboard-data").CashflowItem[]; plannedAccountAmount: number; progressViews: ProgressViews; nextPayoffs: NextPayoffViews; readOnly?: boolean; onLoanSnapshot?: () => void; onCapture?: (note: string) => void; onDelete?: (id: string) => void; onUpdateNote?: (id: string, note: string) => void; onAccounts: () => void; onActivity?: () => void; utilization?: ReactNode;
 }) {
   const householdCurrency = useHouseholdCurrency();
   const money = createHouseholdMoneyFormatter(householdCurrency, { style: "currency" });
@@ -77,7 +78,6 @@ export default function ActualProgressPage({ accounts, loans, removedAccounts = 
       </section>;
     })(),
   }));
-  const currentMonth = view.live.asOf.slice(0, 7);
   const accountData = view.actual;
 
   const categoryData = (() => {
@@ -100,10 +100,10 @@ export default function ActualProgressPage({ accounts, loans, removedAccounts = 
     ...accountData.groups.flatMap(group => group.accounts).filter(account => !account.removedFromDebts && (account.baselineBalance ?? 0) > 0 && account.balance <= .005).map(account=>({id:account.id,name:account.name})),
     ...loans.filter(loan=>view.loanIds.includes(loan.id)&&loan.originalAmount>0&&loan.remainingAmount<=.005).map(loan=>({id:loan.id,name:loan.name})),
   ];
-  const paidOffAccounts = paidOffDebts.length;
   const achievedMilestones=view.milestones.filter(item=>item.status==='achieved');
-  const activityMonth = accountData.monthEntries.length ? activityMonthLabel(currentMonth) : null;
-  const monthlyMovement = accountData.monthEntries.length ? accountData.monthlyChange : null;
+  const report=monthlyProgressReport({scope:currentScope,today:householdDate(),accounts,loans,transactions,adjustments,items,plannedAccountAmount});
+  const monthLabel=new Date(`${report.month}-01T12:00:00Z`).toLocaleDateString('en-US',{month:'long',timeZone:'UTC'});
+  const fill=report.percentage===null?0:Math.min(100,Math.max(0,report.percentage));
 
   return <div className={`screen snapshots-screen actual-progress-screen ${styles.screen}`}>
     {!accounts.length && !removedAccounts.length && !loans.length ? <section className="large-empty"><h2>Add a debt to start tracking progress</h2><button className="primary" onClick={onAccounts}>Add debt</button></section> : <>
@@ -111,6 +111,15 @@ export default function ActualProgressPage({ accounts, loans, removedAccounts = 
 
       {tab === "overview" && <div className={styles.stack}>
         <div className={styles.integratedSummary}><DebtScopeCarousel slides={scopeSlides} value={currentScope} onChange={setScope} label="Progress scope" /></div>
+
+        <section className={`${styles.card} ${styles.monthlyReport}`} aria-labelledby="monthly-report-title">
+          <header className={styles.monthlyReportHeader}><div><h2 id="monthly-report-title">{monthLabel} progress</h2><p>Payments toward your plan</p></div></header>
+          <div className={styles.monthlyOverview}><div className={styles.monthlyAmounts}><span>Recorded payments</span><strong className={styles.monthlyPaid}>{money.format(report.recorded)}</strong><span>{report.planned===null?'No planned amount':`${money.format(report.planned)} planned`}</span></div>
+          <div className={styles.monthlyRing} role="progressbar" aria-label="Recorded payments toward plan" aria-valuemin={0} aria-valuemax={100} aria-valuenow={report.percentage===null?undefined:fill} aria-valuetext={report.percentage===null?'No planned amount':`${Math.round(report.percentage)} percent of plan`} style={{background:`conic-gradient(var(--theme-success) ${fill}%, var(--theme-track) 0)`}}><span>{report.percentage===null?'—':`${Math.round(report.percentage)}%`}</span></div></div>
+          <p className={styles.monthlyRemaining}>{report.remaining===null?'No planned amount':report.remaining===0?'Plan reached':`${money.format(report.remaining)} remaining in your plan`}</p>
+          <div className={styles.monthlyMetrics}><div><span>Interest &amp; fees recorded</span><strong>{report.interest===null?'—':money.format(report.interest)}</strong>{report.hasEstimate&&<small>Includes estimates</small>}</div><div><span>Recorded balance change</span><strong>{report.netChange===null?'—':moneyFormat(report.netChange,money)}</strong></div></div>
+          <div className={styles.monthlyAccounts}><h3>Payments by account</h3>{report.accountPayments.length?<ul>{report.accountPayments.map(account=><li key={account.id}><strong>{account.name}</strong><span>{account.paid>0?money.format(account.paid):'No payment recorded'}</span></li>)}</ul>:<p>No accounts in this category.</p>}</div>
+        </section>
 
         <section className={`${styles.card} ${styles.nextPayoff}`} aria-labelledby="next-payoff-title">
           <header className={styles.cardHeader}><h2 id="next-payoff-title">Next payoff</h2></header>
@@ -124,22 +133,12 @@ export default function ActualProgressPage({ accounts, loans, removedAccounts = 
           </div>
         </section>
 
-        {currentScope === "accounts" && <section className={`${styles.card} ${styles.monthlyCard}`} aria-labelledby="progress-overview-detail-title">
-          <header className={styles.cardHeader}><div><h2 id="progress-overview-detail-title">This month</h2></div></header>
-          <div className="progress-month-highlights">
-            {currentScope === "accounts" && <article className="actual-month-card paid-off-card"><h3>Accounts paid off</h3><strong>{paidOffAccounts}</strong></article>}
-            {currentScope === "accounts" && <article className="actual-month-card"><h3>Net account change</h3><strong>{monthlyMovement === null ? "—" : moneyFormat(-monthlyMovement, money)}</strong><p>{monthlyMovement === null ? "No recorded change" : `${monthlyMovement <= 0 ? "lower" : "higher"} · ${activityMonth ?? ""}`}</p></article>}
-          </div>
-        </section>}
-
         {paidOffDebts.length>0 && <section className={`${styles.card} ${styles.victories}`} aria-labelledby="paid-off-debts-title">
           <header className={styles.victoryHeader}><span className={styles.victoryMark} aria-hidden="true"><OutlineIcon name="check"/></span><div><h2 id="paid-off-debts-title">One less debt. Well done.</h2><p>{paidOffDebts.length} {paidOffDebts.length===1?'account':'accounts'} paid off</p></div></header>
           <ul className={styles.victoryList}>{paidOffDebts.map(account=><li key={account.id}><strong>{account.name}</strong><PaidStatus label="Paid off"/></li>)}</ul>
         </section>}
 
-        {currentScope === "accounts" && <section className={`${styles.card} ${styles.compactAccountRows}`} aria-label="Account balance changes">
-          {accountData.groups.flatMap(group=>group.accounts).filter(account=>!account.removedFromDebts && accounts.some(a=>a.id===account.id && !a.archivedAt) && account.balance>0).map(account=><article key={account.id}><span><strong>{account.name}</strong>{account.removedFromDebts && <small>Removed debt · retained balance</small>}</span><b>{account.baselineBalance === undefined ? 'Unavailable' : `${money.format(Math.abs(account.baselineBalance-account.balance))} ${account.baselineBalance>=account.balance?'lower':'higher'}`}</b></article>)}
-        </section>}
+
       </div>}
 
       {tab === "utilization" && <div className={styles.stack}>{utilization ?? <section className={styles.card}><p className={styles.emptyChart}>Utilization data is unavailable.</p></section>}</div>}

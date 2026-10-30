@@ -74,3 +74,5 @@
 :global(html[data-theme=dark]) .home{background:var(--theme-background)}
 :global(html[data-theme=dark]) .debtSummary{--theme-gradient-start:var(--theme-carousel);--theme-gradient-end:var(--theme-carousel);--theme-on-gradient:var(--theme-on-carousel);--theme-success:var(--theme-carousel-success);--theme-danger:var(--theme-carousel-danger);--theme-summary-ring:var(--theme-carousel-success);--debt-ring-track:color-mix(in srgb,var(--theme-on-carousel) 25%,transparent)}
 :global(html[data-theme=dark]) .compactRing>span{color:var(--theme-on-carousel)}
+:global(html[data-theme=light][data-carousel-custom=true]) .debtSummary,:global(html[data-theme=tomorrow][data-carousel-custom=true]) .debtSummary{--theme-gradient-start:var(--theme-carousel);--theme-gradient-end:var(--theme-carousel);--theme-on-gradient:var(--theme-on-carousel);--theme-success:var(--theme-carousel-success);--theme-danger:var(--theme-carousel-danger);--theme-summary-ring:var(--theme-carousel-success);--debt-ring-track:color-mix(in srgb,var(--theme-on-carousel) 25%,transparent)}
+:global(html[data-carousel-custom=true]) .compactRing>span{color:var(--theme-on-carousel)}

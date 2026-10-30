@@ -17,7 +17,7 @@ test('whole filter surfaces, every account history and linked Budget names stay 
  await seed(page,info.project.use.baseURL);await nav(page,'Transactions').click();
  const account=page.getByRole('combobox',{name:'Account',exact:true});
  await account.click();expect(await page.getByRole('listbox',{name:'Choose account'}).getByRole('option').allTextContents()).toEqual(['All accounts','Sample travel','Mortgage','Fitness','Finished cardPaid off','Finished carPaid off']);for(const name of ['Mortgage','Finished car Paid off','Finished card Paid off','Fitness'])await expect(page.getByRole('listbox',{name:'Choose account'}).getByRole('option',{name,exact:true})).toHaveCount(1);await account.click();
- for(const name of ['Period','Account','Sort transactions','Transaction category']){
+ for(const name of ['Period','Account','Sort transactions','Transaction type']){
   const select=page.getByRole('combobox',{name,exact:true});
   const hit=await select.evaluate(el=>{const label=el.closest('label')??el.parentElement!,r=label.getBoundingClientRect();return [5,r.width/2,r.width-5].every(x=>el.contains(document.elementFromPoint(r.left+x,r.top+r.height/2)));});expect(hit,name+' full hit area').toBe(true);
  }
