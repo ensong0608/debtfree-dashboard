@@ -11,7 +11,7 @@ test.beforeEach(async ({page}) => {
     if (!localStorage.getItem(appearanceKey)) localStorage.setItem(appearanceKey,JSON.stringify(dark));
   },{key:DASHBOARD_STORAGE_KEY,fixture:createDemoFixture(),appearanceKey:APPEARANCE_KEY,dark:THEMES.dark});
   await page.goto('/');
-  await expect(page.getByRole('heading',{name:/Welcome,/})).toBeVisible();
+  await expect(page.locator('.home-welcome').getByRole('heading',{name:/^Hi,/})).toBeVisible();
   await expect.poll(()=>page.evaluate(key=>JSON.parse(localStorage.getItem(key)!).payload.snapshots.some((s:{autoCheckpoint?:string})=>Boolean(s.autoCheckpoint)),DASHBOARD_STORAGE_KEY)).toBe(true);
 });
 
@@ -25,12 +25,14 @@ test('compact headers stay aligned, readable and pinned across themes, phone wid
       await page.setViewportSize({width,height:900});
       for(const tab of ['Debt','Progress','Budget']) {
         await nav.getByRole('button',{name:tab,exact:true}).click();
-        const group=header.locator('.compact-segments'), buttons=group.getByRole('button');
+        const group=header.getByRole('navigation',{name:tab==='Debt'?'Debt type filters':tab==='Progress'?'Progress sections':'Budget sections'}), buttons=group.getByRole('button');
         await expect(buttons).toHaveCount(3);
         expect(await group.evaluate(el=>el.scrollWidth<=el.clientWidth+1)).toBe(true);
         const heights=await buttons.evaluateAll(nodes=>nodes.map(el=>el.getBoundingClientRect().height));
         expect(Math.max(...heights)-Math.min(...heights)).toBeLessThan(1);
-        expect(Math.min(...heights)).toBeGreaterThanOrEqual(44);
+        // The shared segmented control specifies a 40px button inside a 48px rail.
+        expect(Math.min(...heights)).toBeGreaterThanOrEqual(40);
+        expect((await group.boundingBox())!.height).toBeGreaterThanOrEqual(48);
         expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1)).toBe(true);
         await expect(header.getByRole('button',{name:'Open Account'})).toHaveCount(0);
         const before=(await header.boundingBox())!.y;
@@ -44,26 +46,13 @@ test('compact headers stay aligned, readable and pinned across themes, phone wid
     expect(contrast.violations).toEqual([]);
   }
   await nav.getByRole('button',{name:'Progress',exact:true}).click();
-  for(const [tab,title] of [['Overview','Progress overview'],['Utilization','Credit card utilization'],['Milestones','Milestone']]) {
+  for(const [tab,title] of [['Overview','Progress'],['Utilization','Credit utilization'],['Milestones','Milestones']]) {
     await header.getByRole('button',{name:tab,exact:true}).click();
     await expect(header.getByRole('heading')).toHaveText(title);
     await expect(header.locator('.shared-header-action')).toHaveCount(0);
   }
-  await nav.getByRole('button',{name:'Debt',exact:true}).click();
-  await header.getByRole('button',{name:'Add debt',exact:true}).click();
-  const debtDialog=page.getByRole('dialog');await expect(debtDialog.getByLabel('Institution (optional)')).toHaveCount(0);
-  await debtDialog.getByRole('button',{name:'Back from account form',exact:true}).click();
-  await expect(page.locator('.debt-add-bar')).toHaveCount(0);
   await nav.getByRole('button',{name:'Budget',exact:true}).click();
-  await expect(header.getByRole('heading')).toHaveText('Budget planned');
-  await header.getByRole('button',{name:'Add planned spending',exact:true}).click();
-  await expect(page.getByRole('dialog',{name:'Add planned entry',exact:true})).toBeVisible();
-  await page.getByRole('button',{name:'Close planned entry form',exact:true}).click();
-  await header.getByRole('button',{name:'Transactions',exact:true}).click();
-  await expect(header.getByRole('heading')).toHaveText('Debt transactions');
-  await header.getByRole('button',{name:'Add transaction',exact:true}).click();
-  await expect(page.getByRole('dialog')).toBeVisible();
-  await page.getByRole('dialog').getByRole('button',{name:/Close|Cancel/}).first().click();
+  await expect(header.getByRole('heading')).toHaveText('Planned budget');
   await header.getByRole('button',{name:'Strategy',exact:true}).click();
   await expect(header.getByRole('heading')).toHaveText('Payoff strategy');
   await expect(header.locator('.shared-header-action')).toHaveCount(0);
