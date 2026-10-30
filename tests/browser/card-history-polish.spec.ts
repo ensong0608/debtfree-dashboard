@@ -1,7 +1,7 @@
 import {test,expect} from '@playwright/test';
 import {createDemoFixture} from '../../mobile/demo-fixture';
 import {DASHBOARD_STORAGE_KEY} from '../../app/data-repository';
-test('balance changes are entered from Transactions and cancellation preserves saved records',async({page},info)=>{
+test('balance changes are entered from Transaction category and cancellation preserves saved records',async({page},info)=>{
  expect(['localhost','127.0.0.1']).toContain(new URL(String(info.project.use.baseURL)).hostname);
  await page.clock.setFixedTime(new Date('2026-10-30T20:00Z'));
  const fixture=createDemoFixture();
@@ -13,11 +13,12 @@ test('balance changes are entered from Transactions and cancellation preserves s
  const detail=page.getByRole('dialog',{name:'Sample card',exact:true});
  await expect(detail.getByRole('button',{name:'Record Payment',exact:true})).toHaveCount(0);await expect(detail.getByRole('button',{name:'Update balance',exact:true})).toHaveCount(0);
  await detail.getByText(/View balance records/).click();await expect(detail.getByText('Before first recorded activity',{exact:true})).toBeVisible();
- await detail.getByRole('tab',{name:'Transactions',exact:true}).click();await detail.getByRole('button',{name:'Update balance',exact:true}).click();
+ await detail.getByRole('tab',{name:'Transactions',exact:true}).click();await expect(detail.getByRole('button',{name:'Update balance',exact:true})).toHaveCount(0);await detail.getByRole('button',{name:'Add transaction',exact:true}).click();
+ const compose=page.getByRole('dialog',{name:'New transaction',exact:true});await compose.getByRole('combobox',{name:'Transaction category',exact:true}).selectOption('balance-update');await expect(compose.getByRole('textbox',{name:'Transaction amount',exact:true})).toHaveCount(0);await compose.getByRole('button',{name:'Continue',exact:true}).click();
  const balance=page.getByRole('dialog',{name:'Update balance',exact:true});await expect(balance.getByRole('textbox',{name:'New current balance',exact:true})).toHaveValue('$900.00');
  await balance.getByRole('textbox',{name:'New current balance',exact:true}).fill('850');await balance.getByRole('button',{name:'Back from balance update form',exact:true}).click();
  await page.getByRole('dialog',{name:/Unsaved/}).getByRole('button',{name:'Discard',exact:true}).click();await detail.getByRole('button',{name:'Close Sample card',exact:true}).click();
- await nav.getByRole('button',{name:'Transactions',exact:true}).click();await page.getByRole('button',{name:'Update balance',exact:true}).click();
- const choice=page.getByRole('dialog',{name:'Update balance',exact:true});await expect(choice.getByRole('combobox',{name:'Account to update',exact:true})).toBeVisible();await choice.getByRole('button',{name:'Continue',exact:true}).click();
+ await nav.getByRole('button',{name:'Transactions',exact:true}).click();await expect(page.getByRole('button',{name:'Update balance',exact:true})).toHaveCount(0);await page.getByRole('button',{name:'Add transaction',exact:true}).click();
+ const choice=page.getByRole('dialog',{name:'New transaction',exact:true});await choice.getByRole('combobox',{name:'Transaction category',exact:true}).selectOption('balance-update');await expect(choice.getByRole('combobox',{name:'Debt account',exact:true})).toBeEnabled();await choice.getByRole('button',{name:'Continue',exact:true}).click();
  await page.getByRole('button',{name:'Back from balance update form',exact:true}).click();await expect(page.getByRole('dialog')).toHaveCount(0);expect(await saved()).toEqual(before);
 });

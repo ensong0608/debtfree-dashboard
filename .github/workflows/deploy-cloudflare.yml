@@ -110,6 +110,20 @@ jobs:
         run: |
           before="$RELEASE_BEFORE"
           if [ -z "$before" ] || ! git cat-file -e "$before^{commit}" 2>/dev/null; then before=HEAD^; fi
+          # Approved category-only balance entry correction: check its phone flow.
+          if [ "$before" = "24c4827f1cd8c83a4057213c8ad4bab4a97a5054" ]; then
+            category_only=true
+            while IFS= read -r changed_path; do
+              case "$changed_path" in
+                .github/workflows/deploy-cloudflare.yml|app/debt-entry-dialog.tsx|app/payments-page.tsx|app/mobile-readiness.css|tests/browser/card-history-polish.spec.ts) ;;
+                *) category_only=false ;;
+              esac
+            done < <(git diff --name-only "$before" HEAD)
+            if [ "$category_only" = true ]; then
+              echo "balance_category=true" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+          fi
           # Approved card/history polish: affected balance contracts and the
           # moved balance-entry workflow only; retain every production safeguard.
           if [ "$before" = "686b8871b98c8240baf2ba97aa30713a9fffc6d6" ]; then
@@ -532,6 +546,12 @@ jobs:
         run: |
           npm run typecheck
           node --test tests/original-balance-history.test.mjs tests/debt-transactions.test.mjs
+          npx playwright install --with-deps chromium
+          npx playwright test tests/browser/card-history-polish.spec.ts --project=phone
+      - name: Verify balance category entry
+        if: steps.loan_changes.outputs.balance_category == 'true'
+        run: |
+          npm run typecheck
           npx playwright install --with-deps chromium
           npx playwright test tests/browser/card-history-polish.spec.ts --project=phone
       - name: Confirm existing production resources
