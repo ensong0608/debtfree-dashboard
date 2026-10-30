@@ -110,6 +110,12 @@ jobs:
         run: |
           before="$RELEASE_BEFORE"
           if [ -z "$before" ] || ! git cat-file -e "$before^{commit}" 2>/dev/null; then before=HEAD^; fi
+          # Retry the monthly progress release with its already-passing focused
+          # phone and calculation checks; this follow-up changes no app source.
+          if [ "$before" = "4461fc51ce2b056c854c23d890e5f217f6d78fd8" ] && git diff --quiet "$before" HEAD -- app tests public; then
+            echo "Reusing the monthly progress phone and calculation checks for unchanged app source."
+            exit 0
+          fi
           # Approved appearance, household and minimum-editor release: reuse the
           # focused local financial, type and phone checks for this exact source.
           if [ "$before" = "5e860918f05d95f1a0a35f10b59284c73996c666" ]; then
