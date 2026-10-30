@@ -1,14 +1,14 @@
-import type {BalanceAdjustment,CashflowItem,DebtAccount,LedgerTransaction} from './dashboard-data.ts';
+import type {BalanceAdjustment,CashflowItem,DebtAccount,DuePaymentAssociation,LedgerTransaction} from './dashboard-data.ts';
 import {paymentActivity} from './payments.ts';
 import {postedMovement} from './payment-overlap.ts';
 import {effectiveMinimum,round} from './payoff-engine.ts';
 import {transactionAdjustedAccounts} from './progress-balances.ts';
-import {regularLoanPayment,type LoanTracker} from './loan-progress.ts';
+import {linkedLoanPayment,regularLoanPayment,type LoanTracker} from './loan-progress.ts';
 import type {ProgressCarouselScope} from './progress-view.ts';
 
 /** A read-only comparison of the chosen monthly plan and recorded activity.
  * Budget paid acknowledgements, deleted entries and superseded estimates are not payments. */
-export function monthlyProgressReport(input:{scope:ProgressCarouselScope;today:string;accounts:DebtAccount[];loans:LoanTracker[];transactions:LedgerTransaction[];adjustments:BalanceAdjustment[];items:CashflowItem[];plannedAccountAmount:number}){
+export function monthlyProgressReport(input:{scope:ProgressCarouselScope;today:string;accounts:DebtAccount[];loans:LoanTracker[];transactions:LedgerTransaction[];adjustments:BalanceAdjustment[];items:CashflowItem[];plannedAccountAmount:number;duePaymentAssociations?:DuePaymentAssociation[]}){
  const {scope,today,accounts,loans,items}=input;const month=today.slice(0,7);
  const inMonth=(date:string)=>date.slice(0,7)===month&&date<=today;
  const accountIds=new Set(accounts.filter(a=>scope==='accounts'?!['Auto loan','Mortgage','House loan'].includes(a.type):scope==='auto'?a.type==='Auto loan':['Mortgage','House loan'].includes(a.type)).map(a=>a.id));
@@ -18,17 +18,33 @@ export function monthlyProgressReport(input:{scope:ProgressCarouselScope;today:s
  const cardPayments=rows.filter(row=>row.kind==='payment').reduce((sum,row)=>sum+row.amount,0);
  const selectedLoans=scope==='accounts'?[]:loans.filter(loan=>!loan.removedAt&&loan.kind===(scope==='home'?'house':'car')&&!loan.id.startsWith('legacy-auto:'));
  const payments=selectedLoans.flatMap(loan=>loan.history.filter(entry=>inMonth(entry.date)&&entry.payment!==undefined));
- const recorded=round(cardPayments+payments.reduce((sum,entry)=>sum+(entry.payment??0),0));
+ // A linked Budget transaction is payment evidence, but a checklist settlement is not.
+ // Where loan history exists in the same month, its relationship to a Budget charge
+ // is not recorded, so prefer that history rather than count an ambiguous duplicate.
+ const linkedPayments = new Map<string,number>();
+ const claimed = new Set<string>();
+ for(const loan of selectedLoans){
+  if(loan.history.some(entry=>inMonth(entry.date)&&entry.payment!==undefined)) continue;
+  const item=linkedLoanPayment(loan,items); if(!item||selectedLoans.filter(candidate=>linkedLoanPayment(candidate,items)?.id===item.id).length!==1) continue;
+  for(const link of input.duePaymentAssociations??[]){
+   if(link.source.type!=='transaction'||![`loan:${loan.id}`,`spending:${item.id}`].includes(link.reminderId)) continue;
+   let row=input.transactions.find(t=>t.id===link.source.id); const seen=new Set<string>();
+   while(row?.replacedByTransactionId&&!seen.has(row.id)){seen.add(row.id);row=input.transactions.find(t=>t.id===row!.replacedByTransactionId);}
+   if(!row||row.deletedAt||row.replacedByTransactionId||row.includedIn||row.type!=='charge'||row.plannedItemId!==item.id||!inMonth(row.date)||claimed.has(row.id))continue;
+   claimed.add(row.id);linkedPayments.set(loan.id,(linkedPayments.get(loan.id)??0)+row.amount);
+  }
+ }
+ const recorded=round(cardPayments+payments.reduce((sum,entry)=>sum+(entry.payment??0),0)+[...linkedPayments.values()].reduce((sum,amount)=>sum+amount,0));
  const accountPayments=accounts.filter(a=>accountIds.has(a.id)&&!a.removedFromDebts&&(!a.archivedAt||rows.some(row=>row.accountId===a.id&&row.kind==='payment'))).map(a=>({id:a.id,name:a.name,paid:round(rows.filter(row=>row.accountId===a.id&&row.kind==='payment').reduce((sum,row)=>sum+row.amount,0))}));
- const loanPayments=selectedLoans.map(loan=>({id:loan.id,name:loan.name,paid:round(loan.history.filter(entry=>inMonth(entry.date)&&entry.payment!==undefined).reduce((sum,entry)=>sum+(entry.payment??0),0))}));
+ const loanPayments=selectedLoans.map(loan=>({id:loan.id,name:loan.name,paid:round(loan.history.filter(entry=>inMonth(entry.date)&&entry.payment!==undefined).reduce((sum,entry)=>sum+(entry.payment??0),0)+(linkedPayments.get(loan.id)??0))}));
  const feeTransactions=tx.filter(t=>t.type==='fee'||t.category==='Interest'||Boolean(t.actualInterestCycle||t.interestEstimate));
- const missingLoanInterest=payments.some(entry=>entry.interest===undefined);
+ const missingLoanInterest=linkedPayments.size>0||payments.some(entry=>entry.interest===undefined);
  const interest=missingLoanInterest?null:round(feeTransactions.reduce((sum,t)=>sum+t.amount,0)+adjustments.filter(a=>a.reportKind==='interest'||a.reportKind==='fee').reduce((sum,a)=>sum+Math.abs(a.difference),0)+payments.reduce((sum,entry)=>sum+(entry.interest??0),0));
  const hasEstimate=feeTransactions.some(t=>Boolean(t.interestEstimate))||payments.some(entry=>entry.interest!==undefined);
  let movement=round(tx.reduce((sum,t)=>sum+postedMovement(t),0)+adjustments.reduce((sum,a)=>sum+a.difference,0));
  // A confirmed lender balance may already contain actual interest whose former
  // estimate was replaced; history alone cannot isolate that movement reliably.
- let movementKnown=!feeTransactions.some(t=>Boolean(t.actualInterestIncludedAt));
+ let movementKnown=linkedPayments.size===0&&!feeTransactions.some(t=>Boolean(t.actualInterestIncludedAt));
  for(const loan of selectedLoans){
   const history=loan.history.filter(entry=>entry.date<=today).slice().sort((a,b)=>a.date.localeCompare(b.date)||a.recordedAt.localeCompare(b.recordedAt));
   for(let i=0;i<history.length;i++)if(inMonth(history[i].date)){

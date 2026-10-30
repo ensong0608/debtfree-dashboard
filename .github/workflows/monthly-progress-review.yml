@@ -1,0 +1,38 @@
+name: Monthly progress phone review
+on:
+  pull_request:
+    branches: [codex/production-release-20261015]
+    paths:
+      - 'app/actual-progress-page.tsx'
+      - 'app/actual-progress-page.module.css'
+      - 'app/monthly-progress-report.ts'
+      - 'app/monthly-progress-status.ts'
+      - 'tests/monthly-progress-report.test.mjs'
+      - 'tests/browser/monthly-report-layout.spec.ts'
+      - '.github/workflows/monthly-progress-review.yml'
+permissions:
+  contents: read
+jobs:
+  phone-review:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: node --test tests/monthly-progress-report.test.mjs
+      - run: npx playwright install --with-deps chromium
+      - run: npx playwright test tests/browser/monthly-report-layout.spec.ts --project=phone
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: monthly-progress-phone-review
+          path: |
+            .wrangler/monthly-report-a1-phone.png
+            .wrangler/transaction-toolbar-phone.png
+            .wrangler/browser-results/
+          include-hidden-files: true
+          retention-days: 7

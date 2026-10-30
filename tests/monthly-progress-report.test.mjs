@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {monthlyProgressReport} from '../app/monthly-progress-report.ts';
+import {monthlyProgressStatus} from '../app/monthly-progress-status.ts';
 const account={id:'card',name:'Card',type:'Credit card',balance:1000,baselineBalance:1000,apr:24,minimum:200,minimumMode:'manual',payoffMode:'priority',interestFee:0,creditLimit:0,dueDate:'2026-10-25',promoEndDate:'',postPromoApr:0,postPromoMinimum:0,createdAt:'2026-01-01'};
 const base={accountId:'card',date:'2026-10-10',createdAt:'2026-10-10T12:00:00Z',updatedAt:'2026-10-10T12:00:00Z',deletedAt:null,payeeId:'',payeeName:'Card',category:'Debt payment',memo:''};
 const tx=(id,type,amount,extra={})=>({...base,id,type,amount,...extra});
@@ -33,4 +34,25 @@ test('recorded balance change uses posting movements and includes classified bal
  const actual=tx('actual','fee',20,{category:'Interest',actualInterestCycle:'2026-10'});
  const result=monthlyProgressReport(input({transactions:[tx('pay','payment',100),actual],adjustments:[fee]}));
  assert.equal(result.recorded,100);assert.equal(result.interest,25);assert.equal(result.netChange,-75);
+});
+
+test('a paired Budget transaction counts for its loan without inventing a balance or interest change',()=>{
+ const loan={id:'auto',name:'Honda',kind:'car',originalAmount:20000,remainingAmount:10000,balanceKind:'principal',asOf:'2026-10-01',budgetItemId:'auto-bill',budgetItemName:'Auto',monthlyPayment:587.30,history:[]};
+ const item={id:'auto-bill',name:'Auto',kind:'expense',amount:587.30};
+ const charge=tx('budget-payment','charge',587.30,{plannedItemId:item.id,accountId:'checking'});
+ const link={reminderId:'loan:auto',dueDate:'2026-10-20',source:{type:'transaction',id:charge.id}};
+ const data=input({scope:'auto',loans:[loan],items:[item],transactions:[charge],duePaymentAssociations:[link,link]});
+ const result=monthlyProgressReport(data);assert.equal(result.recorded,587.30);assert.equal(result.planned,587.30);assert.equal(result.interest,null);assert.equal(result.netChange,null);assert.deepEqual(result.accountPayments,[{id:'auto',name:'Honda',paid:587.30}]);
+ assert.equal(monthlyProgressReport({...data,duePaymentAssociations:[]}).recorded,0);
+ assert.equal(monthlyProgressReport({...data,transactions:[{...charge,deletedAt:'2026-10-25'}]}).recorded,0);
+ assert.equal(monthlyProgressReport({...data,transactions:[{...charge,replacedByTransactionId:'replacement'}, {...charge,id:'replacement',amount:600}]}).recorded,600);
+ assert.equal(monthlyProgressReport({...data,duePaymentAssociations:[{...link,source:{type:'settlement',id:'settlement:paid'}}]}).recorded,0);
+ assert.equal(monthlyProgressReport({...data,transactions:[{...charge,date:'2026-11-01'}]}).recorded,0);
+ const withHistory={...loan,history:[{date:'2026-10-20',recordedAt:'2026-10-20',amount:9500,balanceKind:'principal',payment:587.30,interest:87.30}]};
+ assert.equal(monthlyProgressReport({...data,loans:[withHistory]}).recorded,587.30);
+});
+
+test('monthly achievement thresholds use the unrounded percentage',()=>{
+ for(const [value,label] of [[0,'Your month starts here'],[49,'Making progress'],[50,'Over halfway!'],[79.99,'Over halfway!'],[80,'Good'],[99.99,'Good'],[100,'Perfect!'],[130.99,'Perfect!'],[131,'Excellent!'],[180.99,'Excellent!'],[181,'Outrageous!'],[220,'Outrageous!'],[null,'Set a plan']]) assert.equal(monthlyProgressStatus(value).label,label);
+ assert.equal(monthlyProgressStatus(99.99).display,'99%');
 });
