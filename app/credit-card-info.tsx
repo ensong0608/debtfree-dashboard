@@ -29,7 +29,7 @@ export default function CreditCardInfo({draft,readOnly,onChange,onDelete,creatin
    {draft.customNoteEnabled&&<textarea aria-label="Custom note" maxLength={1000} placeholder="Anything to remember about this debt" value={draft.customNote??''} onChange={event=>apply({customNote:event.target.value})}/>}
   </DetailSection>
   <DetailSection title="Payment & Terms" summary={<><DetailSummary label="Current balance" value={money.format(draft.balance||0)}/><DetailSummary label="APR" value={`${normalApr.toFixed(2)}%`}/><DetailSummary label={draft.minimumMode==='auto'?'Estimated minimum':'Minimum payment'} value={money.format(draft.minimumMode==='auto'?estimatedMinimum(draft.balance,promo&&draft.promoEndDate>=householdDate()?promoApr:normalApr):draft.minimum||0)}/>{promo&&<DetailSummary label="Promo APR" value={`${promoApr.toFixed(2)}%`}/>}</>}>
-   {numeric('balance','Current balance')}
+   {numeric('balance','Current balance',!creating)}
    {!creating&&numeric('baselineBalance','Starting balance')}
    {rate('APR',normalApr,apr=>apply({apr,promoApr:promoApr, ...(draft.interestAutomation?{interestAutomation:{...draft.interestAutomation,estimatedApr:apr}}:{})}))}
    <DetailSwitch label="Auto estimate minimum" checked={draft.minimumMode==='auto'} onChange={enabled=>apply({minimumMode:enabled?'auto':'manual'})}/>

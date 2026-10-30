@@ -110,6 +110,21 @@ jobs:
         run: |
           before="$RELEASE_BEFORE"
           if [ -z "$before" ] || ! git cat-file -e "$before^{commit}" 2>/dev/null; then before=HEAD^; fi
+          # Approved card/history polish: affected balance contracts and the
+          # moved balance-entry workflow only; retain every production safeguard.
+          if [ "$before" = "686b8871b98c8240baf2ba97aa30713a9fffc6d6" ]; then
+            card_polish_only=true
+            while IFS= read -r changed_path; do
+              case "$changed_path" in
+                .github/workflows/deploy-cloudflare.yml|app/actual-progress-page.module.css|app/card-progress-chart.tsx|app/credit-card-info.tsx|app/dashboard-client.tsx|app/debt-experience.module.css|app/debt-experience.tsx|app/debt-scope-carousel.module.css|app/home-dashboard.module.css|app/mobile-readiness.css|app/payments-page.tsx|app/transaction-account-filter.tsx|tests/browser/card-history-polish.spec.ts) ;;
+                *) card_polish_only=false ;;
+              esac
+            done < <(git diff --name-only "$before" HEAD)
+            if [ "$card_polish_only" = true ]; then
+              echo "card_polish=true" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+          fi
           # Approved mobile-readiness release: run its affected regressions and
           # reuse the reviewed sample-data viewport/dialog checks. Production
           # backup, resource identity, exact bundle and data/auth gates stay on.
@@ -512,6 +527,13 @@ jobs:
         run: |
           npm run typecheck
           node --test tests/appearance.test.mjs tests/effective-apr.test.mjs tests/interest-accrual.test.mjs tests/payoff-boundaries.test.mjs tests/due-reminders.test.mjs tests/home-dashboard.test.mjs tests/payment-interest-followup.test.mjs
+      - name: Verify approved card and history polish
+        if: steps.loan_changes.outputs.card_polish == 'true'
+        run: |
+          npm run typecheck
+          node --test tests/original-balance-history.test.mjs tests/debt-transactions.test.mjs
+          npx playwright install --with-deps chromium
+          npx playwright test tests/browser/card-history-polish.spec.ts --project=phone
       - name: Confirm existing production resources
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}

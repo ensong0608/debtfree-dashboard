@@ -16,3 +16,11 @@
 .heading{min-height:24px;margin-bottom:4px!important;flex:none}
 .slide>:last-child{flex:1;min-height:0}
 @media(forced-colors:active){.slide{height:auto;min-height:172px}}
+
+.slide{position:relative;isolation:isolate;overflow:hidden;background-image:radial-gradient(ellipse at 95% 0%,color-mix(in srgb,var(--theme-accent) 10%,transparent),transparent 60%),linear-gradient(135deg,var(--theme-gradient-start),var(--theme-gradient-end))}
+.slide:before,.slide:after{content:"";position:absolute;pointer-events:none;z-index:-1;border:1px solid color-mix(in srgb,var(--theme-on-gradient) 9%,transparent);border-radius:50%;width:280px;height:280px;right:-165px;top:-165px}
+.slide:after{width:340px;height:340px;right:-185px;top:-180px}
+:global(html[data-theme=dark]) .slide{background-image:radial-gradient(ellipse at 95% 0%,#ffffff15,transparent 62%),linear-gradient(135deg,var(--theme-gradient-start),var(--theme-gradient-end))}
+:global(html[data-theme=tomorrow]) .slide:before,:global(html[data-theme=tomorrow]) .slide:after{display:none}
+
+.viewport{padding-right:12px}.controls{right:12px}
