@@ -28,3 +28,4 @@
 :root[data-theme=tomorrow] .strategy-list-heading::before{content:"Small payments create big freedom.";position:absolute;left:0;top:-17px;color:var(--theme-muted);font-size:10px;line-height:12px;font-family:"Segoe Print","Bradley Hand",cursive;pointer-events:none}
 :root[data-theme=tomorrow] .budget-net-change{position:relative}
 :root[data-theme=tomorrow] .budget-net-change::after{content:"Every step counts.";position:absolute;right:12px;bottom:2px;color:var(--theme-muted);font-size:10px;line-height:12px;font-family:"Segoe Print","Bradley Hand",cursive;pointer-events:none}
+:root[data-theme=tomorrow][data-carousel-custom=true] .brighter-progress-slide .brighter-encouragement{color:var(--theme-on-carousel)}

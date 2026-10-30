@@ -13,9 +13,10 @@ import OutlineIcon from "./outline-icon";
 import PayoffStrategyList from "./payoff-strategy-list";
 import styles from "./payoff-home.module.css";
 
-export default function PayoffSchedule({ schedule, rows, amount, readOnly = false, onAmount, onClose, strategy, onStrategy, minimums, minimumExpected, onMinimums, onReviewTerms, inline = false }: {
+export default function PayoffSchedule({ schedule, rows, amount, readOnly = false, onAmount, onClose, strategy, onStrategy, minimums, minimumExpected, onMinimums, onReviewTerms, onProgress, inline = false }: {
   inline?: boolean;
   onReviewTerms?: (issue: string) => void;
+  onProgress: () => void;
   schedule: Schedule; rows: PayoffStrategyRow[]; amount: number; date: Date; readOnly?: boolean;
   onAmount: (amount: number) => void; onClose: () => void;
   strategy: "avalanche"|"snowball"; onStrategy:(value:"avalanche"|"snowball")=>void;
@@ -44,6 +45,7 @@ export default function PayoffSchedule({ schedule, rows, amount, readOnly = fals
           {schedule.issues.map(issue => <div key={issue} role="alert" className={styles.scheduleMessage}><p>{issue}</p><button type="button" className="secondary" onClick={() => { if (issue.includes(': ') && onReviewTerms) onReviewTerms(issue); else if (issue.toLowerCase().includes('minimum')) setEditMinimums(true); else document.getElementById('schedule-payment')?.focus(); }}>{issue.includes(': ') ? 'Review loan details' : issue.toLowerCase().includes('minimum') ? 'Edit minimums' : 'Adjust extra payment'}</button></div>)}
           <div className="strategy-list-heading"><h3>Extra-payment priority</h3><span>{strategy}</span></div>
           <PayoffStrategyList rows={rows}/>
+          <button type="button" className={styles.monthlyProgressLink} onClick={onProgress}>See your progress this month</button>
         </div>
       </div>
     {editMinimums&&<ScheduleMinimumEditor items={minimums} expected={minimumExpected} onSave={onMinimums} onClose={()=>setEditMinimums(false)}/>}
